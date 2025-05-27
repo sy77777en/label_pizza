@@ -1,10 +1,11 @@
 from datetime import datetime
 from sqlalchemy import (
     Column, Integer, String, Text, Boolean, DateTime, Float, Enum,
-    UniqueConstraint, Index, create_engine
+    UniqueConstraint, Index, create_engine, JSON
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import declarative_base, Session
+import json
 
 Base = declarative_base()
 now = lambda: datetime.utcnow()
@@ -35,7 +36,7 @@ class Video(Base):
     id = Column(Integer, primary_key=True)
     video_uid = Column(String(180), unique=True, nullable=False)
     url = Column(Text)
-    metadata = Column(JSONB)
+    video_metadata = Column(JSONB)
     created_at = Column(DateTime(timezone=True), default=now)
     updated_at = Column(DateTime(timezone=True), default=now, onupdate=now)
     is_archived = Column(Boolean, default=False)
@@ -51,9 +52,9 @@ class VideoTag(Base):
 class QuestionGroup(Base):
     __tablename__ = "question_groups"
     id = Column(Integer, primary_key=True)
-    title = Column(String, nullable=False)
+    title = Column(String, unique=True, nullable=False)
     description = Column(Text)
-    is_reusable = Column(Boolean, default=False)   # <-- NEW
+    is_reusable = Column(Boolean, default=False)
     is_archived = Column(Boolean, default=False)
 
 class Question(Base):
@@ -130,26 +131,20 @@ class Answer(Base):
     question_id = Column(Integer, nullable=False)
     user_id = Column(Integer, nullable=False)
     project_id = Column(Integer, nullable=False)
-
-    answer_type = Column(Enum("single", "description", name="answer_value_types"),
-                         default="single", nullable=False)
+    answer_type = Column(Enum("single", "description", name="answer_value_types"), default="single", nullable=False)
     answer_value = Column(Text, nullable=False)
     confidence_score = Column(Float)
     is_ground_truth = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), default=now)
-
     modified_by_user_id = Column(Integer)
     notes = Column(Text)
 
     __table_args__ = (
         UniqueConstraint("video_id", "question_id", "user_id", "project_id", name="uq_answer_scope"),
-        UniqueConstraint("video_id", "question_id", "project_id", name="uq_gt_row",
-                         deferrable=True, initially="DEFERRED"),
+        UniqueConstraint("video_id", "question_id", "project_id", name="uq_gt_row", deferrable=True, initially="DEFERRED"),
         Index("ix_answer_question", "question_id"),
         Index("ix_answer_proj_q", "project_id", "question_id"),
-        Index("ix_proj_q_val_single",
-              "project_id", "question_id", "answer_value",
-              postgresql_where=(answer_type == "single")),
+        Index("ix_proj_q_val_single", "project_id", "question_id", "answer_value", postgresql_where=(answer_type == "single")),
         Index("ix_answer_vid_q", "video_id", "question_id"),
     )
 
@@ -164,7 +159,10 @@ class AnswerReview(Base):
 
 # ---------------- create & smoke-test -------------------------------------
 if __name__ == "__main__":
-    engine = create_engine("postgresql+psycopg://viduser:pass@localhost/vidlabel", echo=False)
+    import os
+    from dotenv import load_dotenv
+    load_dotenv()
+    engine = create_engine(os.environ["DBURL"], echo=False)
     Base.metadata.create_all(engine)
 
     with Session(engine) as session:

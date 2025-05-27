@@ -1,0 +1,11 @@
+sqlalchemy
+supabase
+streamlit
+streamlit-feedback
+opencv-python-headless
+numpy
+pandas
+matplotlib
+psycopg[binary]
+python-dotenv
+pytest

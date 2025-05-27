@@ -38,15 +38,15 @@ Soft-disable via `is_active` keeps audit history.
 
 ## 2 · `videos`
 
-| column | type | notes |
-| ------ | ---- | ----- |
-| `id`          | INT PK |
-| `video_uid`   | VARCHAR(180) UNIQUE | file-name or UUID |
-| `url`         | TEXT |
-| `metadata`    | JSONB |
-| `created_at`  | TIMESTAMPTZ |
-| `updated_at`  | TIMESTAMPTZ |
-| `is_archived` | BOOL |
+| column | type    | notes |
+| ------ | ------- | ----- |
+| `id`             | INT PK |
+| `video_uid`      | VARCHAR(180) UNIQUE | file-name or UUID |
+| `url`            | TEXT |
+| `video_metadata` | JSONB |
+| `created_at`     | TIMESTAMPTZ |
+| `updated_at`     | TIMESTAMPTZ |
+| `is_archived`    | BOOL |
 
 **Rationale** – `video_uid` lets UI find assets without joins; metadata stays searchable.  
 Archiving supports takedowns.
