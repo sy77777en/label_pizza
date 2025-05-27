@@ -102,7 +102,8 @@ class VideoService:
                     )
                 )
                 
-                status = "✓" if gt_answers == total_questions else "✗"
+                # Only mark as complete if there are questions and all have ground truth
+                status = "✓" if total_questions > 0 and gt_answers == total_questions else "✗"
                 project_status.append(f"{p.name}: {status}")
             
             rows.append({
@@ -113,28 +114,66 @@ class VideoService:
         return pd.DataFrame(rows)
 
     @staticmethod
-    def add_video(url: str, session: Session) -> None:
-        """Add a new video with validation."""
-        # Extract video_uid from URL (using the full filename)
-        video_uid = url.split("/")[-1]
-        if not video_uid:
-            raise ValueError("URL must end with a filename")
+    def add_video(url: str, session: Session, metadata: dict = None) -> None:
+        """Add a new video to the database.
         
-        # Check if video already exists
+        Args:
+            url: The URL of the video
+            session: Database session
+            metadata: Optional dictionary containing video metadata
+        """
+        if not url.startswith(("http://", "https://")):
+            raise ValueError("URL must start with http:// or https://")
+        
+        # Extract filename and check for extension
+        filename = url.split("/")[-1]
+        if not filename or "." not in filename:
+            raise ValueError("URL must end with a filename with extension")
+        
+        if len(url) > 180:
+            raise ValueError("URL is too long (max 180 characters)")
+        
+        # Validate metadata type
+        if metadata is not None:
+            if not isinstance(metadata, dict):
+                raise ValueError("Metadata must be a dictionary")
+            
+            # Validate metadata value types
+            for key, value in metadata.items():
+                if not isinstance(value, (str, int, float, bool, list, dict)):
+                    raise ValueError(f"Invalid metadata value type for key '{key}': {type(value)}")
+                if isinstance(value, list):
+                    # Validate list elements
+                    for item in value:
+                        if not isinstance(item, (str, int, float, bool, dict)):
+                            raise ValueError(f"Invalid list element type in metadata key '{key}': {type(item)}")
+                elif isinstance(value, dict):
+                    # Validate nested dictionary values
+                    for k, v in value.items():
+                        if not isinstance(v, (str, int, float, bool, list, dict)):
+                            raise ValueError(f"Invalid nested metadata value type for key '{key}.{k}': {type(v)}")
+        
+        # Check if video already exists (case-insensitive)
         existing = session.scalar(
-            select(Video).where(Video.video_uid == video_uid)
+            select(Video).where(func.lower(Video.video_uid) == func.lower(filename))
         )
         if existing:
-            raise ValueError(f"Video with UID '{video_uid}' already exists")
+            raise ValueError(f"Video with UID {filename} already exists")
         
-        session.add(Video(video_uid=video_uid, url=url))
+        # Create new video
+        video = Video(
+            video_uid=filename,
+            url=url,
+            video_metadata=metadata or {}
+        )
+        session.add(video)
         session.commit()
 
 class ProjectService:
     @staticmethod
     def get_all_projects(session: Session) -> pd.DataFrame:
         rows = []
-        for p in session.scalars(select(Project)).all():
+        for p in session.scalars(select(Project).where(Project.is_archived == False)).all():
             v_total = session.scalar(select(func.count()).select_from(ProjectVideo)
                                 .where(ProjectVideo.project_id == p.id))
             q_total = session.scalar(select(func.count()).select_from(SchemaQuestion)
@@ -152,9 +191,47 @@ class ProjectService:
 
     @staticmethod
     def create_project(name: str, schema_id: int, video_ids: List[int], session: Session) -> None:
+        # Check if schema exists and is not archived
+        schema = session.get(Schema, schema_id)
+        if not schema:
+            raise ValueError(f"Schema with ID {schema_id} not found")
+        if schema.is_archived:
+            raise ValueError("Schema is archived")
+            
+        # Check if videos exist and are not archived
+        for video_id in video_ids:
+            video = session.get(Video, video_id)
+            if not video:
+                raise ValueError(f"Video with ID {video_id} not found")
+            if video.is_archived:
+                raise ValueError("Video is archived")
+                
+        # Check for duplicate videos
+        if len(set(video_ids)) != len(video_ids):
+            raise ValueError("Video already in project")
+            
+        # Check if project name exists
+        existing = session.scalar(select(Project).where(Project.name == name))
+        if existing:
+            raise ValueError(f"Project with name '{name}' already exists")
+            
         p = Project(name=name, schema_id=schema_id)
         session.add(p)
         session.flush()
+        
+        # Check for duplicate videos in existing projects
+        for video_id in video_ids:
+            existing = session.scalar(
+                select(ProjectVideo)
+                .join(Project, ProjectVideo.project_id == Project.id)
+                .where(
+                    ProjectVideo.video_id == video_id,
+                    Project.is_archived == False
+                )
+            )
+            if existing:
+                raise ValueError("Video already in project")
+        
         session.bulk_save_objects([
             ProjectVideo(project_id=p.id, video_id=v) for v in video_ids
         ])
@@ -163,6 +240,93 @@ class ProjectService:
     @staticmethod
     def get_video_ids_by_uids(video_uids: List[str], session: Session) -> List[int]:
         return session.scalars(select(Video.id).where(Video.video_uid.in_(video_uids))).all()
+
+    @staticmethod
+    def archive_project(project_id: int, session: Session) -> None:
+        """Archive a project and block new answers.
+        
+        Args:
+            project_id: The ID of the project to archive
+            session: Database session
+            
+        Raises:
+            ValueError: If project not found
+        """
+        project = session.get(Project, project_id)
+        if not project:
+            raise ValueError(f"Project with ID {project_id} not found")
+        
+        project.is_archived = True
+        session.commit()
+
+    @staticmethod
+    def progress(project_id: int, session: Session) -> dict:
+        """Get project progress statistics.
+        
+        Args:
+            project_id: The ID of the project
+            session: Database session
+            
+        Returns:
+            dict: Contains:
+                - total_videos: Total number of videos in project
+                - total_questions: Total number of questions in schema
+                - total_answers: Total number of answers submitted
+                - ground_truth_answers: Number of ground truth answers
+                - completion_percentage: Percentage of completion
+                
+        Raises:
+            ValueError: If project not found
+        """
+        project = session.get(Project, project_id)
+        if not project:
+            raise ValueError(f"Project with ID {project_id} not found")
+        
+        # Get total videos in project
+        total_videos = session.scalar(
+            select(func.count())
+            .select_from(ProjectVideo)
+            .where(ProjectVideo.project_id == project_id)
+        )
+        
+        # Get total questions in schema
+        total_questions = session.scalar(
+            select(func.count())
+            .select_from(SchemaQuestion)
+            .where(SchemaQuestion.schema_id == project.schema_id)
+        )
+        
+        # Get total answers
+        total_answers = session.scalar(
+            select(func.count())
+            .select_from(Answer)
+            .where(Answer.project_id == project_id)
+        )
+        
+        # Get ground truth answers
+        ground_truth_answers = session.scalar(
+            select(func.count())
+            .select_from(Answer)
+            .where(
+                Answer.project_id == project_id,
+                Answer.is_ground_truth == True
+            )
+        )
+        
+        # Calculate completion percentage
+        total_possible_answers = total_videos * total_questions
+        completion_percentage = round(
+            (ground_truth_answers / total_possible_answers * 100) if total_possible_answers > 0 else 0,
+            2
+        )
+        
+        return {
+            "total_videos": total_videos,
+            "total_questions": total_questions,
+            "total_answers": total_answers,
+            "ground_truth_answers": ground_truth_answers,
+            "completion_percentage": completion_percentage
+        }
 
 class SchemaService:
     @staticmethod
@@ -188,6 +352,11 @@ class SchemaService:
 
     @staticmethod
     def create_schema(name: str, rules_json: dict, session: Session) -> Schema:
+        # Check if schema with same name exists
+        existing = session.scalar(select(Schema).where(Schema.name == name))
+        if existing:
+            raise ValueError(f"Schema with name '{name}' already exists")
+            
         schema = Schema(name=name, rules_json=rules_json)
         session.add(schema)
         session.commit()
@@ -195,8 +364,89 @@ class SchemaService:
 
     @staticmethod
     def add_question_to_schema(schema_id: int, question_id: int, session: Session) -> None:
+        # Check if schema exists
+        schema = session.get(Schema, schema_id)
+        if not schema:
+            raise ValueError(f"Schema with ID {schema_id} not found")
+            
+        # Check if question exists
+        question = session.get(Question, question_id)
+        if not question:
+            raise ValueError(f"Question with ID {question_id} not found")
+            
+        # Check if question is already in schema
+        existing = session.scalar(
+            select(SchemaQuestion).where(
+                SchemaQuestion.schema_id == schema_id,
+                SchemaQuestion.question_id == question_id
+            )
+        )
+        if existing:
+            raise ValueError(f"Question {question_id} already in schema {schema_id}")
+            
         sq = SchemaQuestion(schema_id=schema_id, question_id=question_id)
         session.add(sq)
+        session.commit()
+
+    @staticmethod
+    def remove_question_from_schema(schema_id: int, question_id: int, session: Session) -> None:
+        # Check if schema exists
+        schema = session.get(Schema, schema_id)
+        if not schema:
+            raise ValueError(f"Schema with ID {schema_id} not found")
+            
+        # Check if question exists
+        question = session.get(Question, question_id)
+        if not question:
+            raise ValueError(f"Question with ID {question_id} not found")
+            
+        # Check if question is in schema
+        existing = session.scalar(
+            select(SchemaQuestion).where(
+                SchemaQuestion.schema_id == schema_id,
+                SchemaQuestion.question_id == question_id
+            )
+        )
+        if not existing:
+            raise ValueError(f"Question {question_id} not in schema {schema_id}")
+            
+        session.delete(existing)
+        session.commit()
+
+    @staticmethod
+    def archive_schema(schema_id: int, session: Session) -> None:
+        """Archive a schema and prevent its use in new projects.
+        
+        Args:
+            schema_id: The ID of the schema to archive
+            session: Database session
+            
+        Raises:
+            ValueError: If schema not found
+        """
+        schema = session.get(Schema, schema_id)
+        if not schema:
+            raise ValueError(f"Schema with ID {schema_id} not found")
+            
+        schema.is_archived = True
+        session.commit()
+
+    @staticmethod
+    def unarchive_schema(schema_id: int, session: Session) -> None:
+        """Unarchive a schema to allow its use in new projects.
+        
+        Args:
+            schema_id: The ID of the schema to unarchive
+            session: Database session
+            
+        Raises:
+            ValueError: If schema not found
+        """
+        schema = session.get(Schema, schema_id)
+        if not schema:
+            raise ValueError(f"Schema with ID {schema_id} not found")
+            
+        schema.is_archived = False
         session.commit()
 
 class QuestionService:
@@ -645,3 +895,151 @@ class QuestionGroupService:
         
         group.is_archived = False
         session.commit()
+
+class AnswerService:
+    @staticmethod
+    def submit_answer(video_id: int, question_id: int, project_id: int, user_id: int, 
+                     answer_value: str, session: Session, is_ground_truth: bool = False) -> None:
+        """Submit an answer for a video question.
+        
+        Args:
+            video_id: The ID of the video
+            question_id: The ID of the question
+            project_id: The ID of the project
+            user_id: The ID of the user submitting the answer
+            answer_value: The answer value
+            session: Database session
+            is_ground_truth: Whether this is a ground truth answer
+            
+        Raises:
+            ValueError: If project is archived, user is disabled, or answer validation fails
+        """
+        # Check if project is archived
+        project = session.get(Project, project_id)
+        if not project:
+            raise ValueError(f"Project with ID {project_id} not found")
+        if project.is_archived:
+            raise ValueError("Project is archived")
+            
+        # Check if user is active
+        user = session.get(User, user_id)
+        if not user:
+            raise ValueError(f"User with ID {user_id} not found")
+        if not user.is_active:
+            raise ValueError("User is disabled")
+            
+        # Get question to validate answer type
+        question = session.get(Question, question_id)
+        if not question:
+            raise ValueError(f"Question with ID {question_id} not found")
+            
+        # Validate answer value for single-choice questions
+        if question.type == "single":
+            if not question.options:
+                raise ValueError("Question has no options defined")
+            if answer_value not in question.options:
+                raise ValueError(f"Answer value '{answer_value}' not in options: {', '.join(question.options)}")
+        
+        # Check for existing answer
+        existing = session.scalar(
+            select(Answer).where(
+                Answer.video_id == video_id,
+                Answer.question_id == question_id,
+                Answer.user_id == user_id,
+                Answer.project_id == project_id
+            )
+        )
+        
+        if existing:
+            # Update existing answer
+            existing.answer_value = answer_value
+            existing.answer_type = question.type
+            existing.is_ground_truth = is_ground_truth
+            existing.modified_by_user_id = user_id
+        else:
+            # Create new answer
+            answer = Answer(
+                video_id=video_id,
+                question_id=question_id,
+                project_id=project_id,
+                user_id=user_id,
+                answer_type=question.type,
+                answer_value=answer_value,
+                is_ground_truth=is_ground_truth
+            )
+            session.add(answer)
+            
+        session.commit()
+
+    @staticmethod
+    def get_answers(video_id: int, project_id: int, session: Session) -> pd.DataFrame:
+        """Get all answers for a video in a project.
+        
+        Args:
+            video_id: The ID of the video
+            project_id: The ID of the project
+            session: Database session
+            
+        Returns:
+            DataFrame containing answers with columns:
+            - Question ID
+            - User ID
+            - Answer Value
+            - Is Ground Truth
+            - Created At
+            - Modified By User ID
+        """
+        answers = session.scalars(
+            select(Answer)
+            .where(
+                Answer.video_id == video_id,
+                Answer.project_id == project_id
+            )
+        ).all()
+        
+        return pd.DataFrame([
+            {
+                "Question ID": a.question_id,
+                "User ID": a.user_id,
+                "Answer Value": a.answer_value,
+                "Is Ground Truth": a.is_ground_truth,
+                "Created At": a.created_at,
+                "Modified By User ID": a.modified_by_user_id
+            }
+            for a in answers
+        ])
+
+    @staticmethod
+    def get_ground_truth(video_id: int, project_id: int, session: Session) -> pd.DataFrame:
+        """Get ground truth answers for a video in a project.
+        
+        Args:
+            video_id: The ID of the video
+            project_id: The ID of the project
+            session: Database session
+            
+        Returns:
+            DataFrame containing ground truth answers with columns:
+            - Question ID
+            - Answer Value
+            - Created At
+            - Modified By User ID
+        """
+        answers = session.scalars(
+            select(Answer)
+            .where(
+                Answer.video_id == video_id,
+                Answer.project_id == project_id,
+                Answer.is_ground_truth == True
+            )
+        ).all()
+        
+        return pd.DataFrame([
+            {
+                "Question ID": a.question_id,
+                "Answer Value": a.answer_value,
+                "Created At": a.created_at,
+                "Modified By User ID": a.modified_by_user_id
+            }
+            for a in answers
+        ])

@@ -2,7 +2,7 @@
 
 | #   | Rule to test                                                                              | Minimal fixture state | Suggested test name                      |
 | --- | ----------------------------------------------------------------------------------------- | --------------------- | ---------------------------------------- |
-| 1.1 | Only **admins** can create / deactivate any user or change another user’s password.       | admin A, human H      | `test_only_admin_can_manage_users`       |
+| 1.1 | Only **admins** can create / deactivate any user or change another user's password.       | admin A, human H      | `test_only_admin_can_manage_users`       |
 | 1.2 | Soft-disabled user (`is_active=False`) cannot authenticate or submit answers.             | disabled D            | `test_disabled_user_cannot_login_submit` |
 | 1.3 | Global `admin` role implied in all projects (even if not listed in `project_user_roles`). | admin A, project P    | `test_admin_inherits_project_admin`      |
 | 1.4 | `authenticate()` rejects wrong role tab (e.g., Reviewer login with human account).        | human H               | `test_login_rejects_wrong_role`          |
@@ -40,6 +40,19 @@
 | 4.3 | `assign_user_to_project` upserts role (no duplicates).            | existing assignment     | `test_assign_role_upsert`                           |
 | 4.4 | Archiving project hides it from list APIs and blocks new answers. | project P archived      | `test_archived_project_hidden_and_read_only`        |
 | 4.5 | Admin auto-upgraded to reviewer if added as annotator.            | admin user              | `test_admin_role_auto_upgraded`                     |
+| 4.6 | `name` globally unique.                   | duplicate name | `test_duplicate_project_name_rejected`      |
+| 4.7 | `schema_id` must exist.                   | bad schema     | `test_create_project_bad_schema`            |
+| 4.8 | `video_ids` must exist.                   | bad video      | `test_create_project_bad_video`             |
+| 4.9 | Cannot use archived schema.               | archived schema| `test_create_project_with_archived_resources_fails` |
+| 4.10 | Cannot use archived video.                | archived video | `test_create_project_with_archived_resources_fails` |
+| 4.11 | No duplicate videos in project.           | duplicate video| `test_duplicate_project_video_fail`         |
+| 4.12 | Archived projects are hidden.             | archived project| `test_archived_project_hidden_and_read_only` |
+| 4.13 | Archived projects block new answers.      | archived project| `test_archived_project_hidden_and_read_only` |
+| 4.14 | Progress with no videos/questions.        | empty project  | `test_project_service_progress_empty`       |
+| 4.15 | Progress with partial ground truth.       | partial gt     | `test_project_service_progress_with_data`   |
+| 4.16 | Progress with all ground truth.           | all gt         | `test_project_service_progress_with_data`   |
+| 4.17 | Progress for non-existent project.        | bad project    | `test_project_service_progress_nonexistent_project` |
+| 4.18 | Archive non-existent project.             | bad project    | `test_project_service_archive_nonexistent_project` |
 
 ---
 
@@ -47,9 +60,24 @@
 
 | #   | Rule                                      | Fixture        | Test name                                   |
 | --- | ----------------------------------------- | -------------- | ------------------------------------------- |
-| 5.1 | `video_uid` globally unique.              | duplicate uid  | `test_duplicate_video_uid_rejected`         |
-| 5.2 | Invalid JSON in `video_meta` rejected.    | bad meta       | `test_invalid_video_meta`                   |
+| 5.1 | `video_uid` globally unique.              | duplicate uid  | `test_video_service_add_video_duplicate`    |
+| 5.2 | Invalid JSON in `video_meta` rejected.    | bad meta       | `test_video_service_add_video_with_invalid_metadata` |
 | 5.3 | Cannot add archived video to new project. | archived video | `test_cannot_add_archived_video_to_project` |
+| 5.4 | URL must have valid protocol.             | invalid url    | `test_video_service_add_video_with_invalid_protocol` |
+| 5.5 | URL must have file extension.             | missing ext    | `test_video_service_add_video_with_missing_extension` |
+| 5.6 | URL length must be within limits.         | long url       | `test_video_service_add_video_with_very_long_url` |
+| 5.7 | Metadata must be valid dictionary.        | invalid meta   | `test_video_service_add_video_with_invalid_metadata` |
+| 5.8 | Empty metadata is allowed.                | empty meta     | `test_video_service_add_video_with_empty_metadata` |
+| 5.9 | Partial ground truth is marked incomplete.| partial gt     | `test_video_service_get_all_videos_with_partial_ground_truth` |
+| 5.10 | Special characters in URL are handled.    | special chars  | `test_video_service_add_video_special_chars` |
+| 5.11 | Query parameters in URL are preserved.    | query params   | `test_video_service_add_video_query_params` |
+| 5.12 | Empty video list returns empty DataFrame. | empty db       | `test_video_service_get_all_videos_empty`   |
+| 5.13 | Video metadata is preserved.              | with meta      | `test_video_service_get_all_videos_with_metadata` |
+| 5.14 | Video metadata value types are validated. | invalid meta   | `test_video_metadata_validation`            |
+| 5.15 | Video UIDs are case-sensitive.            | case variants  | `test_video_uid_case_sensitivity`           |
+| 5.16 | Add video with metadata.                  | with meta      | `test_video_service_add_video_with_metadata`|
+| 5.17 | Add video with empty metadata.            | empty meta     | `test_video_service_add_video_with_empty_metadata` |
+| 5.18 | Add video with special chars in UID.      | special chars  | `test_video_uid_special_chars`              |
 
 ---
 
@@ -65,6 +93,31 @@
 | 6.6 | Disabled user cannot submit.                                                | disabled user               | `test_disabled_user_submit_fails`       |
 | 6.7 | Reviewer GT overwrite triggers notification (if notification table exists). | stub notifier mock          | `test_notification_on_gt_change`        |
 | 6.8 | Upsert updates timestamp, not duplicate row.                                | compare `created_at` vs new | `test_upsert_updates_timestamp`         |
+
+## Answers
+
+### Rules
+1. Answers must be associated with a video, question, project, and user
+2. Answers must match the question type (single-choice, multiple-choice, etc.)
+3. Answers for single-choice questions must be one of the defined options
+4. Ground truth answers are marked with is_ground_truth flag
+5. Answers can be updated by the same user
+6. Answers cannot be submitted to archived projects
+7. Disabled users cannot submit answers
+8. Answer history is tracked with modified_by_user_id
+
+### Test Cases
+
+| ID | Test Name | Description | Expected Result |
+|----|-----------|-------------|-----------------|
+| 6.1 | test_answer_service_submit_answer | Submit a valid answer | Answer is created with correct values |
+| 6.2 | test_answer_service_submit_ground_truth | Submit a ground truth answer | Answer is created with is_ground_truth=True |
+| 6.3 | test_answer_service_submit_invalid_option | Submit invalid option for single-choice | Raises ValueError with appropriate message |
+| 6.4 | test_answer_service_submit_to_archived_project | Submit answer to archived project | Raises ValueError with appropriate message |
+| 6.5 | test_answer_service_submit_as_disabled_user | Submit answer as disabled user | Raises ValueError with appropriate message |
+| 6.6 | test_answer_service_update_existing_answer | Update an existing answer | Answer is updated with new value and modified_by_user_id |
+| 6.7 | test_answer_service_get_answers | Get all answers for a video in project | Returns DataFrame with all answers |
+| 6.8 | test_answer_service_get_ground_truth | Get ground truth answers for a video | Returns DataFrame with ground truth answers only |
 
 ---
 
@@ -133,6 +186,4 @@ tests/
 └ test_loader_utils.py
 ```
 
-* `conftest.py` should spin up a test database (local Postgres or
-  `psycopg2`-backed in-memory) and yield a `Session` fixture that rolls back
-  after each test.
+* `conftest.py`
