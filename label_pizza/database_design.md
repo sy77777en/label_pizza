@@ -26,13 +26,13 @@
 | `user_id_str`       | VARCHAR(128) UNIQUE | login / SSO handle |
 | `email`             | VARCHAR(255) UNIQUE |
 | `password_hash`     | TEXT |
-| `password_updated_at` | TIMESTAMPTZ |
 | `user_type`         | ENUM (human / model / admin) |
 | `created_at`        | TIMESTAMPTZ |
-| `is_active`         | BOOL |
+| `updated_at`        | TIMESTAMPTZ |
+| `is_archived`       | BOOL |
 
 **Rationale** – Global identity; `user_type='admin'` bypasses project ACLs.  
-Soft-disable via `is_active` keeps audit history.
+Soft-disable via `is_archived` keeps audit history.
 
 ---
 
@@ -41,7 +41,7 @@ Soft-disable via `is_active` keeps audit history.
 | column | type    | notes |
 | ------ | ------- | ----- |
 | `id`             | INT PK |
-| `video_uid`      | VARCHAR(180) UNIQUE | file-name or UUID |
+| `video_uid`      | VARCHAR(255) UNIQUE | file-name or UUID |
 | `url`            | TEXT |
 | `video_metadata` | JSONB |
 | `created_at`     | TIMESTAMPTZ |
@@ -72,7 +72,7 @@ Archiving supports takedowns.
 | column | type | default | description |
 | ------ | ---- | ------- | ----------- |
 | `id`           | INT PK |
-| `title`        | TEXT |
+| `title`        | VARCHAR(255) UNIQUE |
 | `description`  | TEXT |
 | `is_reusable`  | BOOL | **FALSE** | `TRUE` ⇒ can be imported by many schemas (e.g., Shot Transition) |
 | `is_archived`  | BOOL | FALSE |
@@ -88,10 +88,8 @@ Archiving supports takedowns.
 | `id`                 | INT PK |
 | `text`               | TEXT UNIQUE |
 | `type`               | ENUM (single / description) |
-| `question_group_id`  | INT nullable |
-| `options`            | JSONB array (single-choice) |
+| `options`            | JSONB array nullable (single-choice) |
 | `default_option`     | VARCHAR(120) nullable |
-| `is_active`          | BOOL |
 | `is_archived`        | BOOL |
 | `created_at`         | TIMESTAMPTZ |
 
@@ -100,20 +98,48 @@ Question text must be unique to prevent confusion and ensure consistent labeling
 
 ---
 
+## 5.1 · `question_group_questions`
+
+| column | type | notes |
+| ------ | ---- | ----- |
+| `question_group_id` | INT |
+| `question_id`      | INT |
+| `display_order`    | INT |
+
+**Link** – PK `(question_group_id, question_id)`.
+
+**Rationale** – Many-to-many relationship between questions and groups with ordering.
+
+---
+
 ## 6 · `schemas`
 
 | column | type | notes |
 | ------ | ---- | ----- |
 | `id`          | INT PK |
-| `name`        | TEXT UNIQUE |
+| `name`        | TEXT UNIQUE NOT NULL |
 | `rules_json`  | JSONB |
 | `created_at`  | TIMESTAMPTZ |
 | `updated_at`  | TIMESTAMPTZ |
 | `is_archived` | BOOL |
 
-**Link** `schema_questions` – PK `(schema_id, question_id)`, plus `added_at`.
+**Link** `schema_question_groups` – PK `(schema_id, question_group_id)`, plus `display_order`.
 
 **Rationale** – Reusable question sets; no FK allows forks without cascade.
+
+---
+
+## 6.1 · `schema_question_groups`
+
+| column | type | notes |
+| ------ | ---- | ----- |
+| `schema_id`        | INT |
+| `question_group_id`| INT |
+| `display_order`    | INT |
+
+**Link** – PK `(schema_id, question_group_id)`.
+
+**Rationale** – Many-to-many relationship between schemas and question groups with ordering.
 
 ---
 
