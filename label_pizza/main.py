@@ -24,7 +24,8 @@ import pandas as pd
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 
-from db import SessionLocal
+from db import SessionLocal, engine
+from models import Base
 from services import (
     VideoService, ProjectService, SchemaService, 
     QuestionService, AuthService, QuestionGroupService
@@ -35,6 +36,9 @@ load_dotenv(".env")
 ###############################################################################
 # 1.  CONSTANTS & ONE‑TIME SEED
 ###############################################################################
+
+# Initialize database tables
+Base.metadata.create_all(engine)
 
 def _seed_admin() -> None:
     """Create hard‑coded admin if not present."""
@@ -362,17 +366,49 @@ def tab_users():
                 
                 if user_id:
                     user = users_df[users_df["ID"] == user_id].iloc[0]
-                    col1, col2 = st.columns(2)
                     
+                    # Display all user details
+                    st.write("### User Details")
+                    st.write(f"**ID:** {user['ID']}")
+                    st.write(f"**User ID:** {user['User ID']}")
+                    st.write(f"**Email:** {user['Email']}")
+                    st.write(f"**Password Hash:** {user['Password Hash']}")
+                    st.write(f"**Role:** {user['Role']}")
+                    st.write(f"**Active:** {user['Active']}")
+                    st.write(f"**Created At:** {user['Created At']}")
+                    
+                    # Edit user details
+                    st.write("### Edit User")
+                    new_user_id = st.text_input("New User ID", value=user['User ID'])
+                    new_email = st.text_input("New Email", value=user['Email'])
+                    new_password = st.text_input("New Password", type="password")
+                    new_role = st.selectbox(
+                        "Role",
+                        options=["human", "model", "admin"],
+                        index=["human", "model", "admin"].index(user["Role"])
+                    )
+                    
+                    col1, col2 = st.columns(2)
                     with col1:
-                        new_role = st.selectbox(
-                            "Role",
-                            options=["human", "model", "admin"],
-                            index=["human", "model", "admin"].index(user["Role"])
-                        )
-                        if st.button("Update Role"):
+                        if st.button("Update User"):
                             try:
-                                AuthService.update_user_role(user_id, new_role, session=s)
+                                # Update user ID if changed
+                                if new_user_id != user['User ID']:
+                                    AuthService.update_user_id(user_id, new_user_id, session=s)
+                                
+                                # Update email if changed
+                                if new_email != user['Email']:
+                                    AuthService.update_user_email(user_id, new_email, session=s)
+                                
+                                # Update password if provided
+                                if new_password:
+                                    AuthService.update_user_password(user_id, new_password, session=s)
+                                
+                                # Update role if changed
+                                if new_role != user['Role']:
+                                    AuthService.update_user_role(user_id, new_role, session=s)
+                                
+                                st.success("User updated successfully!")
                                 st.rerun()
                             except ValueError as e:
                                 st.error(str(e))
@@ -386,12 +422,63 @@ def tab_users():
                             except ValueError as e:
                                 st.error(str(e))
 
+        # Create new user section
+        with st.expander("Create New User"):
+            new_user_id = st.text_input("User ID")
+            new_email = st.text_input("Email")
+            new_password = st.text_input("Password", type="password")
+            new_user_type = st.selectbox("User Type", options=["human", "model", "admin"])
+            
+            if st.button("Create User"):
+                if not all([new_user_id, new_email, new_password]):
+                    st.error("Please fill in all fields")
+                else:
+                    try:
+                        AuthService.create_user(
+                            user_id=new_user_id,
+                            email=new_email,
+                            password_hash=new_password,  # Note: In production, this should be hashed
+                            user_type=new_user_type,
+                            session=s
+                        )
+                        st.success("User created successfully!")
+                        st.rerun()
+                    except ValueError as e:
+                        st.error(str(e))
+
 def tab_project_assignments():
     st.subheader("Project Assignments")
     with SessionLocal() as s:
         # Display current assignments
         assignments_df = AuthService.get_project_assignments(s)
-        st.dataframe(assignments_df)
+        
+        # Add filtering options only if there are assignments
+        if not assignments_df.empty:
+            col1, col2 = st.columns(2)
+            with col1:
+                filter_role = st.multiselect(
+                    "Filter by Role",
+                    options=["annotator", "reviewer", "admin", "model"],
+                    default=[]
+                )
+            with col2:
+                filter_project = st.multiselect(
+                    "Filter by Project",
+                    options=assignments_df["Project Name"].unique().tolist(),
+                    default=[]
+                )
+            
+            # Apply filters
+            if filter_role:
+                assignments_df = assignments_df[assignments_df["Role"].isin(filter_role)]
+            if filter_project:
+                assignments_df = assignments_df[assignments_df["Project Name"].isin(filter_project)]
+        
+        # Display assignments or message if empty
+        if assignments_df.empty:
+            st.info("No project assignments found.")
+        else:
+            st.dataframe(assignments_df)
         
         # Assignment management section
         with st.expander("Manage Assignments"):
@@ -399,44 +486,81 @@ def tab_project_assignments():
             projects_df = ProjectService.get_all_projects(s)
             users_df = AuthService.get_all_users(s)
             
-            if not projects_df.empty and not users_df.empty:
-                # Select project
-                project_id = st.selectbox(
-                    "Select Project",
-                    options=projects_df["ID"].tolist(),
-                    format_func=lambda x: f"{projects_df[projects_df['ID']==x]['Name'].iloc[0]}"
-                )
+            if projects_df.empty:
+                st.warning("No projects available. Please create a project first.")
+                return
                 
-                # Select user
-                user_id = st.selectbox(
-                    "Select User",
-                    options=users_df["ID"].tolist(),
-                    format_func=lambda x: f"{users_df[users_df['ID']==x]['User ID'].iloc[0]} ({users_df[users_df['ID']==x]['Email'].iloc[0]})"
-                )
-                
-                # Select role
-                role = st.selectbox(
-                    "Role",
-                    options=["annotator", "reviewer", "admin", "model"]
-                )
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    if st.button("Assign User"):
-                        try:
-                            AuthService.assign_user_to_project(user_id, project_id, role, session=s)
-                            st.rerun()
-                        except ValueError as e:
-                            st.error(str(e))
-                
-                with col2:
-                    if st.button("Remove Assignment"):
-                        try:
-                            AuthService.remove_user_from_project(user_id, project_id, session=s)
-                            st.rerun()
-                        except ValueError as e:
-                            st.error(str(e))
+            if users_df.empty:
+                st.warning("No users available. Please create users first.")
+                return
+            
+            # Select project
+            project_id = st.selectbox(
+                "Select Project",
+                options=projects_df["ID"].tolist(),
+                format_func=lambda x: f"{projects_df[projects_df['ID']==x]['Name'].iloc[0]}"
+            )
+            
+            # Select role
+            role = st.selectbox(
+                "Role",
+                options=["annotator", "reviewer", "admin", "model"]
+            )
+            
+            # Single user assignment
+            st.subheader("Single User Assignment")
+            user_id = st.selectbox(
+                "Select User",
+                options=users_df["ID"].tolist(),
+                format_func=lambda x: f"{users_df[users_df['ID']==x]['User ID'].iloc[0]} ({users_df[users_df['ID']==x]['Email'].iloc[0]})"
+            )
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Assign User"):
+                    try:
+                        AuthService.assign_user_to_project(user_id, project_id, role, session=s)
+                        st.rerun()
+                    except ValueError as e:
+                        st.error(str(e))
+            
+            with col2:
+                if st.button("Remove Assignment"):
+                    try:
+                        AuthService.remove_user_from_project(user_id, project_id, session=s)
+                        st.rerun()
+                    except ValueError as e:
+                        st.error(str(e))
+            
+            # Bulk assignment
+            st.subheader("Bulk Assignment")
+            selected_users = st.multiselect(
+                "Select Multiple Users",
+                options=users_df["ID"].tolist(),
+                format_func=lambda x: f"{users_df[users_df['ID']==x]['User ID'].iloc[0]} ({users_df[users_df['ID']==x]['Email'].iloc[0]})"
+            )
+            
+            if st.button("Bulk Assign Users"):
+                if not selected_users:
+                    st.warning("Please select at least one user")
+                else:
+                    try:
+                        AuthService.bulk_assign_users_to_project(selected_users, project_id, role, session=s)
+                        st.success(f"Successfully assigned {len(selected_users)} users to project")
+                        st.rerun()
+                    except ValueError as e:
+                        st.error(str(e))
+            
+            if st.button("Bulk Remove Users"):
+                if not selected_users:
+                    st.warning("Please select at least one user")
+                else:
+                    try:
+                        AuthService.bulk_remove_users_from_project(selected_users, project_id, session=s)
+                        st.success(f"Successfully removed {len(selected_users)} users from project")
+                        st.rerun()
+                    except ValueError as e:
+                        st.error(str(e))
 
 ###############################################################################
 # 3.  ROUTER  ----------------------------------------------------------------

@@ -13,7 +13,7 @@ Requires-Dist: opencv-python-headless
 Requires-Dist: numpy
 Requires-Dist: pandas
 Requires-Dist: matplotlib
-Requires-Dist: psycopg[binary]
+Requires-Dist: psycopg2-binary
 Requires-Dist: python-dotenv
 Requires-Dist: pytest
 

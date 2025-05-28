@@ -6,6 +6,6 @@ opencv-python-headless
 numpy
 pandas
 matplotlib
-psycopg[binary]
+psycopg2-binary
 python-dotenv
 pytest

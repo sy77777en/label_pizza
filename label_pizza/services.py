@@ -597,11 +597,57 @@ class AuthService:
                 "ID": u.id,
                 "User ID": u.user_id_str,
                 "Email": u.email,
+                "Password Hash": u.password_hash,
                 "Role": u.user_type,
                 "Active": u.is_active,
                 "Created At": u.created_at
             } for u in users
         ])
+
+    @staticmethod
+    def update_user_id(user_id: int, new_user_id: str, session: Session) -> None:
+        """Update a user's ID."""
+        user = session.get(User, user_id)
+        if not user:
+            raise ValueError(f"User with ID {user_id} not found")
+        
+        # Check if new user ID already exists
+        existing = session.scalar(
+            select(User).where(User.user_id_str == new_user_id)
+        )
+        if existing and existing.id != user_id:
+            raise ValueError(f"User ID '{new_user_id}' already exists")
+        
+        user.user_id_str = new_user_id
+        session.commit()
+
+    @staticmethod
+    def update_user_email(user_id: int, new_email: str, session: Session) -> None:
+        """Update a user's email."""
+        user = session.get(User, user_id)
+        if not user:
+            raise ValueError(f"User with ID {user_id} not found")
+        
+        # Check if new email already exists
+        existing = session.scalar(
+            select(User).where(User.email == new_email)
+        )
+        if existing and existing.id != user_id:
+            raise ValueError(f"Email '{new_email}' already exists")
+        
+        user.email = new_email
+        session.commit()
+
+    @staticmethod
+    def update_user_password(user_id: int, new_password: str, session: Session) -> None:
+        """Update a user's password."""
+        user = session.get(User, user_id)
+        if not user:
+            raise ValueError(f"User with ID {user_id} not found")
+        
+        user.password_hash = new_password  # Note: In production, this should be hashed
+        user.password_updated_at = datetime.utcnow()
+        session.commit()
 
     @staticmethod
     def update_user_role(user_id: int, new_role: str, session: Session) -> None:
