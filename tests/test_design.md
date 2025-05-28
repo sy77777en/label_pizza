@@ -78,6 +78,10 @@
 | 5.16 | Add video with metadata.                  | with meta      | `test_video_service_add_video_with_metadata`|
 | 5.17 | Add video with empty metadata.            | empty meta     | `test_video_service_add_video_with_empty_metadata` |
 | 5.18 | Add video with special chars in UID.      | special chars  | `test_video_uid_special_chars`              |
+| 5.19 | Get all videos with project assignments.  | videos in projects | `test_video_service_get_all_videos_with_project` |
+| 5.20 | Get all videos with ground truth status.  | videos with gt | `test_video_service_get_all_videos_with_ground_truth` |
+| 5.21 | Get all videos in multiple projects.      | videos in multiple projects | `test_video_service_get_all_videos_multiple_projects` |
+| 5.22 | Get all videos with mixed status.         | mixed status   | `test_video_service_get_all_videos_mixed_status` |
 
 ---
 
@@ -93,6 +97,8 @@
 | 6.6 | Disabled user cannot submit.                                                | disabled user               | `test_disabled_user_submit_fails`       |
 | 6.7 | Reviewer GT overwrite triggers notification (if notification table exists). | stub notifier mock          | `test_notification_on_gt_change`        |
 | 6.8 | Upsert updates timestamp, not duplicate row.                                | compare `created_at` vs new | `test_upsert_updates_timestamp`         |
+| 6.9 | Get answers returns correct DataFrame columns.                              | answers in db               | `test_answer_service_get_answers`       |
+| 6.10 | Get ground truth returns correct DataFrame columns.                         | ground truth in db          | `test_answer_service_get_ground_truth`  |
 
 ## Answers
 

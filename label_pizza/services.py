@@ -133,12 +133,12 @@ class VideoService:
         if len(url) > 180:
             raise ValueError("URL is too long (max 180 characters)")
         
-        # Validate metadata type
+        # Validate metadata type - must be None or a dictionary
         if metadata is not None:
-            if not isinstance(metadata, dict):
-                raise ValueError("Metadata must be a dictionary")
+            if not isinstance(metadata, dict) or metadata == {}:
+                raise ValueError("Metadata must be a non-empty dictionary")
             
-            # Validate metadata value types
+            # Validate metadata value types if metadata is provided
             for key, value in metadata.items():
                 if not isinstance(value, (str, int, float, bool, list, dict)):
                     raise ValueError(f"Invalid metadata value type for key '{key}': {type(value)}")
@@ -472,6 +472,11 @@ class QuestionService:
     def add_question(text: str, qtype: str, group_name: Optional[str],
                     options: Optional[List[str]], default: Optional[str], 
                     session: Session) -> None:
+        # Check if question text already exists
+        existing = session.scalar(select(Question).where(Question.text == text))
+        if existing:
+            raise ValueError(f"Question with text '{text}' already exists")
+            
         # Validate default option for single-choice questions
         if qtype == "single":
             if not options:
@@ -512,6 +517,12 @@ class QuestionService:
         q = QuestionService.get_question_by_text(text, session)
         if not q:
             raise ValueError(f"Question with text '{text}' not found")
+        
+        # Check if new text conflicts with existing question
+        if new_text != text:
+            existing = session.scalar(select(Question).where(Question.text == new_text))
+            if existing:
+                raise ValueError(f"Question with text '{new_text}' already exists")
         
         q.text = new_text
         
@@ -1022,6 +1033,7 @@ class AnswerService:
             DataFrame containing ground truth answers with columns:
             - Question ID
             - Answer Value
+            - Is Ground Truth
             - Created At
             - Modified By User ID
         """
@@ -1038,6 +1050,7 @@ class AnswerService:
             {
                 "Question ID": a.question_id,
                 "Answer Value": a.answer_value,
+                "Is Ground Truth": a.is_ground_truth,
                 "Created At": a.created_at,
                 "Modified By User ID": a.modified_by_user_id
             }

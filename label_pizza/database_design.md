@@ -86,7 +86,7 @@ Archiving supports takedowns.
 | column | type | notes |
 | ------ | ---- | ----- |
 | `id`                 | INT PK |
-| `text`               | TEXT |
+| `text`               | TEXT UNIQUE |
 | `type`               | ENUM (single / description) |
 | `question_group_id`  | INT nullable |
 | `options`            | JSONB array (single-choice) |
@@ -95,7 +95,8 @@ Archiving supports takedowns.
 | `is_archived`        | BOOL |
 | `created_at`         | TIMESTAMPTZ |
 
-**Rationale** – Supports both radio and free-text; single-choice values indexed, descriptions not.
+**Rationale** – Supports both radio and free-text; single-choice values indexed, descriptions not.  
+Question text must be unique to prevent confusion and ensure consistent labeling.
 
 ---
 

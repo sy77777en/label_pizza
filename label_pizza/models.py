@@ -1,7 +1,7 @@
 from datetime import datetime
 from sqlalchemy import (
     Column, Integer, String, Text, Boolean, DateTime, Float, Enum,
-    UniqueConstraint, Index, create_engine, JSON
+    UniqueConstraint, Index, create_engine, JSON, func
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import declarative_base, Session
@@ -60,14 +60,14 @@ class QuestionGroup(Base):
 class Question(Base):
     __tablename__ = "questions"
     id = Column(Integer, primary_key=True)
-    text = Column(Text, nullable=False)
+    text = Column(Text, unique=True, nullable=False)
     type = Column(Enum("single", "description", name="question_types"), nullable=False)
-    question_group_id = Column(Integer)
-    options = Column(JSONB)
-    default_option = Column(String(120))
+    question_group_id = Column(Integer, nullable=True)
+    options = Column(JSONB, nullable=True)
+    default_option = Column(String(120), nullable=True)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime(timezone=True), default=now)
     is_archived = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class Schema(Base):
     __tablename__ = "schemas"
