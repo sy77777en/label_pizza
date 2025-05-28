@@ -1,14 +1,13 @@
 # services.py
-from sqlalchemy import select, insert, update, func, delete, exists
+from sqlalchemy import select, insert, update, func, delete
 from sqlalchemy.orm import Session
 from label_pizza.models import (
     Video, Project, ProjectVideo, Schema, QuestionGroup,
-    Question, ProjectUserRole, Answer, User, AnswerReview,
-    QuestionGroupQuestion, SchemaQuestionGroup
+    Question, ProjectUserRole, Answer, User, SchemaQuestion
 )
 from typing import List, Optional, Dict
 import pandas as pd
-from datetime import datetime, timezone
+from datetime import datetime
 import hashlib
 import os
 from dotenv import load_dotenv
@@ -20,7 +19,7 @@ def list_videos(session: Session):
     return session.scalars(select(Video)).all()
 
 def add_video(video_uid: str, url: str, meta: dict, *, session: Session):
-    v = Video(video_uid=video_uid, url=url, video_metadata=meta)
+    v = Video(video_uid=video_uid, url=url, video_meta=meta)
     session.add(v); session.commit(); return v
 
 # ---------- SCHEMA / QUESTIONS --------------------------------------------
@@ -36,26 +35,10 @@ def list_questions(session: Session):
 def add_question(text: str, qtype: str, group_id: int | None,
                  options: list[str] | None, default: str | None,
                  *, session: Session):
-    # Create question
     q = Question(
-        text=text, 
-        type=qtype,
-        options=options, 
-        default_option=default
-    )
-    session.add(q)
-    session.flush()  # Get the question ID
-    
-    # Add question to group if group_id is provided
-    if group_id:
-        session.add(QuestionGroupQuestion(
-            question_group_id=group_id,
-            question_id=q.id,
-            display_order=0  # Default order
-        ))
-    
-    session.commit()
-    return q
+        text=text, type=qtype, question_group_id=group_id,
+        options=options, default_option=default)
+    session.add(q); session.commit(); return q
 
 # ---------- PROJECT --------------------------------------------------------
 def list_projects(session: Session):
@@ -90,31 +73,22 @@ class VideoService:
     def get_all_videos(session: Session) -> pd.DataFrame:
         """Get all videos with their project assignments and ground truth status."""
         rows = []
-        for v in session.scalars(select(Video).where(Video.is_archived == False)).all():
-            # Get all non-archived projects this video belongs to
+        for v in session.scalars(select(Video)).all():
+            # Get all projects this video belongs to
             projects = session.scalars(
                 select(Project)
                 .join(ProjectVideo, Project.id == ProjectVideo.project_id)
-                .where(
-                    ProjectVideo.video_id == v.id,
-                    Project.is_archived == False
-                )
+                .where(ProjectVideo.video_id == v.id)
             ).all()
-            
-            # Skip videos that only belong to archived projects
-            if not projects:
-                continue
             
             # For each project, check if video has complete ground truth
             project_status = []
             for p in projects:
-                # Get total questions in schema through question groups
+                # Get total questions in schema
                 total_questions = session.scalar(
                     select(func.count())
-                    .select_from(Question)
-                    .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
-                    .join(SchemaQuestionGroup, QuestionGroupQuestion.question_group_id == SchemaQuestionGroup.question_group_id)
-                    .where(SchemaQuestionGroup.schema_id == p.schema_id)
+                    .select_from(SchemaQuestion)
+                    .where(SchemaQuestion.schema_id == p.schema_id)
                 )
                 
                 # Get ground truth answers for this video in this project
@@ -128,23 +102,8 @@ class VideoService:
                     )
                 )
                 
-                # Get any answers (ground truth or not) for this video in this project
-                any_answers = session.scalar(
-                    select(func.count())
-                    .select_from(Answer)
-                    .where(
-                        Answer.video_id == v.id,
-                        Answer.project_id == p.id
-                    )
-                )
-                
-                # Determine status based on answers
-                if total_questions == 0:
-                    status = "No questions"
-                elif gt_answers == total_questions:
-                    status = "✓"
-                else:
-                    status = "✗"
+                # Only mark as complete if there are questions and all have ground truth
+                status = "✓" if total_questions > 0 and gt_answers == total_questions else "✗"
                 project_status.append(f"{p.name}: {status}")
             
             rows.append({
@@ -162,9 +121,6 @@ class VideoService:
             url: The URL of the video
             session: Database session
             metadata: Optional dictionary containing video metadata
-            
-        Raises:
-            ValueError: If URL is invalid, video already exists, or metadata is invalid
         """
         if not url.startswith(("http://", "https://")):
             raise ValueError("URL must start with http:// or https://")
@@ -174,14 +130,12 @@ class VideoService:
         if not filename or "." not in filename:
             raise ValueError("URL must end with a filename with extension")
         
-        if len(filename) > 255:
-            raise ValueError("Video UID is too long")
+        if len(url) > 180:
+            raise ValueError("URL is too long (max 180 characters)")
         
         # Validate metadata type - must be None or a dictionary
         if metadata is not None:
-            if not isinstance(metadata, dict):
-                raise ValueError("Metadata must be a dictionary")
-            if not metadata:
+            if not isinstance(metadata, dict) or metadata == {}:
                 raise ValueError("Metadata must be a non-empty dictionary")
             
             # Validate metadata value types if metadata is provided
@@ -199,14 +153,14 @@ class VideoService:
                         if not isinstance(v, (str, int, float, bool, list, dict)):
                             raise ValueError(f"Invalid nested metadata value type for key '{key}.{k}': {type(v)}")
         
-        # Check if video already exists
+        # Check if video already exists (case-insensitive)
         existing = session.scalar(
-            select(Video).where(Video.video_uid == filename)
+            select(Video).where(func.lower(Video.video_uid) == func.lower(filename))
         )
         if existing:
-            raise ValueError(f"Video with UID '{filename}' already exists")
+            raise ValueError(f"Video with UID {filename} already exists")
         
-        # Create video
+        # Create new video
         video = Video(
             video_uid=filename,
             url=url,
@@ -218,122 +172,73 @@ class VideoService:
 class ProjectService:
     @staticmethod
     def get_all_projects(session: Session) -> pd.DataFrame:
-        """Get all non-archived projects with their video counts and ground truth percentages."""
         rows = []
         for p in session.scalars(select(Project).where(Project.is_archived == False)).all():
-            # Get schema
-            schema = session.get(Schema, p.schema_id)
-            if schema.is_archived:
-                continue
-            
-            # Count videos in project
-            video_count = session.scalar(
-                select(func.count())
-                .select_from(ProjectVideo)
-                .where(ProjectVideo.project_id == p.id)
-            )
-            
-            # Get total questions in schema
-            total_questions = session.scalar(
-                select(func.count())
-                .select_from(Question)
-                .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
-                .join(SchemaQuestionGroup, QuestionGroupQuestion.question_group_id == SchemaQuestionGroup.question_group_id)
-                .where(SchemaQuestionGroup.schema_id == p.schema_id)
-            )
-            
-            # Get ground truth answers
-            gt_answers = session.scalar(
-                select(func.count())
-                .select_from(Answer)
-                .where(
-                    Answer.project_id == p.id,
-                    Answer.is_ground_truth == True
-                )
-            )
-            
-            # Calculate percentage
-            gt_percentage = (gt_answers / total_questions * 100) if total_questions > 0 else 0.0
-            
+            v_total = session.scalar(select(func.count()).select_from(ProjectVideo)
+                                .where(ProjectVideo.project_id == p.id))
+            q_total = session.scalar(select(func.count()).select_from(SchemaQuestion)
+                                .where(SchemaQuestion.schema_id == p.schema_id))
+            gt = session.scalar(select(func.count()).select_from(Answer)
+                            .where(Answer.project_id == p.id, Answer.is_ground_truth))
+            pct = round(gt / (v_total * q_total) * 100, 2) if v_total * q_total else 0.0
             rows.append({
-                "ID": p.id,
                 "Name": p.name,
-                "Videos": video_count,
+                "Videos": v_total,
                 "Schema ID": p.schema_id,
-                "GT %": gt_percentage
+                "GT %": pct,
             })
         return pd.DataFrame(rows)
 
     @staticmethod
     def create_project(name: str, schema_id: int, video_ids: List[int], session: Session) -> None:
-        """Create a new project and assign all admin users to it.
-        
-        Args:
-            name: Project name
-            schema_id: ID of the schema to use
-            video_ids: List of video IDs to include in the project
-            session: Database session
-            
-        Raises:
-            ValueError: If schema or any video is archived, or if any video is already in another project
-        """
         # Check if schema exists and is not archived
         schema = session.get(Schema, schema_id)
         if not schema:
             raise ValueError(f"Schema with ID {schema_id} not found")
         if schema.is_archived:
-            raise ValueError(f"Schema with ID {schema_id} is archived")
-        
-        # Create project
-        project = Project(name=name, schema_id=schema_id)
-        session.add(project)
-        session.flush()  # Get the project ID
-        
-        # Add videos to project
-        for vid in video_ids:
-            # Check if video exists and is not archived
-            video = session.get(Video, vid)
-            if not video:
-                raise ValueError(f"Video with ID {vid} not found")
-            if video.is_archived:
-                raise ValueError(f"Video with ID {vid} is archived")
+            raise ValueError("Schema is archived")
             
-            # Check if video is already in any project
+        # Check if videos exist and are not archived
+        for video_id in video_ids:
+            video = session.get(Video, video_id)
+            if not video:
+                raise ValueError(f"Video with ID {video_id} not found")
+            if video.is_archived:
+                raise ValueError("Video is archived")
+                
+        # Check for duplicate videos
+        if len(set(video_ids)) != len(video_ids):
+            raise ValueError("Video already in project")
+            
+        # Check if project name exists
+        existing = session.scalar(select(Project).where(Project.name == name))
+        if existing:
+            raise ValueError(f"Project with name '{name}' already exists")
+            
+        p = Project(name=name, schema_id=schema_id)
+        session.add(p)
+        session.flush()
+        
+        # Check for duplicate videos in existing projects
+        for video_id in video_ids:
             existing = session.scalar(
-                select(ProjectVideo).where(
-                    ProjectVideo.video_id == vid
+                select(ProjectVideo)
+                .join(Project, ProjectVideo.project_id == Project.id)
+                .where(
+                    ProjectVideo.video_id == video_id,
+                    Project.is_archived == False
                 )
             )
             if existing:
-                raise ValueError(f"Video {vid} is already in project {existing.project_id}")
-            
-            session.add(ProjectVideo(project_id=project.id, video_id=vid))
+                raise ValueError("Video already in project")
         
-        # Assign all admin users to the project
-        admin_users = session.scalars(
-            select(User).where(User.user_type == "admin", User.is_archived == False)
-        ).all()
-        
-        for admin in admin_users:
-            session.add(ProjectUserRole(
-                user_id=admin.id,
-                project_id=project.id,
-                role="admin"
-            ))
-        
+        session.bulk_save_objects([
+            ProjectVideo(project_id=p.id, video_id=v) for v in video_ids
+        ])
         session.commit()
 
     @staticmethod
     def get_video_ids_by_uids(video_uids: List[str], session: Session) -> List[int]:
-        """Get video IDs from their UIDs.
-        
-        Args:
-            video_uids: List of video UIDs
-            session: Database session
-            
-        Returns:
-            List of video IDs
-        """
         return session.scalars(select(Video.id).where(Video.video_uid.in_(video_uids))).all()
 
     @staticmethod
@@ -363,13 +268,13 @@ class ProjectService:
             session: Database session
             
         Returns:
-            Dictionary containing:
-            - total_videos: Number of videos in project
-            - total_questions: Number of questions in schema
-            - total_answers: Total number of answers submitted
-            - ground_truth_answers: Number of ground truth answers
-            - completion_percentage: Percentage of questions with ground truth answers
-            
+            dict: Contains:
+                - total_videos: Total number of videos in project
+                - total_questions: Total number of questions in schema
+                - total_answers: Total number of answers submitted
+                - ground_truth_answers: Number of ground truth answers
+                - completion_percentage: Percentage of completion
+                
         Raises:
             ValueError: If project not found
         """
@@ -384,13 +289,11 @@ class ProjectService:
             .where(ProjectVideo.project_id == project_id)
         )
         
-        # Get total questions in schema through question groups
+        # Get total questions in schema
         total_questions = session.scalar(
             select(func.count())
-            .select_from(Question)
-            .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
-            .join(SchemaQuestionGroup, QuestionGroupQuestion.question_group_id == SchemaQuestionGroup.question_group_id)
-            .where(SchemaQuestionGroup.schema_id == project.schema_id)
+            .select_from(SchemaQuestion)
+            .where(SchemaQuestion.schema_id == project.schema_id)
         )
         
         # Get total answers
@@ -428,89 +331,20 @@ class ProjectService:
 class SchemaService:
     @staticmethod
     def get_all_schemas(session: Session) -> pd.DataFrame:
-        """Get all schemas with their question groups.
-        
-        Args:
-            session: Database session
-            
-        Returns:
-            DataFrame containing schemas with columns:
-            - ID: Schema ID
-            - Name: Schema name
-            - Rules: Schema rules JSON
-            - Question Groups: List of question groups in schema
-        """
-        schemas = session.scalars(select(Schema)).all()
-        rows = []
-        for s in schemas:
-            # Get question groups for this schema
-            groups = session.scalars(
-                select(QuestionGroup)
-                .join(SchemaQuestionGroup, QuestionGroup.id == SchemaQuestionGroup.question_group_id)
-                .where(SchemaQuestionGroup.schema_id == s.id)
-            ).all()
-            
-            rows.append({
-                "ID": s.id,
-                "Name": s.name,
-                "Rules": s.rules_json,
-                "Question Groups": ", ".join(g.title for g in groups) if groups else "No groups"
-            })
-        return pd.DataFrame(rows)
-
-    @staticmethod
-    def get_schema_questions(schema_id: int, session: Session) -> pd.DataFrame:
-        """Get all questions in a schema through its question groups.
-        
-        Args:
-            schema_id: The ID of the schema
-            session: Database session
-            
-        Returns:
-            DataFrame containing questions with columns:
-            - ID: Question ID
-            - Text: Question text
-            - Group: Question group name
-            - Type: Question type
-            - Options: Available options for single-choice questions
-        """
-        # Get questions through question groups
-        questions = session.scalars(
-            select(Question)
-            .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
-            .join(SchemaQuestionGroup, QuestionGroupQuestion.question_group_id == SchemaQuestionGroup.question_group_id)
-            .where(SchemaQuestionGroup.schema_id == schema_id)
-        ).all()
-        
         return pd.DataFrame([
-            {
-                "ID": q.id,
-                "Text": q.text,
-                "Group": session.scalar(
-                    select(QuestionGroup.title)
-                    .join(QuestionGroupQuestion, QuestionGroup.id == QuestionGroupQuestion.question_group_id)
-                    .where(QuestionGroupQuestion.question_id == q.id)
-                ),
-                "Type": q.type,
-                "Options": ", ".join(q.options or []) if q.options else ""
-            }
-            for q in questions
+            {"ID": s.id, "Name": s.name, "Rules": s.rules_json}
+            for s in session.scalars(select(Schema)).all()
         ])
 
     @staticmethod
+    def get_schema_questions(schema_id: int, session: Session) -> pd.DataFrame:
+        qids = session.scalars(select(SchemaQuestion.question_id)
+                             .where(SchemaQuestion.schema_id == schema_id)).all()
+        qs = session.scalars(select(Question).where(Question.id.in_(qids))).all()
+        return pd.DataFrame([{"ID": q.id, "Text": q.text} for q in qs])
+
+    @staticmethod
     def get_schema_id_by_name(name: str, session: Session) -> int:
-        """Get schema ID by name.
-        
-        Args:
-            name: Schema name
-            session: Database session
-            
-        Returns:
-            Schema ID
-            
-        Raises:
-            ValueError: If schema not found
-        """
         schema = session.scalar(select(Schema).where(Schema.name == name))
         if not schema:
             raise ValueError(f"Schema '{name}' not found")
@@ -518,19 +352,6 @@ class SchemaService:
 
     @staticmethod
     def create_schema(name: str, rules_json: dict, session: Session) -> Schema:
-        """Create a new schema.
-        
-        Args:
-            name: Schema name
-            rules_json: Schema rules as JSON
-            session: Database session
-            
-        Returns:
-            Created schema
-            
-        Raises:
-            ValueError: If schema with same name exists
-        """
         # Check if schema with same name exists
         existing = session.scalar(select(Schema).where(Schema.name == name))
         if existing:
@@ -542,78 +363,52 @@ class SchemaService:
         return schema
 
     @staticmethod
-    def add_question_group_to_schema(schema_id: int, group_id: int, display_order: int, session: Session) -> None:
-        """Add a question group to a schema.
-        
-        Args:
-            schema_id: Schema ID
-            group_id: Question group ID
-            display_order: Display order in schema
-            session: Database session
-            
-        Raises:
-            ValueError: If schema or group not found, or if group already in schema
-        """
+    def add_question_to_schema(schema_id: int, question_id: int, session: Session) -> None:
         # Check if schema exists
         schema = session.get(Schema, schema_id)
         if not schema:
             raise ValueError(f"Schema with ID {schema_id} not found")
             
-        # Check if group exists
-        group = session.get(QuestionGroup, group_id)
-        if not group:
-            raise ValueError(f"Question group with ID {group_id} not found")
+        # Check if question exists
+        question = session.get(Question, question_id)
+        if not question:
+            raise ValueError(f"Question with ID {question_id} not found")
             
-        # Check if group is already in schema
+        # Check if question is already in schema
         existing = session.scalar(
-            select(SchemaQuestionGroup).where(
-                SchemaQuestionGroup.schema_id == schema_id,
-                SchemaQuestionGroup.question_group_id == group_id
+            select(SchemaQuestion).where(
+                SchemaQuestion.schema_id == schema_id,
+                SchemaQuestion.question_id == question_id
             )
         )
         if existing:
-            raise ValueError(f"Question group {group_id} already in schema {schema_id}")
+            raise ValueError(f"Question {question_id} already in schema {schema_id}")
             
-        # Add group to schema
-        sqg = SchemaQuestionGroup(
-            schema_id=schema_id,
-            question_group_id=group_id,
-            display_order=display_order
-        )
-        session.add(sqg)
+        sq = SchemaQuestion(schema_id=schema_id, question_id=question_id)
+        session.add(sq)
         session.commit()
 
     @staticmethod
-    def remove_question_group_from_schema(schema_id: int, group_id: int, session: Session) -> None:
-        """Remove a question group from a schema.
-        
-        Args:
-            schema_id: Schema ID
-            group_id: Question group ID
-            session: Database session
-            
-        Raises:
-            ValueError: If schema or group not found, or if group not in schema
-        """
+    def remove_question_from_schema(schema_id: int, question_id: int, session: Session) -> None:
         # Check if schema exists
         schema = session.get(Schema, schema_id)
         if not schema:
             raise ValueError(f"Schema with ID {schema_id} not found")
             
-        # Check if group exists
-        group = session.get(QuestionGroup, group_id)
-        if not group:
-            raise ValueError(f"Question group with ID {group_id} not found")
+        # Check if question exists
+        question = session.get(Question, question_id)
+        if not question:
+            raise ValueError(f"Question with ID {question_id} not found")
             
-        # Check if group is in schema
+        # Check if question is in schema
         existing = session.scalar(
-            select(SchemaQuestionGroup).where(
-                SchemaQuestionGroup.schema_id == schema_id,
-                SchemaQuestionGroup.question_group_id == group_id
+            select(SchemaQuestion).where(
+                SchemaQuestion.schema_id == schema_id,
+                SchemaQuestion.question_id == question_id
             )
         )
         if not existing:
-            raise ValueError(f"Question group {group_id} not in schema {schema_id}")
+            raise ValueError(f"Question {question_id} not in schema {schema_id}")
             
         session.delete(existing)
         session.commit()
@@ -657,21 +452,6 @@ class SchemaService:
 class QuestionService:
     @staticmethod
     def get_all_questions(session: Session) -> pd.DataFrame:
-        """Get all questions with their group information.
-        
-        Args:
-            session: Database session
-            
-        Returns:
-            DataFrame containing questions with columns:
-            - ID: Question ID
-            - Text: Question text
-            - Type: Question type
-            - Group: Question group name
-            - Options: Available options for single-choice questions
-            - Default: Default option for single-choice questions
-            - Archived: Whether the question is archived
-        """
         qs = session.scalars(select(Question)).all()
         return pd.DataFrame([
             {
@@ -680,9 +460,8 @@ class QuestionService:
                 "Type": q.type,
                 "Group": session.scalar(
                     select(QuestionGroup.title)
-                    .join(QuestionGroupQuestion, QuestionGroup.id == QuestionGroupQuestion.question_group_id)
-                    .where(QuestionGroupQuestion.question_id == q.id)
-                ),
+                    .where(QuestionGroup.id == q.question_group_id)
+                ) if q.question_group_id else None,
                 "Options": ", ".join(q.options or []) if q.options else "",
                 "Default": q.default_option or "",
                 "Archived": q.is_archived
@@ -693,19 +472,6 @@ class QuestionService:
     def add_question(text: str, qtype: str, group_name: Optional[str],
                     options: Optional[List[str]], default: Optional[str], 
                     session: Session) -> None:
-        """Add a new question to a group.
-        
-        Args:
-            text: Question text
-            qtype: Question type ('single' or 'description')
-            group_name: Name of the question group
-            options: List of options for single-choice questions
-            default: Default option for single-choice questions
-            session: Database session
-            
-        Raises:
-            ValueError: If question text already exists or validation fails
-        """
         # Check if question text already exists
         existing = session.scalar(select(Question).where(Question.text == text))
         if existing:
@@ -730,54 +496,24 @@ class QuestionService:
                 session=session
             )
 
-        # Create question
         q = Question(
             text=text, 
             type=qtype, 
+            question_group_id=group.id,
             options=options, 
             default_option=default
         )
         session.add(q)
-        session.flush()  # Get the question ID
-        
-        # Add question to group
-        session.add(QuestionGroupQuestion(
-            question_group_id=group.id,
-            question_id=q.id,
-            display_order=0  # Default order
-        ))
         session.commit()
 
     @staticmethod
     def get_question_by_text(text: str, session: Session) -> Optional[Question]:
-        """Get a question by its text.
-        
-        Args:
-            text: Question text
-            session: Database session
-            
-        Returns:
-            Question object if found, None otherwise
-        """
         return session.scalar(select(Question).where(Question.text == text))
 
     @staticmethod
     def edit_question(text: str, new_text: str, new_group: Optional[str],
                      new_opts: Optional[List[str]], new_default: Optional[str],
                      session: Session) -> None:
-        """Edit an existing question.
-        
-        Args:
-            text: Current question text
-            new_text: New question text
-            new_group: New question group name
-            new_opts: New options for single-choice questions
-            new_default: New default option for single-choice questions
-            session: Database session
-            
-        Raises:
-            ValueError: If question not found or validation fails
-        """
         q = QuestionService.get_question_by_text(text, session)
         if not q:
             raise ValueError(f"Question with text '{text}' not found")
@@ -801,20 +537,7 @@ class QuestionService:
                 is_reusable=False,
                 session=session
             )
-            
-        # Update question group assignment
-        existing_assignment = session.scalar(
-            select(QuestionGroupQuestion)
-            .where(QuestionGroupQuestion.question_id == q.id)
-        )
-        if existing_assignment:
-            existing_assignment.question_group_id = group.id
-        else:
-            session.add(QuestionGroupQuestion(
-                question_group_id=group.id,
-                question_id=q.id,
-                display_order=0  # Default order
-            ))
+        q.question_group_id = group.id
 
         if q.type == "single":
             if not new_opts:
@@ -828,15 +551,6 @@ class QuestionService:
 
     @staticmethod
     def archive_question(question_id: int, session: Session) -> None:
-        """Archive a question.
-        
-        Args:
-            question_id: Question ID
-            session: Database session
-            
-        Raises:
-            ValueError: If question not found
-        """
         q = session.get(Question, question_id)
         if not q:
             raise ValueError(f"Question with ID {question_id} not found")
@@ -845,15 +559,6 @@ class QuestionService:
 
     @staticmethod
     def unarchive_question(question_id: int, session: Session) -> None:
-        """Unarchive a question.
-        
-        Args:
-            question_id: Question ID
-            session: Database session
-            
-        Raises:
-            ValueError: If question not found
-        """
         q = session.get(Question, question_id)
         if not q:
             raise ValueError(f"Question with ID {question_id} not found")
@@ -863,22 +568,9 @@ class QuestionService:
 class AuthService:
     @staticmethod
     def authenticate(email: str, pwd: str, role: str, session: Session) -> Optional[dict]:
-        """Authenticate a user.
-        
-        Args:
-            email: User's email
-            pwd: User's password
-            role: Required role
-            session: Database session
-            
-        Returns:
-            Dictionary containing user info if authenticated, None otherwise
-        """
-        u = session.scalar(select(User).where(
-            User.email == email, 
-            User.password_hash == pwd, 
-            User.is_active == True
-        ))
+        u = session.scalar(select(User).where(User.email == email, 
+                                           User.password_hash == pwd, 
+                                           User.is_active))
         if not u:
             return None
         if role != "admin" and u.user_type != role:
@@ -889,13 +581,11 @@ class AuthService:
     def seed_admin(session: Session) -> None:
         """Create hard‑coded admin if not present."""
         if not session.scalar(select(User).where(User.email == "zhiqiulin98@gmail.com")):
-            session.add(User(
-                user_id_str="admin", 
-                email="zhiqiulin98@gmail.com",
-                password_hash="zhiqiulin98", 
-                user_type="admin", 
-                is_active=True
-            ))
+            session.add(User(user_id_str="admin", 
+                           email="zhiqiulin98@gmail.com",
+                           password_hash="zhiqiulin98", 
+                           user_type="admin", 
+                           is_active=True))
             session.commit()
 
     @staticmethod
@@ -956,55 +646,17 @@ class AuthService:
             raise ValueError(f"User with ID {user_id} not found")
         
         user.password_hash = new_password  # Note: In production, this should be hashed
-        user.password_updated_at = datetime.now(timezone.utc)
+        user.password_updated_at = datetime.utcnow()
         session.commit()
 
     @staticmethod
     def update_user_role(user_id: int, new_role: str, session: Session) -> None:
-        """Update a user's role and handle admin project assignments."""
+        """Update a user's role."""
         user = session.get(User, user_id)
         if not user:
             raise ValueError(f"User with ID {user_id} not found")
         if new_role not in ["human", "model", "admin"]:
             raise ValueError(f"Invalid role: {new_role}")
-        
-        # If changing to admin role, assign to all projects
-        if new_role == "admin" and user.user_type != "admin":
-            # Get all non-archived projects
-            projects = session.scalars(
-                select(Project).where(Project.is_archived == False)
-            ).all()
-            
-            # Assign user as admin to each project
-            for project in projects:
-                # Check if assignment already exists
-                existing = session.scalar(
-                    select(ProjectUserRole).where(
-                        ProjectUserRole.user_id == user_id,
-                        ProjectUserRole.project_id == project.id
-                    )
-                )
-                if existing:
-                    existing.role = "admin"
-                else:
-                    session.add(ProjectUserRole(
-                        user_id=user_id,
-                        project_id=project.id,
-                        role="admin"
-                    ))
-        
-        # If changing from admin to human, update all project roles
-        if user.user_type == "admin" and new_role == "human":
-            # Get all project assignments for this user
-            assignments = session.scalars(
-                select(ProjectUserRole)
-                .where(ProjectUserRole.user_id == user_id)
-            ).all()
-            
-            # Update each assignment to human role
-            for assignment in assignments:
-                assignment.role = "human"
-        
         user.user_type = new_role
         session.commit()
 
@@ -1074,14 +726,10 @@ class AuthService:
         user = session.get(User, user_id)
         if not user:
             raise ValueError(f"User with ID {user_id} not found")
-        if not user.is_active:
-            raise ValueError(f"User with ID {user_id} is not active")
         
         project = session.get(Project, project_id)
         if not project:
             raise ValueError(f"Project with ID {project_id} not found")
-        if project.is_archived:
-            raise ValueError(f"Project with ID {project_id} is archived")
         
         # If user is an admin, they automatically get reviewer role
         if user.user_type == "admin" and role != "admin":
@@ -1144,66 +792,24 @@ class AuthService:
         )
         session.commit()
 
-    @staticmethod
-    def assign_admin_to_all_projects(user_id: int, session: Session) -> None:
-        """Assign a user as admin to all existing and future projects."""
-        # Get all non-archived projects
-        projects = session.scalars(
-            select(Project).where(Project.is_archived == False)
-        ).all()
-        
-        # Assign user as admin to each project
-        for project in projects:
-            # Check if assignment already exists
-            existing = session.scalar(
-                select(ProjectUserRole).where(
-                    ProjectUserRole.user_id == user_id,
-                    ProjectUserRole.project_id == project.id
-                )
-            )
-            if not existing:
-                session.add(ProjectUserRole(
-                    user_id=user_id,
-                    project_id=project.id,
-                    role="admin"
-                ))
-        session.commit()
-
 class QuestionGroupService:
     @staticmethod
     def get_all_groups(session: Session) -> pd.DataFrame:
-        """Get all question groups with their questions and schema usage.
-        
-        Args:
-            session: Database session
-            
-        Returns:
-            DataFrame containing groups with columns:
-            - ID: Group ID
-            - Name: Group name
-            - Description: Group description
-            - Questions: List of questions in the group
-            - Reusable: Whether the group is reusable
-            - Archived: Whether the group is archived
-            - Question Count: Number of questions
-            - Archived Questions: Number of archived questions
-            - Used in Schemas: List of schemas using this group
-        """
         groups = session.scalars(select(QuestionGroup)).all()
         rows = []
         for g in groups:
             # Get all questions in this group
             questions = session.scalars(
                 select(Question)
-                .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
-                .where(QuestionGroupQuestion.question_group_id == g.id)
+                .where(Question.question_group_id == g.id)
             ).all()
             
             # Get all schemas using this group
             schemas = session.scalars(
                 select(Schema)
-                .join(SchemaQuestionGroup, Schema.id == SchemaQuestionGroup.schema_id)
-                .where(SchemaQuestionGroup.question_group_id == g.id)
+                .join(SchemaQuestion, Schema.id == SchemaQuestion.schema_id)
+                .join(Question, SchemaQuestion.question_id == Question.id)
+                .where(Question.question_group_id == g.id)
                 .distinct()
             ).all()
             
@@ -1235,25 +841,9 @@ class QuestionGroupService:
 
     @staticmethod
     def get_group_questions(group_id: int, session: Session) -> pd.DataFrame:
-        """Get all questions in a group.
-        
-        Args:
-            group_id: Group ID
-            session: Database session
-            
-        Returns:
-            DataFrame containing questions with columns:
-            - ID: Question ID
-            - Text: Question text
-            - Type: Question type
-            - Options: Available options for single-choice questions
-            - Default: Default option for single-choice questions
-            - Archived: Whether the question is archived
-        """
         questions = session.scalars(
             select(Question)
-            .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
-            .where(QuestionGroupQuestion.question_group_id == group_id)
+            .where(Question.question_group_id == group_id)
         ).all()
         
         return pd.DataFrame([
@@ -1264,24 +854,11 @@ class QuestionGroupService:
                 "Options": ", ".join(q.options or []) if q.options else "",
                 "Default": q.default_option or "",
                 "Archived": q.is_archived
-            }
-            for q in questions
+            } for q in questions
         ])
 
     @staticmethod
     def get_group_details(group_id: int, session: Session) -> dict:
-        """Get details of a question group.
-        
-        Args:
-            group_id: Group ID
-            session: Database session
-            
-        Returns:
-            Dictionary containing group details
-            
-        Raises:
-            ValueError: If group not found
-        """
         group = session.get(QuestionGroup, group_id)
         if not group:
             raise ValueError(f"Question group with ID {group_id} not found")
@@ -1294,20 +871,7 @@ class QuestionGroupService:
 
     @staticmethod
     def create_group(title: str, description: str, is_reusable: bool, session: Session) -> QuestionGroup:
-        """Create a new question group.
-        
-        Args:
-            title: Group title
-            description: Group description
-            is_reusable: Whether the group is reusable
-            session: Database session
-            
-        Returns:
-            Created question group
-            
-        Raises:
-            ValueError: If group with same title exists
-        """
+        """Create a new question group with validation."""
         # Check if group with same title exists
         existing = session.scalar(
             select(QuestionGroup).where(QuestionGroup.title == title)
@@ -1326,31 +890,11 @@ class QuestionGroupService:
 
     @staticmethod
     def get_group_by_name(name: str, session: Session) -> Optional[QuestionGroup]:
-        """Get a question group by its name.
-        
-        Args:
-            name: Group name
-            session: Database session
-            
-        Returns:
-            Question group if found, None otherwise
-        """
         return session.scalar(select(QuestionGroup).where(QuestionGroup.title == name))
 
     @staticmethod
     def edit_group(group_id: int, new_title: str, new_description: str, is_reusable: bool, session: Session) -> None:
-        """Edit a question group.
-        
-        Args:
-            group_id: Group ID
-            new_title: New group title
-            new_description: New group description
-            is_reusable: Whether the group is reusable
-            session: Database session
-            
-        Raises:
-            ValueError: If group not found or validation fails
-        """
+        """Edit a question group with validation."""
         group = session.get(QuestionGroup, group_id)
         if not group:
             raise ValueError(f"Question group with ID {group_id} not found")
@@ -1359,8 +903,9 @@ class QuestionGroupService:
         if not is_reusable and group.is_reusable:
             schemas = session.scalars(
                 select(Schema)
-                .join(SchemaQuestionGroup, Schema.id == SchemaQuestionGroup.schema_id)
-                .where(SchemaQuestionGroup.question_group_id == group_id)
+                .join(SchemaQuestion, Schema.id == SchemaQuestion.schema_id)
+                .join(Question, SchemaQuestion.question_id == Question.id)
+                .where(Question.question_group_id == group_id)
                 .distinct()
             ).all()
             
@@ -1385,15 +930,6 @@ class QuestionGroupService:
 
     @staticmethod
     def archive_group(group_id: int, session: Session) -> None:
-        """Archive a question group and its questions.
-        
-        Args:
-            group_id: Group ID
-            session: Database session
-            
-        Raises:
-            ValueError: If group not found
-        """
         group = session.get(QuestionGroup, group_id)
         if not group:
             raise ValueError(f"Question group with ID {group_id} not found")
@@ -1402,8 +938,7 @@ class QuestionGroupService:
         # Also archive all questions in this group
         questions = session.scalars(
             select(Question)
-            .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
-            .where(QuestionGroupQuestion.question_group_id == group_id)
+            .where(Question.question_group_id == group_id)
         ).all()
         for q in questions:
             q.is_archived = True
@@ -1411,15 +946,6 @@ class QuestionGroupService:
 
     @staticmethod
     def unarchive_group(group_id: int, session: Session) -> None:
-        """Unarchive a question group.
-        
-        Args:
-            group_id: Group ID
-            session: Database session
-            
-        Raises:
-            ValueError: If group not found
-        """
         group = session.get(QuestionGroup, group_id)
         if not group:
             raise ValueError(f"Question group with ID {group_id} not found")
@@ -1456,7 +982,7 @@ class AnswerService:
         user = session.get(User, user_id)
         if not user:
             raise ValueError(f"User with ID {user_id} not found")
-        if user.is_archived:
+        if not user.is_active:
             raise ValueError("User is disabled")
             
         # Get question to validate answer type
@@ -1573,130 +1099,6 @@ class AnswerService:
                 "Is Ground Truth": a.is_ground_truth,
                 "Created At": a.created_at,
                 "Modified By User ID": a.modified_by_user_id
-            }
-            for a in answers
-        ])
-
-    @staticmethod
-    def submit_review(answer_id: int, reviewer_id: int, status: str, comment: str, session: Session) -> None:
-        """Submit a review for an answer.
-        
-        Args:
-            answer_id: The ID of the answer to review
-            reviewer_id: The ID of the reviewer
-            status: Review status ('pending', 'approved', or 'rejected')
-            comment: Review comment
-            session: Database session
-            
-        Raises:
-            ValueError: If answer not found, reviewer not found, or invalid status
-        """
-        # Validate status
-        if status not in ['pending', 'approved', 'rejected']:
-            raise ValueError("Invalid review status. Must be one of: pending, approved, rejected")
-            
-        # Check if answer exists
-        answer = session.get(Answer, answer_id)
-        if not answer:
-            raise ValueError(f"Answer with ID {answer_id} not found")
-            
-        # Check if reviewer exists and is active
-        reviewer = session.get(User, reviewer_id)
-        if not reviewer:
-            raise ValueError(f"Reviewer with ID {reviewer_id} not found")
-        if not reviewer.is_active:
-            raise ValueError("Reviewer is disabled")
-            
-        # Check for existing review
-        existing = session.scalar(
-            select(AnswerReview).where(AnswerReview.answer_id == answer_id)
-        )
-        
-        if existing:
-            # Update existing review
-            existing.reviewer_id = reviewer_id
-            existing.status = status
-            existing.comment = comment
-            existing.reviewed_at = datetime.now(timezone.utc)
-        else:
-            # Create new review
-            review = AnswerReview(
-                answer_id=answer_id,
-                reviewer_id=reviewer_id,
-                status=status,
-                comment=comment,
-                reviewed_at=datetime.now(timezone.utc)
-            )
-            session.add(review)
-            
-        session.commit()
-
-    @staticmethod
-    def get_reviews(answer_id: int, session: Session) -> pd.DataFrame:
-        """Get all reviews for an answer.
-        
-        Args:
-            answer_id: The ID of the answer
-            session: Database session
-            
-        Returns:
-            DataFrame containing reviews with columns:
-            - Reviewer ID
-            - Status
-            - Comment
-            - Reviewed At
-        """
-        reviews = session.scalars(
-            select(AnswerReview)
-            .where(AnswerReview.answer_id == answer_id)
-        ).all()
-        
-        return pd.DataFrame([
-            {
-                "Reviewer ID": r.reviewer_id,
-                "Status": r.status,
-                "Comment": r.comment,
-                "Reviewed At": r.reviewed_at
-            }
-            for r in reviews
-        ])
-
-    @staticmethod
-    def get_pending_reviews(project_id: int, session: Session) -> pd.DataFrame:
-        """Get all pending reviews for a project.
-        
-        Args:
-            project_id: The ID of the project
-            session: Database session
-            
-        Returns:
-            DataFrame containing pending reviews with columns:
-            - Answer ID
-            - Video ID
-            - Question ID
-            - User ID
-            - Answer Value
-            - Created At
-        """
-        # Get all answers in the project that need review
-        answers = session.scalars(
-            select(Answer)
-            .where(
-                Answer.project_id == project_id,
-                Answer.answer_type == 'description'  # Only description answers need review
-            )
-            .outerjoin(AnswerReview)  # Left join to find unreviewed answers
-            .where(AnswerReview.id == None)  # No review exists
-        ).all()
-        
-        return pd.DataFrame([
-            {
-                "Answer ID": a.id,
-                "Video ID": a.video_id,
-                "Question ID": a.question_id,
-                "User ID": a.user_id,
-                "Answer Value": a.answer_value,
-                "Created At": a.created_at
             }
             for a in answers
         ])
