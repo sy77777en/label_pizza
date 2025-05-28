@@ -14,7 +14,6 @@ import json
 import os
 from dotenv import load_dotenv
 from sqlalchemy import select
-from sqlalchemy.sql import text
 
 load_dotenv()
 
@@ -25,27 +24,17 @@ def engine():
     db_url = os.getenv("TEST_DBURL")
     if not db_url:
         raise ValueError("TEST_DBURL environment variable not set")
-    engine = create_engine(db_url)
-    
-    # Ensure we're using a fresh database for each test
-    with engine.connect() as conn:
-        conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE;"))
-        conn.execute(text("CREATE SCHEMA public;"))
-        conn.commit()
-    
-    return engine
+    return create_engine(db_url)
 
 @pytest.fixture(scope="function")
 def tables(engine):
+    # Drop all tables first to ensure clean state
+    Base.metadata.drop_all(engine)
     # Create all tables
     Base.metadata.create_all(engine)
     yield
     # Clean up after tests
     Base.metadata.drop_all(engine)
-    with engine.connect() as conn:
-        conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE;"))
-        conn.execute(text("CREATE SCHEMA public;"))
-        conn.commit()
 
 @pytest.fixture(scope="function")
 def session(engine, tables):
@@ -366,15 +355,14 @@ def test_video_service_add_video_with_metadata(session):
 
 def test_video_service_add_video_with_empty_metadata(session):
     """Test adding a video with empty metadata"""
-    with pytest.raises(ValueError, match="Metadata must be a non-empty dictionary"):
-        VideoService.add_video("http://example.com/new_video.mp4", session, {})
-        video = session.query(Video).filter_by(video_uid="new_video.mp4").first()
-        assert video is not None
-        assert video.video_metadata == {}
+    VideoService.add_video("http://example.com/new_video.mp4", session, {})
+    video = session.query(Video).filter_by(video_uid="new_video.mp4").first()
+    assert video is not None
+    assert video.video_metadata == {}
 
 def test_video_service_add_video_with_invalid_metadata(session):
     """Test adding a video with invalid metadata type"""
-    with pytest.raises(ValueError, match="Metadata must be a non-empty dictionary"):
+    with pytest.raises(ValueError, match="must be a dictionary"):
         VideoService.add_video("http://example.com/new_video.mp4", session, "invalid_metadata")
 
 def test_video_service_add_video_with_very_long_url(session):
