@@ -1001,12 +1001,12 @@ def test_video_metadata_validation(session):
     
     # Test metadata with invalid value types
     invalid_value_metadata = {
-        "duration": "not a number",
-        "resolution": 1080,  # Should be string
-        "tags": "not a list"  # Should be list
+        "duration": set([1, 2, 3]),  # set is not allowed
+        "resolution": (1920, 1080),  # tuple is not allowed
+        "tags": object()  # custom object is not allowed
     }
     
-    with pytest.raises(ValueError, match="Invalid metadata value type"):
+    with pytest.raises(ValueError, match="Invalid metadata value type for key 'duration': <class 'set'>"):
         VideoService.add_video("http://example.com/test.mp4", session, invalid_value_metadata)
     
     # Test valid metadata
