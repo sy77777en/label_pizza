@@ -83,7 +83,12 @@ def tab_videos():
 def tab_projects():
     st.subheader("Projects")
     with SessionLocal() as s:
-        st.dataframe(ProjectService.get_all_projects(s))
+        projects_df = ProjectService.get_all_projects(s)
+        if not projects_df.empty:
+            st.dataframe(projects_df)
+        else:
+            st.info("No projects available.")
+            
         with st.expander("Create project"):
             pname = st.text_input("Name", key="p_name")
             schema_df = SchemaService.get_all_schemas(s)
@@ -449,118 +454,103 @@ def tab_users():
 def tab_project_assignments():
     st.subheader("Project Assignments")
     with SessionLocal() as s:
-        # Display current assignments
-        assignments_df = AuthService.get_project_assignments(s)
+        # Get all projects
+        projects_df = ProjectService.get_all_projects(s)
+        if projects_df.empty:
+            st.warning("No projects available. Please create a project first.")
+            return
         
-        # Add filtering options only if there are assignments
-        if not assignments_df.empty:
-            col1, col2 = st.columns(2)
-            with col1:
-                filter_role = st.multiselect(
-                    "Filter by Role",
-                    options=["annotator", "reviewer", "admin", "model"],
-                    default=[]
-                )
-            with col2:
-                filter_project = st.multiselect(
-                    "Filter by Project",
-                    options=assignments_df["Project Name"].unique().tolist(),
-                    default=[]
-                )
+        # Select project first
+        project_id = st.selectbox(
+            "Select Project",
+            options=projects_df["ID"].tolist(),
+            format_func=lambda x: f"{projects_df[projects_df['ID']==x]['Name'].iloc[0]}",
+            key="project_select"
+        )
+        
+        if project_id:
+            # Get assignments for selected project
+            assignments_df = AuthService.get_project_assignments(s)
+            project_assignments = assignments_df[assignments_df["Project ID"] == project_id]
             
-            # Apply filters
-            if filter_role:
-                assignments_df = assignments_df[assignments_df["Role"].isin(filter_role)]
-            if filter_project:
-                assignments_df = assignments_df[assignments_df["Project Name"].isin(filter_project)]
-        
-        # Display assignments or message if empty
-        if assignments_df.empty:
-            st.info("No project assignments found.")
-        else:
-            st.dataframe(assignments_df)
-        
-        # Assignment management section
-        with st.expander("Manage Assignments"):
-            # Get all projects and users
-            projects_df = ProjectService.get_all_projects(s)
-            users_df = AuthService.get_all_users(s)
+            # Display current assignments for the project
+            st.write("### Current Assignments")
+            if project_assignments.empty:
+                st.info("No users assigned to this project.")
+            else:
+                st.dataframe(project_assignments)
             
-            if projects_df.empty:
-                st.warning("No projects available. Please create a project first.")
-                return
+            # Assignment management section
+            with st.expander("Manage Assignments"):
+                # Get all users
+                users_df = AuthService.get_all_users(s)
+                if users_df.empty:
+                    st.warning("No users available. Please create users first.")
+                    return
                 
-            if users_df.empty:
-                st.warning("No users available. Please create users first.")
-                return
-            
-            # Select project
-            project_id = st.selectbox(
-                "Select Project",
-                options=projects_df["ID"].tolist(),
-                format_func=lambda x: f"{projects_df[projects_df['ID']==x]['Name'].iloc[0]}"
-            )
-            
-            # Select role
-            role = st.selectbox(
-                "Role",
-                options=["annotator", "reviewer", "admin", "model"]
-            )
-            
-            # Single user assignment
-            st.subheader("Single User Assignment")
-            user_id = st.selectbox(
-                "Select User",
-                options=users_df["ID"].tolist(),
-                format_func=lambda x: f"{users_df[users_df['ID']==x]['User ID'].iloc[0]} ({users_df[users_df['ID']==x]['Email'].iloc[0]})"
-            )
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("Assign User"):
-                    try:
-                        AuthService.assign_user_to_project(user_id, project_id, role, session=s)
-                        st.rerun()
-                    except ValueError as e:
-                        st.error(str(e))
-            
-            with col2:
-                if st.button("Remove Assignment"):
-                    try:
-                        AuthService.remove_user_from_project(user_id, project_id, session=s)
-                        st.rerun()
-                    except ValueError as e:
-                        st.error(str(e))
-            
-            # Bulk assignment
-            st.subheader("Bulk Assignment")
-            selected_users = st.multiselect(
-                "Select Multiple Users",
-                options=users_df["ID"].tolist(),
-                format_func=lambda x: f"{users_df[users_df['ID']==x]['User ID'].iloc[0]} ({users_df[users_df['ID']==x]['Email'].iloc[0]})"
-            )
-            
-            if st.button("Bulk Assign Users"):
-                if not selected_users:
-                    st.warning("Please select at least one user")
-                else:
-                    try:
-                        AuthService.bulk_assign_users_to_project(selected_users, project_id, role, session=s)
-                        st.success(f"Successfully assigned {len(selected_users)} users to project")
-                        st.rerun()
-                    except ValueError as e:
-                        st.error(str(e))
-            
-            if st.button("Bulk Remove Users"):
-                if not selected_users:
-                    st.warning("Please select at least one user")
-                else:
-                    try:
-                        AuthService.bulk_remove_users_from_project(selected_users, project_id, session=s)
-                        st.success(f"Successfully removed {len(selected_users)} users from project")
-                        st.rerun()
-                    except ValueError as e:
-                        st.error(str(e))
+                # Select role
+                role = st.selectbox(
+                    "Role",
+                    options=["annotator", "reviewer", "admin", "model"],
+                    key="role_select"
+                )
+                
+                # Single user assignment
+                st.subheader("Single User Assignment")
+                user_id = st.selectbox(
+                    "Select User",
+                    options=users_df["ID"].tolist(),
+                    format_func=lambda x: f"{users_df[users_df['ID']==x]['User ID'].iloc[0]} ({users_df[users_df['ID']==x]['Email'].iloc[0]})",
+                    key="single_user_select"
+                )
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Assign User", key="assign_user_btn"):
+                        try:
+                            AuthService.assign_user_to_project(user_id, project_id, role, session=s)
+                            st.rerun()
+                        except ValueError as e:
+                            st.error(str(e))
+                
+                with col2:
+                    if st.button("Remove Assignment", key="remove_user_btn"):
+                        try:
+                            AuthService.remove_user_from_project(user_id, project_id, session=s)
+                            st.rerun()
+                        except ValueError as e:
+                            st.error(str(e))
+                
+                # Bulk assignment
+                st.subheader("Bulk Assignment")
+                selected_users = st.multiselect(
+                    "Select Multiple Users",
+                    options=users_df["ID"].tolist(),
+                    format_func=lambda x: f"{users_df[users_df['ID']==x]['User ID'].iloc[0]} ({users_df[users_df['ID']==x]['Email'].iloc[0]})",
+                    key="bulk_user_select"
+                )
+                
+                if st.button("Bulk Assign Users", key="bulk_assign_btn"):
+                    if not selected_users:
+                        st.warning("Please select at least one user")
+                    else:
+                        try:
+                            AuthService.bulk_assign_users_to_project(selected_users, project_id, role, session=s)
+                            st.success(f"Successfully assigned {len(selected_users)} users to project")
+                            st.rerun()
+                        except ValueError as e:
+                            st.error(str(e))
+                
+                if st.button("Bulk Remove Users", key="bulk_remove_btn"):
+                    if not selected_users:
+                        st.warning("Please select at least one user")
+                    else:
+                        try:
+                            AuthService.bulk_remove_users_from_project(selected_users, project_id, session=s)
+                            st.success(f"Successfully removed {len(selected_users)} users from project")
+                            st.rerun()
+                        except ValueError as e:
+                            st.error(str(e))
 
 ###############################################################################
 # 3.  ROUTER  ----------------------------------------------------------------

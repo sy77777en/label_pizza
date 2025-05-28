@@ -1,7 +1,7 @@
 from datetime import datetime
 from sqlalchemy import (
     Column, Integer, String, Text, Boolean, DateTime, Float, Enum,
-    UniqueConstraint, Index, create_engine, JSON, func
+    UniqueConstraint, Index, create_engine, JSON, func, PrimaryKeyConstraint
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import declarative_base, Session
@@ -26,15 +26,15 @@ class User(Base):
     user_id_str = Column(String(128), unique=True, nullable=False)
     email = Column(String(255), unique=True, nullable=False)
     password_hash = Column(Text, nullable=False)
-    password_updated_at = Column(DateTime(timezone=True), default=now)
     user_type = Column(Enum("human", "model", "admin", name="user_types"), default="human")
     created_at = Column(DateTime(timezone=True), default=now)
-    is_active = Column(Boolean, default=True)
+    updated_at = Column(DateTime(timezone=True), default=now)
+    is_archived = Column(Boolean, default=False)
 
 class Video(Base):
     __tablename__ = "videos"
     id = Column(Integer, primary_key=True)
-    video_uid = Column(String(180), unique=True, nullable=False)
+    video_uid = Column(String(255), unique=True, nullable=False)
     url = Column(Text)
     video_metadata = Column(JSONB)
     created_at = Column(DateTime(timezone=True), default=now)
@@ -52,7 +52,7 @@ class VideoTag(Base):
 class QuestionGroup(Base):
     __tablename__ = "question_groups"
     id = Column(Integer, primary_key=True)
-    title = Column(String, unique=True, nullable=False)
+    title = Column(String(255), unique=True, nullable=False)
     description = Column(Text)
     is_reusable = Column(Boolean, default=False)
     is_archived = Column(Boolean, default=False)
@@ -60,29 +60,41 @@ class QuestionGroup(Base):
 class Question(Base):
     __tablename__ = "questions"
     id = Column(Integer, primary_key=True)
-    text = Column(Text, unique=True, nullable=False)
-    type = Column(Enum("single", "description", name="question_types"), nullable=False)
-    question_group_id = Column(Integer, nullable=True)
+    text = Column(Text, unique=True)
+    type = Column(Enum("single", "description", name="question_type"))
     options = Column(JSONB, nullable=True)
     default_option = Column(String(120), nullable=True)
-    is_active = Column(Boolean, default=True)
+
     is_archived = Column(Boolean, default=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), default=now)
+
+class QuestionGroupQuestion(Base):
+    __tablename__ = "question_group_questions"
+    question_group_id = Column(Integer, nullable=False)
+    question_id = Column(Integer, nullable=False)
+    display_order = Column(Integer, nullable=False)
+    __table_args__ = (
+        PrimaryKeyConstraint('question_group_id', 'question_id'),
+    )
 
 class Schema(Base):
     __tablename__ = "schemas"
     id = Column(Integer, primary_key=True)
-    name = Column(String, unique=True, nullable=False)
+    name = Column(Text, unique=True, nullable=False)
     rules_json = Column(JSONB)
     created_at = Column(DateTime(timezone=True), default=now)
     updated_at = Column(DateTime(timezone=True), default=now, onupdate=now)
     is_archived = Column(Boolean, default=False)
 
-class SchemaQuestion(Base):
-    __tablename__ = "schema_questions"
-    schema_id = Column(Integer, primary_key=True)
-    question_id = Column(Integer, primary_key=True)
-    added_at = Column(DateTime(timezone=True), default=now)
+
+class SchemaQuestionGroup(Base):
+    __tablename__ = "schema_question_groups"
+    schema_id = Column(Integer, nullable=False)
+    question_group_id = Column(Integer, nullable=False)
+    display_order = Column(Integer, nullable=False)
+    __table_args__ = (
+        PrimaryKeyConstraint('schema_id', 'question_group_id'),
+    )
 
 class Project(Base):
     __tablename__ = "projects"
