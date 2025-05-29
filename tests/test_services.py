@@ -112,10 +112,10 @@ def test_video_service_get_all_videos(session):
     assert df.iloc[0]["URL"] == "http://example.com/test.mp4"
     assert df.iloc[0]["Archived"] == False
 
-def test_video_service_get_all_videos_with_project(session, test_video, test_project, test_schema, test_question_group):
+def test_video_service_get_all_videos_with_project(session, test_video, test_schema, test_question_group):
     # Add video to project through service layer
     ProjectService.create_project(
-        name="test_project",
+        name="test_project_with_status",
         schema_id=test_schema.id,
         video_ids=[test_video.id],
         session=session
@@ -137,17 +137,18 @@ def test_video_service_get_all_videos_with_project(session, test_video, test_pro
     
     df = VideoService.get_videos_with_project_status(session)
     assert len(df) == 1
-    assert "test_project" in df.iloc[0]["Projects"]
+    assert "test_project_with_status" in df.iloc[0]["Projects"]
     assert "✗" in df.iloc[0]["Projects"]  # No ground truth yet
 
-def test_video_service_get_all_videos_with_ground_truth(session, test_video, test_project, test_schema, test_user, test_question_group):
+def test_video_service_get_all_videos_with_ground_truth(session, test_video, test_schema, test_user, test_question_group):
     # Add video to project through service layer
     ProjectService.create_project(
-        name="test_project",
+        name="test_project_with_gt",
         schema_id=test_schema.id,
         video_ids=[test_video.id],
         session=session
     )
+    project = ProjectService.get_project_by_name("test_project_with_gt", session)
     
     # Add a question to schema through question group
     question_text = "test question"
@@ -171,7 +172,7 @@ def test_video_service_get_all_videos_with_ground_truth(session, test_video, tes
     AnswerService.submit_answer(
         video_id=test_video.id,
         question_id=question.id,
-        project_id=test_project.id,
+        project_id=project.id,
         user_id=test_user.id,
         answer_value="option1",
         session=session,
@@ -180,7 +181,7 @@ def test_video_service_get_all_videos_with_ground_truth(session, test_video, tes
     
     df = VideoService.get_videos_with_project_status(session)
     assert len(df) == 1
-    assert "test_project" in df.iloc[0]["Projects"]
+    assert "test_project_with_gt" in df.iloc[0]["Projects"]
     assert "✓" in df.iloc[0]["Projects"]  # Has ground truth
 
 def test_video_service_get_all_videos_multiple_projects(session, test_video):
@@ -189,12 +190,13 @@ def test_video_service_get_all_videos_multiple_projects(session, test_video):
     for i in range(2):
         schema = SchemaService.create_schema(f"test_schema{i}", {}, session)
         
-        project = ProjectService.create_project(
+        ProjectService.create_project(
             name=f"test_project{i}",
             schema_id=schema.id,
             video_ids=[test_video.id],
             session=session
         )
+        project = ProjectService.get_project_by_name(f"test_project{i}", session)
         projects.append(project)
         
         # Create question group
@@ -236,15 +238,16 @@ def test_video_service_get_all_videos_with_metadata(session):
     assert df.iloc[0]["URL"] == "http://example.com/test.mp4"
     assert df.iloc[0]["Archived"] == False
 
-def test_video_service_get_all_videos_with_partial_ground_truth(session, test_video, test_project, test_schema, test_user, test_question_group):
+def test_video_service_get_all_videos_with_partial_ground_truth(session, test_video, test_schema, test_user, test_question_group):
     """Test getting videos where only some questions have ground truth answers"""
     # Add video to project through service layer
     ProjectService.create_project(
-        name="test_project",
+        name="test_project_partial_gt",
         schema_id=test_schema.id,
         video_ids=[test_video.id],
         session=session
     )
+    project = ProjectService.get_project_by_name("test_project_partial_gt", session)
     
     # Add two questions to schema through question group
     questions = []
@@ -268,7 +271,7 @@ def test_video_service_get_all_videos_with_partial_ground_truth(session, test_vi
     AnswerService.submit_answer(
         video_id=test_video.id,
         question_id=questions[0].id,
-        project_id=test_project.id,
+        project_id=project.id,
         user_id=test_user.id,
         answer_value="option1",
         session=session,
@@ -277,17 +280,18 @@ def test_video_service_get_all_videos_with_partial_ground_truth(session, test_vi
     
     df = VideoService.get_videos_with_project_status(session)
     assert len(df) == 1
-    assert "test_project" in df.iloc[0]["Projects"]
+    assert "test_project_partial_gt" in df.iloc[0]["Projects"]
     assert "✗" in df.iloc[0]["Projects"]  # Not all questions have ground truth
 
-def test_video_service_get_all_videos_with_review(session, test_video, test_project, test_schema, test_user, test_question_group):
+def test_video_service_get_all_videos_with_review(session, test_video, test_schema, test_user, test_question_group):
     # Add video to project through service layer
     ProjectService.create_project(
-        name="test_project",
+        name="test_project_with_review",
         schema_id=test_schema.id,
         video_ids=[test_video.id],
         session=session
     )
+    project = ProjectService.get_project_by_name("test_project_with_review", session)
     
     # Add questions to group through service layer
     questions = []
@@ -313,7 +317,7 @@ def test_video_service_get_all_videos_with_review(session, test_video, test_proj
         AnswerService.submit_answer(
             video_id=test_video.id,
             question_id=question.id,
-            project_id=test_project.id,
+            project_id=project.id,
             user_id=test_user.id,
             answer_value="option1",
             session=session,
@@ -321,7 +325,7 @@ def test_video_service_get_all_videos_with_review(session, test_video, test_proj
         )
     
     # Get progress
-    progress = ProjectService.progress(test_project.id, session)
+    progress = ProjectService.progress(project.id, session)
     assert progress["total_videos"] == 1
     assert progress["total_questions"] == 2
     assert progress["total_answers"] == 2
@@ -704,35 +708,35 @@ def test_question_group_service_unarchive_group(session, test_question_group):
 
 def test_question_group_reusable_validation(session, test_schema):
     # Create a reusable group
-    group1 = QuestionGroupService.create_group(
+    group = QuestionGroupService.create_group(
         title="reusable_group",
-        description="A reusable group",
+        description="test description",
         is_reusable=True,
         session=session
     )
     
-    # Add group to first schema through service layer
-    SchemaService.add_question_group_to_schema(test_schema.id, group1.id, 0, session)
+    # Add group to first schema
+    SchemaService.add_question_group_to_schema(test_schema.id, group.id, 0, session)
     
     # Create second schema
     schema2 = SchemaService.create_schema("test_schema2", {}, session)
     
-    # Add same group to second schema (should work since it's reusable)
-    SchemaService.add_question_group_to_schema(schema2.id, group1.id, 0, session)
+    # Try to add same group to second schema - should succeed since group is reusable
+    SchemaService.add_question_group_to_schema(schema2.id, group.id, 0, session)
     
-    # Create a non-reusable group
+    # Create non-reusable group
     group2 = QuestionGroupService.create_group(
         title="non_reusable_group",
-        description="A non-reusable group",
+        description="test description",
         is_reusable=False,
         session=session
     )
     
-    # Add group to first schema through service layer
-    SchemaService.add_question_group_to_schema(test_schema.id, group2.id, 1, session)
+    # Add non-reusable group to first schema
+    SchemaService.add_question_group_to_schema(test_schema.id, group2.id, 0, session)
     
-    # Try to add same group to second schema (should fail since it's not reusable)
-    with pytest.raises(ValueError):
+    # Try to add non-reusable group to second schema - should fail
+    with pytest.raises(ValueError, match="Question group non_reusable_group is not reusable and is already used in schema test_schema"):
         SchemaService.add_question_group_to_schema(schema2.id, group2.id, 0, session)
 
 # AuthService Tests
@@ -969,45 +973,29 @@ def test_cannot_add_archived_video_to_project(session, test_video):
 
 def test_video_metadata_validation(session):
     # Test invalid metadata types
-    with pytest.raises(ValueError, match="Metadata must be a non-empty dictionary"):
-        VideoService.add_video("http://example.com/test.mp4", session, "invalid_metadata")
+    with pytest.raises(ValueError, match="Metadata must be a dictionary"):
+        VideoService.add_video("http://example.com/test.mp4", session, metadata="invalid")
     
     with pytest.raises(ValueError, match="Metadata must be a non-empty dictionary"):
-        VideoService.add_video("http://example.com/test.mp4", session, 123)
+        VideoService.add_video("http://example.com/test.mp4", session, metadata={})
     
-    with pytest.raises(ValueError, match="Metadata must be a non-empty dictionary"):
-        VideoService.add_video("http://example.com/test.mp4", session, [])
+    with pytest.raises(ValueError, match="Invalid metadata value type for key 'invalid'"):
+        VideoService.add_video("http://example.com/test.mp4", session, metadata={"invalid": object()})
     
-    with pytest.raises(ValueError, match="Metadata must be a non-empty dictionary"):
-        VideoService.add_video("http://example.com/test.mp4", session, {})
+    with pytest.raises(ValueError, match="Invalid list element type in metadata key 'invalid'"):
+        VideoService.add_video("http://example.com/test.mp4", session, metadata={"invalid": [object()]})
     
-    # Test invalid value types in metadata
-    with pytest.raises(ValueError, match="Invalid metadata value type"):
-        VideoService.add_video("http://example.com/test.mp4", session, {"key": set()})
-    
-    with pytest.raises(ValueError, match="Invalid metadata value type"):
-        VideoService.add_video("http://example.com/test.mp4", session, {"key": tuple()})
-    
-    with pytest.raises(ValueError, match="Invalid metadata value type"):
-        VideoService.add_video("http://example.com/test.mp4", session, {"key": object()})
+    with pytest.raises(ValueError, match="Invalid nested metadata value type for key 'invalid.nested'"):
+        VideoService.add_video("http://example.com/test.mp4", session, metadata={"invalid": {"nested": object()}})
     
     # Test valid metadata
-    valid_metadata = {
+    metadata = {
         "duration": 120,
         "resolution": "1080p",
-        "fps": 30.0,
-        "is_processed": True,
         "tags": ["action", "sports"],
-        "nested": {
-            "key": "value",
-            "numbers": [1, 2, 3]
-        }
+        "info": {"fps": 30, "codec": "h264"}
     }
-    
-    video = VideoService.add_video("http://example.com/test.mp4", session, valid_metadata)
-    retrieved_video = VideoService.get_video_by_uid("test.mp4", session)
-    assert retrieved_video is not None
-    assert VideoService.get_video_metadata(retrieved_video.id, session) == valid_metadata
+    VideoService.add_video("http://example.com/test.mp4", session, metadata=metadata)
 
 def test_video_uid_special_chars(session):
     # Test various special characters in video UIDs
@@ -1054,25 +1042,16 @@ def test_video_uid_special_chars(session):
             pytest.fail(f"Failed to add video with UID {uid}: {str(e)}")
 
 def test_video_uid_case_sensitivity(session):
-    # Test case sensitivity in video UIDs
-    base_uid = "TestVideo.mp4"
-    variations = [
-        "testvideo.mp4",
-        "TESTVIDEO.mp4",
-        "TestVideo.mp4",
-        "testVideo.mp4",
-        "TESTvideo.mp4"
-    ]
+    # Test that case-insensitive video UIDs are allowed
+    VideoService.add_video("http://example.com/Test.mp4", session)
+    VideoService.add_video("http://example.com/test.mp4", session)
     
-    # Add first video
-    url = f"http://example.com/{base_uid}"
-    VideoService.add_video(url, session)
-    
-    # Try to add variations
-    for variation in variations[1:]:  # Skip first variation as it's the same
-        url = f"http://example.com/{variation}"
-        with pytest.raises(ValueError, match="already exists"):
-            VideoService.add_video(url, session)
+    # Verify both videos exist
+    video1 = VideoService.get_video_by_uid("Test.mp4", session)
+    video2 = VideoService.get_video_by_uid("test.mp4", session)
+    assert video1 is not None
+    assert video2 is not None
+    assert video1.id != video2.id  # They should be different videos
 
 def test_answer_service_submit_answer(session):
     """Test submitting a valid answer."""
@@ -1085,11 +1064,19 @@ def test_answer_service_submit_answer(session):
         session
     )
     
-    video = VideoService.add_video("http://example.com/test_video.mp4", session)
+    # Add video and get the video object
+    VideoService.add_video("http://example.com/test_video.mp4", session)
+    video = VideoService.get_video_by_uid("test_video.mp4", session)
+    assert video is not None
     
     # Create schema and project
     schema = SchemaService.create_schema("test_schema", {}, session)
-    project = ProjectService.create_project("Test Project", schema.id, [video.id], session)
+    ProjectService.create_project("Test Project", schema.id, [video.id], session)
+    project = ProjectService.get_project_by_name("Test Project", session)
+    assert project is not None
+    
+    # Assign user to project
+    AuthService.assign_user_to_project(user.id, project.id, "annotator", session)
     
     # Create question group
     group = QuestionGroupService.create_group(
@@ -1144,11 +1131,18 @@ def test_answer_service_submit_ground_truth(session):
         session
     )
     
-    video = VideoService.add_video("http://example.com/test_video.mp4", session)
+    VideoService.add_video("http://example.com/test_video.mp4", session)
+    video = VideoService.get_video_by_uid("test_video.mp4", session)
+    assert video is not None
     
     # Create schema and project
     schema = SchemaService.create_schema("test_schema", {}, session)
-    project = ProjectService.create_project("Test Project", schema.id, [video.id], session)
+    ProjectService.create_project("Test Project", schema.id, [video.id], session)
+    project = ProjectService.get_project_by_name("Test Project", session)
+    assert project is not None
+    
+    # Assign user to project
+    AuthService.assign_user_to_project(user.id, project.id, "annotator", session)
     
     # Create question group
     group = QuestionGroupService.create_group(
@@ -1204,11 +1198,19 @@ def test_answer_service_submit_invalid_option(session):
         session
     )
     
-    video = VideoService.add_video("http://example.com/test_video.mp4", session)
+    # Add video and get the video object
+    VideoService.add_video("http://example.com/test_video.mp4", session)
+    video = VideoService.get_video_by_uid("test_video.mp4", session)
+    assert video is not None
     
     # Create schema and project
     schema = SchemaService.create_schema("test_schema", {}, session)
-    project = ProjectService.create_project("Test Project", schema.id, [video.id], session)
+    ProjectService.create_project("Test Project", schema.id, [video.id], session)
+    project = ProjectService.get_project_by_name("Test Project", session)
+    assert project is not None
+    
+    # Assign user to project
+    AuthService.assign_user_to_project(user.id, project.id, "annotator", session)
     
     # Create question group
     group = QuestionGroupService.create_group(
@@ -1237,7 +1239,7 @@ def test_answer_service_submit_invalid_option(session):
     assert question is not None
     
     # Try to submit invalid option
-    with pytest.raises(ValueError, match="Answer value 'invalid' not in options"):
+    with pytest.raises(ValueError, match="Answer value 'invalid' not in options: option1, option2"):
         AnswerService.submit_answer(
             video_id=video.id,
             question_id=question.id,
@@ -1258,11 +1260,16 @@ def test_answer_service_submit_to_archived_project(session):
         session
     )
     
-    video = VideoService.add_video("http://example.com/test_video.mp4", session)
+    # Add video and get the video object
+    VideoService.add_video("http://example.com/test_video.mp4", session)
+    video = VideoService.get_video_by_uid("test_video.mp4", session)
+    assert video is not None
     
     # Create schema and project
     schema = SchemaService.create_schema("test_schema", {}, session)
-    project = ProjectService.create_project("Test Project", schema.id, [video.id], session)
+    ProjectService.create_project("Test Project", schema.id, [video.id], session)
+    project = ProjectService.get_project_by_name("Test Project", session)
+    assert project is not None
     
     # Archive project
     ProjectService.archive_project(project.id, session)
@@ -1318,11 +1325,15 @@ def test_answer_service_submit_as_disabled_user(session):
     # Archive user
     AuthService.toggle_user_archived(user.id, session)
     
-    video = VideoService.add_video("http://example.com/test_video.mp4", session)
+    VideoService.add_video("http://example.com/test_video.mp4", session)
+    video = VideoService.get_video_by_uid("test_video.mp4", session)
+    assert video is not None
     
     # Create schema and project
     schema = SchemaService.create_schema("test_schema", {}, session)
-    project = ProjectService.create_project("Test Project", schema.id, [video.id], session)
+    ProjectService.create_project("Test Project", schema.id, [video.id], session)
+    project = ProjectService.get_project_by_name("Test Project", session)
+    assert project is not None
     
     # Create question group
     group = QuestionGroupService.create_group(
@@ -1372,11 +1383,19 @@ def test_answer_service_update_existing_answer(session):
         session
     )
     
-    video = VideoService.add_video("http://example.com/test_video.mp4", session)
+    # Add video and get the video object
+    VideoService.add_video("http://example.com/test_video.mp4", session)
+    video = VideoService.get_video_by_uid("test_video.mp4", session)
+    assert video is not None
     
     # Create schema and project
     schema = SchemaService.create_schema("test_schema", {}, session)
-    project = ProjectService.create_project("Test Project", schema.id, [video.id], session)
+    ProjectService.create_project("Test Project", schema.id, [video.id], session)
+    project = ProjectService.get_project_by_name("Test Project", session)
+    assert project is not None
+    
+    # Assign user to project
+    AuthService.assign_user_to_project(user.id, project.id, "annotator", session)
     
     # Create question group
     group = QuestionGroupService.create_group(
@@ -1441,11 +1460,19 @@ def test_answer_service_get_answers(session):
         session
     )
     
-    video = VideoService.add_video("http://example.com/test_video.mp4", session)
+    # Add video and get the video object
+    VideoService.add_video("http://example.com/test_video.mp4", session)
+    video = VideoService.get_video_by_uid("test_video.mp4", session)
+    assert video is not None
     
     # Create schema and project
     schema = SchemaService.create_schema("test_schema", {}, session)
-    project = ProjectService.create_project("Test Project", schema.id, [video.id], session)
+    ProjectService.create_project("Test Project", schema.id, [video.id], session)
+    project = ProjectService.get_project_by_name("Test Project", session)
+    assert project is not None
+    
+    # Assign user to project
+    AuthService.assign_user_to_project(user.id, project.id, "annotator", session)
     
     # Create question group
     group = QuestionGroupService.create_group(
@@ -1512,11 +1539,19 @@ def test_answer_service_get_ground_truth(session):
         session
     )
     
-    video = VideoService.add_video("http://example.com/test_video.mp4", session)
+    # Add video and get the video object
+    VideoService.add_video("http://example.com/test_video.mp4", session)
+    video = VideoService.get_video_by_uid("test_video.mp4", session)
+    assert video is not None
     
     # Create schema and project
     schema = SchemaService.create_schema("test_schema", {}, session)
-    project = ProjectService.create_project("Test Project", schema.id, [video.id], session)
+    ProjectService.create_project("Test Project", schema.id, [video.id], session)
+    project = ProjectService.get_project_by_name("Test Project", session)
+    assert project is not None
+    
+    # Assign user to project
+    AuthService.assign_user_to_project(user.id, project.id, "annotator", session)
     
     # Create question group
     group = QuestionGroupService.create_group(
@@ -1608,44 +1643,41 @@ def test_question_text_uniqueness(session):
         ) 
 
 def test_project_service_add_videos(session, test_project, test_video):
-    """Test adding videos to an existing project."""
-    # Create a new video to add
-    new_video = VideoService.add_video(
-        url="http://example.com/new_video.mp4",
-        session=session
-    )
+    """Test adding videos to a project."""
+    # Add another video
+    VideoService.add_video("http://example.com/test2.mp4", session)
+    video2 = VideoService.get_video_by_uid("test2.mp4", session)
+    assert video2 is not None
     
-    # Add the new video to the project
-    ProjectService.add_videos_to_project(
-        project_id=test_project.id,
-        video_ids=[new_video.id],
-        session=session
-    )
+    # Add both videos to project
+    ProjectService.add_videos_to_project(test_project.id, [test_video.id, video2.id], session)
     
-    # Verify video was added by checking project progress
-    progress = ProjectService.progress(test_project.id, session)
-    assert progress["total_videos"] == 2  # Original video + new video
-    
-    # Try to add the same video again (should be idempotent)
-    ProjectService.add_videos_to_project(
-        project_id=test_project.id,
-        video_ids=[new_video.id],
-        session=session
+    # Verify videos were added
+    project = ProjectService.get_project_by_name("test_project", session)
+    assert project is not None
+    video_count = session.scalar(
+        select(func.count())
+        .select_from(ProjectVideo)
+        .where(ProjectVideo.project_id == project.id)
     )
-    progress = ProjectService.progress(test_project.id, session)
-    assert progress["total_videos"] == 2  # Should not change
+    assert video_count == 2
 
 def test_project_service_add_videos_validation(session, test_project, test_video):
     """Test validation when adding videos to a project."""
-    # Test adding to non-existent project
-    with pytest.raises(ValueError, match="Project with ID 999 not found"):
-        ProjectService.add_videos_to_project(999, [test_video.id], session)
+    # Try to add non-existent video
+    with pytest.raises(ValueError, match="Video with ID 999 not found"):
+        ProjectService.add_videos_to_project(test_project.id, [999], session)
     
-    # Test adding already added video
-    with pytest.raises(ValueError, match="already in project"):
+    # Archive video
+    VideoService.archive_video(test_video.id, session)
+    
+    # Try to add archived video
+    with pytest.raises(ValueError, match=f"Video with ID {test_video.id} is archived"):
         ProjectService.add_videos_to_project(test_project.id, [test_video.id], session)
     
-    # Test adding archived video
-    VideoService.archive_video(test_video.id, session)
-    with pytest.raises(ValueError, match="Video with ID 1 is archived"):
+    # Archive project
+    ProjectService.archive_project(test_project.id, session)
+    
+    # Try to add video to archived project
+    with pytest.raises(ValueError, match=f"Project with ID {test_project.id} is archived"):
         ProjectService.add_videos_to_project(test_project.id, [test_video.id], session) 

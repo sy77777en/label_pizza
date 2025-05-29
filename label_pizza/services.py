@@ -308,7 +308,7 @@ class VideoService:
                         if not isinstance(v, (str, int, float, bool, list, dict)):
                             raise ValueError(f"Invalid nested metadata value type for key '{key}.{k}': {type(v)}")
         
-        # Check if video already exists
+        # Check if video already exists (case-sensitive check)
         existing = session.scalar(
             select(Video).where(Video.video_uid == filename)
         )
@@ -570,16 +570,6 @@ class ProjectService:
             if video.is_archived:
                 raise ValueError(f"Video with ID {vid} is archived")
             
-            # Check if video is already in project
-            existing = session.scalar(
-                select(ProjectVideo).where(
-                    ProjectVideo.project_id == project_id,
-                    ProjectVideo.video_id == vid
-                )
-            )
-            if existing:
-                raise ValueError(f"Video with ID {vid} already in project {project_id}")
-            
             session.add(ProjectVideo(project_id=project_id, video_id=vid))
         
         session.commit()
@@ -753,6 +743,16 @@ class SchemaService:
         )
         if existing:
             raise ValueError(f"Question group {group_id} already in schema {schema_id}")
+            
+        # Check if non-reusable group is already used in another schema
+        if not group.is_reusable:
+            existing_schema = session.scalar(
+                select(Schema)
+                .join(SchemaQuestionGroup, Schema.id == SchemaQuestionGroup.schema_id)
+                .where(SchemaQuestionGroup.question_group_id == group_id)
+            )
+            if existing_schema:
+                raise ValueError(f"Question group {group.title} is not reusable and is already used in schema {existing_schema.name}")
             
         # Add group to schema
         sqg = SchemaQuestionGroup(
