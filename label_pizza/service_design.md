@@ -22,7 +22,8 @@ Copy this file into your repo and keep it updated as you implement new helpers.
 | [`QuestionService`](#questionservice)                      | CRUD for individual `questions`             |
 | [`QuestionGroupService`](#questiongroupservice)            | CRUD for question groups & reuse rule       |
 | [`AuthService`](#authservice)                              | Users, roles, login, project assignments    |
-| [`AnswerService`](#answerservice)                          | Core answer upsert, ground-truth, history   |
+| [`AnnotatorService`](#annotatorservice)                    | Core answer submission & retrieval          |
+| [`GroundTruthService`](#groundtruthservice)                | Ground truth management & accuracy metrics  |
 | [`MetricsService`](#metricsservice--🚧)                    | Accuracy, consensus, trends                 |
 | [`NotificationService`](#notificationservice--optional-🚧) | Feedback to annotators                      |
 
@@ -140,16 +141,24 @@ Copy this file into your repo and keep it updated as you implement new helpers.
 
 ---
 
-## AnswerService
+## AnnotatorService
 
 | Function                                                                                                                  | Status | Rules                                                                                                              |
 | ------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------ |
-| `submit_answer(video_id, question_id, project_id, user_id, answer_value, session, is_ground_truth=False)`                 | ✔︎     | • scope UQ🛡️ (upsert)<br>• project not archived 🛡️<br>• user role assigned 🛡️<br>• type & option validation 🛡️ |
+| `submit_answer(video_id, question_id, project_id, user_id, answer_value, session, confidence_score=None, notes=None)`     | ✔︎     | • scope UQ🛡️ (upsert)<br>• project not archived 🛡️<br>• user role assigned 🛡️<br>• type & option validation 🛡️ |
 | `get_answers(video_id, project_id, session)`                                                                              | ✔︎     | Get all answers for video/project                                                                                  |
-| `get_ground_truth(video_id, project_id, session)`                                                                         | ✔︎     | Get ground truth answers                                                                                           |
-| `submit_review(answer_id, reviewer_id, status, comment, session)`                                                         | ✔︎     | Submit answer review                                                                                               |
-| `get_reviews(answer_id, session)`                                                                                         | ✔︎     | Get all reviews for an answer                                                                                      |
-| `get_pending_reviews(project_id, session)`                                                                                | ✔︎     | Get pending reviews for a project                                                                                  |
+| `get_question_answers(question_id, project_id, session)`                                                                  | ✔︎     | Get all answers for a question in a project                                                                        |
+
+---
+
+## GroundTruthService
+
+| Function                                                                                                                  | Status | Rules                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------ |
+| `submit_ground_truth(video_id, question_id, project_id, reviewer_id, answer_value, session, confidence_score=None, notes=None)` | ✔︎ | • reviewer role required 🛡️<br>• type & option validation 🛡️ |
+| `get_ground_truth(video_id, project_id, session)`                                                                         | ✔︎     | Get ground truth answers for video/project                                                                         |
+| `override_ground_truth(video_id, question_id, project_id, admin_id, new_answer_value, session)`                           | ✔︎     | • admin role required 🛡️<br>• tracks modifications 🛡️ |
+| `get_reviewer_accuracy(reviewer_id, project_id, session)`                                                                 | ✔︎     | Calculate accuracy based on admin modifications                                                                    |
 
 ---
 
@@ -188,7 +197,8 @@ label_pizza/
 │   ├ questions.py         # QuestionService
 │   ├ qgroups.py           # QuestionGroupService
 │   ├ auth.py              # AuthService
-│   ├ answers.py           # AnswerService
+│   ├ annotators.py        # AnnotatorService
+│   ├ ground_truth.py      # GroundTruthService
 │   ├ metrics.py           # MetricsService (🚧)
 │   └ notifications.py     # NotificationService (optional)
 └ docs/

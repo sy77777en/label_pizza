@@ -136,28 +136,72 @@ class ProjectGroupProject(Base):
     project_group_id = Column(Integer, primary_key=True)
     project_id = Column(Integer, primary_key=True)
 
-class Answer(Base):
-    __tablename__ = "answers"
+class AnnotatorAnswer(Base):
+    __tablename__ = "annotator_answers"
     id = Column(Integer, primary_key=True)
     video_id = Column(Integer, nullable=False)
     question_id = Column(Integer, nullable=False)
-    user_id = Column(Integer, nullable=False)
+    user_id = Column(Integer, nullable=False)  # Annotator who submitted
     project_id = Column(Integer, nullable=False)
     answer_type = Column(Enum("single", "description", name="answer_value_types"), default="single", nullable=False)
     answer_value = Column(Text, nullable=False)
     confidence_score = Column(Float)
-    is_ground_truth = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), default=now)
-    modified_by_user_id = Column(Integer)
+    modified_at = Column(DateTime(timezone=True), default=now)
     notes = Column(Text)
 
     __table_args__ = (
-        UniqueConstraint("video_id", "question_id", "user_id", "project_id", name="uq_answer_scope"),
-        UniqueConstraint("video_id", "question_id", "project_id", name="uq_gt_row", deferrable=True, initially="DEFERRED"),
-        Index("ix_answer_question", "question_id"),
-        Index("ix_answer_proj_q", "project_id", "question_id"),
-        Index("ix_proj_q_val_single", "project_id", "question_id", "answer_value", postgresql_where=(answer_type == "single")),
-        Index("ix_answer_vid_q", "video_id", "question_id"),
+        # Same unique constraint pattern as original Answer table
+        UniqueConstraint("video_id", "question_id", "user_id", "project_id", name="uq_annotator_answer_scope"),
+        
+        # Same index patterns as original Answer table
+        Index("ix_annotator_question", "question_id"),  # Query answers by question
+        Index("ix_annotator_proj_q", "project_id", "question_id"),  # Query project+question combinations
+        Index("ix_proj_q_val_single", "project_id", "question_id", "answer_value", 
+              postgresql_where=(answer_type == "single")),  # Fast lookups for single-choice answers
+        Index("ix_annotator_vid_q", "video_id", "question_id"),  # Query answers for specific video+question
+
+        Index("ix_annotator_user_proj", "user_id", "project_id"),  # Query annotator's answers for a project
+        Index("ix_annotator_user_proj_q", "user_id", "project_id", "question_id"),  # Query annotator's answers for a project+question
+    )
+
+class ReviewerGroundTruth(Base):
+    __tablename__ = "reviewer_ground_truth"
+    
+    # Composite primary key ensures exactly one ground truth per (video, question, project)
+    video_id = Column(Integer, primary_key=True)
+    question_id = Column(Integer, primary_key=True)
+    project_id = Column(Integer, primary_key=True)
+    
+    # Ground truth metadata
+    reviewer_id = Column(Integer, nullable=False)  # Reviewer who created GT
+    answer_type = Column(Enum("single", "description", name="answer_value_types"), default="single", nullable=False)
+    answer_value = Column(Text, nullable=False)  # Current GT answer
+    original_answer_value = Column(Text, nullable=False)  # Original GT answer (for accuracy)
+    
+    # Modification tracking - two types
+    modified_at = Column(DateTime(timezone=True))  # When reviewer modified their own GT (self-correction)
+    modified_by_admin_id = Column(Integer)  # Admin who overrode GT (affects accuracy)
+    modified_by_admin_at = Column(DateTime(timezone=True))  # When admin overrode GT
+    
+    # Additional metadata
+    confidence_score = Column(Float)
+    created_at = Column(DateTime(timezone=True), default=now, nullable=False)
+    notes = Column(Text)
+
+    __table_args__ = (
+        # Since (video_id, question_id, project_id) is already the PK, we get unique constraint for free
+        
+        # Similar index patterns adapted for ground truth queries
+        Index("ix_gt_question", "question_id"),  # Query GT by question
+        Index("ix_gt_proj_q", "project_id", "question_id"),  # Query GT by project+question
+        Index("ix_proj_q_val_single_gt", "project_id", "question_id", "answer_value",
+              postgresql_where=(answer_type == "single")),  # Fast GT lookups for single-choice
+        Index("ix_gt_vid_q", "video_id", "question_id"),  # Query GT for video+question
+        
+        # Additional indexes specific to ground truth operations
+        Index("ix_gt_reviewer", "project_id", "reviewer_id"),  # Calculate reviewer accuracy
+        Index("ix_gt_admin_modified", "project_id", "modified_by_admin_id"),  # Find admin-modified GTs
     )
 
 class AnswerReview(Base):

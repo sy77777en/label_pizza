@@ -3,7 +3,7 @@ from sqlalchemy import select, insert, update, func, delete, exists
 from sqlalchemy.orm import Session
 from label_pizza.models import (
     Video, Project, ProjectVideo, Schema, QuestionGroup,
-    Question, ProjectUserRole, Answer, User, AnswerReview,
+    Question, ProjectUserRole, AnnotatorAnswer, ReviewerGroundTruth, User, AnswerReview,
     QuestionGroupQuestion, SchemaQuestionGroup
 )
 from typing import List, Optional, Dict
@@ -77,8 +77,11 @@ def create_project(name: str, schema_id: int, video_ids: list[int], *,
     session.commit(); return proj
 
 def project_progress(project_id: int, *, session: Session):
+    # Count annotator answers for this project
     total = session.scalar(
-        select(Answer).where(Answer.project_id == project_id).count()
+        select(func.count())
+        .select_from(AnnotatorAnswer)
+        .where(AnnotatorAnswer.project_id == project_id)
     )
     return {"answer_rows": total}
 
@@ -229,21 +232,20 @@ class VideoService:
                 # Get ground truth answers for this video in this project
                 gt_answers = session.scalar(
                     select(func.count())
-                    .select_from(Answer)
+                    .select_from(ReviewerGroundTruth)
                     .where(
-                        Answer.video_id == v.id,
-                        Answer.project_id == p.id,
-                        Answer.is_ground_truth == True
+                        ReviewerGroundTruth.video_id == v.id,
+                        ReviewerGroundTruth.project_id == p.id
                     )
                 )
                 
-                # Get any answers (ground truth or not) for this video in this project
+                # Get any annotator answers for this video in this project
                 any_answers = session.scalar(
                     select(func.count())
-                    .select_from(Answer)
+                    .select_from(AnnotatorAnswer)
                     .where(
-                        Answer.video_id == v.id,
-                        Answer.project_id == p.id
+                        AnnotatorAnswer.video_id == v.id,
+                        AnnotatorAnswer.project_id == p.id
                     )
                 )
                 
@@ -367,10 +369,9 @@ class ProjectService:
             # Get ground truth answers
             gt_answers = session.scalar(
                 select(func.count())
-                .select_from(Answer)
+                .select_from(ReviewerGroundTruth)
                 .where(
-                    Answer.project_id == p.id,
-                    Answer.is_ground_truth == True
+                    ReviewerGroundTruth.project_id == p.id
                 )
             )
             
@@ -484,7 +485,7 @@ class ProjectService:
             Dictionary containing:
             - total_videos: Number of videos in project
             - total_questions: Number of questions in schema
-            - total_answers: Total number of answers submitted
+            - total_answers: Total number of annotator answers submitted
             - ground_truth_answers: Number of ground truth answers
             - completion_percentage: Percentage of questions with ground truth answers
             
@@ -511,21 +512,18 @@ class ProjectService:
             .where(SchemaQuestionGroup.schema_id == project.schema_id)
         )
         
-        # Get total answers
+        # Get total annotator answers
         total_answers = session.scalar(
             select(func.count())
-            .select_from(Answer)
-            .where(Answer.project_id == project_id)
+            .select_from(AnnotatorAnswer)
+            .where(AnnotatorAnswer.project_id == project_id)
         )
         
         # Get ground truth answers
         ground_truth_answers = session.scalar(
             select(func.count())
-            .select_from(Answer)
-            .where(
-                Answer.project_id == project_id,
-                Answer.is_ground_truth == True
-            )
+            .select_from(ReviewerGroundTruth)
+            .where(ReviewerGroundTruth.project_id == project_id)
         )
         
         # Calculate completion percentage
@@ -1625,10 +1623,11 @@ class QuestionGroupService:
         group.is_archived = False
         session.commit()
 
-class AnswerService:
+class AnnotatorService:
     @staticmethod
     def submit_answer(video_id: int, question_id: int, project_id: int, user_id: int, 
-                     answer_value: str, session: Session, is_ground_truth: bool = False) -> None:
+                     answer_value: str, session: Session, confidence_score: float = None,
+                     notes: str = None) -> None:
         """Submit an answer for a video question.
         
         Args:
@@ -1638,7 +1637,8 @@ class AnswerService:
             user_id: The ID of the user submitting the answer
             answer_value: The answer value
             session: Database session
-            is_ground_truth: Whether this is a ground truth answer
+            confidence_score: Optional confidence score
+            notes: Optional notes
             
         Raises:
             ValueError: If project is archived, user is disabled, or answer validation fails
@@ -1657,7 +1657,7 @@ class AnswerService:
         if user.is_archived:
             raise ValueError("User is archived")
             
-        # Check if user has a role in the project
+        # Check if user has annotator role in the project
         user_role = session.scalar(
             select(ProjectUserRole).where(
                 ProjectUserRole.user_id == user_id,
@@ -1699,43 +1699,31 @@ class AnswerService:
         
         # Check for existing answer
         existing = session.scalar(
-            select(Answer).where(
-                Answer.video_id == video_id,
-                Answer.question_id == question_id,
-                Answer.user_id == user_id,
-                Answer.project_id == project_id
+            select(AnnotatorAnswer).where(
+                AnnotatorAnswer.video_id == video_id,
+                AnnotatorAnswer.question_id == question_id,
+                AnnotatorAnswer.user_id == user_id,
+                AnnotatorAnswer.project_id == project_id
             )
         )
-        
-        # If trying to create a new ground truth answer, check if one already exists
-        if is_ground_truth and not existing:
-            existing_gt = session.scalar(
-                select(Answer).where(
-                    Answer.video_id == video_id,
-                    Answer.question_id == question_id,
-                    Answer.project_id == project_id,
-                    Answer.is_ground_truth == True
-                )
-            )
-            if existing_gt:
-                raise ValueError(f"Ground truth answer already exists for question {question_id} in project {project_id}")
         
         if existing:
             # Update existing answer
             existing.answer_value = answer_value
-            existing.answer_type = question.type
-            existing.is_ground_truth = is_ground_truth
-            existing.modified_by_user_id = user_id
+            existing.modified_at = datetime.now(timezone.utc)
+            existing.confidence_score = confidence_score
+            existing.notes = notes
         else:
             # Create new answer
-            answer = Answer(
+            answer = AnnotatorAnswer(
                 video_id=video_id,
                 question_id=question_id,
                 project_id=project_id,
                 user_id=user_id,
                 answer_type=question.type,
                 answer_value=answer_value,
-                is_ground_truth=is_ground_truth
+                confidence_score=confidence_score,
+                notes=notes
             )
             session.add(answer)
             
@@ -1755,15 +1743,16 @@ class AnswerService:
             - Question ID
             - User ID
             - Answer Value
-            - Is Ground Truth
             - Created At
-            - Modified By User ID
+            - Modified At
+            - Confidence Score
+            - Notes
         """
         answers = session.scalars(
-            select(Answer)
+            select(AnnotatorAnswer)
             .where(
-                Answer.video_id == video_id,
-                Answer.project_id == project_id
+                AnnotatorAnswer.video_id == video_id,
+                AnnotatorAnswer.project_id == project_id
             )
         ).all()
         
@@ -1772,12 +1761,193 @@ class AnswerService:
                 "Question ID": a.question_id,
                 "User ID": a.user_id,
                 "Answer Value": a.answer_value,
-                "Is Ground Truth": a.is_ground_truth,
+                "Confidence Score": a.confidence_score,
                 "Created At": a.created_at,
-                "Modified By User ID": a.modified_by_user_id
+                "Modified At": a.modified_at,
+                "Notes": a.notes
             }
             for a in answers
         ])
+
+    @staticmethod
+    def get_ground_truth(video_id: int, project_id: int, session: Session) -> pd.DataFrame:
+        """Get answers for a video in a project.
+        
+        Args:
+            video_id: The ID of the video
+            project_id: The ID of the project
+            session: Database session
+            
+        Returns:
+            DataFrame containing ground truth answers with columns:
+            - Question ID
+            - Answer Value
+            - Created At
+            - Modified At
+            - Confidence Score
+            - Notes
+        """
+        answers = session.scalars(
+            select(AnnotatorAnswer)
+            .where(
+                AnnotatorAnswer.user_id == user_id,
+                AnnotatorAnswer.project_id == project_id
+            )
+        ).all()
+        
+        return pd.DataFrame([
+            {
+                "Video ID": a.video_id,
+                "Question ID": a.question_id,
+                "Answer Value": a.answer_value,
+                "Confidence Score": a.confidence_score,
+                "Created At": a.created_at,
+                "Modified At": a.modified_at,
+                "Notes": a.notes
+            }
+            for a in answers
+        ])
+
+    @staticmethod
+    def get_question_answers(question_id: int, project_id: int, session: Session) -> pd.DataFrame:
+        """Get all answers for a question in a project.
+        
+        Args:
+            question_id: The ID of the question
+            project_id: The ID of the project
+            session: Database session
+            
+        Returns:
+            DataFrame containing answers
+        """
+        answers = session.scalars(
+            select(AnnotatorAnswer)
+            .where(
+                AnnotatorAnswer.question_id == question_id,
+                AnnotatorAnswer.project_id == project_id
+            )
+        ).all()
+        
+        return pd.DataFrame([
+            {
+                "Video ID": a.video_id,
+                "User ID": a.user_id,
+                "Answer Value": a.answer_value,
+                "Confidence Score": a.confidence_score,
+                "Created At": a.created_at,
+                "Modified At": a.modified_at,
+                "Notes": a.notes
+            }
+            for a in answers
+        ])
+
+class GroundTruthService:
+    @staticmethod
+    def submit_ground_truth(
+        video_id: int,
+        question_id: int,
+        project_id: int,
+        reviewer_id: int,
+        answer_value: str,
+        session: Session,
+        confidence_score: float = None,
+        notes: str = None
+    ) -> None:
+        """Submit or update a ground truth answer.
+        
+        Args:
+            video_id: The ID of the video
+            question_id: The ID of the question
+            project_id: The ID of the project
+            reviewer_id: The ID of the reviewer
+            answer_value: The answer value
+            session: Database session
+            confidence_score: Optional confidence score
+            notes: Optional notes
+            
+        Raises:
+            ValueError: If validation fails
+        """
+        # Check if project is archived
+        project = session.get(Project, project_id)
+        if not project:
+            raise ValueError(f"Project with ID {project_id} not found")
+        if project.is_archived:
+            raise ValueError("Project is archived")
+            
+        # Check if reviewer is active
+        reviewer = session.get(User, reviewer_id)
+        if not reviewer:
+            raise ValueError(f"Reviewer with ID {reviewer_id} not found")
+        if reviewer.is_archived:
+            raise ValueError("Reviewer is archived")
+            
+        # Check if reviewer has reviewer role in the project
+        reviewer_role = session.scalar(
+            select(ProjectUserRole).where(
+                ProjectUserRole.user_id == reviewer_id,
+                ProjectUserRole.project_id == project_id
+            )
+        )
+        if not reviewer_role or reviewer_role.role not in ["reviewer", "admin"]:
+            raise ValueError(f"User {reviewer_id} does not have reviewer role in project {project_id}")
+            
+        # Get question to validate answer type
+        question = session.get(Question, question_id)
+        if not question:
+            raise ValueError(f"Question with ID {question_id} not found")
+        if question.is_archived:
+            raise ValueError(f"Question with ID {question_id} is archived")
+            
+        # Validate that question belongs to project's schema
+        question_in_schema = session.scalar(
+            select(Question)
+            .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
+            .join(SchemaQuestionGroup, QuestionGroupQuestion.question_group_id == SchemaQuestionGroup.question_group_id)
+            .where(
+                Question.id == question_id,
+                SchemaQuestionGroup.schema_id == project.schema_id
+            )
+        )
+        if not question_in_schema:
+            raise ValueError(f"Question {question_id} does not belong to project's schema {project.schema_id}")
+            
+        # Validate answer value for single-choice questions
+        if question.type == "single":
+            if not question.options:
+                raise ValueError("Question has no options defined")
+            if answer_value not in question.options:
+                raise ValueError(f"Answer value '{answer_value}' not in options: {', '.join(question.options)}")
+        elif question.type == "description":
+            if not isinstance(answer_value, str):
+                raise ValueError("Description answers must be strings")
+        
+        # Check for existing ground truth
+        existing = session.get(ReviewerGroundTruth, (video_id, question_id, project_id))
+        
+        if existing:
+            # Update existing ground truth
+            existing.answer_value = answer_value
+            existing.answer_type = question.type
+            existing.confidence_score = confidence_score
+            existing.notes = notes
+            existing.modified_at = datetime.now(timezone.utc)
+        else:
+            # Create new ground truth
+            gt = ReviewerGroundTruth(
+                video_id=video_id,
+                question_id=question_id,
+                project_id=project_id,
+                reviewer_id=reviewer_id,
+                answer_type=question.type,
+                answer_value=answer_value,
+                original_answer_value=answer_value,
+                confidence_score=confidence_score,
+                notes=notes
+            )
+            session.add(gt)
+            
+        session.commit()
 
     @staticmethod
     def get_ground_truth(video_id: int, project_id: int, session: Session) -> pd.DataFrame:
@@ -1789,168 +1959,209 @@ class AnswerService:
             session: Database session
             
         Returns:
-            DataFrame containing ground truth answers with columns:
-            - Question ID
-            - Answer Value
-            - Is Ground Truth
-            - Created At
-            - Modified By User ID
+            DataFrame containing ground truth answers
         """
-        answers = session.scalars(
-            select(Answer)
+        gts = session.scalars(
+            select(ReviewerGroundTruth)
             .where(
-                Answer.video_id == video_id,
-                Answer.project_id == project_id,
-                Answer.is_ground_truth == True
+                ReviewerGroundTruth.video_id == video_id,
+                ReviewerGroundTruth.project_id == project_id
             )
         ).all()
         
         return pd.DataFrame([
             {
-                "Question ID": a.question_id,
-                "Answer Value": a.answer_value,
-                "Is Ground Truth": a.is_ground_truth,
-                "Created At": a.created_at,
-                "Modified By User ID": a.modified_by_user_id
+                "Question ID": gt.question_id,
+                "Answer Value": gt.answer_value,
+                "Original Value": gt.original_answer_value,
+                "Reviewer ID": gt.reviewer_id,
+                "Modified At": gt.modified_at,
+                "Modified By Admin": gt.modified_by_admin_id,
+                "Modified By Admin At": gt.modified_by_admin_at,
+                "Confidence Score": gt.confidence_score,
+                "Created At": gt.created_at,
+                "Notes": gt.notes
             }
-            for a in answers
+            for gt in gts
         ])
 
     @staticmethod
-    def submit_review(answer_id: int, reviewer_id: int, status: str, comment: str, session: Session) -> None:
-        """Submit a review for an answer.
+    def override_ground_truth(
+        video_id: int,
+        question_id: int,
+        project_id: int,
+        admin_id: int,
+        new_answer_value: str,
+        session: Session
+    ) -> None:
+        """Override a ground truth answer (admin only).
         
         Args:
-            answer_id: The ID of the answer to review
-            reviewer_id: The ID of the reviewer
-            status: Review status ('pending', 'approved', or 'rejected')
-            comment: Review comment
+            video_id: The ID of the video
+            question_id: The ID of the question
+            project_id: The ID of the project
+            admin_id: The ID of the admin
+            new_answer_value: The new answer value
             session: Database session
             
         Raises:
-            ValueError: If answer not found, reviewer not found, or invalid status
+            ValueError: If validation fails
         """
-        # Validate status
-        if status not in ['pending', 'approved', 'rejected']:
-            raise ValueError("Invalid review status. Must be one of: pending, approved, rejected")
+        # Check if admin is active
+        admin = session.get(User, admin_id)
+        if not admin:
+            raise ValueError(f"Admin with ID {admin_id} not found")
+        if admin.is_archived:
+            raise ValueError("Admin is archived")
+        if admin.user_type != "admin":
+            raise ValueError(f"User {admin_id} is not an admin")
             
-        # Check if answer exists
-        answer = session.get(Answer, answer_id)
-        if not answer:
-            raise ValueError(f"Answer with ID {answer_id} not found")
+        # Get ground truth
+        gt = session.get(ReviewerGroundTruth, (video_id, question_id, project_id))
+        if not gt:
+            raise ValueError(f"No ground truth found for video {video_id}, question {question_id}, project {project_id}")
             
-        # Check if answer's project is archived
-        project = session.get(Project, answer.project_id)
-        if project.is_archived:
-            raise ValueError(f"Cannot review answer in archived project {project.id}")
+        # Get question to validate answer type
+        question = session.get(Question, question_id)
+        if not question:
+            raise ValueError(f"Question with ID {question_id} not found")
             
-        # Check if reviewer exists and is active
-        reviewer = session.get(User, reviewer_id)
-        if not reviewer:
-            raise ValueError(f"Reviewer with ID {reviewer_id} not found")
-        if reviewer.is_archived:
-            raise ValueError("Reviewer is archived")
-            
-        # Check if reviewer has reviewer role in the project
-        reviewer_role = session.scalar(
-            select(ProjectUserRole).where(
-                ProjectUserRole.user_id == reviewer_id,
-                ProjectUserRole.project_id == answer.project_id
-            )
-        )
-        if not reviewer_role or reviewer_role.role not in ["reviewer", "admin"]:
-            raise ValueError(f"User {reviewer_id} does not have reviewer role in project {answer.project_id}")
-            
-        # Check for existing review
-        existing = session.scalar(
-            select(AnswerReview).where(AnswerReview.answer_id == answer_id)
-        )
+        # Validate answer value for single-choice questions
+        if question.type == "single":
+            if not question.options:
+                raise ValueError("Question has no options defined")
+            if new_answer_value not in question.options:
+                raise ValueError(f"Answer value '{new_answer_value}' not in options: {', '.join(question.options)}")
+        elif question.type == "description":
+            if not isinstance(new_answer_value, str):
+                raise ValueError("Description answers must be strings")
         
-        if existing:
-            # Update existing review
-            existing.reviewer_id = reviewer_id
-            existing.status = status
-            existing.comment = comment
-            existing.reviewed_at = datetime.now(timezone.utc)
-        else:
-            # Create new review
-            review = AnswerReview(
-                answer_id=answer_id,
-                reviewer_id=reviewer_id,
-                status=status,
-                comment=comment,
-                reviewed_at=datetime.now(timezone.utc)
-            )
-            session.add(review)
-            
+        # Update ground truth
+        gt.answer_value = new_answer_value
+        gt.modified_by_admin_id = admin_id
+        gt.modified_by_admin_at = datetime.now(timezone.utc)
+        
         session.commit()
 
     @staticmethod
-    def get_reviews(answer_id: int, session: Session) -> pd.DataFrame:
-        """Get all reviews for an answer.
+    def get_reviewer_accuracy(reviewer_id: int, project_id: int, session: Session) -> float:
+        """Calculate reviewer accuracy based on admin modifications.
         
         Args:
-            answer_id: The ID of the answer
-            session: Database session
-            
-        Returns:
-            DataFrame containing reviews with columns:
-            - Reviewer ID
-            - Status
-            - Comment
-            - Reviewed At
-        """
-        reviews = session.scalars(
-            select(AnswerReview)
-            .where(AnswerReview.answer_id == answer_id)
-        ).all()
-        
-        return pd.DataFrame([
-            {
-                "Reviewer ID": r.reviewer_id,
-                "Status": r.status,
-                "Comment": r.comment,
-                "Reviewed At": r.reviewed_at
-            }
-            for r in reviews
-        ])
-
-    @staticmethod
-    def get_pending_reviews(project_id: int, session: Session) -> pd.DataFrame:
-        """Get all pending reviews for a project.
-        
-        Args:
+            reviewer_id: The ID of the reviewer
             project_id: The ID of the project
             session: Database session
             
         Returns:
-            DataFrame containing pending reviews with columns:
-            - Answer ID
-            - Video ID
-            - Question ID
-            - User ID
-            - Answer Value
-            - Created At
+            Accuracy percentage (0-100)
         """
-        # Get all answers in the project that need review
-        answers = session.scalars(
-            select(Answer)
+        # Get all ground truth answers by this reviewer
+        gts = session.scalars(
+            select(ReviewerGroundTruth)
             .where(
-                Answer.project_id == project_id,
-                Answer.answer_type == 'description'  # Only description answers need review
+                ReviewerGroundTruth.reviewer_id == reviewer_id,
+                ReviewerGroundTruth.project_id == project_id
             )
-            .outerjoin(AnswerReview)  # Left join to find unreviewed answers
-            .where(AnswerReview.id == None)  # No review exists
         ).all()
         
-        return pd.DataFrame([
-            {
-                "Answer ID": a.id,
-                "Video ID": a.video_id,
-                "Question ID": a.question_id,
-                "User ID": a.user_id,
-                "Answer Value": a.answer_value,
-                "Created At": a.created_at
-            }
-            for a in answers
-        ])
+        if not gts:
+            return 0.0
+            
+        # Count answers that were modified by admin
+        modified = sum(1 for gt in gts if gt.modified_by_admin_id is not None)
+        total = len(gts)
+        
+        return ((total - modified) / total * 100) if total > 0 else 0.0
+
+    @staticmethod
+    def get_annotator_accuracy(project_id: int, question_id: int, session: Session) -> pd.DataFrame:
+        """Calculate annotator accuracy for a specific question in a project.
+        
+        Args:
+            project_id: The ID of the project
+            question_id: The ID of the question
+            session: Database session
+            
+        Returns:
+            DataFrame with columns:
+            - Video ID: The video ID
+            - User ID: The annotator's user ID
+            - Correct: 1 if answer matches ground truth or is approved, 0 otherwise
+            
+        Raises:
+            ValueError: If not all videos have ground truth or if description answers are not all reviewed
+        """
+        # Get question type
+        question = session.get(Question, question_id)
+        if not question:
+            raise ValueError(f"Question with ID {question_id} not found")
+            
+        # Get all videos in project
+        project_videos = session.scalars(
+            select(ProjectVideo.video_id)
+            .where(ProjectVideo.project_id == project_id)
+        ).all()
+        
+        if not project_videos:
+            raise ValueError(f"No videos found in project {project_id}")
+            
+        # Check if all videos have ground truth
+        missing_gt = session.scalars(
+            select(ReviewerGroundTruth.video_id)
+            .where(
+                ReviewerGroundTruth.project_id == project_id,
+                ReviewerGroundTruth.question_id == question_id,
+                ReviewerGroundTruth.video_id.in_(project_videos)
+            )
+        ).all()
+        
+        if len(missing_gt) != len(project_videos):
+            raise ValueError(f"Not all videos have ground truth answers for question {question_id}")
+            
+        # Get all annotator answers for this question
+        answers = session.scalars(
+            select(AnnotatorAnswer)
+            .where(
+                AnnotatorAnswer.project_id == project_id,
+                AnnotatorAnswer.question_id == question_id
+            )
+        ).all()
+        
+        if not answers:
+            raise ValueError(f"No annotator answers found for question {question_id}")
+            
+        # For single-choice questions, compare directly with ground truth
+        if question.type == "single":
+            results = []
+            for answer in answers:
+                gt = session.get(ReviewerGroundTruth, (answer.video_id, question_id, project_id))
+                correct = 1 if answer.answer_value == gt.answer_value else 0
+                results.append({
+                    "Video ID": answer.video_id,
+                    "User ID": answer.user_id,
+                    "Correct": correct
+                })
+            return pd.DataFrame(results)
+            
+        # For description questions, check reviews
+        else:
+            results = []
+            for answer in answers:
+                review = session.scalar(
+                    select(AnswerReview)
+                    .where(
+                        AnswerReview.answer_id == answer.id,
+                        AnswerReview.status != "pending"
+                    )
+                )
+                
+                if not review:
+                    raise ValueError(f"Answer {answer.id} has not been reviewed")
+                    
+                correct = 1 if review.status == "approved" else 0
+                results.append({
+                    "Video ID": answer.video_id,
+                    "User ID": answer.user_id,
+                    "Correct": correct
+                })
+            return pd.DataFrame(results)

@@ -188,7 +188,7 @@ Question text must be unique to prevent confusion and ensure consistent labeling
 
 ---
 
-## 9 · `answers`
+## 9 · `annotator_answers`
 
 | column | type |
 | ------ | ---- |
@@ -197,9 +197,8 @@ Question text must be unique to prevent confusion and ensure consistent labeling
 | `answer_type`      | ENUM (single / description) |
 | `answer_value`     | TEXT |
 | `confidence_score` | FLOAT nullable |
-| `is_ground_truth`  | BOOL |
 | `created_at`       | TIMESTAMPTZ |
-| `modified_by_user_id` | INT nullable |
+| `modified_at`      | TIMESTAMPTZ |
 | `notes`            | TEXT |
 
 ### 9.1 Constraints & Indexes
@@ -207,17 +206,49 @@ Question text must be unique to prevent confusion and ensure consistent labeling
 | kind | columns / condition |
 | ---- | ------------------- |
 | Unique | `(video_id, question_id, user_id, project_id)` |
-| Partial Unique | `(video_id, question_id, project_id)` **WHERE is_ground_truth** |
 | Index | `(question_id)` |
 | Index | `(project_id, question_id)` |
 | Index | `(project_id, question_id, answer_value)` **WHERE answer_type='single'`** |
 | Index | `(video_id, question_id)` |
+| Index | `(user_id, project_id)` |
+| Index | `(user_id, project_id, question_id)` |
 
-**Rationale** – One table = full history; indexes make common queries sub-ms.
+**Rationale** – Stores annotator submissions with confidence scores and modification history.
 
 ---
 
-## 10 · `answer_reviews`
+## 10 · `reviewer_ground_truth`
+
+| column | type |
+| ------ | ---- |
+| `video_id`, `question_id`, `project_id` | INT (composite PK) |
+| `reviewer_id`  | INT |
+| `answer_type`  | ENUM (single / description) |
+| `answer_value` | TEXT |
+| `original_answer_value` | TEXT |
+| `modified_at`  | TIMESTAMPTZ |
+| `modified_by_admin_id` | INT nullable |
+| `modified_by_admin_at` | TIMESTAMPTZ |
+| `confidence_score` | FLOAT nullable |
+| `created_at`  | TIMESTAMPTZ |
+| `notes` | TEXT |
+
+### 10.1 Constraints & Indexes
+
+| kind | columns / condition |
+| ---- | ------------------- |
+| Index | `(question_id)` |
+| Index | `(project_id, question_id)` |
+| Index | `(project_id, question_id, answer_value)` **WHERE answer_type='single'`** |
+| Index | `(video_id, question_id)` |
+| Index | `(project_id, reviewer_id)` |
+| Index | `(project_id, modified_by_admin_id)` |
+
+**Rationale** – Stores ground truth answers with modification tracking for accuracy metrics.
+
+---
+
+## 11 · `answer_reviews`
 
 | column | type |
 | ------ | ---- |

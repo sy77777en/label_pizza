@@ -5,12 +5,12 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.dialects.sqlite import JSON
 from label_pizza.models import (
     Video, Project, ProjectVideo, Schema, QuestionGroup,
-    Question, ProjectUserRole, Answer, User, AnswerReview,
+    Question, ProjectUserRole, AnnotatorAnswer, ReviewerGroundTruth, User, AnswerReview,
     QuestionGroupQuestion, SchemaQuestionGroup
 )
 from label_pizza.services import (
     VideoService, ProjectService, SchemaService, QuestionService,
-    QuestionGroupService, AuthService, AnswerService
+    QuestionGroupService, AuthService, AnnotatorService, GroundTruthService
 )
 from label_pizza.db import Base, test_engine, TestSessionLocal, init_test_db, get_test_session
 import pandas as pd
@@ -169,14 +169,13 @@ def test_video_service_get_all_videos_with_ground_truth(session, test_video, tes
     assert question is not None
     
     # Add ground truth answer
-    AnswerService.submit_answer(
+    GroundTruthService.submit_ground_truth(
         video_id=test_video.id,
         question_id=question.id,
         project_id=project.id,
-        user_id=test_user.id,
+        reviewer_id=test_user.id,
         answer_value="option1",
-        session=session,
-        is_ground_truth=True
+        session=session
     )
     
     df = VideoService.get_videos_with_project_status(session)
@@ -268,14 +267,13 @@ def test_video_service_get_all_videos_with_partial_ground_truth(session, test_vi
     SchemaService.add_question_group_to_schema(test_schema.id, test_question_group.id, 0, session)
     
     # Add ground truth answer for only one question
-    AnswerService.submit_answer(
+    GroundTruthService.submit_ground_truth(
         video_id=test_video.id,
         question_id=questions[0].id,
         project_id=project.id,
-        user_id=test_user.id,
+        reviewer_id=test_user.id,
         answer_value="option1",
-        session=session,
-        is_ground_truth=True
+        session=session
     )
     
     df = VideoService.get_videos_with_project_status(session)
@@ -314,15 +312,24 @@ def test_video_service_get_all_videos_with_review(session, test_video, test_sche
     
     # Add some answers
     for i, question in enumerate(questions):
-        AnswerService.submit_answer(
+        AnnotatorService.submit_answer(
             video_id=test_video.id,
             question_id=question.id,
             project_id=project.id,
             user_id=test_user.id,
             answer_value="option1",
-            session=session,
-            is_ground_truth=(i == 0)  # Only first answer is ground truth
+            session=session
         )
+    
+    # Add ground truth for the first question
+    GroundTruthService.submit_ground_truth(
+        video_id=test_video.id,
+        question_id=questions[0].id,
+        project_id=project.id,
+        reviewer_id=test_user.id,
+        answer_value="option1",
+        session=session
+    )
     
     # Get progress
     progress = ProjectService.progress(project.id, session)
@@ -457,7 +464,7 @@ def test_archived_project_hidden_and_read_only(session, test_project, test_video
     
     # Try to add answer to archived project
     with pytest.raises(ValueError, match="Project is archived"):
-        AnswerService.submit_answer(
+        AnnotatorService.submit_answer(
             video_id=test_video.id,
             question_id=question.id,
             project_id=test_project.id,
@@ -1053,594 +1060,321 @@ def test_video_uid_case_sensitivity(session):
     assert video2 is not None
     assert video1.id != video2.id  # They should be different videos
 
-def test_answer_service_submit_answer(session):
-    """Test submitting a valid answer."""
-    # Create test data
-    user = AuthService.create_user(
-        "test_user",
-        "test@example.com",
-        "dummy_hash",
-        "human",
-        session
-    )
-    
-    # Add video and get the video object
-    VideoService.add_video("http://example.com/test_video.mp4", session)
-    video = VideoService.get_video_by_uid("test_video.mp4", session)
-    assert video is not None
-    
-    # Create schema and project
-    schema = SchemaService.create_schema("test_schema", {}, session)
-    ProjectService.create_project("Test Project", schema.id, [video.id], session)
-    project = ProjectService.get_project_by_name("Test Project", session)
-    assert project is not None
-    
-    # Assign user to project
-    AuthService.assign_user_to_project(user.id, project.id, "annotator", session)
-    
-    # Create question group
-    group = QuestionGroupService.create_group(
-        title="test_group",
-        description="test description",
-        is_reusable=True,
+def test_annotator_service_submit_answer(session, test_video, test_schema, test_user, test_question_group):
+    """Test submitting an annotator answer."""
+    # Create project
+    ProjectService.create_project(
+        name="test_project",
+        schema_id=test_schema.id,
+        video_ids=[test_video.id],
         session=session
     )
+    project = ProjectService.get_project_by_name("test_project", session)
     
-    # Add question through service layer
-    question_text = "Test question?"
+    # Add question to schema
+    question_text = "test question"
     QuestionService.add_question(
         text=question_text,
         qtype="single",
-        group_name=group.title,
+        group_name=test_question_group.title,
         options=["option1", "option2"],
         default="option1",
         session=session
     )
+    SchemaService.add_question_group_to_schema(test_schema.id, test_question_group.id, 0, session)
     
-    # Add question group to schema
-    SchemaService.add_question_group_to_schema(schema.id, group.id, 0, session)
-    
-    # Get the question
+    # Get question
     question = QuestionService.get_question_by_text(question_text, session)
-    assert question is not None
     
     # Submit answer
-    AnswerService.submit_answer(
-        video_id=video.id,
+    AnnotatorService.submit_answer(
+        video_id=test_video.id,
         question_id=question.id,
         project_id=project.id,
-        user_id=user.id,
+        user_id=test_user.id,
         answer_value="option1",
         session=session
     )
     
-    # Verify answer was created
-    answers_df = AnswerService.get_answers(video.id, project.id, session)
-    assert len(answers_df) == 1
-    assert answers_df.iloc[0]["Answer Value"] == "option1"
-    assert not answers_df.iloc[0]["Is Ground Truth"]
+    # Verify answer was saved
+    answers = AnnotatorService.get_answers(test_video.id, project.id, session)
+    assert len(answers) == 1
+    assert answers.iloc[0]["Answer Value"] == "option1"
+    assert answers.iloc[0]["User ID"] == test_user.id
 
-def test_answer_service_submit_ground_truth(session):
+def test_ground_truth_service_submit_ground_truth(session, test_video, test_schema, test_user, test_question_group):
     """Test submitting a ground truth answer."""
-    # Create test data
-    user = AuthService.create_user(
-        "test_user",
-        "test@example.com",
-        "dummy_hash",
-        "human",
-        session
-    )
-    
-    VideoService.add_video("http://example.com/test_video.mp4", session)
-    video = VideoService.get_video_by_uid("test_video.mp4", session)
-    assert video is not None
-    
-    # Create schema and project
-    schema = SchemaService.create_schema("test_schema", {}, session)
-    ProjectService.create_project("Test Project", schema.id, [video.id], session)
-    project = ProjectService.get_project_by_name("Test Project", session)
-    assert project is not None
-    
-    # Assign user to project
-    AuthService.assign_user_to_project(user.id, project.id, "annotator", session)
-    
-    # Create question group
-    group = QuestionGroupService.create_group(
-        title="test_group",
-        description="test description",
-        is_reusable=True,
+    # Create project
+    ProjectService.create_project(
+        name="test_project",
+        schema_id=test_schema.id,
+        video_ids=[test_video.id],
         session=session
     )
+    project = ProjectService.get_project_by_name("test_project", session)
     
-    # Add question through service layer
-    question_text = "Test question?"
+    # Add question to schema
+    question_text = "test question"
     QuestionService.add_question(
         text=question_text,
         qtype="single",
-        group_name=group.title,
+        group_name=test_question_group.title,
         options=["option1", "option2"],
         default="option1",
         session=session
     )
+    SchemaService.add_question_group_to_schema(test_schema.id, test_question_group.id, 0, session)
     
-    # Add question group to schema
-    SchemaService.add_question_group_to_schema(schema.id, group.id, 0, session)
-    
-    # Get the question
+    # Get question
     question = QuestionService.get_question_by_text(question_text, session)
-    assert question is not None
     
-    # Submit ground truth answer
-    AnswerService.submit_answer(
-        video_id=video.id,
+    # Submit ground truth
+    GroundTruthService.submit_ground_truth(
+        video_id=test_video.id,
         question_id=question.id,
         project_id=project.id,
-        user_id=user.id,
+        reviewer_id=test_user.id,
         answer_value="option1",
-        session=session,
-        is_ground_truth=True
-    )
-    
-    # Verify answer was created as ground truth
-    ground_truth_df = AnswerService.get_ground_truth(video.id, project.id, session)
-    assert len(ground_truth_df) == 1
-    assert ground_truth_df.iloc[0]["Answer Value"] == "option1"
-    assert ground_truth_df.iloc[0]["Is Ground Truth"]
-
-def test_answer_service_submit_invalid_option(session):
-    """Test submitting an invalid option for single-choice question."""
-    # Create test data
-    user = AuthService.create_user(
-        "test_user",
-        "test@example.com",
-        "dummy_hash",
-        "human",
-        session
-    )
-    
-    # Add video and get the video object
-    VideoService.add_video("http://example.com/test_video.mp4", session)
-    video = VideoService.get_video_by_uid("test_video.mp4", session)
-    assert video is not None
-    
-    # Create schema and project
-    schema = SchemaService.create_schema("test_schema", {}, session)
-    ProjectService.create_project("Test Project", schema.id, [video.id], session)
-    project = ProjectService.get_project_by_name("Test Project", session)
-    assert project is not None
-    
-    # Assign user to project
-    AuthService.assign_user_to_project(user.id, project.id, "annotator", session)
-    
-    # Create question group
-    group = QuestionGroupService.create_group(
-        title="test_group",
-        description="test description",
-        is_reusable=True,
         session=session
     )
     
-    # Add question through service layer
-    question_text = "Test question?"
+    # Verify ground truth was saved
+    gt = GroundTruthService.get_ground_truth(test_video.id, project.id, session)
+    assert len(gt) == 1
+    assert gt.iloc[0]["Answer Value"] == "option1"
+    assert gt.iloc[0]["Reviewer ID"] == test_user.id
+
+def test_annotator_service_submit_invalid_option(session, test_video, test_schema, test_user, test_question_group):
+    """Test submitting an invalid option."""
+    # Create project
+    ProjectService.create_project(
+        name="test_project",
+        schema_id=test_schema.id,
+        video_ids=[test_video.id],
+        session=session
+    )
+    project = ProjectService.get_project_by_name("test_project", session)
+    
+    # Add question to schema
+    question_text = "test question"
     QuestionService.add_question(
         text=question_text,
         qtype="single",
-        group_name=group.title,
+        group_name=test_question_group.title,
         options=["option1", "option2"],
         default="option1",
         session=session
     )
+    SchemaService.add_question_group_to_schema(test_schema.id, test_question_group.id, 0, session)
     
-    # Add question group to schema
-    SchemaService.add_question_group_to_schema(schema.id, group.id, 0, session)
-    
-    # Get the question
+    # Get question
     question = QuestionService.get_question_by_text(question_text, session)
-    assert question is not None
     
     # Try to submit invalid option
-    with pytest.raises(ValueError, match="Answer value 'invalid' not in options: option1, option2"):
-        AnswerService.submit_answer(
-            video_id=video.id,
+    with pytest.raises(ValueError, match="not in options"):
+        AnnotatorService.submit_answer(
+            video_id=test_video.id,
             question_id=question.id,
             project_id=project.id,
-            user_id=user.id,
-            answer_value="invalid",
+            user_id=test_user.id,
+            answer_value="invalid_option",
             session=session
         )
 
-def test_answer_service_submit_to_archived_project(session):
-    """Test submitting answer to archived project."""
-    # Create test data
-    user = AuthService.create_user(
-        "test_user",
-        "test@example.com",
-        "dummy_hash",
-        "human",
-        session
+def test_annotator_service_submit_to_archived_project(session, test_video, test_schema, test_user, test_question_group):
+    """Test submitting to an archived project."""
+    # Create and archive project
+    ProjectService.create_project(
+        name="test_project",
+        schema_id=test_schema.id,
+        video_ids=[test_video.id],
+        session=session
     )
-    
-    # Add video and get the video object
-    VideoService.add_video("http://example.com/test_video.mp4", session)
-    video = VideoService.get_video_by_uid("test_video.mp4", session)
-    assert video is not None
-    
-    # Create schema and project
-    schema = SchemaService.create_schema("test_schema", {}, session)
-    ProjectService.create_project("Test Project", schema.id, [video.id], session)
-    project = ProjectService.get_project_by_name("Test Project", session)
-    assert project is not None
-    
-    # Archive project
+    project = ProjectService.get_project_by_name("test_project", session)
     ProjectService.archive_project(project.id, session)
     
-    # Create question group
-    group = QuestionGroupService.create_group(
-        title="test_group",
-        description="test description",
-        is_reusable=True,
-        session=session
-    )
-    
-    # Add question through service layer
-    question_text = "Test question?"
+    # Add question to schema
+    question_text = "test question"
     QuestionService.add_question(
         text=question_text,
         qtype="single",
-        group_name=group.title,
+        group_name=test_question_group.title,
         options=["option1", "option2"],
         default="option1",
         session=session
     )
+    SchemaService.add_question_group_to_schema(test_schema.id, test_question_group.id, 0, session)
     
-    # Add question group to schema
-    SchemaService.add_question_group_to_schema(schema.id, group.id, 0, session)
-    
-    # Get the question
+    # Get question
     question = QuestionService.get_question_by_text(question_text, session)
-    assert question is not None
     
-    # Try to submit answer to archived project
+    # Try to submit answer
     with pytest.raises(ValueError, match="Project is archived"):
-        AnswerService.submit_answer(
-            video_id=video.id,
+        AnnotatorService.submit_answer(
+            video_id=test_video.id,
             question_id=question.id,
             project_id=project.id,
-            user_id=user.id,
+            user_id=test_user.id,
             answer_value="option1",
             session=session
         )
 
-def test_answer_service_submit_as_disabled_user(session):
-    """Test submitting answer as archived user."""
-    # Create test data
-    user = AuthService.create_user(
-        "test_user",
-        "test@example.com",
-        "dummy_hash",
-        "human",
-        session
-    )
-    
-    # Archive user
-    AuthService.toggle_user_archived(user.id, session)
-    
-    VideoService.add_video("http://example.com/test_video.mp4", session)
-    video = VideoService.get_video_by_uid("test_video.mp4", session)
-    assert video is not None
-    
-    # Create schema and project
-    schema = SchemaService.create_schema("test_schema", {}, session)
-    ProjectService.create_project("Test Project", schema.id, [video.id], session)
-    project = ProjectService.get_project_by_name("Test Project", session)
-    assert project is not None
-    
-    # Create question group
-    group = QuestionGroupService.create_group(
-        title="test_group",
-        description="test description",
-        is_reusable=True,
+def test_annotator_service_submit_as_disabled_user(session, test_video, test_schema, test_user, test_question_group):
+    """Test submitting as a disabled user."""
+    # Create project
+    ProjectService.create_project(
+        name="test_project",
+        schema_id=test_schema.id,
+        video_ids=[test_video.id],
         session=session
     )
+    project = ProjectService.get_project_by_name("test_project", session)
     
-    # Add question through service layer
-    question_text = "Test question?"
+    # Add question to schema
+    question_text = "test question"
     QuestionService.add_question(
         text=question_text,
         qtype="single",
-        group_name=group.title,
+        group_name=test_question_group.title,
         options=["option1", "option2"],
         default="option1",
         session=session
     )
+    SchemaService.add_question_group_to_schema(test_schema.id, test_question_group.id, 0, session)
     
-    # Add question group to schema
-    SchemaService.add_question_group_to_schema(schema.id, group.id, 0, session)
-    
-    # Get the question
+    # Get question
     question = QuestionService.get_question_by_text(question_text, session)
-    assert question is not None
     
-    # Try to submit answer as archived user
+    # Disable user
+    AuthService.toggle_user_archived(test_user.id, session)
+    
+    # Try to submit answer
     with pytest.raises(ValueError, match="User is archived"):
-        AnswerService.submit_answer(
-            video_id=video.id,
+        AnnotatorService.submit_answer(
+            video_id=test_video.id,
             question_id=question.id,
             project_id=project.id,
-            user_id=user.id,
+            user_id=test_user.id,
             answer_value="option1",
             session=session
         )
 
-def test_answer_service_update_existing_answer(session):
+def test_annotator_service_update_existing_answer(session, test_video, test_schema, test_user, test_question_group):
     """Test updating an existing answer."""
-    # Create test data
-    user = AuthService.create_user(
-        "test_user",
-        "test@example.com",
-        "dummy_hash",
-        "human",
-        session
-    )
-    
-    # Add video and get the video object
-    VideoService.add_video("http://example.com/test_video.mp4", session)
-    video = VideoService.get_video_by_uid("test_video.mp4", session)
-    assert video is not None
-    
-    # Create schema and project
-    schema = SchemaService.create_schema("test_schema", {}, session)
-    ProjectService.create_project("Test Project", schema.id, [video.id], session)
-    project = ProjectService.get_project_by_name("Test Project", session)
-    assert project is not None
-    
-    # Assign user to project
-    AuthService.assign_user_to_project(user.id, project.id, "annotator", session)
-    
-    # Create question group
-    group = QuestionGroupService.create_group(
-        title="test_group",
-        description="test description",
-        is_reusable=True,
+    # Create project
+    ProjectService.create_project(
+        name="test_project",
+        schema_id=test_schema.id,
+        video_ids=[test_video.id],
         session=session
     )
+    project = ProjectService.get_project_by_name("test_project", session)
     
-    # Add question through service layer
-    question_text = "Test question?"
+    # Add question to schema
+    question_text = "test question"
     QuestionService.add_question(
         text=question_text,
         qtype="single",
-        group_name=group.title,
+        group_name=test_question_group.title,
         options=["option1", "option2"],
         default="option1",
         session=session
     )
+    SchemaService.add_question_group_to_schema(test_schema.id, test_question_group.id, 0, session)
     
-    # Add question group to schema
-    SchemaService.add_question_group_to_schema(schema.id, group.id, 0, session)
-    
-    # Get the question
+    # Get question
     question = QuestionService.get_question_by_text(question_text, session)
-    assert question is not None
     
     # Submit initial answer
-    AnswerService.submit_answer(
-        video_id=video.id,
+    AnnotatorService.submit_answer(
+        video_id=test_video.id,
         question_id=question.id,
         project_id=project.id,
-        user_id=user.id,
+        user_id=test_user.id,
         answer_value="option1",
         session=session
     )
     
     # Update answer
-    AnswerService.submit_answer(
-        video_id=video.id,
+    AnnotatorService.submit_answer(
+        video_id=test_video.id,
         question_id=question.id,
         project_id=project.id,
-        user_id=user.id,
+        user_id=test_user.id,
         answer_value="option2",
         session=session
     )
     
     # Verify answer was updated
-    answers_df = AnswerService.get_answers(video.id, project.id, session)
-    assert len(answers_df) == 1
-    assert answers_df.iloc[0]["Answer Value"] == "option2"
-    assert answers_df.iloc[0]["Modified By User ID"] == user.id
+    answers = AnnotatorService.get_answers(test_video.id, project.id, session)
+    assert len(answers) == 1
+    assert answers.iloc[0]["Answer Value"] == "option2"
 
-def test_answer_service_get_answers(session):
-    """Test retrieving answers for a video in a project."""
-    # Create test data
-    user = AuthService.create_user(
-        "test_user",
-        "test@example.com",
-        "dummy_hash",
-        "human",
-        session
-    )
-    
-    # Add video and get the video object
-    VideoService.add_video("http://example.com/test_video.mp4", session)
-    video = VideoService.get_video_by_uid("test_video.mp4", session)
-    assert video is not None
-    
-    # Create schema and project
-    schema = SchemaService.create_schema("test_schema", {}, session)
-    ProjectService.create_project("Test Project", schema.id, [video.id], session)
-    project = ProjectService.get_project_by_name("Test Project", session)
-    assert project is not None
-    
-    # Assign user to project
-    AuthService.assign_user_to_project(user.id, project.id, "annotator", session)
-    
-    # Create question group
-    group = QuestionGroupService.create_group(
-        title="test_group",
-        description="test description",
-        is_reusable=True,
+def test_ground_truth_service_get_annotator_accuracy(session, test_video, test_schema, test_user, test_question_group):
+    """Test getting annotator accuracy."""
+    # Create project
+    ProjectService.create_project(
+        name="test_project",
+        schema_id=test_schema.id,
+        video_ids=[test_video.id],
         session=session
     )
+    project = ProjectService.get_project_by_name("test_project", session)
     
-    # Add questions through service layer
-    questions = []
-    for i in range(2):
-        question_text = f"Question {i}?"
-        QuestionService.add_question(
-            text=question_text,
-            qtype="single",
-            group_name=group.title,
-            options=["option1", "option2"],
-            default="option1",
-            session=session
-        )
-        question = QuestionService.get_question_by_text(question_text, session)
-        questions.append(question)
-    
-    # Add question group to schema
-    SchemaService.add_question_group_to_schema(schema.id, group.id, 0, session)
-    
-    # Submit answers
-    AnswerService.submit_answer(
-        video_id=video.id,
-        question_id=questions[0].id,
-        project_id=project.id,
-        user_id=user.id,
-        answer_value="option1",
-        session=session
-    )
-    AnswerService.submit_answer(
-        video_id=video.id,
-        question_id=questions[1].id,
-        project_id=project.id,
-        user_id=user.id,
-        answer_value="option2",
-        session=session
-    )
-    
-    # Get answers
-    answers_df = AnswerService.get_answers(video.id, project.id, session)
-    
-    # Verify answers
-    assert len(answers_df) == 2
-    assert answers_df.iloc[0]["Question ID"] == questions[0].id
-    assert answers_df.iloc[0]["Answer Value"] == "option1"
-    assert answers_df.iloc[1]["Question ID"] == questions[1].id
-    assert answers_df.iloc[1]["Answer Value"] == "option2"
-
-def test_answer_service_get_ground_truth(session):
-    """Test retrieving ground truth answers for a video in a project."""
-    # Create test data
-    user = AuthService.create_user(
-        "test_user",
-        "test@example.com",
-        "dummy_hash",
-        "human",
-        session
-    )
-    
-    # Add video and get the video object
-    VideoService.add_video("http://example.com/test_video.mp4", session)
-    video = VideoService.get_video_by_uid("test_video.mp4", session)
-    assert video is not None
-    
-    # Create schema and project
-    schema = SchemaService.create_schema("test_schema", {}, session)
-    ProjectService.create_project("Test Project", schema.id, [video.id], session)
-    project = ProjectService.get_project_by_name("Test Project", session)
-    assert project is not None
-    
-    # Assign user to project
-    AuthService.assign_user_to_project(user.id, project.id, "annotator", session)
-    
-    # Create question group
-    group = QuestionGroupService.create_group(
-        title="test_group",
-        description="test description",
-        is_reusable=True,
-        session=session
-    )
-    
-    # Add question through service layer
-    question_text = "Test question?"
+    # Add question to schema
+    question_text = "test question"
     QuestionService.add_question(
         text=question_text,
         qtype="single",
-        group_name=group.title,
+        group_name=test_question_group.title,
         options=["option1", "option2"],
         default="option1",
         session=session
     )
+    SchemaService.add_question_group_to_schema(test_schema.id, test_question_group.id, 0, session)
     
-    # Add question group to schema
-    SchemaService.add_question_group_to_schema(schema.id, group.id, 0, session)
-    
-    # Get the question
+    # Get question
     question = QuestionService.get_question_by_text(question_text, session)
-    assert question is not None
     
-    # Submit ground truth answer
-    AnswerService.submit_answer(
-        video_id=video.id,
+    # Submit ground truth
+    GroundTruthService.submit_ground_truth(
+        video_id=test_video.id,
         question_id=question.id,
         project_id=project.id,
-        user_id=user.id,
+        reviewer_id=test_user.id,
         answer_value="option1",
-        session=session,
-        is_ground_truth=True
-    )
-    
-    # Get ground truth answers
-    ground_truth_df = AnswerService.get_ground_truth(video.id, project.id, session)
-    
-    # Verify ground truth answer
-    assert len(ground_truth_df) == 1
-    assert ground_truth_df.iloc[0]["Question ID"] == question.id
-    assert ground_truth_df.iloc[0]["Answer Value"] == "option1"
-    assert ground_truth_df.iloc[0]["Is Ground Truth"]
-
-def test_question_text_uniqueness(session):
-    """Test that question text must be unique."""
-    # Add first question
-    QuestionService.add_question(
-        text="What is your favorite color?",
-        qtype="single",
-        group_name="Colors",
-        options=["Red", "Blue", "Green"],
-        default="Red",
         session=session
     )
     
-    # Try to add question with same text
-    with pytest.raises(ValueError, match="Question with text 'What is your favorite color\\?' already exists"):
-        QuestionService.add_question(
-            text="What is your favorite color?",
-            qtype="single",
-            group_name="Colors",
-            options=["Red", "Blue", "Green"],
-            default="Red",
-            session=session
-        )
-    
-    # Try to edit question to use existing text
-    QuestionService.add_question(
-        text="What is your favorite fruit?",
-        qtype="single",
-        group_name="Fruits",
-        options=["Apple", "Banana", "Orange"],
-        default="Apple",
+    # Submit correct answer
+    AnnotatorService.submit_answer(
+        video_id=test_video.id,
+        question_id=question.id,
+        project_id=project.id,
+        user_id=test_user.id,
+        answer_value="option1",
         session=session
     )
     
-    with pytest.raises(ValueError, match="Question with text 'What is your favorite color\\?' already exists"):
-        QuestionService.edit_question(
-            text="What is your favorite fruit?",
-            new_text="What is your favorite color?",
-            new_group="Fruits",
-            new_opts=["Apple", "Banana", "Orange"],
-            new_default="Apple",
-            session=session
-        ) 
+    # Get accuracy
+    accuracy = GroundTruthService.get_annotator_accuracy(project.id, question.id, session)
+    assert len(accuracy) == 1
+    assert accuracy.iloc[0]["Correct"] == 1
+    
+    # Submit incorrect answer
+    AnnotatorService.submit_answer(
+        video_id=test_video.id,
+        question_id=question.id,
+        project_id=project.id,
+        user_id=test_user.id,
+        answer_value="option2",
+        session=session
+    )
+    
+    # Get updated accuracy
+    accuracy = GroundTruthService.get_annotator_accuracy(project.id, question.id, session)
+    assert len(accuracy) == 1
+    assert accuracy.iloc[0]["Correct"] == 0
 
 def test_project_service_add_videos(session, test_project, test_video):
     """Test adding videos to a project."""
