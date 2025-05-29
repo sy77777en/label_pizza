@@ -564,6 +564,93 @@ class ProjectService:
         """
         return session.get(Project, project_id)
 
+    @staticmethod
+    def add_user_to_project(project_id: int, user_id: int, role: str, session: Session) -> None:
+        """Add a user to a project with the specified role.
+        
+        Args:
+            project_id: The ID of the project
+            user_id: The ID of the user
+            role: The role to assign ('annotator', 'reviewer', 'admin', or 'model')
+            session: Database session
+            
+        Raises:
+            ValueError: If project or user not found, or if role is invalid
+        """
+        # Validate project and user
+        project = session.get(Project, project_id)
+        if not project:
+            raise ValueError(f"Project with ID {project_id} not found")
+        if project.is_archived:
+            raise ValueError(f"Project with ID {project_id} is archived")
+            
+        user = session.get(User, user_id)
+        if not user:
+            raise ValueError(f"User with ID {user_id} not found")
+        if user.is_archived:
+            raise ValueError(f"User with ID {user_id} is archived")
+            
+        # Validate role
+        if role not in ["annotator", "reviewer", "admin", "model"]:
+            raise ValueError(f"Invalid role: {role}")
+            
+        # For admin role, verify user is a global admin
+        if role == "admin" and user.user_type != "admin":
+            raise ValueError(f"User {user_id} must be a global admin to be assigned admin role")
+            
+        # Remove any existing roles for this user in this project
+        session.execute(
+            delete(ProjectUserRole).where(
+                ProjectUserRole.project_id == project_id,
+                ProjectUserRole.user_id == user_id
+            )
+        )
+        
+        # Add roles based on the requested role
+        if role == "annotator":
+            session.add(ProjectUserRole(
+                project_id=project_id,
+                user_id=user_id,
+                role="annotator"
+            ))
+        elif role == "reviewer":
+            # Reviewers get both annotator and reviewer roles
+            session.add(ProjectUserRole(
+                project_id=project_id,
+                user_id=user_id,
+                role="annotator"
+            ))
+            session.add(ProjectUserRole(
+                project_id=project_id,
+                user_id=user_id,
+                role="reviewer"
+            ))
+        elif role == "model":
+            session.add(ProjectUserRole(
+                project_id=project_id,
+                user_id=user_id,
+                role="model"
+            ))
+        elif role == "admin":
+            # Admins get all three roles
+            session.add(ProjectUserRole(
+                project_id=project_id,
+                user_id=user_id,
+                role="annotator"
+            ))
+            session.add(ProjectUserRole(
+                project_id=project_id,
+                user_id=user_id,
+                role="reviewer"
+            ))
+            session.add(ProjectUserRole(
+                project_id=project_id,
+                user_id=user_id,
+                role="admin"
+            ))
+            
+        session.commit()
+
 class SchemaService:
     @staticmethod
     def get_all_schemas(session: Session) -> pd.DataFrame:
@@ -1026,8 +1113,8 @@ class QuestionService:
                 
         # Update question
         q.text = new_text
-            q.options = new_opts
-            q.default_option = new_default
+        q.options = new_opts
+        q.default_option = new_default
         session.commit()
 
     @staticmethod
@@ -1511,10 +1598,15 @@ class QuestionGroupService:
         }
 
     @staticmethod
-    def create_group(title: str, description: str, is_reusable: bool, 
-                    question_ids: List[int], verification_function: Optional[str],
-                    session: Session) -> QuestionGroup:
-        """Create a new question group with its questions.
+    def create_group(
+        title: str,
+        description: str,
+        is_reusable: bool,
+        question_ids: List[int],
+        verification_function: Optional[str],
+        session: Session
+    ) -> QuestionGroup:
+        """Create a new question group.
         
         Args:
             title: Group title
@@ -1525,16 +1617,28 @@ class QuestionGroupService:
             session: Database session
             
         Returns:
-            Created question group
+            Created QuestionGroup
             
         Raises:
             ValueError: If title already exists or validation fails
         """
+        # Validate title
+        if not title or not title.strip():
+            raise ValueError("Title is required")
+            
+        # Validate questions
+        if not question_ids:
+            raise ValueError("Question group must contain at least one question")
+            
         # Check if title already exists
-        existing = session.scalar(select(QuestionGroup).where(QuestionGroup.title == title))
+        existing = session.scalar(
+            select(QuestionGroup).where(
+                QuestionGroup.title == title
+            )
+        )
         if existing:
             raise ValueError(f"Question group with title '{title}' already exists")
-            
+        
         # Validate verification function if provided
         if verification_function:
             if not hasattr(verify, verification_function):
@@ -1782,13 +1886,23 @@ class BaseAnswerService:
         Raises:
             ValueError: If validation fails
         """
-        user_role = session.scalar(
+        # Get all roles for the user in this project
+        user_roles = session.scalars(
             select(ProjectUserRole).where(
                 ProjectUserRole.user_id == user_id,
                 ProjectUserRole.project_id == project_id
             )
-        )
-        if not user_role or user_role.role != required_role:
+        ).all()
+        
+        # Define role hierarchy
+        role_hierarchy = {
+            'annotator': ['annotator', 'reviewer', 'admin'],
+            'reviewer': ['reviewer', 'admin'],
+            'admin': ['admin']
+        }
+        
+        # Check if user has any role that satisfies the requirement
+        if not user_roles or not any(role.role in role_hierarchy[required_role] for role in user_roles):
             raise ValueError(f"User {user_id} does not have {required_role} role in project {project_id}")
 
     @staticmethod
@@ -2068,20 +2182,20 @@ class AnnotatorService(BaseAnswerService):
         if existing:
             # Update existing answer
             existing.answer_value = answer_value
-                existing.modified_at = datetime.now(timezone.utc)
-                existing.confidence_score = confidence_score
-                existing.notes = note
+            existing.modified_at = datetime.now(timezone.utc)
+            existing.confidence_score = confidence_score
+            existing.notes = note
         else:
             # Create new answer
-                answer = AnnotatorAnswer(
+            answer = AnnotatorAnswer(
                 video_id=video_id,
-                    question_id=question.id,
+                question_id=question.id,
                 project_id=project_id,
                 user_id=user_id,
                 answer_type=question.type,
                 answer_value=answer_value,
-                    confidence_score=confidence_score,
-                    notes=note
+                confidence_score=confidence_score,
+                notes=note
             )
             session.add(answer)
             

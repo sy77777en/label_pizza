@@ -115,12 +115,15 @@ class ProjectVideo(Base):
 
 class ProjectUserRole(Base):
     __tablename__ = "project_user_roles"
-    project_id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, primary_key=True)
+    project_id = Column(Integer, nullable=False)
+    user_id = Column(Integer, nullable=False)
     role = Column(Enum("annotator", "reviewer", "admin", "model", name="project_roles"), nullable=False)
     assigned_at = Column(DateTime(timezone=True), default=now)
     completed_at = Column(DateTime(timezone=True), nullable=True)
-    __table_args__ = (Index("ix_user_projects", "user_id"),)
+    __table_args__ = (
+        PrimaryKeyConstraint('project_id', 'user_id', 'role'),
+        Index("ix_user_projects", "user_id"),
+    )
 
 class ProjectGroup(Base):
     __tablename__ = "project_groups"
