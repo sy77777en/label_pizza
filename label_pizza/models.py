@@ -56,6 +56,7 @@ class QuestionGroup(Base):
     description = Column(Text)
     is_reusable = Column(Boolean, default=False)
     is_archived = Column(Boolean, default=False)
+    verification_function = Column(String(255), nullable=True)  # Name of verification function in verify.py
 
 class Question(Base):
     __tablename__ = "questions"
@@ -118,7 +119,7 @@ class ProjectUserRole(Base):
     user_id = Column(Integer, primary_key=True)
     role = Column(Enum("annotator", "reviewer", "admin", "model", name="project_roles"), nullable=False)
     assigned_at = Column(DateTime(timezone=True), default=now)
-    completed_at = Column(DateTime(timezone=True))
+    completed_at = Column(DateTime(timezone=True), nullable=True)
     __table_args__ = (Index("ix_user_projects", "user_id"),)
 
 class ProjectGroup(Base):

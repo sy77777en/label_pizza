@@ -74,6 +74,8 @@ Copy this file into your repo and keep it updated as you implement new helpers.
 | `get_video_ids_by_uids(uids, session)`                | ✔︎     | —          | `list[int]` | —                                                      |
 | `archive_project(project_id, session)`                | ✔︎     | —          | `None`      | • Sets `is_archived=True`<br>• blocks new answers 🛡️  |
 | `progress(project_id, session)`                       | ✔︎     | —          | `dict`      | returns videos × questions × answers                   |
+| `add_videos_to_project(project_id, video_ids, session)` | 🚫     | —          | —           | **Deprecated: Projects are immutable after creation.** |
+| `get_project_by_id(project_id, session)`              | ✔︎     | —          | `Project`   |                                                        |
 
 ---
 
@@ -180,6 +182,19 @@ Copy this file into your repo and keep it updated as you implement new helpers.
 | `get_unread(user_id, session)`                                      | fetch & mark-read       |
 
 *(needs a simple `notifications` table: id, user\_id, message, created\_at, is\_read)*
+
+---
+
+## ProjectGroupService
+
+| Function                                                                                                   | Status | Notes                                                                                                    |
+| ---------------------------------------------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------- |
+| `create_project_group(name, description, owner_user_id, project_ids, session)`                             | ✔︎     | Enforces uniqueness of (video, question) pairs across projects in group                                  |
+| `edit_project_group(group_id, name, description, add_project_ids, remove_project_ids, session)`            | ✔︎     | Enforces uniqueness constraint when adding projects                                                      |
+| `get_project_group_by_id(group_id, session)`                                                               | ✔︎     | Returns group and its projects                                                                           |
+| `list_project_groups(session)`                                                                             | ✔︎     | Lists all project groups                                                                                 |
+
+**Uniqueness Rule:** For any two projects in a group, if their schemas have overlapping questions, they must not have any overlapping (non-archived) videos. If schemas have no overlapping questions, any videos are allowed.
 
 ---
 

@@ -4,16 +4,26 @@ from sqlalchemy.orm import Session
 from label_pizza.models import (
     Video, Project, ProjectVideo, Schema, QuestionGroup,
     Question, ProjectUserRole, AnnotatorAnswer, ReviewerGroundTruth, User, AnswerReview,
-    QuestionGroupQuestion, SchemaQuestionGroup
+    QuestionGroupQuestion, SchemaQuestionGroup, ProjectGroup, ProjectGroupProject
 )
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 import pandas as pd
 from datetime import datetime, timezone
 import hashlib
 import os
 from dotenv import load_dotenv
+import importlib.util
+import sys
+from pathlib import Path
 
 load_dotenv()
+
+# Import verify module
+verify_path = Path(__file__).parent / "verify.py"
+spec = importlib.util.spec_from_file_location("verify", verify_path)
+verify = importlib.util.module_from_spec(spec)
+sys.modules["verify"] = verify
+spec.loader.exec_module(verify)
 
 # ---------- VIDEO ----------------------------------------------------------
 def list_videos(session: Session):
@@ -542,37 +552,6 @@ class ProjectService:
         }
 
     @staticmethod
-    def add_videos_to_project(project_id: int, video_ids: List[int], session: Session) -> None:
-        """Add videos to an existing project.
-        
-        Args:
-            project_id: The ID of the project
-            video_ids: List of video IDs to add
-            session: Database session
-            
-        Raises:
-            ValueError: If project not found, project is archived, or any video is archived
-        """
-        # Check if project exists and is not archived
-        project = session.get(Project, project_id)
-        if not project:
-            raise ValueError(f"Project with ID {project_id} not found")
-        if project.is_archived:
-            raise ValueError(f"Project with ID {project_id} is archived")
-        
-        # Check if videos exist and are not archived
-        for vid in video_ids:
-            video = session.get(Video, vid)
-            if not video:
-                raise ValueError(f"Video with ID {vid} not found")
-            if video.is_archived:
-                raise ValueError(f"Video with ID {vid} is archived")
-            
-            session.add(ProjectVideo(project_id=project_id, video_id=vid))
-        
-        session.commit()
-
-    @staticmethod
     def get_project_by_id(project_id: int, session: Session) -> Optional[Project]:
         """Get a project by its ID.
         
@@ -677,31 +656,57 @@ class SchemaService:
         return schema.id
 
     @staticmethod
-    def create_schema(name: str, rules_json: dict, session: Session) -> Schema:
-        """Create a new schema.
+    def create_schema(name: str, question_group_ids: List[int], session: Session) -> Schema:
+        """Create a new schema with its question groups.
         
         Args:
             name: Schema name
-            rules_json: Schema rules as JSON
+            question_group_ids: List of question group IDs in desired order
             session: Database session
             
         Returns:
             Created schema
             
         Raises:
-            ValueError: If schema with same name exists
+            ValueError: If schema with same name exists or validation fails
         """
         # Check if schema with same name exists
         existing = session.scalar(select(Schema).where(Schema.name == name))
         if existing:
             raise ValueError(f"Schema with name '{name}' already exists")
             
-        # Validate rules_json
-        if not isinstance(rules_json, dict):
-            raise ValueError("rules_json must be a dictionary")
-            
-        schema = Schema(name=name, rules_json=rules_json)
+        # Create schema
+        schema = Schema(name=name)
         session.add(schema)
+        session.flush()  # Get schema ID
+        
+        # Add question groups
+        for i, group_id in enumerate(question_group_ids):
+            # Check if group exists
+            group = session.get(QuestionGroup, group_id)
+            if not group:
+                raise ValueError(f"Question group with ID {group_id} not found")
+            if group.is_archived:
+                raise ValueError(f"Question group with ID {group_id} is archived")
+                
+            # Check if non-reusable group is already used in another schema
+            if not group.is_reusable:
+                existing_schema = session.scalar(
+                    select(Schema)
+                    .join(SchemaQuestionGroup, Schema.id == SchemaQuestionGroup.schema_id)
+                    .where(SchemaQuestionGroup.question_group_id == group_id)
+                )
+                if existing_schema:
+                    raise ValueError(f"Question group {group.title} is not reusable and is already used in schema {existing_schema.name}")
+            
+            # Add group to schema
+            sqg = SchemaQuestionGroup(
+                schema_id=schema.id,
+                question_group_id=group_id,
+                display_order=i
+            )
+            session.add(sqg)
+            
         session.commit()
         return schema
 
@@ -832,6 +837,71 @@ class SchemaService:
         schema.is_archived = False
         session.commit()
 
+    @staticmethod
+    def get_question_group_order(schema_id: int, session: Session) -> List[int]:
+        """Get the ordered list of question group IDs in a schema.
+        
+        Args:
+            schema_id: Schema ID
+            session: Database session
+            
+        Returns:
+            List of question group IDs in display order
+            
+        Raises:
+            ValueError: If schema not found
+        """
+        # Check if schema exists
+        schema = session.get(Schema, schema_id)
+        if not schema:
+            raise ValueError(f"Schema with ID {schema_id} not found")
+            
+        # Get all question groups in schema ordered by display_order
+        assignments = session.scalars(
+            select(SchemaQuestionGroup)
+            .where(SchemaQuestionGroup.schema_id == schema_id)
+            .order_by(SchemaQuestionGroup.display_order)
+        ).all()
+        
+        return [a.question_group_id for a in assignments]
+
+    @staticmethod
+    def update_question_group_order(schema_id: int, group_ids: List[int], session: Session) -> None:
+        """Update the order of question groups in a schema.
+        
+        Args:
+            schema_id: Schema ID
+            group_ids: List of question group IDs in desired order
+            session: Database session
+            
+        Raises:
+            ValueError: If schema not found, or if any group not in schema
+        """
+        # Check if schema exists
+        schema = session.get(Schema, schema_id)
+        if not schema:
+            raise ValueError(f"Schema with ID {schema_id} not found")
+            
+        # Get all current assignments
+        assignments = session.scalars(
+            select(SchemaQuestionGroup)
+            .where(SchemaQuestionGroup.schema_id == schema_id)
+        ).all()
+        
+        # Create lookup for assignments
+        assignment_map = {a.question_group_id: a for a in assignments}
+        
+        # Validate all groups exist in schema
+        for group_id in group_ids:
+            if group_id not in assignment_map:
+                raise ValueError(f"Question group {group_id} not in schema {schema_id}")
+        
+        # Update orders based on list position
+        for i, group_id in enumerate(group_ids):
+            assignment_map[group_id].display_order = i
+            
+        session.commit()
+
 class QuestionService:
     @staticmethod
     def get_all_questions(session: Session) -> pd.DataFrame:
@@ -868,18 +938,19 @@ class QuestionService:
         ])
 
     @staticmethod
-    def add_question(text: str, qtype: str, group_name: Optional[str],
-                    options: Optional[List[str]], default: Optional[str], 
-                    session: Session) -> None:
-        """Add a new question to a group.
+    def add_question(text: str, qtype: str, options: Optional[List[str]], default: Optional[str], 
+                    session: Session) -> Question:
+        """Add a new question.
         
         Args:
             text: Question text
             qtype: Question type ('single' or 'description')
-            group_name: Name of the question group
             options: List of options for single-choice questions
             default: Default option for single-choice questions
             session: Database session
+            
+        Returns:
+            Created question
             
         Raises:
             ValueError: If question text already exists or validation fails
@@ -896,18 +967,6 @@ class QuestionService:
             if default and default not in options:
                 raise ValueError(f"Default option '{default}' must be one of the available options: {', '.join(options)}")
 
-        # Always create or use a group
-        if not group_name:
-            group_name = text  # Use question text as group name if none provided
-        group = QuestionGroupService.get_group_by_name(group_name, session)
-        if not group:
-            group = QuestionGroupService.create_group(
-                title=group_name,
-                description="",
-                is_reusable=False,
-                session=session
-            )
-
         # Create question
         q = Question(
             text=text, 
@@ -916,15 +975,8 @@ class QuestionService:
             default_option=default
         )
         session.add(q)
-        session.flush()  # Get the question ID
-        
-        # Add question to group
-        session.add(QuestionGroupQuestion(
-            question_group_id=group.id,
-            question_id=q.id,
-            display_order=0  # Default order
-        ))
         session.commit()
+        return q
 
     @staticmethod
     def get_question_by_text(text: str, session: Session) -> Optional[Question]:
@@ -940,15 +992,13 @@ class QuestionService:
         return session.scalar(select(Question).where(Question.text == text))
 
     @staticmethod
-    def edit_question(text: str, new_text: str, new_group: Optional[str],
-                     new_opts: Optional[List[str]], new_default: Optional[str],
+    def edit_question(text: str, new_text: str, new_opts: Optional[List[str]], new_default: Optional[str],
                      session: Session) -> None:
         """Edit an existing question.
         
         Args:
             text: Current question text
             new_text: New question text
-            new_group: New question group name
             new_opts: New options for single-choice questions
             new_default: New default option for single-choice questions
             session: Database session
@@ -956,52 +1006,28 @@ class QuestionService:
         Raises:
             ValueError: If question not found or validation fails
         """
+        # Get question
         q = QuestionService.get_question_by_text(text, session)
         if not q:
             raise ValueError(f"Question with text '{text}' not found")
         
-        # Check if new text conflicts with existing question
+        # Check if new text would conflict
         if new_text != text:
             existing = session.scalar(select(Question).where(Question.text == new_text))
             if existing:
                 raise ValueError(f"Question with text '{new_text}' already exists")
         
-        q.text = new_text
-        
-        # Always create or use a group
-        if not new_group:
-            new_group = new_text  # Use new question text as group name if none provided
-        group = QuestionGroupService.get_group_by_name(new_group, session)
-        if not group:
-            group = QuestionGroupService.create_group(
-                title=new_group,
-                description="",
-                is_reusable=False,
-                session=session
-            )
-            
-        # Update question group assignment
-        existing_assignment = session.scalar(
-            select(QuestionGroupQuestion)
-            .where(QuestionGroupQuestion.question_id == q.id)
-        )
-        if existing_assignment:
-            existing_assignment.question_group_id = group.id
-        else:
-            session.add(QuestionGroupQuestion(
-                question_group_id=group.id,
-                question_id=q.id,
-                display_order=0  # Default order
-            ))
-
+        # Validate default option for single-choice questions
         if q.type == "single":
             if not new_opts:
                 raise ValueError("Single-choice questions must have options")
             if new_default and new_default not in new_opts:
                 raise ValueError(f"Default option '{new_default}' must be one of the available options: {', '.join(new_opts)}")
+                
+        # Update question
+        q.text = new_text
             q.options = new_opts
             q.default_option = new_default
-
         session.commit()
 
     @staticmethod
@@ -1485,38 +1511,61 @@ class QuestionGroupService:
         }
 
     @staticmethod
-    def create_group(title: str, description: str, is_reusable: bool, session: Session) -> QuestionGroup:
-        """Create a new question group.
+    def create_group(title: str, description: str, is_reusable: bool, 
+                    question_ids: List[int], verification_function: Optional[str],
+                    session: Session) -> QuestionGroup:
+        """Create a new question group with its questions.
         
         Args:
             title: Group title
             description: Group description
-            is_reusable: Whether the group is reusable
+            is_reusable: Whether group can be used in multiple schemas
+            question_ids: List of question IDs in desired order
+            verification_function: Optional name of verification function from verify.py
             session: Database session
             
         Returns:
             Created question group
             
         Raises:
-            ValueError: If group with same title exists
+            ValueError: If title already exists or validation fails
         """
-        # Check if group with same title exists
-        existing = session.scalar(
-            select(QuestionGroup).where(QuestionGroup.title == title)
-        )
+        # Check if title already exists
+        existing = session.scalar(select(QuestionGroup).where(QuestionGroup.title == title))
         if existing:
             raise ValueError(f"Question group with title '{title}' already exists")
-        
-        # Validate title and description
-        if not title.strip():
-            raise ValueError("Group title cannot be empty")
-        
+            
+        # Validate verification function if provided
+        if verification_function:
+            if not hasattr(verify, verification_function):
+                raise ValueError(f"Verification function '{verification_function}' not found in verify.py")
+                
+        # Create group
         group = QuestionGroup(
             title=title,
             description=description,
-            is_reusable=is_reusable
+            is_reusable=is_reusable,
+            verification_function=verification_function
         )
         session.add(group)
+        session.flush()  # Get the group ID
+        
+        # Validate and add questions
+        for i, question_id in enumerate(question_ids):
+            # Check if question exists and isn't archived
+            question = session.scalar(select(Question).where(Question.id == question_id))
+            if not question:
+                raise ValueError(f"Question with ID {question_id} not found")
+            if question.is_archived:
+                raise ValueError(f"Question with ID {question_id} is archived")
+                
+            # Add question to group
+            session.add(QuestionGroupQuestion(
+                question_group_id=group.id,
+                question_id=question_id,
+                display_order=i
+            ))
+            
         session.commit()
         return group
 
@@ -1623,111 +1672,423 @@ class QuestionGroupService:
         group.is_archived = False
         session.commit()
 
-class AnnotatorService:
     @staticmethod
-    def submit_answer(video_id: int, question_id: int, project_id: int, user_id: int, 
-                     answer_value: str, session: Session, confidence_score: float = None,
-                     notes: str = None) -> None:
-        """Submit an answer for a video question.
+    def get_question_order(group_id: int, session: Session) -> List[int]:
+        """Get the ordered list of question IDs in a group.
         
         Args:
-            video_id: The ID of the video
-            question_id: The ID of the question
-            project_id: The ID of the project
-            user_id: The ID of the user submitting the answer
-            answer_value: The answer value
+            group_id: Group ID
             session: Database session
-            confidence_score: Optional confidence score
-            notes: Optional notes
+            
+        Returns:
+            List of question IDs in display order
             
         Raises:
-            ValueError: If project is archived, user is disabled, or answer validation fails
+            ValueError: If group not found
         """
-        # Check if project is archived
+        # Check if group exists
+        group = session.get(QuestionGroup, group_id)
+        if not group:
+            raise ValueError(f"Question group with ID {group_id} not found")
+            
+        # Get all questions in group ordered by display_order
+        assignments = session.scalars(
+            select(QuestionGroupQuestion)
+            .where(QuestionGroupQuestion.question_group_id == group_id)
+            .order_by(QuestionGroupQuestion.display_order)
+        ).all()
+        
+        return [a.question_id for a in assignments]
+
+    @staticmethod
+    def update_question_order(group_id: int, question_ids: List[int], session: Session) -> None:
+        """Update the order of questions in a group.
+        
+        Args:
+            group_id: Group ID
+            question_ids: List of question IDs in desired order
+            session: Database session
+            
+        Raises:
+            ValueError: If group not found, or if any question not in group
+        """
+        # Check if group exists
+        group = session.get(QuestionGroup, group_id)
+        if not group:
+            raise ValueError(f"Question group with ID {group_id} not found")
+            
+        # Get all current assignments
+        assignments = session.scalars(
+            select(QuestionGroupQuestion)
+            .where(QuestionGroupQuestion.question_group_id == group_id)
+        ).all()
+        
+        # Create lookup for assignments
+        assignment_map = {a.question_id: a for a in assignments}
+        
+        # Validate all questions exist in group
+        for question_id in question_ids:
+            if question_id not in assignment_map:
+                raise ValueError(f"Question {question_id} not in group {group_id}")
+        
+        # Update orders based on list position
+        for i, question_id in enumerate(question_ids):
+            assignment_map[question_id].display_order = i
+            
+        session.commit()
+
+class BaseAnswerService:
+    """Base class with shared functionality for answer submission services."""
+    
+    @staticmethod
+    def _validate_project_and_user(project_id: int, user_id: int, session: Session) -> tuple[Project, User]:
+        """Validate project and user exist and are active.
+        
+        Args:
+            project_id: The ID of the project
+            user_id: The ID of the user
+            session: Database session
+            
+        Returns:
+            Tuple of (Project, User) objects
+            
+        Raises:
+            ValueError: If validation fails
+        """
         project = session.get(Project, project_id)
         if not project:
             raise ValueError(f"Project with ID {project_id} not found")
         if project.is_archived:
             raise ValueError("Project is archived")
             
-        # Check if user is active
         user = session.get(User, user_id)
         if not user:
             raise ValueError(f"User with ID {user_id} not found")
         if user.is_archived:
             raise ValueError("User is archived")
             
-        # Check if user has annotator role in the project
+        return project, user
+
+    @staticmethod
+    def _validate_user_role(user_id: int, project_id: int, required_role: str, session: Session) -> None:
+        """Validate user has required role in project.
+        
+        Args:
+            user_id: The ID of the user
+            project_id: The ID of the project
+            required_role: Required role ('annotator', 'reviewer', or 'admin')
+            session: Database session
+            
+        Raises:
+            ValueError: If validation fails
+        """
         user_role = session.scalar(
             select(ProjectUserRole).where(
                 ProjectUserRole.user_id == user_id,
                 ProjectUserRole.project_id == project_id
             )
         )
-        if not user_role:
-            raise ValueError(f"User {user_id} does not have a role in project {project_id}")
+        if not user_role or user_role.role != required_role:
+            raise ValueError(f"User {user_id} does not have {required_role} role in project {project_id}")
+
+    @staticmethod
+    def _validate_question_group(
+        question_group_id: int,
+        session: Session
+    ) -> tuple[QuestionGroup, list[Question]]:
+        """Validate question group and get its questions.
+        
+        Args:
+            question_group_id: The ID of the question group
+            session: Database session
             
-        # Get question to validate answer type
-        question = session.get(Question, question_id)
-        if not question:
-            raise ValueError(f"Question with ID {question_id} not found")
-        if question.is_archived:
-            raise ValueError(f"Question with ID {question_id} is archived")
+        Returns:
+            Tuple of (QuestionGroup, list[Question])
             
-        # Validate that question belongs to project's schema
-        question_in_schema = session.scalar(
+        Raises:
+            ValueError: If validation fails
+        """
+        group = session.get(QuestionGroup, question_group_id)
+        if not group:
+            raise ValueError(f"Question group with ID {question_group_id} not found")
+        if group.is_archived:
+            raise ValueError(f"Question group with ID {question_group_id} is archived")
+            
+        questions = session.scalars(
             select(Question)
             .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
-            .join(SchemaQuestionGroup, QuestionGroupQuestion.question_group_id == SchemaQuestionGroup.question_group_id)
-            .where(
-                Question.id == question_id,
-                SchemaQuestionGroup.schema_id == project.schema_id
-            )
-        )
-        if not question_in_schema:
-            raise ValueError(f"Question {question_id} does not belong to project's schema {project.schema_id}")
+            .where(QuestionGroupQuestion.question_group_id == question_group_id)
+        ).all()
+        
+        return group, questions
+
+    @staticmethod
+    def _validate_answers_match_questions(
+        answers: Dict[str, str],
+        questions: list[Question]
+    ) -> None:
+        """Validate that answers match questions in group.
+        
+        Args:
+            answers: Dictionary mapping question text to answer value
+            questions: List of questions
             
-        # Validate answer value for single-choice questions
+        Raises:
+            ValueError: If validation fails
+        """
+        question_texts = {q.text for q in questions}
+        if set(answers.keys()) != question_texts:
+            missing = question_texts - set(answers.keys())
+            extra = set(answers.keys()) - question_texts
+            raise ValueError(
+                f"Answers do not match questions in group. "
+                f"Missing: {missing}. Extra: {extra}"
+            )
+
+    @staticmethod
+    def _run_verification(
+        group: QuestionGroup,
+        answers: Dict[str, str]
+    ) -> None:
+        """Run verification function if specified.
+        
+        Args:
+            group: Question group
+            answers: Dictionary mapping question text to answer value
+            
+        Raises:
+            ValueError: If verification fails
+        """
+        if group.verification_function:
+            verify_func = getattr(verify, group.verification_function, None)
+            if not verify_func:
+                raise ValueError(f"Verification function '{group.verification_function}' not found in verify.py")
+            try:
+                verify_func(answers)
+            except ValueError as e:
+                raise ValueError(f"Answer verification failed: {str(e)}")
+
+    @staticmethod
+    def _validate_answer_value(question: Question, answer_value: str) -> None:
+        """Validate answer value matches question type and options.
+        
+        Args:
+            question: Question object
+            answer_value: Answer value to validate
+            
+        Raises:
+            ValueError: If validation fails
+        """
         if question.type == "single":
             if not question.options:
-                raise ValueError("Question has no options defined")
+                raise ValueError(f"Question '{question.text}' has no options defined")
             if answer_value not in question.options:
-                raise ValueError(f"Answer value '{answer_value}' not in options: {', '.join(question.options)}")
+                raise ValueError(
+                    f"Answer value '{answer_value}' not in options for '{question.text}': "
+                    f"{', '.join(question.options)}"
+                )
         elif question.type == "description":
             if not isinstance(answer_value, str):
-                raise ValueError("Description answers must be strings")
+                raise ValueError(f"Description answer for '{question.text}' must be a string")
+
+    @staticmethod
+    def _check_and_update_completion(
+        user_id: int,
+        project_id: int,
+        session: Session
+    ) -> float:
+        """Check if user has completed all questions in project and update completion timestamp.
         
-        # Check for existing answer
-        existing = session.scalar(
-            select(AnnotatorAnswer).where(
-                AnnotatorAnswer.video_id == video_id,
-                AnnotatorAnswer.question_id == question_id,
-                AnnotatorAnswer.user_id == user_id,
-                AnnotatorAnswer.project_id == project_id
+        Args:
+            user_id: The ID of the user
+            project_id: The ID of the project
+            session: Database session
+            
+        Returns:
+            float: Completion percentage (0-100)
+        """
+        # Get total non-archived questions in project's schema
+        total_questions = session.scalar(
+            select(func.count())
+            .select_from(Question)
+            .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
+            .join(SchemaQuestionGroup, QuestionGroupQuestion.question_group_id == SchemaQuestionGroup.question_group_id)
+            .join(Project, SchemaQuestionGroup.schema_id == Project.schema_id)
+            .where(
+                Project.id == project_id,
+                Question.is_archived == False
             )
         )
+        
+        # Get total non-archived videos in project
+        total_videos = session.scalar(
+            select(func.count())
+            .select_from(ProjectVideo)
+            .join(Video, ProjectVideo.video_id == Video.id)
+            .where(
+                ProjectVideo.project_id == project_id,
+                Video.is_archived == False
+            )
+        )
+        
+        # Get user's role
+        user_role = session.scalar(
+            select(ProjectUserRole)
+            .where(
+                ProjectUserRole.user_id == user_id,
+                ProjectUserRole.project_id == project_id
+            )
+        )
+        
+        if not user_role:
+            return 0.0
+            
+        # Get total answers submitted by user
+        if user_role.role == "annotator":
+            # For annotators, count their own answers for non-archived questions
+            total_answers = session.scalar(
+                select(func.count())
+                .select_from(AnnotatorAnswer)
+                .join(Question, AnnotatorAnswer.question_id == Question.id)
+                .where(
+                    AnnotatorAnswer.user_id == user_id,
+                    AnnotatorAnswer.project_id == project_id,
+                    Question.is_archived == False
+                )
+            )
+            
+            # Update completion timestamp if all questions are answered
+            expected_answers = total_questions * total_videos
+            completion_percentage = min((total_answers / expected_answers * 100) if expected_answers > 0 else 0.0, 100.0)
+            
+            if total_answers >= expected_answers:
+                user_role.completed_at = datetime.now(timezone.utc)
+            else:
+                user_role.completed_at = None
+                
+        else:  # reviewer
+            # For reviewers, count total ground truth answers in project for non-archived questions
+            total_answers = session.scalar(
+                select(func.count())
+                .select_from(ReviewerGroundTruth)
+                .join(Question, ReviewerGroundTruth.question_id == Question.id)
+                .where(
+                    ReviewerGroundTruth.project_id == project_id,
+                    Question.is_archived == False
+                )
+            )
+            
+            # Calculate completion percentage
+            expected_answers = total_questions * total_videos
+            completion_percentage = min((total_answers / expected_answers * 100) if expected_answers > 0 else 0.0, 100.0)
+            
+            # If all questions are answered, update completion timestamp for all reviewers
+            # Get all reviewer roles for this project
+            reviewer_roles = session.scalars(
+                select(ProjectUserRole)
+                .where(
+                    ProjectUserRole.project_id == project_id,
+                    ProjectUserRole.role == "reviewer"
+                )
+            ).all()
+            if total_answers >= expected_answers:
+                
+                # Update completion timestamp for all reviewers
+                for role in reviewer_roles:
+                    role.completed_at = datetime.now(timezone.utc)
+            else:
+                # Reset completion timestamp for all reviewers            
+                for role in reviewer_roles:
+                    role.completed_at = None
+            
+        session.commit()
+        return completion_percentage
+
+class AnnotatorService(BaseAnswerService):
+    @staticmethod
+    def submit_answer_to_question_group(
+        video_id: int,
+        project_id: int,
+        user_id: int,
+        question_group_id: int,
+        answers: Dict[str, str],  # Maps question text to answer value
+        session: Session,
+        confidence_scores: Optional[Dict[str, float]] = None,
+        notes: Optional[Dict[str, str]] = None
+    ) -> None:
+        """Submit answers for all questions in a question group.
+        
+        Args:
+            video_id: The ID of the video
+            project_id: The ID of the project
+            user_id: The ID of the user submitting the answers
+            question_group_id: The ID of the question group
+            answers: Dictionary mapping question text to answer value
+            session: Database session
+            confidence_scores: Optional dictionary mapping question text to confidence score
+            notes: Optional dictionary mapping question text to notes
+            
+        Raises:
+            ValueError: If validation fails or verification fails
+        """
+        # Validate project and user
+        project, user = AnnotatorService._validate_project_and_user(project_id, user_id, session)
+        
+        # Validate user role
+        AnnotatorService._validate_user_role(user_id, project_id, "annotator", session)
+            
+        # Validate question group and get questions
+        group, questions = AnnotatorService._validate_question_group(question_group_id, session)
+        
+        # Validate answers match questions
+        AnnotatorService._validate_answers_match_questions(answers, questions)
+            
+        # Run verification if specified
+        AnnotatorService._run_verification(group, answers)
+            
+        # Submit each answer
+        for question in questions:
+            answer_value = answers[question.text]
+            confidence_score = confidence_scores.get(question.text) if confidence_scores else None
+            note = notes.get(question.text) if notes else None
+            
+            # Validate answer value
+            AnnotatorService._validate_answer_value(question, answer_value)
+            
+            # Check for existing answer
+            existing = session.scalar(
+                select(AnnotatorAnswer).where(
+                    AnnotatorAnswer.video_id == video_id,
+                    AnnotatorAnswer.question_id == question.id,
+                    AnnotatorAnswer.user_id == user_id,
+                    AnnotatorAnswer.project_id == project_id
+                )
+            )
         
         if existing:
             # Update existing answer
             existing.answer_value = answer_value
-            existing.modified_at = datetime.now(timezone.utc)
-            existing.confidence_score = confidence_score
-            existing.notes = notes
+                existing.modified_at = datetime.now(timezone.utc)
+                existing.confidence_score = confidence_score
+                existing.notes = note
         else:
             # Create new answer
-            answer = AnnotatorAnswer(
+                answer = AnnotatorAnswer(
                 video_id=video_id,
-                question_id=question_id,
+                    question_id=question.id,
                 project_id=project_id,
                 user_id=user_id,
                 answer_type=question.type,
                 answer_value=answer_value,
-                confidence_score=confidence_score,
-                notes=notes
+                    confidence_score=confidence_score,
+                    notes=note
             )
             session.add(answer)
             
         session.commit()
+        
+        # Check and update completion status
+        AnnotatorService._check_and_update_completion(user_id, project_id, session)
 
     @staticmethod
     def get_answers(video_id: int, project_id: int, session: Session) -> pd.DataFrame:
@@ -1770,45 +2131,6 @@ class AnnotatorService:
         ])
 
     @staticmethod
-    def get_ground_truth(video_id: int, project_id: int, session: Session) -> pd.DataFrame:
-        """Get answers for a video in a project.
-        
-        Args:
-            video_id: The ID of the video
-            project_id: The ID of the project
-            session: Database session
-            
-        Returns:
-            DataFrame containing ground truth answers with columns:
-            - Question ID
-            - Answer Value
-            - Created At
-            - Modified At
-            - Confidence Score
-            - Notes
-        """
-        answers = session.scalars(
-            select(AnnotatorAnswer)
-            .where(
-                AnnotatorAnswer.user_id == user_id,
-                AnnotatorAnswer.project_id == project_id
-            )
-        ).all()
-        
-        return pd.DataFrame([
-            {
-                "Video ID": a.video_id,
-                "Question ID": a.question_id,
-                "Answer Value": a.answer_value,
-                "Confidence Score": a.confidence_score,
-                "Created At": a.created_at,
-                "Modified At": a.modified_at,
-                "Notes": a.notes
-            }
-            for a in answers
-        ])
-
-    @staticmethod
     def get_question_answers(question_id: int, project_id: int, session: Session) -> pd.DataFrame:
         """Get all answers for a question in a project.
         
@@ -1841,113 +2163,86 @@ class AnnotatorService:
             for a in answers
         ])
 
-class GroundTruthService:
+class GroundTruthService(BaseAnswerService):
     @staticmethod
-    def submit_ground_truth(
+    def submit_ground_truth_to_question_group(
         video_id: int,
-        question_id: int,
         project_id: int,
         reviewer_id: int,
-        answer_value: str,
+        question_group_id: int,
+        answers: Dict[str, str],  # Maps question text to answer value
         session: Session,
-        confidence_score: float = None,
-        notes: str = None
+        confidence_scores: Optional[Dict[str, float]] = None,
+        notes: Optional[Dict[str, str]] = None
     ) -> None:
-        """Submit or update a ground truth answer.
+        """Submit ground truth answers for all questions in a question group.
         
         Args:
             video_id: The ID of the video
-            question_id: The ID of the question
             project_id: The ID of the project
             reviewer_id: The ID of the reviewer
-            answer_value: The answer value
+            question_group_id: The ID of the question group
+            answers: Dictionary mapping question text to answer value
             session: Database session
-            confidence_score: Optional confidence score
-            notes: Optional notes
+            confidence_scores: Optional dictionary mapping question text to confidence score
+            notes: Optional dictionary mapping question text to notes
             
         Raises:
-            ValueError: If validation fails
+            ValueError: If validation fails or verification fails
         """
-        # Check if project is archived
-        project = session.get(Project, project_id)
-        if not project:
-            raise ValueError(f"Project with ID {project_id} not found")
-        if project.is_archived:
-            raise ValueError("Project is archived")
-            
-        # Check if reviewer is active
-        reviewer = session.get(User, reviewer_id)
-        if not reviewer:
-            raise ValueError(f"Reviewer with ID {reviewer_id} not found")
-        if reviewer.is_archived:
-            raise ValueError("Reviewer is archived")
-            
-        # Check if reviewer has reviewer role in the project
-        reviewer_role = session.scalar(
-            select(ProjectUserRole).where(
-                ProjectUserRole.user_id == reviewer_id,
-                ProjectUserRole.project_id == project_id
-            )
-        )
-        if not reviewer_role or reviewer_role.role not in ["reviewer", "admin"]:
-            raise ValueError(f"User {reviewer_id} does not have reviewer role in project {project_id}")
-            
-        # Get question to validate answer type
-        question = session.get(Question, question_id)
-        if not question:
-            raise ValueError(f"Question with ID {question_id} not found")
-        if question.is_archived:
-            raise ValueError(f"Question with ID {question_id} is archived")
-            
-        # Validate that question belongs to project's schema
-        question_in_schema = session.scalar(
-            select(Question)
-            .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
-            .join(SchemaQuestionGroup, QuestionGroupQuestion.question_group_id == SchemaQuestionGroup.question_group_id)
-            .where(
-                Question.id == question_id,
-                SchemaQuestionGroup.schema_id == project.schema_id
-            )
-        )
-        if not question_in_schema:
-            raise ValueError(f"Question {question_id} does not belong to project's schema {project.schema_id}")
-            
-        # Validate answer value for single-choice questions
-        if question.type == "single":
-            if not question.options:
-                raise ValueError("Question has no options defined")
-            if answer_value not in question.options:
-                raise ValueError(f"Answer value '{answer_value}' not in options: {', '.join(question.options)}")
-        elif question.type == "description":
-            if not isinstance(answer_value, str):
-                raise ValueError("Description answers must be strings")
+        # Validate project and reviewer
+        project, reviewer = GroundTruthService._validate_project_and_user(project_id, reviewer_id, session)
         
-        # Check for existing ground truth
-        existing = session.get(ReviewerGroundTruth, (video_id, question_id, project_id))
+        # Validate reviewer role
+        GroundTruthService._validate_user_role(reviewer_id, project_id, "reviewer", session)
+            
+        # Validate question group and get questions
+        group, questions = GroundTruthService._validate_question_group(question_group_id, session)
+        
+        # Validate answers match questions
+        GroundTruthService._validate_answers_match_questions(answers, questions)
+            
+        # Run verification if specified
+        GroundTruthService._run_verification(group, answers)
+            
+        # Submit each ground truth answer
+        for question in questions:
+            answer_value = answers[question.text]
+            confidence_score = confidence_scores.get(question.text) if confidence_scores else None
+            note = notes.get(question.text) if notes else None
+            
+            # Validate answer value
+            GroundTruthService._validate_answer_value(question, answer_value)
+            
+            # Check for existing ground truth
+            existing = session.get(ReviewerGroundTruth, (video_id, question.id, project_id))
         
         if existing:
-            # Update existing ground truth
-            existing.answer_value = answer_value
-            existing.answer_type = question.type
-            existing.confidence_score = confidence_score
-            existing.notes = notes
-            existing.modified_at = datetime.now(timezone.utc)
+                # Update existing ground truth
+                existing.answer_value = answer_value
+                existing.answer_type = question.type
+                existing.confidence_score = confidence_score
+                existing.notes = note
+                existing.modified_at = datetime.now(timezone.utc)
         else:
-            # Create new ground truth
-            gt = ReviewerGroundTruth(
-                video_id=video_id,
-                question_id=question_id,
-                project_id=project_id,
+                # Create new ground truth
+                gt = ReviewerGroundTruth(
+                    video_id=video_id,
+                    question_id=question.id,
+                    project_id=project_id,
                 reviewer_id=reviewer_id,
-                answer_type=question.type,
-                answer_value=answer_value,
-                original_answer_value=answer_value,
-                confidence_score=confidence_score,
-                notes=notes
-            )
-            session.add(gt)
+                    answer_type=question.type,
+                    answer_value=answer_value,
+                    original_answer_value=answer_value,
+                    confidence_score=confidence_score,
+                    notes=note
+                )
+                session.add(gt)
             
         session.commit()
+        
+        # Check and update completion status
+        GroundTruthService._check_and_update_completion(reviewer_id, project_id, session)
 
     @staticmethod
     def get_ground_truth(video_id: int, project_id: int, session: Session) -> pd.DataFrame:
@@ -2165,3 +2460,167 @@ class GroundTruthService:
                     "Correct": correct
                 })
             return pd.DataFrame(results)
+
+    @staticmethod
+    def override_ground_truth_to_question_group(
+        video_id: int,
+        project_id: int,
+        question_group_id: int,
+        admin_id: int,
+        answers: Dict[str, str],  # Maps question text to answer value
+        session: Session
+    ) -> None:
+        """Override ground truth answers for all questions in a question group (admin only).
+        
+        Args:
+            video_id: The ID of the video
+            project_id: The ID of the project
+            question_group_id: The ID of the question group
+            admin_id: The ID of the admin
+            answers: Dictionary mapping question text to answer value
+            session: Database session
+            
+        Raises:
+            ValueError: If validation fails
+        """
+        # Validate project and admin
+        project, admin = GroundTruthService._validate_project_and_user(project_id, admin_id, session)
+        
+        # Validate project admin role
+        GroundTruthService._validate_user_role(admin_id, project_id, "admin", session)
+            
+        # Validate question group and get questions
+        group, questions = GroundTruthService._validate_question_group(question_group_id, session)
+        
+        # Validate answers match questions
+        GroundTruthService._validate_answers_match_questions(answers, questions)
+            
+        # Run verification if specified
+        GroundTruthService._run_verification(group, answers)
+            
+        # Override each ground truth answer
+        for question in questions:
+            answer_value = answers[question.text]
+            
+            # Validate answer value
+            GroundTruthService._validate_answer_value(question, answer_value)
+            
+            # Get ground truth
+            gt = session.get(ReviewerGroundTruth, (video_id, question.id, project_id))
+            if not gt:
+                raise ValueError(f"No ground truth found for video {video_id}, question {question.id}, project {project_id}")
+            
+            # Only update if answer value actually changes
+            if gt.answer_value != answer_value:
+                gt.answer_value = answer_value
+                gt.modified_by_admin_id = admin_id
+                gt.modified_by_admin_at = datetime.now(timezone.utc)
+        
+        session.commit()
+
+class ProjectGroupService:
+    @staticmethod
+    def create_project_group(name: str, description: str, owner_user_id: int, project_ids: list[int] | None, session: Session):
+        """Create a new project group with optional list of project IDs, enforcing uniqueness constraints."""
+        # Check for unique name
+        existing = session.scalar(select(ProjectGroup).where(ProjectGroup.name == name))
+        if existing:
+            raise ValueError(f"Project group with name '{name}' already exists")
+        group = ProjectGroup(
+            name=name,
+            description=description,
+            owner_user_id=owner_user_id,
+            is_default=False
+        )
+        session.add(group)
+        session.flush()  # get group.id
+        if project_ids:
+            ProjectGroupService._validate_project_group_uniqueness(project_ids, session)
+            for pid in project_ids:
+                session.add(ProjectGroupProject(project_group_id=group.id, project_id=pid))
+        session.commit()
+        return group
+
+    @staticmethod
+    def edit_project_group(group_id: int, name: str | None, description: str | None, add_project_ids: list[int] | None, remove_project_ids: list[int] | None, session: Session):
+        """Edit group name/description, add/remove projects, enforcing uniqueness constraints when adding."""
+        group = session.get(ProjectGroup, group_id)
+        if not group:
+            raise ValueError(f"Project group with ID {group_id} not found")
+        if name:
+            # Check for unique name
+            existing = session.scalar(select(ProjectGroup).where(ProjectGroup.name == name, ProjectGroup.id != group_id))
+            if existing:
+                raise ValueError(f"Project group with name '{name}' already exists")
+            group.name = name
+        if description:
+            group.description = description
+        if add_project_ids:
+            # Get current project IDs
+            current_ids = set(row.project_id for row in session.scalars(select(ProjectGroupProject).where(ProjectGroupProject.project_group_id == group_id)).all())
+            new_ids = set(add_project_ids)
+            all_ids = list(current_ids | new_ids)
+            ProjectGroupService._validate_project_group_uniqueness(all_ids, session)
+            for pid in new_ids - current_ids:
+                session.add(ProjectGroupProject(project_group_id=group_id, project_id=pid))
+        if remove_project_ids:
+            for pid in remove_project_ids:
+                row = session.scalar(select(ProjectGroupProject).where(ProjectGroupProject.project_group_id == group_id, ProjectGroupProject.project_id == pid))
+                if row:
+                    session.delete(row)
+        session.commit()
+        return group
+
+    @staticmethod
+    def get_project_group_by_id(group_id: int, session: Session):
+        group = session.get(ProjectGroup, group_id)
+        if not group:
+            raise ValueError(f"Project group with ID {group_id} not found")
+        projects = session.scalars(
+            select(Project).join(ProjectGroupProject, Project.id == ProjectGroupProject.project_id)
+            .where(ProjectGroupProject.project_group_id == group_id)
+        ).all()
+        return {"group": group, "projects": projects}
+
+    @staticmethod
+    def list_project_groups(session: Session):
+        groups = session.scalars(select(ProjectGroup)).all()
+        return groups
+
+    @staticmethod
+    def _validate_project_group_uniqueness(project_ids: list[int], session: Session):
+        # For every pair of projects, check uniqueness constraint
+        projects = [session.get(Project, pid) for pid in project_ids]
+        # Get schema questions for each project
+        project_questions = {}
+        project_videos = {}
+        for p in projects:
+            if not p:
+                raise ValueError(f"Project with ID {p.id if p else None} not found")
+            # Get all questions in schema
+            qids = set(session.scalars(
+                select(Question.id)
+                .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
+                .join(SchemaQuestionGroup, QuestionGroupQuestion.question_group_id == SchemaQuestionGroup.question_group_id)
+                .where(SchemaQuestionGroup.schema_id == p.schema_id)
+            ).all())
+            vids = set(session.scalars(
+                select(ProjectVideo.video_id)
+                .where(ProjectVideo.project_id == p.id)
+            ).all())
+            # Only consider non-archived videos
+            vids = set(
+                v for v in vids if not session.get(Video, v).is_archived
+            )
+            project_questions[p.id] = qids
+            project_videos[p.id] = vids
+        # Check all pairs
+        n = len(projects)
+        for i in range(n):
+            for j in range(i+1, n):
+                q_overlap = project_questions[projects[i].id] & project_questions[projects[j].id]
+                if not q_overlap:
+                    continue  # No conflict
+                v_overlap = project_videos[projects[i].id] & project_videos[projects[j].id]
+                if v_overlap:
+                    raise ValueError(f"Projects {projects[i].id} and {projects[j].id} have overlapping questions and videos: {v_overlap}")
