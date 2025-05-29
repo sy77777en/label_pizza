@@ -1027,6 +1027,71 @@ class SchemaService:
             raise ValueError(f"Schema with ID {schema_id} not found")
         return schema
 
+    @staticmethod
+    def get_schema_question_groups(schema_id: int, session: Session) -> pd.DataFrame:
+        """Get all question groups in a schema.
+        
+        Args:
+            schema_id: The ID of the schema
+            session: Database session
+            
+        Returns:
+            DataFrame containing question groups with columns:
+            - ID: Question group ID
+            - Title: Question group title
+            - Description: Question group description
+            - Reusable: Whether the group is reusable
+            - Archived: Whether the group is archived
+            - Display Order: Order in which the group appears in the schema
+            - Question Count: Number of questions in the group
+            
+        Raises:
+            ValueError: If schema not found
+        """
+        # Check if schema exists
+        schema = session.get(Schema, schema_id)
+        if not schema:
+            raise ValueError(f"Schema with ID {schema_id} not found")
+            
+        # Get all question groups in schema ordered by display_order
+        groups = session.scalars(
+            select(QuestionGroup)
+            .join(SchemaQuestionGroup, QuestionGroup.id == SchemaQuestionGroup.question_group_id)
+            .where(SchemaQuestionGroup.schema_id == schema_id)
+            .order_by(SchemaQuestionGroup.display_order)
+        ).all()
+        
+        # Get question counts for each group
+        rows = []
+        for group in groups:
+            # Count questions in this group
+            question_count = session.scalar(
+                select(func.count())
+                .select_from(QuestionGroupQuestion)
+                .where(QuestionGroupQuestion.question_group_id == group.id)
+            )
+            
+            # Get display order
+            display_order = session.scalar(
+                select(SchemaQuestionGroup.display_order)
+                .where(
+                    SchemaQuestionGroup.schema_id == schema_id,
+                    SchemaQuestionGroup.question_group_id == group.id
+                )
+            )
+            
+            rows.append({
+                "ID": group.id,
+                "Title": group.title,
+                "Description": group.description,
+                "Reusable": group.is_reusable,
+                "Archived": group.is_archived,
+                "Display Order": display_order,
+                "Question Count": question_count
+            })
+            
+        return pd.DataFrame(rows)
+
 class QuestionService:
     @staticmethod
     def get_all_questions(session: Session) -> pd.DataFrame:
@@ -1064,7 +1129,7 @@ class QuestionService:
 
     @staticmethod
     def add_question(text: str, qtype: str, options: Optional[List[str]], default: Optional[str], 
-                    session: Session) -> Question:
+                    session: Session, display_values: Optional[List[str]] = None) -> Question:
         """Add a new question.
         
         Args:
@@ -1073,6 +1138,7 @@ class QuestionService:
             options: List of options for single-choice questions
             default: Default option for single-choice questions
             session: Database session
+            display_values: Optional list of display text for options. For single-type questions, if not provided, uses options as display values.
             
         Returns:
             Created question
@@ -1091,12 +1157,23 @@ class QuestionService:
                 raise ValueError("Single-choice questions must have options")
             if default and default not in options:
                 raise ValueError(f"Default option '{default}' must be one of the available options: {', '.join(options)}")
+            
+            # For single-type questions, display_values must be provided or default to options
+            if display_values:
+                if len(display_values) != len(options):
+                    raise ValueError("Number of display values must match number of options")
+            else:
+                display_values = options  # Use options as display values if not provided
+        else:
+            # For description-type questions, display_values should be None
+            display_values = None
 
         # Create question
         q = Question(
             text=text, 
             type=qtype, 
             options=options, 
+            display_values=display_values,
             default_option=default
         )
         session.add(q)
@@ -1124,15 +1201,16 @@ class QuestionService:
 
     @staticmethod
     def edit_question(question_id: int, new_text: str, new_opts: Optional[List[str]], new_default: Optional[str],
-                     session: Session) -> None:
+                     session: Session, new_display_values: Optional[List[str]] = None) -> None:
         """Edit an existing question.
         
         Args:
             question_id: Current question ID
             new_text: New question text
-            new_opts: New options for single-choice questions
+            new_opts: New options for single-choice questions. Must include all existing options.
             new_default: New default option for single-choice questions
             session: Database session
+            new_display_values: Optional new display values for options. For single-type questions, if not provided, maintains existing display values or uses options.
             
         Raises:
             ValueError: If question not found or validation fails
@@ -1150,16 +1228,39 @@ class QuestionService:
             if existing:
                 raise ValueError(f"Question with text '{new_text}' already exists")
         
-        # Validate default option for single-choice questions
+        # For single-choice questions, validate options and display values
         if q.type == "single":
             if not new_opts:
                 raise ValueError("Single-choice questions must have options")
             if new_default and new_default not in new_opts:
                 raise ValueError(f"Default option '{new_default}' must be one of the available options: {', '.join(new_opts)}")
+            
+            # Validate that all existing options are included in new options
+            missing_opts = set(q.options) - set(new_opts)
+            if missing_opts:
+                raise ValueError(f"Cannot remove existing options: {', '.join(missing_opts)}")
+            
+            # For single-type questions, ensure we have display values
+            if new_display_values:
+                if len(new_display_values) != len(new_opts):
+                    raise ValueError("Number of display values must match number of options")
+            else:
+                # If no new display values provided, maintain existing mapping for unchanged options
+                new_display_values = []
+                for opt in new_opts:
+                    if opt in q.options:
+                        idx = q.options.index(opt)
+                        new_display_values.append(q.display_values[idx])
+                    else:
+                        new_display_values.append(opt)
+        else:
+            # For description-type questions, display_values should be None
+            new_display_values = None
                 
         # Update question
         q.text = new_text
         q.options = new_opts
+        q.display_values = new_display_values
         q.default_option = new_default
         session.commit()
 

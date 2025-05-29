@@ -89,12 +89,18 @@ Archiving supports takedowns.
 | `text`               | TEXT UNIQUE |
 | `type`               | ENUM (single / description) |
 | `options`            | JSONB array nullable (single-choice) |
+| `display_values`     | JSONB array nullable (single-choice) |
 | `default_option`     | VARCHAR(120) nullable |
 | `is_archived`        | BOOL |
 | `created_at`         | TIMESTAMPTZ |
 
 **Rationale** – Supports both radio and free-text; single-choice values indexed, descriptions not.  
 Question text must be unique to prevent confusion and ensure consistent labeling.
+For single-choice questions:
+- `options` stores the actual values used in answers
+- `display_values` stores the UI-friendly text for each option
+- Both arrays must have matching lengths
+- For description-type questions, both fields are NULL
 
 ---
 
@@ -118,7 +124,6 @@ Question text must be unique to prevent confusion and ensure consistent labeling
 | ------ | ---- | ----- |
 | `id`          | INT PK |
 | `name`        | TEXT UNIQUE NOT NULL |
-| `rules_json`  | JSONB |
 | `created_at`  | TIMESTAMPTZ |
 | `updated_at`  | TIMESTAMPTZ |
 | `is_archived` | BOOL |

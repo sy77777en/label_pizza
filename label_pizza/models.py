@@ -63,7 +63,8 @@ class Question(Base):
     id = Column(Integer, primary_key=True)
     text = Column(Text, unique=True)
     type = Column(Enum("single", "description", name="question_type"))
-    options = Column(JSONB, nullable=True)
+    options = Column(JSONB, nullable=True)  # Actual option values used in answers
+    display_values = Column(JSONB, nullable=True)  # Display text for options in UI
     default_option = Column(String(120), nullable=True)
 
     is_archived = Column(Boolean, default=False)
