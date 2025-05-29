@@ -56,7 +56,29 @@ def test_video(session):
 
 @pytest.fixture
 def test_schema(session):
-    schema = SchemaService.create_schema("test_schema", [], session)
+    """Create a test schema."""
+    # Create a question first
+    QuestionService.add_question(
+        text="test question for schema",
+        qtype="single",
+        options=["option1", "option2"],
+        default="option1",
+        session=session
+    )
+    question = QuestionService.get_question_by_text("test question for schema", session)
+    
+    # Create a question group with the question
+    group = QuestionGroupService.create_group(
+        title="test_group_for_schema",
+        description="test description",
+        is_reusable=True,
+        question_ids=[question.id],
+        verification_function=None,
+        session=session
+    )
+    
+    # Create schema with the question group
+    schema = SchemaService.create_schema("test_schema", [group.id], session)
     return schema
 
 @pytest.fixture

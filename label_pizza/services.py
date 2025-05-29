@@ -989,6 +989,44 @@ class SchemaService:
             
         session.commit()
 
+    @staticmethod
+    def get_schema_by_name(name: str, session: Session) -> Schema:
+        """Get a schema by its name.
+        
+        Args:
+            name: Schema name
+            session: Database session
+            
+        Returns:
+            Schema object
+            
+        Raises:
+            ValueError: If schema not found
+        """
+        schema = session.scalar(select(Schema).where(Schema.name == name))
+        if not schema:
+            raise ValueError("Schema not found")
+        return schema
+
+    @staticmethod
+    def get_schema_by_id(schema_id: int, session: Session) -> Schema:
+        """Get a schema by its ID.
+        
+        Args:
+            schema_id: Schema ID
+            session: Database session
+            
+        Returns:
+            Schema object
+            
+        Raises:
+            ValueError: If schema not found
+        """
+        schema = session.get(Schema, schema_id)
+        if not schema:
+            raise ValueError(f"Schema with ID {schema_id} not found")
+        return schema
+
 class QuestionService:
     @staticmethod
     def get_all_questions(session: Session) -> pd.DataFrame:
