@@ -100,6 +100,61 @@ class VideoService:
         return session.scalar(select(Video).where(Video.video_uid == video_uid))
 
     @staticmethod
+    def get_video_url(video_id: int, session: Session) -> str:
+        """Get a video's URL by its ID.
+        
+        Args:
+            video_id: The ID of the video
+            session: Database session
+            
+        Returns:
+            The video's URL
+            
+        Raises:
+            ValueError: If video not found
+        """
+        video = session.get(Video, video_id)
+        if not video:
+            raise ValueError(f"Video with ID {video_id} not found")
+        return video.url
+
+    @staticmethod
+    def get_video_metadata(video_id: int, session: Session) -> dict:
+        """Get a video's metadata by its ID.
+        
+        Args:
+            video_id: The ID of the video
+            session: Database session
+            
+        Returns:
+            The video's metadata dictionary
+            
+        Raises:
+            ValueError: If video not found
+        """
+        video = session.get(Video, video_id)
+        if not video:
+            raise ValueError(f"Video with ID {video_id} not found")
+        return video.video_metadata
+
+    @staticmethod
+    def archive_video(video_id: int, session: Session) -> None:
+        """Archive a video by its ID.
+        
+        Args:
+            video_id: The ID of the video to archive
+            session: Database session
+            
+        Raises:
+            ValueError: If video not found
+        """
+        video = session.get(Video, video_id)
+        if not video:
+            raise ValueError(f"Video with ID {video_id} not found")
+        video.is_archived = True
+        session.commit()
+
+    @staticmethod
     def get_all_videos(session: Session) -> pd.DataFrame:
         """Get all videos.
         
@@ -514,6 +569,19 @@ class ProjectService:
                 session.add(ProjectVideo(project_id=project_id, video_id=vid))
         
         session.commit()
+
+    @staticmethod
+    def get_project_by_id(project_id: int, session: Session) -> Optional[Project]:
+        """Get a project by its ID.
+        
+        Args:
+            project_id: The ID of the project
+            session: Database session
+        
+        Returns:
+            Project object if found, None otherwise
+        """
+        return session.get(Project, project_id)
 
 class SchemaService:
     @staticmethod
@@ -980,7 +1048,7 @@ class AuthService:
         u = session.scalar(select(User).where(
             User.email == email, 
             User.password_hash == pwd, 
-            User.is_active == True
+            User.is_archived == False
         ))
         if not u:
             return None
@@ -997,7 +1065,7 @@ class AuthService:
                 email="zhiqiulin98@gmail.com",
                 password_hash="zhiqiulin98", 
                 user_type="admin", 
-                is_active=True
+                is_archived=False
             ))
             session.commit()
 
@@ -1012,7 +1080,7 @@ class AuthService:
                 "Email": u.email,
                 "Password Hash": u.password_hash,
                 "Role": u.user_type,
-                "Active": u.is_active,
+                "Archived": u.is_archived,
                 "Created At": u.created_at
             } for u in users
         ])
@@ -1112,12 +1180,12 @@ class AuthService:
         session.commit()
 
     @staticmethod
-    def toggle_user_active(user_id: int, session: Session) -> None:
-        """Toggle a user's active status."""
+    def toggle_user_archived(user_id: int, session: Session) -> None:
+        """Toggle a user's archived status."""
         user = session.get(User, user_id)
         if not user:
             raise ValueError(f"User with ID {user_id} not found")
-        user.is_active = not user.is_active
+        user.is_archived = not user.is_archived
         session.commit()
 
     @staticmethod
@@ -1178,8 +1246,8 @@ class AuthService:
         user = session.get(User, user_id)
         if not user:
             raise ValueError(f"User with ID {user_id} not found")
-        if not user.is_active:
-            raise ValueError(f"User with ID {user_id} is not active")
+        if user.is_archived:
+            raise ValueError(f"User with ID {user_id} is archived")
         
         project = session.get(Project, project_id)
         if not project:
@@ -1708,7 +1776,7 @@ class AnswerService:
         reviewer = session.get(User, reviewer_id)
         if not reviewer:
             raise ValueError(f"Reviewer with ID {reviewer_id} not found")
-        if not reviewer.is_active:
+        if reviewer.is_archived:
             raise ValueError("Reviewer is disabled")
             
         # Check for existing review

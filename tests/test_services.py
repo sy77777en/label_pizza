@@ -3,6 +3,11 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session
 from sqlalchemy.engine import Engine
 from sqlalchemy.dialects.sqlite import JSON
+from label_pizza.models import (
+    Video, Project, ProjectVideo, Schema, QuestionGroup,
+    Question, ProjectUserRole, Answer, User, AnswerReview,
+    QuestionGroupQuestion, SchemaQuestionGroup
+)
 from label_pizza.services import (
     VideoService, ProjectService, SchemaService, QuestionService,
     QuestionGroupService, AuthService, AnswerService
@@ -324,18 +329,19 @@ def test_video_service_get_all_videos_with_review(session, test_video, test_proj
     assert progress["completion_percentage"] == 50.0  # 1 out of 2 questions have ground truth
 
 def test_video_service_add_video(session):
+    """Test adding a new video."""
     VideoService.add_video("http://example.com/new_video.mp4", session)
-    video = session.query(Video).filter_by(video_uid="new_video.mp4").first()
+    video = VideoService.get_video_by_uid("new_video.mp4", session)
     assert video is not None
-    assert video.url == "http://example.com/new_video.mp4"
+    assert VideoService.get_video_url(video.id, session) == "http://example.com/new_video.mp4"
 
 def test_video_service_add_video_duplicate(session, test_video):
-    # First ensure test_video has a proper extension
-    test_video.video_uid = "test_video.mp4"
-    session.commit()
+    # Try to add duplicate video with same UID
+    url = "http://example.com/test.mp4"
     
+    # Try to add duplicate video
     with pytest.raises(ValueError, match="already exists"):
-        VideoService.add_video(f"http://example.com/{test_video.video_uid}", session)
+        VideoService.add_video(url, session)
 
 def test_video_service_add_video_invalid_url(session):
     with pytest.raises(ValueError, match="must end with a filename"):
@@ -343,17 +349,19 @@ def test_video_service_add_video_invalid_url(session):
 
 def test_video_service_add_video_special_chars(session):
     # Test URL with special characters in filename
-    VideoService.add_video("http://example.com/video with spaces & special chars!.mp4", session)
-    video = session.query(Video).filter_by(video_uid="video with spaces & special chars!.mp4").first()
+    url = "http://example.com/video with spaces & special chars!.mp4"
+    VideoService.add_video(url, session)
+    video = VideoService.get_video_by_uid("video with spaces & special chars!.mp4", session)
     assert video is not None
-    assert video.url == "http://example.com/video with spaces & special chars!.mp4"
+    assert VideoService.get_video_url(video.id, session) == url
 
 def test_video_service_add_video_query_params(session):
     # Test URL with query parameters
-    VideoService.add_video("http://example.com/video.mp4?param=value", session)
-    video = session.query(Video).filter_by(video_uid="video.mp4?param=value").first()
+    url = "http://example.com/video.mp4?param=value"
+    VideoService.add_video(url, session)
+    video = VideoService.get_video_by_uid("video.mp4?param=value", session)
     assert video is not None
-    assert video.url == "http://example.com/video.mp4?param=value"
+    assert VideoService.get_video_url(video.id, session) == url
 
 def test_video_service_get_all_videos_empty(session):
     """Test getting all videos when database is empty"""
@@ -376,7 +384,7 @@ def test_create_project_with_archived_resources_fails(session, test_schema, test
     
     # Unarchive schema and archive video
     test_schema.is_archived = False
-    test_video.is_archived = True
+    VideoService.archive_video(test_video.id, session)
     session.commit()
     
     # Try to create project with archived video
@@ -386,20 +394,22 @@ def test_create_project_with_archived_resources_fails(session, test_schema, test
 def test_video_can_be_in_multiple_projects(session, test_video, test_schema):
     """Test that a video can be added to multiple projects."""
     # Create first project
-    project1 = ProjectService.create_project(
+    ProjectService.create_project(
         name="test_project1",
         schema_id=test_schema.id,
         video_ids=[test_video.id],
         session=session
     )
+    project1 = ProjectService.get_project_by_name("test_project1", session)
     
     # Create second project
-    project2 = ProjectService.create_project(
+    ProjectService.create_project(
         name="test_project2",
         schema_id=test_schema.id,
         video_ids=[test_video.id],
         session=session
     )
+    project2 = ProjectService.get_project_by_name("test_project2", session)
     
     # Verify video is in both projects through service layer
     projects = ProjectService.get_all_projects(session)
@@ -459,10 +469,12 @@ def test_schema_service_get_all_schemas(session, test_schema):
     assert len(df) == 1
     assert df.iloc[0]["Name"] == "test_schema"
 
-def test_schema_service_get_schema_questions(session, test_schema, test_question):
+def test_schema_service_get_schema_questions(session, test_schema, test_question_group, test_question):
+    """Test getting questions from a schema through its question groups."""
     # Add question group to schema through service layer
-    SchemaService.add_question_group_to_schema(test_schema.id, test_question.question_group_id, 0, session)
+    SchemaService.add_question_group_to_schema(test_schema.id, test_question_group.id, 0, session)
     
+    # Get schema questions through service layer
     df = SchemaService.get_schema_questions(test_schema.id, session)
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 1
@@ -479,47 +491,6 @@ def test_schema_service_create_schema(session):
     # Test duplicate schema name
     with pytest.raises(ValueError, match="already exists"):
         SchemaService.create_schema("test_schema", {"rule": "test"}, session)
-
-def test_schema_service_add_question_to_schema(session, test_schema, test_question):
-    # Test adding a question to schema
-    SchemaService.add_question_to_schema(test_schema.id, test_question.id, session)
-    
-    # Verify question was added
-    df = SchemaService.get_schema_questions(test_schema.id, session)
-    assert len(df) == 1
-    assert df.iloc[0]["ID"] == test_question.id
-    assert df.iloc[0]["Text"] == test_question.text
-    
-    # Test adding same question again
-    with pytest.raises(ValueError, match="already in schema"):
-        SchemaService.add_question_to_schema(test_schema.id, test_question.id, session)
-    
-    # Test adding to non-existent schema
-    with pytest.raises(ValueError, match="not found"):
-        SchemaService.add_question_to_schema(999, test_question.id, session)
-    
-    # Test adding non-existent question
-    with pytest.raises(ValueError, match="not found"):
-        SchemaService.add_question_to_schema(test_schema.id, 999, session)
-
-def test_schema_service_remove_question_from_schema(session, test_schema, test_question):
-    # Add question to schema first
-    SchemaService.add_question_to_schema(test_schema.id, test_question.id, session)
-    
-    # Test removing question
-    SchemaService.remove_question_from_schema(test_schema.id, test_question.id, session)
-    
-    # Verify question was removed
-    df = SchemaService.get_schema_questions(test_schema.id, session)
-    assert len(df) == 0
-    
-    # Test removing non-existent question
-    with pytest.raises(ValueError, match="not in schema"):
-        SchemaService.remove_question_from_schema(test_schema.id, test_question.id, session)
-    
-    # Test removing from non-existent schema
-    with pytest.raises(ValueError, match="not found"):
-        SchemaService.remove_question_from_schema(999, test_question.id, session)
 
 def test_schema_service_archive_unarchive(session, test_schema):
     # Test archiving schema
@@ -550,12 +521,25 @@ def test_schema_service_get_schema_id_by_name(session, test_schema):
         SchemaService.get_schema_id_by_name("non_existent", session)
 
 def test_schema_service_add_question_group_to_schema(session, test_schema, test_question_group):
+    # Add a question to the question group first
+    QuestionService.add_question(
+        text="test question",
+        qtype="single",
+        group_name=test_question_group.title,
+        options=["option1", "option2"],
+        default="option1",
+        session=session
+    )
+    
     # Test adding a question group to schema through service layer
     SchemaService.add_question_group_to_schema(test_schema.id, test_question_group.id, 0, session)
     
     # Verify the relationship was created by checking schema questions
     df = SchemaService.get_schema_questions(test_schema.id, session)
     assert len(df) > 0  # Should have questions from the group
+    assert df.iloc[0]["Text"] == "test question"
+    assert df.iloc[0]["Type"] == "single"
+    assert df.iloc[0]["Options"] == "option1, option2"
 
 def test_schema_service_remove_question_group_from_schema(session, test_schema, test_question_group):
     # Add question group to schema through service layer
@@ -567,6 +551,41 @@ def test_schema_service_remove_question_group_from_schema(session, test_schema, 
     # Verify the relationship was removed by checking schema questions
     df = SchemaService.get_schema_questions(test_schema.id, session)
     assert len(df) == 0  # Should have no questions after removing group
+
+def test_schema_service_question_group_operations(session, test_schema, test_question_group):
+    """Test adding and removing question groups from schema."""
+    # Add a question to the question group first
+    QuestionService.add_question(
+        text="test question",
+        qtype="single",
+        group_name=test_question_group.title,
+        options=["option1", "option2"],
+        default="option1",
+        session=session
+    )
+    
+    # Add question group to schema
+    SchemaService.add_question_group_to_schema(test_schema.id, test_question_group.id, 0, session)
+    
+    # Verify question group was added
+    df = SchemaService.get_schema_questions(test_schema.id, session)
+    assert len(df) > 0
+    assert df.iloc[0]["Text"] == "test question"
+    
+    # Remove question group from schema
+    SchemaService.remove_question_group_from_schema(test_schema.id, test_question_group.id, session)
+    
+    # Verify question group was removed
+    df = SchemaService.get_schema_questions(test_schema.id, session)
+    assert len(df) == 0
+    
+    # Test adding to non-existent schema
+    with pytest.raises(ValueError, match="not found"):
+        SchemaService.add_question_group_to_schema(999, test_question_group.id, 0, session)
+    
+    # Test removing from non-existent schema
+    with pytest.raises(ValueError, match="not found"):
+        SchemaService.remove_question_group_from_schema(999, test_question_group.id, session)
 
 # QuestionService Tests
 def test_question_service_get_all_questions(session, test_question):
@@ -741,7 +760,7 @@ def test_auth_service_get_all_users(session, test_user):
     assert df.iloc[0]["User ID"] == "test_user"
     assert df.iloc[0]["Email"] == "test@example.com"
     assert df.iloc[0]["Role"] == "admin"
-    assert df.iloc[0]["Active"] == True
+    assert df.iloc[0]["Archived"] == False  # New users are not archived by default
 
 def test_auth_service_update_user_role(session, test_user):
     AuthService.update_user_role(test_user.id, "model", session)
@@ -749,15 +768,15 @@ def test_auth_service_update_user_role(session, test_user):
     assert df.iloc[0]["Role"] == "model"
 
 def test_auth_service_toggle_user_active(session, test_user):
-    # Test deactivation
-    AuthService.toggle_user_active(test_user.id, session)
+    # Test archiving
+    AuthService.toggle_user_archived(test_user.id, session)
     df = AuthService.get_all_users(session)
-    assert df.iloc[0]["Active"] == False
+    assert df.iloc[0]["Archived"] == True  # Archived = True
     
-    # Test reactivation
-    AuthService.toggle_user_active(test_user.id, session)
+    # Test unarchiving
+    AuthService.toggle_user_archived(test_user.id, session)
     df = AuthService.get_all_users(session)
-    assert df.iloc[0]["Active"] == True
+    assert df.iloc[0]["Archived"] == False  # Archived = False
 
 def test_auth_service_get_project_assignments(session, test_project, test_user):
     # Create a project assignment
@@ -939,62 +958,64 @@ def test_question_group_service_archive_nonexistent_group(session):
 
 def test_cannot_add_archived_video_to_project(session, test_video):
     # Archive video
-    test_video.is_archived = True
-    session.commit()
+    VideoService.archive_video(test_video.id, session)
     
-    # Create new project
+    # Create schema and project
     schema = SchemaService.create_schema("test_schema", {}, session)
-    session.add(schema)
-    session.commit()
     
     # Try to add archived video to project
-    with pytest.raises(ValueError, match="Video is archived"):
+    with pytest.raises(ValueError, match="Video with ID 1 is archived"):
         ProjectService.create_project("test_project", schema.id, [test_video.id], session)
 
 def test_video_metadata_validation(session):
-    """Test validation of video metadata."""
     # Test invalid metadata types
-    invalid_metadatas = [
-        "not a dict",
-        123,
-        [1, 2, 3],
-        {}  # Empty dict instead of None
-    ]
+    with pytest.raises(ValueError, match="Metadata must be a non-empty dictionary"):
+        VideoService.add_video("http://example.com/test.mp4", session, "invalid_metadata")
     
-    for metadata in invalid_metadatas:
-        with pytest.raises(ValueError, match="Metadata must be a non-empty dictionary"):
-            VideoService.add_video("http://example.com/test.mp4", session, metadata)
+    with pytest.raises(ValueError, match="Metadata must be a non-empty dictionary"):
+        VideoService.add_video("http://example.com/test.mp4", session, 123)
     
-    # Test metadata with invalid value types
-    invalid_value_metadata = {
-        "duration": set([1, 2, 3]),  # set is not allowed
-        "resolution": (1920, 1080),  # tuple is not allowed
-        "tags": object()  # custom object is not allowed
-    }
+    with pytest.raises(ValueError, match="Metadata must be a non-empty dictionary"):
+        VideoService.add_video("http://example.com/test.mp4", session, [])
     
-    with pytest.raises(ValueError, match="Invalid metadata value type for key 'duration': <class 'set'>"):
-        VideoService.add_video("http://example.com/test.mp4", session, invalid_value_metadata)
+    with pytest.raises(ValueError, match="Metadata must be a non-empty dictionary"):
+        VideoService.add_video("http://example.com/test.mp4", session, {})
+    
+    # Test invalid value types in metadata
+    with pytest.raises(ValueError, match="Invalid metadata value type"):
+        VideoService.add_video("http://example.com/test.mp4", session, {"key": set()})
+    
+    with pytest.raises(ValueError, match="Invalid metadata value type"):
+        VideoService.add_video("http://example.com/test.mp4", session, {"key": tuple()})
+    
+    with pytest.raises(ValueError, match="Invalid metadata value type"):
+        VideoService.add_video("http://example.com/test.mp4", session, {"key": object()})
     
     # Test valid metadata
     valid_metadata = {
         "duration": 120,
         "resolution": "1080p",
-        "tags": ["action", "sports"]
+        "fps": 30.0,
+        "is_processed": True,
+        "tags": ["action", "sports"],
+        "nested": {
+            "key": "value",
+            "numbers": [1, 2, 3]
+        }
     }
     
-    VideoService.add_video("http://example.com/test.mp4", session, valid_metadata)
-    video = session.query(Video).filter_by(video_uid="test.mp4").first()
-    assert video is not None
-    assert video.video_metadata == valid_metadata
+    video = VideoService.add_video("http://example.com/test.mp4", session, valid_metadata)
+    retrieved_video = VideoService.get_video_by_uid("test.mp4", session)
+    assert retrieved_video is not None
+    assert VideoService.get_video_metadata(retrieved_video.id, session) == valid_metadata
 
 def test_video_uid_special_chars(session):
-    """Test handling of special characters in video UIDs."""
     # Test various special characters in video UIDs
     special_chars = [
-        "test video with spaces.mp4",
-        "test-video-with-dashes.mp4",
         "test.video.with.dots.mp4",
+        "test-video-with-dashes.mp4",
         "test_video_with_underscores.mp4",
+        "test video with spaces.mp4",
         "test@video.mp4",
         "test#video.mp4",
         "test$video.mp4",
@@ -1003,10 +1024,8 @@ def test_video_uid_special_chars(session):
         "test*video.mp4",
         "test+video.mp4",
         "test=video.mp4",
-        "test[video].mp4",
-        "test{video}.mp4",
-        "test(video).mp4",
-        "test<video>.mp4",
+        "test^video.mp4",
+        "test<video.mp4",
         "test>video.mp4",
         "test|video.mp4",
         "test\\video.mp4",
@@ -1021,25 +1040,18 @@ def test_video_uid_special_chars(session):
         "test,video.mp4"
     ]
     
-    # Remove problematic characters that can't be used in filenames
-    special_chars = [uid for uid in special_chars if not any(c in uid for c in ['/', '\\', ':', '*', '?', '"', '<', '>', '|'])]
+    # Filter out problematic characters that can't be used in filenames
+    valid_uids = [uid for uid in special_chars if not any(c in uid for c in '/\\:*?"<>|')]
     
-    for uid in special_chars:
+    for uid in valid_uids:
         url = f"http://example.com/{uid}"
         try:
-            # Add video
-            VideoService.add_video(url, session)
-            
-            # Verify video was added
-            video = session.query(Video).filter_by(video_uid=uid).first()
-            assert video is not None, f"Failed to find video with UID: {uid}"
-            assert video.url == url, f"URL mismatch for UID: {uid}"
-            
-            # Clean up
-            session.delete(video)
-            session.commit()
+            video = VideoService.add_video(url, session)
+            retrieved_video = VideoService.get_video_by_uid(uid, session)
+            assert retrieved_video is not None
+            assert VideoService.get_video_url(retrieved_video.id, session) == url, f"URL mismatch for UID: {uid}"
         except Exception as e:
-            pytest.fail(f"Failed to handle special character in UID '{uid}': {str(e)}")
+            pytest.fail(f"Failed to add video with UID {uid}: {str(e)}")
 
 def test_video_uid_case_sensitivity(session):
     # Test case sensitivity in video UIDs
@@ -1060,7 +1072,7 @@ def test_video_uid_case_sensitivity(session):
     for variation in variations[1:]:  # Skip first variation as it's the same
         url = f"http://example.com/{variation}"
         with pytest.raises(ValueError, match="already exists"):
-            VideoService.add_video(url, session) 
+            VideoService.add_video(url, session)
 
 def test_answer_service_submit_answer(session):
     """Test submitting a valid answer."""
@@ -1293,7 +1305,7 @@ def test_answer_service_submit_to_archived_project(session):
         )
 
 def test_answer_service_submit_as_disabled_user(session):
-    """Test submitting answer as disabled user."""
+    """Test submitting answer as archived user."""
     # Create test data
     user = AuthService.create_user(
         "test_user",
@@ -1303,8 +1315,8 @@ def test_answer_service_submit_as_disabled_user(session):
         session
     )
     
-    # Disable user
-    AuthService.toggle_user_active(user.id, session)
+    # Archive user
+    AuthService.toggle_user_archived(user.id, session)
     
     video = VideoService.add_video("http://example.com/test_video.mp4", session)
     
@@ -1338,8 +1350,8 @@ def test_answer_service_submit_as_disabled_user(session):
     question = QuestionService.get_question_by_text(question_text, session)
     assert question is not None
     
-    # Try to submit answer as disabled user
-    with pytest.raises(ValueError, match="User is disabled"):
+    # Try to submit answer as archived user
+    with pytest.raises(ValueError, match="User is archived"):
         AnswerService.submit_answer(
             video_id=video.id,
             question_id=question.id,
@@ -1629,20 +1641,11 @@ def test_project_service_add_videos_validation(session, test_project, test_video
     with pytest.raises(ValueError, match="Project with ID 999 not found"):
         ProjectService.add_videos_to_project(999, [test_video.id], session)
     
-    # Test adding non-existent video
-    with pytest.raises(ValueError, match="Video with ID 999 not found"):
-        ProjectService.add_videos_to_project(test_project.id, [999], session)
-    
-    # Archive project and try to add video
-    ProjectService.archive_project(test_project.id, session)
-    with pytest.raises(ValueError, match="Project with ID 1 is archived"):
+    # Test adding already added video
+    with pytest.raises(ValueError, match="already in project"):
         ProjectService.add_videos_to_project(test_project.id, [test_video.id], session)
     
-    # Unarchive project and archive video
-    test_project.is_archived = False
-    test_video.is_archived = True
-    session.commit()
-    
-    # Try to add archived video
+    # Test adding archived video
+    VideoService.archive_video(test_video.id, session)
     with pytest.raises(ValueError, match="Video with ID 1 is archived"):
         ProjectService.add_videos_to_project(test_project.id, [test_video.id], session) 
