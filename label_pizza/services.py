@@ -48,6 +48,13 @@ def add_question(text: str, qtype: str, group_id: int | None,
     
     # Add question to group if group_id is provided
     if group_id:
+        # Validate that group exists
+        group = session.get(QuestionGroup, group_id)
+        if not group:
+            raise ValueError(f"Question group with ID {group_id} not found")
+        if group.is_archived:
+            raise ValueError(f"Question group with ID {group_id} is archived")
+            
         session.add(QuestionGroupQuestion(
             question_group_id=group_id,
             question_id=q.id,
@@ -399,6 +406,11 @@ class ProjectService:
         if schema.is_archived:
             raise ValueError(f"Schema with ID {schema_id} is archived")
         
+        # Check if project name already exists
+        existing_project = session.scalar(select(Project).where(Project.name == name))
+        if existing_project:
+            raise ValueError(f"Project with name '{name}' already exists")
+        
         # Create project
         project = Project(name=name, schema_id=schema_id)
         session.add(project)
@@ -565,8 +577,10 @@ class ProjectService:
                     ProjectVideo.video_id == vid
                 )
             )
-            if not existing:
-                session.add(ProjectVideo(project_id=project_id, video_id=vid))
+            if existing:
+                raise ValueError(f"Video with ID {vid} already in project {project_id}")
+            
+            session.add(ProjectVideo(project_id=project_id, video_id=vid))
         
         session.commit()
 
@@ -694,6 +708,10 @@ class SchemaService:
         if existing:
             raise ValueError(f"Schema with name '{name}' already exists")
             
+        # Validate rules_json
+        if not isinstance(rules_json, dict):
+            raise ValueError("rules_json must be a dictionary")
+            
         schema = Schema(name=name, rules_json=rules_json)
         session.add(schema)
         session.commit()
@@ -716,11 +734,15 @@ class SchemaService:
         schema = session.get(Schema, schema_id)
         if not schema:
             raise ValueError(f"Schema with ID {schema_id} not found")
+        if schema.is_archived:
+            raise ValueError(f"Schema with ID {schema_id} is archived")
             
         # Check if group exists
         group = session.get(QuestionGroup, group_id)
         if not group:
             raise ValueError(f"Question group with ID {group_id} not found")
+        if group.is_archived:
+            raise ValueError(f"Question group with ID {group_id} is archived")
             
         # Check if group is already in schema
         existing = session.scalar(
@@ -1487,6 +1509,10 @@ class QuestionGroupService:
         if existing:
             raise ValueError(f"Question group with title '{title}' already exists")
         
+        # Validate title and description
+        if not title.strip():
+            raise ValueError("Group title cannot be empty")
+        
         group = QuestionGroup(
             title=title,
             description=description,
@@ -1629,12 +1655,37 @@ class AnswerService:
         if not user:
             raise ValueError(f"User with ID {user_id} not found")
         if user.is_archived:
-            raise ValueError("User is disabled")
+            raise ValueError("User is archived")
+            
+        # Check if user has a role in the project
+        user_role = session.scalar(
+            select(ProjectUserRole).where(
+                ProjectUserRole.user_id == user_id,
+                ProjectUserRole.project_id == project_id
+            )
+        )
+        if not user_role:
+            raise ValueError(f"User {user_id} does not have a role in project {project_id}")
             
         # Get question to validate answer type
         question = session.get(Question, question_id)
         if not question:
             raise ValueError(f"Question with ID {question_id} not found")
+        if question.is_archived:
+            raise ValueError(f"Question with ID {question_id} is archived")
+            
+        # Validate that question belongs to project's schema
+        question_in_schema = session.scalar(
+            select(Question)
+            .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
+            .join(SchemaQuestionGroup, QuestionGroupQuestion.question_group_id == SchemaQuestionGroup.question_group_id)
+            .where(
+                Question.id == question_id,
+                SchemaQuestionGroup.schema_id == project.schema_id
+            )
+        )
+        if not question_in_schema:
+            raise ValueError(f"Question {question_id} does not belong to project's schema {project.schema_id}")
             
         # Validate answer value for single-choice questions
         if question.type == "single":
@@ -1642,6 +1693,9 @@ class AnswerService:
                 raise ValueError("Question has no options defined")
             if answer_value not in question.options:
                 raise ValueError(f"Answer value '{answer_value}' not in options: {', '.join(question.options)}")
+        elif question.type == "description":
+            if not isinstance(answer_value, str):
+                raise ValueError("Description answers must be strings")
         
         # Check for existing answer
         existing = session.scalar(
@@ -1652,6 +1706,19 @@ class AnswerService:
                 Answer.project_id == project_id
             )
         )
+        
+        # If trying to create a new ground truth answer, check if one already exists
+        if is_ground_truth and not existing:
+            existing_gt = session.scalar(
+                select(Answer).where(
+                    Answer.video_id == video_id,
+                    Answer.question_id == question_id,
+                    Answer.project_id == project_id,
+                    Answer.is_ground_truth == True
+                )
+            )
+            if existing_gt:
+                raise ValueError(f"Ground truth answer already exists for question {question_id} in project {project_id}")
         
         if existing:
             # Update existing answer
@@ -1772,12 +1839,27 @@ class AnswerService:
         if not answer:
             raise ValueError(f"Answer with ID {answer_id} not found")
             
+        # Check if answer's project is archived
+        project = session.get(Project, answer.project_id)
+        if project.is_archived:
+            raise ValueError(f"Cannot review answer in archived project {project.id}")
+            
         # Check if reviewer exists and is active
         reviewer = session.get(User, reviewer_id)
         if not reviewer:
             raise ValueError(f"Reviewer with ID {reviewer_id} not found")
         if reviewer.is_archived:
-            raise ValueError("Reviewer is disabled")
+            raise ValueError("Reviewer is archived")
+            
+        # Check if reviewer has reviewer role in the project
+        reviewer_role = session.scalar(
+            select(ProjectUserRole).where(
+                ProjectUserRole.user_id == reviewer_id,
+                ProjectUserRole.project_id == answer.project_id
+            )
+        )
+        if not reviewer_role or reviewer_role.role not in ["reviewer", "admin"]:
+            raise ValueError(f"User {reviewer_id} does not have reviewer role in project {answer.project_id}")
             
         # Check for existing review
         existing = session.scalar(
