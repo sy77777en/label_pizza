@@ -1582,6 +1582,11 @@ class QuestionGroupService:
             - Default: Default option for single-choice questions
             - Archived: Whether the question is archived
         """
+        # Check if group exists
+        group = session.get(QuestionGroup, group_id)
+        if not group:
+            raise ValueError(f"Question group with ID {group_id} not found")
+        
         questions = session.scalars(
             select(Question)
             .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
@@ -1711,7 +1716,26 @@ class QuestionGroupService:
         Returns:
             Question group if found, None otherwise
         """
-        return session.scalar(select(QuestionGroup).where(QuestionGroup.title == name))
+        group = session.scalar(select(QuestionGroup).where(QuestionGroup.title == name))
+        if not group:
+            raise ValueError(f"Question group with title '{name}' not found")
+        return group
+
+    @staticmethod
+    def get_group_by_id(group_id: int, session: Session) -> Optional[QuestionGroup]:
+        """Get a question group by its ID.
+        
+        Args:
+            group_id: Group ID
+            session: Database session
+            
+        Returns:
+            Question group if found, None otherwise
+        """
+        group = session.get(QuestionGroup, group_id)
+        if not group:
+            raise ValueError(f"Question group with ID {group_id} not found")
+        return group
 
     @staticmethod
     def edit_group(group_id: int, new_title: str, new_description: str, is_reusable: bool, session: Session) -> None:
