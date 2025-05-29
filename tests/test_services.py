@@ -1,5 +1,5 @@
 import pytest
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, func
 from sqlalchemy.orm import Session
 from sqlalchemy.engine import Engine
 from sqlalchemy.dialects.sqlite import JSON
@@ -1649,8 +1649,8 @@ def test_project_service_add_videos(session, test_project, test_video):
     video2 = VideoService.get_video_by_uid("test2.mp4", session)
     assert video2 is not None
     
-    # Add both videos to project
-    ProjectService.add_videos_to_project(test_project.id, [test_video.id, video2.id], session)
+    # Add only the new video to project (test_video is already added by fixture)
+    ProjectService.add_videos_to_project(test_project.id, [video2.id], session)
     
     # Verify videos were added
     project = ProjectService.get_project_by_name("test_project", session)
@@ -1660,7 +1660,7 @@ def test_project_service_add_videos(session, test_project, test_video):
         .select_from(ProjectVideo)
         .where(ProjectVideo.project_id == project.id)
     )
-    assert video_count == 2
+    assert video_count == 2  # Original test_video + new video2
 
 def test_project_service_add_videos_validation(session, test_project, test_video):
     """Test validation when adding videos to a project."""
