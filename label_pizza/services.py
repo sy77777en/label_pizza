@@ -583,7 +583,7 @@ class ProjectService:
             raise ValueError(f"Project with ID {project_id} not found")
         if project.is_archived:
             raise ValueError(f"Project with ID {project_id} is archived")
-            
+        
         user = session.get(User, user_id)
         if not user:
             raise ValueError(f"User with ID {user_id} not found")
@@ -1066,7 +1066,7 @@ class QuestionService:
         return q
 
     @staticmethod
-    def get_question_by_text(text: str, session: Session) -> Optional[Question]:
+    def get_question_by_text(text: str, session: Session) -> Question:
         """Get a question by its text.
         
         Args:
@@ -1074,17 +1074,23 @@ class QuestionService:
             session: Database session
             
         Returns:
-            Question object if found, None otherwise
+            Question object if found
+            
+        Raises:
+            ValueError: If question not found
         """
-        return session.scalar(select(Question).where(Question.text == text))
+        question = session.scalar(select(Question).where(Question.text == text))
+        if not question:
+            raise ValueError(f"Question with text '{text}' not found")
+        return question
 
     @staticmethod
-    def edit_question(text: str, new_text: str, new_opts: Optional[List[str]], new_default: Optional[str],
+    def edit_question(question_id: int, new_text: str, new_opts: Optional[List[str]], new_default: Optional[str],
                      session: Session) -> None:
         """Edit an existing question.
         
         Args:
-            text: Current question text
+            question_id: Current question ID
             new_text: New question text
             new_opts: New options for single-choice questions
             new_default: New default option for single-choice questions
@@ -1094,12 +1100,14 @@ class QuestionService:
             ValueError: If question not found or validation fails
         """
         # Get question
-        q = QuestionService.get_question_by_text(text, session)
-        if not q:
-            raise ValueError(f"Question with text '{text}' not found")
+        q = QuestionService.get_question_by_id(question_id, session)
+
+        # Check if question is archived
+        if q.is_archived:
+            raise ValueError(f"Question with ID {question_id} is archived")
         
         # Check if new text would conflict
-        if new_text != text:
+        if new_text != q.text:
             existing = session.scalar(select(Question).where(Question.text == new_text))
             if existing:
                 raise ValueError(f"Question with text '{new_text}' already exists")
@@ -1150,6 +1158,25 @@ class QuestionService:
             raise ValueError(f"Question with ID {question_id} not found")
         q.is_archived = False
         session.commit()
+
+    @staticmethod
+    def get_question_by_id(question_id: int, session: Session) -> Question:
+        """Get a question by its ID.
+        
+        Args:
+            question_id: Question ID
+            session: Database session
+            
+        Returns:
+            Question object if found
+            
+        Raises:
+            ValueError: If question not found
+        """
+        question = session.get(Question, question_id)
+        if not question:
+            raise ValueError(f"Question with ID {question_id} not found")
+        return question
 
 class AuthService:
     @staticmethod
@@ -2179,26 +2206,25 @@ class AnnotatorService(BaseAnswerService):
                 )
             )
         
-        if existing:
-            # Update existing answer
-            existing.answer_value = answer_value
-            existing.modified_at = datetime.now(timezone.utc)
-            existing.confidence_score = confidence_score
-            existing.notes = note
-        else:
-            # Create new answer
-            answer = AnnotatorAnswer(
-                video_id=video_id,
-                question_id=question.id,
-                project_id=project_id,
-                user_id=user_id,
-                answer_type=question.type,
-                answer_value=answer_value,
-                confidence_score=confidence_score,
-                notes=note
-            )
-            session.add(answer)
-            
+            if existing:
+                # Update existing answer
+                existing.answer_value = answer_value
+                existing.modified_at = datetime.now(timezone.utc)
+                existing.confidence_score = confidence_score
+                existing.notes = note
+            else:
+                # Create new answer
+                answer = AnnotatorAnswer(
+                    video_id=video_id,
+                    question_id=question.id,
+                    project_id=project_id,
+                    user_id=user_id,
+                    answer_type=question.type,
+                    answer_value=answer_value,
+                    confidence_score=confidence_score,
+                    notes=note
+                )
+                session.add(answer)
         session.commit()
         
         # Check and update completion status
@@ -2331,20 +2357,20 @@ class GroundTruthService(BaseAnswerService):
             # Check for existing ground truth
             existing = session.get(ReviewerGroundTruth, (video_id, question.id, project_id))
         
-        if existing:
+            if existing:
                 # Update existing ground truth
                 existing.answer_value = answer_value
                 existing.answer_type = question.type
                 existing.confidence_score = confidence_score
                 existing.notes = note
                 existing.modified_at = datetime.now(timezone.utc)
-        else:
+            else:
                 # Create new ground truth
                 gt = ReviewerGroundTruth(
                     video_id=video_id,
                     question_id=question.id,
                     project_id=project_id,
-                reviewer_id=reviewer_id,
+                    reviewer_id=reviewer_id,
                     answer_type=question.type,
                     answer_value=answer_value,
                     original_answer_value=answer_value,

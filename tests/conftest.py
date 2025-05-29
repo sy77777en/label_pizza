@@ -62,7 +62,17 @@ def test_schema(session):
 @pytest.fixture
 def test_question_group(session):
     """Create a test question group."""
-    # Create a question first
+    # Create question group first
+    group = QuestionGroupService.create_group(
+        title="test_group",
+        description="test description",
+        is_reusable=True,
+        question_ids=[],  # Start with no questions
+        verification_function=None,
+        session=session
+    )
+    
+    # Create and add a question
     QuestionService.add_question(
         text="test question",
         qtype="single",
@@ -72,27 +82,21 @@ def test_question_group(session):
     )
     question = QuestionService.get_question_by_text("test question", session)
     
-    # Create question group with the question
-    group = QuestionGroupService.create_group(
-        title="test_group",
-        description="test description",
-        is_reusable=True,
-        question_ids=[question.id],  # Add the question to the group
-        verification_function=None,
-        session=session
-    )
+    # Add question to group
+    QuestionGroupService.add_question_to_group(group.id, question.id, 0, session)
+    
     return group
 
 @pytest.fixture
 def test_question(session):
-    question = QuestionService.add_question(
+    QuestionService.add_question(
         text="test question",
         qtype="single",
         options=["option1", "option2"],
         default="option1",
         session=session
     )
-    return question
+    return QuestionService.get_question_by_text("test question", session)
 
 @pytest.fixture
 def test_project(session, test_schema, test_video):
