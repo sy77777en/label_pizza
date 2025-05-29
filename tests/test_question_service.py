@@ -212,20 +212,24 @@ def test_question_service_edit_question_mismatched_display_values(session, test_
         )
 
 def test_question_service_edit_question_description_no_display_values(session, test_question):
-    """Test editing a question to description type (should remove display values)."""
-    QuestionService.edit_question(
-        question_id=test_question.id,
-        new_text="test question",
-        new_opts=None,
-        new_default=None,
-        session=session,
-        new_display_values=["Should be ignored"]  # Should be ignored for description type
-    )
-    question = QuestionService.get_question_by_id(test_question.id, session)
-    assert question.type == "description"
-    assert question.options is None
-    assert question.display_values is None
-    assert question.default_option is None
+    """Test that we cannot change a question's type."""
+    # Try to edit a single-type question to be a description-type question
+    with pytest.raises(ValueError, match="Cannot change question type"):
+        QuestionService.edit_question(
+            question_id=test_question.id,
+            new_text="test question edited",
+            new_opts=None,  # Try to remove options
+            new_default=None,  # Try to remove default
+            session=session,
+            new_display_values=None  # Try to remove display values
+        )
+    
+    # Verify the question remains unchanged
+    updated_question = QuestionService.get_question_by_id(test_question.id, session)
+    assert updated_question.type == "single"
+    assert updated_question.options == ["option1", "option2"]
+    assert updated_question.display_values == ["Option 1", "Option 2"]
+    assert updated_question.default_option == "option1"
 
 def test_question_service_edit_question_not_found(session):
     """Test editing a non-existent question."""

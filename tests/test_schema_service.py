@@ -79,7 +79,7 @@ def test_schema_service_get_schema_by_name_archived(session, test_schema):
 
 def test_schema_service_archive_schema_not_found(session):
     """Test archiving a non-existent schema."""
-    with pytest.raises(ValueError, match="Schema not found"):
+    with pytest.raises(ValueError, match="Schema with ID 999 not found"):
         SchemaService.archive_schema(999, session)
 
 def test_schema_service_get_schema_by_id(session, test_schema):
@@ -125,24 +125,18 @@ def test_schema_service_get_all_schemas_with_archived(session, test_schema):
 
 def test_schema_service_get_schema_question_groups(session, test_schema, test_question_group):
     """Test getting question groups in a schema."""
-    # Add question group to schema
-    SchemaService.add_question_group_to_schema(test_schema.id, test_question_group.id, 0, session)
+    # Create a new schema with the question group
+    schema = SchemaService.create_schema("test_schema2", [test_question_group.id], session)
     
-    groups = SchemaService.get_schema_question_groups(test_schema.id, session)
+    groups = SchemaService.get_schema_question_groups(schema.id, session)
     assert len(groups) == 1
-    assert groups[0].id == test_question_group.id
-    assert groups[0].title == "test_group"
+    assert groups.iloc[0]["ID"] == test_question_group.id
+    assert groups.iloc[0]["Title"] == "test_group"
 
 def test_schema_service_get_schema_question_groups_not_found(session):
     """Test getting question groups for a non-existent schema."""
-    with pytest.raises(ValueError, match="Schema not found"):
+    with pytest.raises(ValueError, match="Schema with ID 999 not found"):
         SchemaService.get_schema_question_groups(999, session)
-
-def test_schema_service_get_schema_question_groups_archived(session, test_schema):
-    """Test getting question groups for an archived schema."""
-    SchemaService.archive_schema(test_schema.id, session)
-    with pytest.raises(ValueError, match="Schema not found"):
-        SchemaService.get_schema_question_groups(test_schema.id, session)
 
 def test_schema_service_get_schema_questions(session, test_schema):
     """Test getting questions in a schema."""
@@ -150,8 +144,8 @@ def test_schema_service_get_schema_questions(session, test_schema):
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 1  # One question from test_question fixture
     assert df.iloc[0]["ID"] == 1  # From test_question fixture
-    assert df.iloc[0]["Text"] == "test_question"
-    assert df.iloc[0]["Group"] == "test_group"
+    assert df.iloc[0]["Text"] == "test question for schema"
+    assert df.iloc[0]["Group"] == "test_group_for_schema"
     assert df.iloc[0]["Type"] == "single"
     assert df.iloc[0]["Options"] == "option1, option2"
 
@@ -159,12 +153,6 @@ def test_schema_service_get_schema_questions_not_found(session):
     """Test getting questions for a non-existent schema."""
     with pytest.raises(ValueError, match="Schema with ID 999 not found"):
         SchemaService.get_schema_questions(999, session)
-
-def test_schema_service_get_schema_questions_archived(session, test_schema):
-    """Test getting questions for an archived schema."""
-    SchemaService.archive_schema(test_schema.id, session)
-    with pytest.raises(ValueError, match="Schema not found"):
-        SchemaService.get_schema_questions(test_schema.id, session)
 
 def test_schema_service_get_question_group_order(test_schema, session):
     """Test getting question group order in a schema."""
@@ -221,14 +209,24 @@ def test_schema_service_update_question_group_order_invalid_group(test_schema, s
         SchemaService.update_question_group_order(test_schema.id, invalid_order, session)
 
 def test_schema_service_update_question_group_order_missing_group(test_schema, session):
-    """Test updating question group order with missing group."""
+    """Test updating question group order with missing or extra groups."""
     # Get current order
     original_order = SchemaService.get_question_group_order(test_schema.id, session)
     
     # Try to update with a missing group
     invalid_order = original_order[:-1]  # Remove last group
     
-    with pytest.raises(ValueError, match="Question group"):
+    with pytest.raises(ValueError, match=r"New group_ids must be a permutation of the current group IDs in schema 1\. Missing groups: \[1\]"):
+        SchemaService.update_question_group_order(test_schema.id, invalid_order, session)
+    
+    # Try to update with an extra group
+    invalid_order = original_order + [999]
+    with pytest.raises(ValueError, match=r"Question group 999 not in schema"):
+        SchemaService.update_question_group_order(test_schema.id, invalid_order, session)
+
+    # Try to update with both missing and extra groups
+    invalid_order = original_order[:-1] + [999]
+    with pytest.raises(ValueError, match=r"Question group 999 not in schema"):
         SchemaService.update_question_group_order(test_schema.id, invalid_order, session)
 
 def test_schema_service_edit_group(session, test_schema, test_question_group):

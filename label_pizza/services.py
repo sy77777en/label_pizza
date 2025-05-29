@@ -25,85 +25,6 @@ verify = importlib.util.module_from_spec(spec)
 sys.modules["verify"] = verify
 spec.loader.exec_module(verify)
 
-# ---------- VIDEO ----------------------------------------------------------
-def list_videos(session: Session):
-    return session.scalars(select(Video)).all()
-
-def add_video(video_uid: str, url: str, meta: dict, *, session: Session):
-    v = Video(video_uid=video_uid, url=url, video_metadata=meta)
-    session.add(v); session.commit(); return v
-
-# ---------- SCHEMA / QUESTIONS --------------------------------------------
-def list_schemas(session: Session):
-    return session.scalars(select(Schema)).all()
-
-def list_question_groups(session: Session):
-    return session.scalars(select(QuestionGroup)).all()
-
-def list_questions(session: Session):
-    return session.scalars(select(Question)).all()
-
-def add_question(text: str, qtype: str, group_id: int | None,
-                 options: list[str] | None, default: str | None,
-                 *, session: Session):
-    # Create question
-    q = Question(
-        text=text, 
-        type=qtype,
-        options=options, 
-        default_option=default
-    )
-    session.add(q)
-    session.flush()  # Get the question ID
-    
-    # Add question to group if group_id is provided
-    if group_id:
-        # Validate that group exists
-        group = session.get(QuestionGroup, group_id)
-        if not group:
-            raise ValueError(f"Question group with ID {group_id} not found")
-        if group.is_archived:
-            raise ValueError(f"Question group with ID {group_id} is archived")
-            
-        session.add(QuestionGroupQuestion(
-            question_group_id=group_id,
-            question_id=q.id,
-            display_order=0  # Default order
-        ))
-    
-    session.commit()
-    return q
-
-# ---------- PROJECT --------------------------------------------------------
-def list_projects(session: Session):
-    return session.scalars(select(Project)).all()
-
-def create_project(name: str, schema_id: int, video_ids: list[int], *,
-                   session: Session):
-    proj = Project(name=name, schema_id=schema_id)
-    session.add(proj); session.flush()
-    session.bulk_save_objects([ProjectVideo(
-        project_id=proj.id, video_id=vid) for vid in video_ids])
-    session.commit(); return proj
-
-def project_progress(project_id: int, *, session: Session):
-    # Count annotator answers for this project
-    total = session.scalar(
-        select(func.count())
-        .select_from(AnnotatorAnswer)
-        .where(AnnotatorAnswer.project_id == project_id)
-    )
-    return {"answer_rows": total}
-
-# ---------- USERS / ROLES --------------------------------------------------
-def add_role(project_id: int, user_id: int, role: str, *, session: Session):
-    stmt = insert(ProjectUserRole).values(
-        project_id=project_id, user_id=user_id, role=role
-    ).on_conflict_do_update(
-        index_elements=["project_id", "user_id"],
-        set_=dict(role=role)
-    )
-    session.execute(stmt); session.commit()
 
 class VideoService:
     @staticmethod
@@ -444,11 +365,7 @@ class ProjectService:
         ).all()
         
         for admin in admin_users:
-            session.add(ProjectUserRole(
-                user_id=admin.id,
-                project_id=project.id,
-                role="admin"
-            ))
+            AuthService.add_user_to_project(admin.id, project.id, "admin", session)
         
         session.commit()
 
@@ -597,57 +514,61 @@ class ProjectService:
         # For admin role, verify user is a global admin
         if role == "admin" and user.user_type != "admin":
             raise ValueError(f"User {user_id} must be a global admin to be assigned admin role")
+        
+        if user.user_type == "admin" and role != "admin":
+            raise ValueError(f"User {user_id} must not be a global admin to be assigned a non-admin role")
+        
+        # For model role, can only be assigned to model users
+        if role == "model" and user.user_type != "model":
+            raise ValueError(f"User {user_id} must be a model to be assigned model role")
+        
+        if user.user_type == "model" and role != "model":
+            raise ValueError(f"User {user_id} must not be a model to be assigned a non-model role")
             
-        # Remove any existing roles for this user in this project
+        # Archive any existing roles for this user in this project
         session.execute(
-            delete(ProjectUserRole).where(
+            update(ProjectUserRole)
+            .where(
                 ProjectUserRole.project_id == project_id,
                 ProjectUserRole.user_id == user_id
             )
+            .values(is_archived=True)
         )
+        
+        def ensure_role(role_type: str) -> None:
+            """Helper function to ensure a role exists and is active."""
+            existing = session.scalar(
+                select(ProjectUserRole).where(
+                    ProjectUserRole.project_id == project_id,
+                    ProjectUserRole.user_id == user_id,
+                    ProjectUserRole.role == role_type
+                )
+            )
+            if existing:
+                existing.is_archived = False
+            else:
+                session.add(ProjectUserRole(
+                    project_id=project_id,
+                    user_id=user_id,
+                    role=role_type
+                ))
         
         # Add roles based on the requested role
         if role == "annotator":
-            session.add(ProjectUserRole(
-                project_id=project_id,
-                user_id=user_id,
-                role="annotator"
-            ))
+            ensure_role("annotator")
         elif role == "reviewer":
             # Reviewers get both annotator and reviewer roles
-            session.add(ProjectUserRole(
-                project_id=project_id,
-                user_id=user_id,
-                role="annotator"
-            ))
-            session.add(ProjectUserRole(
-                project_id=project_id,
-                user_id=user_id,
-                role="reviewer"
-            ))
+            ensure_role("annotator")
+            ensure_role("reviewer")
         elif role == "model":
-            session.add(ProjectUserRole(
-                project_id=project_id,
-                user_id=user_id,
-                role="model"
-            ))
+            ensure_role("model")
         elif role == "admin":
             # Admins get all three roles
-            session.add(ProjectUserRole(
-                project_id=project_id,
-                user_id=user_id,
-                role="annotator"
-            ))
-            session.add(ProjectUserRole(
-                project_id=project_id,
-                user_id=user_id,
-                role="reviewer"
-            ))
-            session.add(ProjectUserRole(
-                project_id=project_id,
-                user_id=user_id,
-                role="admin"
-            ))
+            ensure_role("annotator")
+            ensure_role("reviewer")
+            ensure_role("admin")
+        else:
+            raise ValueError(f"Invalid role: {role}")
             
         session.commit()
 
@@ -700,6 +621,11 @@ class SchemaService:
             - Type: Question type
             - Options: Available options for single-choice questions
         """
+        # Check if schema exists
+        schema = session.get(Schema, schema_id)
+        if not schema:
+            raise ValueError(f"Schema with ID {schema_id} not found")
+        
         # Get questions through question groups
         questions = session.scalars(
             select(Question)
@@ -798,97 +724,6 @@ class SchemaService:
         return schema
 
     @staticmethod
-    def add_question_group_to_schema(schema_id: int, group_id: int, display_order: int, session: Session) -> None:
-        """Add a question group to a schema.
-        
-        Args:
-            schema_id: Schema ID
-            group_id: Question group ID
-            display_order: Display order in schema
-            session: Database session
-            
-        Raises:
-            ValueError: If schema or group not found, or if group already in schema
-        """
-        # Check if schema exists
-        schema = session.get(Schema, schema_id)
-        if not schema:
-            raise ValueError(f"Schema with ID {schema_id} not found")
-        if schema.is_archived:
-            raise ValueError(f"Schema with ID {schema_id} is archived")
-            
-        # Check if group exists
-        group = session.get(QuestionGroup, group_id)
-        if not group:
-            raise ValueError(f"Question group with ID {group_id} not found")
-        if group.is_archived:
-            raise ValueError(f"Question group with ID {group_id} is archived")
-            
-        # Check if group is already in schema
-        existing = session.scalar(
-            select(SchemaQuestionGroup).where(
-                SchemaQuestionGroup.schema_id == schema_id,
-                SchemaQuestionGroup.question_group_id == group_id
-            )
-        )
-        if existing:
-            raise ValueError(f"Question group {group_id} already in schema {schema_id}")
-            
-        # Check if non-reusable group is already used in another schema
-        if not group.is_reusable:
-            existing_schema = session.scalar(
-                select(Schema)
-                .join(SchemaQuestionGroup, Schema.id == SchemaQuestionGroup.schema_id)
-                .where(SchemaQuestionGroup.question_group_id == group_id)
-            )
-            if existing_schema:
-                raise ValueError(f"Question group {group.title} is not reusable and is already used in schema {existing_schema.name}")
-            
-        # Add group to schema
-        sqg = SchemaQuestionGroup(
-            schema_id=schema_id,
-            question_group_id=group_id,
-            display_order=display_order
-        )
-        session.add(sqg)
-        session.commit()
-
-    @staticmethod
-    def remove_question_group_from_schema(schema_id: int, group_id: int, session: Session) -> None:
-        """Remove a question group from a schema.
-        
-        Args:
-            schema_id: Schema ID
-            group_id: Question group ID
-            session: Database session
-            
-        Raises:
-            ValueError: If schema or group not found, or if group not in schema
-        """
-        # Check if schema exists
-        schema = session.get(Schema, schema_id)
-        if not schema:
-            raise ValueError(f"Schema with ID {schema_id} not found")
-            
-        # Check if group exists
-        group = session.get(QuestionGroup, group_id)
-        if not group:
-            raise ValueError(f"Question group with ID {group_id} not found")
-            
-        # Check if group is in schema
-        existing = session.scalar(
-            select(SchemaQuestionGroup).where(
-                SchemaQuestionGroup.schema_id == schema_id,
-                SchemaQuestionGroup.question_group_id == group_id
-            )
-        )
-        if not existing:
-            raise ValueError(f"Question group {group_id} not in schema {schema_id}")
-            
-        session.delete(existing)
-        session.commit()
-
-    @staticmethod
     def archive_schema(schema_id: int, session: Session) -> None:
         """Archive a schema and prevent its use in new projects.
         
@@ -982,6 +817,18 @@ class SchemaService:
         for group_id in group_ids:
             if group_id not in assignment_map:
                 raise ValueError(f"Question group {group_id} not in schema {schema_id}")
+
+        current_ids = set(assignment_map.keys())
+        new_ids = set(group_ids)
+        if current_ids != new_ids:
+            missing = current_ids - new_ids
+            extra = new_ids - current_ids
+            error_msg = f"New group_ids must be a permutation of the current group IDs in schema {schema_id}"
+            if missing:
+                error_msg += f". Missing groups: {list(missing)}"
+            if extra:
+                error_msg += f". Extra groups: {list(extra)}"
+            raise ValueError(error_msg)
         
         # Update orders based on list position
         for i, group_id in enumerate(group_ids):
@@ -1231,7 +1078,7 @@ class QuestionService:
         # For single-choice questions, validate options and display values
         if q.type == "single":
             if not new_opts:
-                raise ValueError("Single-choice questions must have options")
+                raise ValueError("Cannot change question type")
             if new_default and new_default not in new_opts:
                 raise ValueError(f"Default option '{new_default}' must be one of the available options: {', '.join(new_opts)}")
             
@@ -1253,9 +1100,9 @@ class QuestionService:
                         new_display_values.append(q.display_values[idx])
                     else:
                         new_display_values.append(opt)
-        else:
-            # For description-type questions, display_values should be None
-            new_display_values = None
+        else:  # description type
+            if new_opts is not None or new_default is not None or new_display_values is not None:
+                raise ValueError("Cannot change question type")
                 
         # Update question
         q.text = new_text
@@ -1447,33 +1294,32 @@ class AuthService:
             
             # Assign user as admin to each project
             for project in projects:
-                # Check if assignment already exists
-                existing = session.scalar(
-                    select(ProjectUserRole).where(
-                        ProjectUserRole.user_id == user_id,
-                        ProjectUserRole.project_id == project.id
-                    )
-                )
-                if existing:
-                    existing.role = "admin"
-                else:
-                    session.add(ProjectUserRole(
-                        user_id=user_id,
-                        project_id=project.id,
-                        role="admin"
-                    ))
+                AuthService.add_user_to_project(user_id, project.id, "admin", session)
+
+        # Cannot change from human/admin to model
+        if user.user_type == "human" or user.user_type == "admin":
+            if new_role == "model":
+                raise ValueError("Cannot change from human/admin to model")
         
-        # If changing from admin to human, update all project roles
+        # Cannot change from model to human/admin
+        if user.user_type == "model":
+            if new_role == "human" or new_role == "admin":
+                raise ValueError("Cannot change from model to human/admin")
+        
+        # If changing from admin to human, remove all project roles
         if user.user_type == "admin" and new_role == "human":
-            # Get all project assignments for this user
+            # Get all non-archived project assignments for this user
             assignments = session.scalars(
                 select(ProjectUserRole)
-                .where(ProjectUserRole.user_id == user_id)
+                .where(
+                    ProjectUserRole.user_id == user_id,
+                    ProjectUserRole.is_archived == False
+                )
             ).all()
             
-            # Update each assignment to human role
+            # Archive each assignment
             for assignment in assignments:
-                assignment.role = "human"
+                assignment.is_archived = True
         
         user.user_type = new_role
         session.commit()
@@ -1494,6 +1340,7 @@ class AuthService:
             select(ProjectUserRole)
             .join(Project, ProjectUserRole.project_id == Project.id)
             .join(User, ProjectUserRole.user_id == User.id)
+            .where(ProjectUserRole.is_archived == False)
         ).all()
         
         return pd.DataFrame([
@@ -1503,6 +1350,7 @@ class AuthService:
                 "User ID": a.user_id,
                 "User Name": session.get(User, a.user_id).user_id_str,
                 "Role": a.role,
+                "Archived": a.is_archived,
                 "Assigned At": a.assigned_at,
                 "Completed At": a.completed_at
             }
@@ -1532,6 +1380,17 @@ class AuthService:
             is_archived=is_archived
         )
         session.add(user)
+        session.flush()  # Get user ID
+        
+        # If user is admin, assign to all existing projects
+        if user_type == "admin" and not is_archived:
+            projects = session.scalars(
+                select(Project).where(Project.is_archived == False)
+            ).all()
+            
+            for project in projects:
+                AuthService.add_user_to_project(user.id, project.id, "admin", session)
+        
         session.commit()
         return user
 
@@ -1558,7 +1417,7 @@ class AuthService:
         if user.user_type == "admin" and role != "admin":
             role = "reviewer"
         
-        # Check if assignment already exists
+        # Check if assignment already exists (including archived ones)
         existing = session.scalar(
             select(ProjectUserRole).where(
                 ProjectUserRole.user_id == user_id,
@@ -1568,11 +1427,13 @@ class AuthService:
         
         if existing:
             existing.role = role
+            existing.is_archived = False  # Unarchive if it was archived
         else:
             assignment = ProjectUserRole(
                 project_id=project_id,
                 user_id=user_id,
-                role=role
+                role=role,
+                is_archived=False
             )
             session.add(assignment)
         
@@ -1591,7 +1452,8 @@ class AuthService:
         if not assignment:
             raise ValueError(f"No assignment found for user {user_id} in project {project_id}")
         
-        session.delete(assignment)
+        # Instead of deleting, mark as archived
+        assignment.is_archived = True
         session.commit()
 
     @staticmethod
@@ -1607,37 +1469,66 @@ class AuthService:
     @staticmethod
     def bulk_remove_users_from_project(user_ids: List[int], project_id: int, session: Session) -> None:
         """Remove multiple users from a project."""
+        # Instead of deleting, mark as archived
         session.execute(
-            delete(ProjectUserRole).where(
+            update(ProjectUserRole)
+            .where(
                 ProjectUserRole.user_id.in_(user_ids),
                 ProjectUserRole.project_id == project_id
             )
+            .values(is_archived=True)
         )
         session.commit()
 
     @staticmethod
-    def assign_admin_to_all_projects(user_id: int, session: Session) -> None:
-        """Assign a user as admin to all existing and future projects."""
-        # Get all non-archived projects
-        projects = session.scalars(
-            select(Project).where(Project.is_archived == False)
-        ).all()
+    def archive_user_from_project(user_id: int, project_id: int, session: Session) -> None:
+        """Archive a user's assignment from a project.
         
-        # Assign user as admin to each project
-        for project in projects:
-            # Check if assignment already exists
-            existing = session.scalar(
-                select(ProjectUserRole).where(
-                    ProjectUserRole.user_id == user_id,
-                    ProjectUserRole.project_id == project.id
-                )
+        Args:
+            user_id: The ID of the user
+            project_id: The ID of the project
+            session: Database session
+            
+        Raises:
+            ValueError: If assignment not found
+        """
+        assignment = session.scalar(
+            select(ProjectUserRole).where(
+                ProjectUserRole.user_id == user_id,
+                ProjectUserRole.project_id == project_id
             )
-            if not existing:
-                session.add(ProjectUserRole(
-                    user_id=user_id,
-                    project_id=project.id,
-                    role="admin"
-                ))
+        )
+        
+        if not assignment:
+            raise ValueError(f"No assignment found for user {user_id} in project {project_id}")
+        
+        # Instead of deleting, mark as archived
+        assignment.is_archived = True
+        session.commit()
+
+    @staticmethod
+    def unarchive_user_from_project(user_id: int, project_id: int, session: Session) -> None:
+        """Unarchive a user's assignment from a project.
+        
+        Args:
+            user_id: The ID of the user
+            project_id: The ID of the project
+            session: Database session
+            
+        Raises:
+            ValueError: If assignment not found
+        """
+        assignment = session.scalar(
+            select(ProjectUserRole).where(
+                ProjectUserRole.user_id == user_id,
+                ProjectUserRole.project_id == project_id
+            )
+        )
+        
+        if not assignment:
+            raise ValueError(f"No assignment found for user {user_id} in project {project_id}")
+        
+        assignment.is_archived = False
         session.commit()
 
 class QuestionGroupService:
@@ -2076,11 +1967,12 @@ class BaseAnswerService:
         Raises:
             ValueError: If validation fails
         """
-        # Get all roles for the user in this project
+        # Get all non-archived roles for the user in this project
         user_roles = session.scalars(
             select(ProjectUserRole).where(
                 ProjectUserRole.user_id == user_id,
-                ProjectUserRole.project_id == project_id
+                ProjectUserRole.project_id == project_id,
+                ProjectUserRole.is_archived == False
             )
         ).all()
         
@@ -2240,7 +2132,8 @@ class BaseAnswerService:
             select(ProjectUserRole)
             .where(
                 ProjectUserRole.user_id == user_id,
-                ProjectUserRole.project_id == project_id
+                ProjectUserRole.project_id == project_id,
+                ProjectUserRole.is_archived == False
             )
         )
         
@@ -2292,7 +2185,7 @@ class BaseAnswerService:
                 select(ProjectUserRole)
                 .where(
                     ProjectUserRole.project_id == project_id,
-                    ProjectUserRole.role == "reviewer"
+                    ProjectUserRole.role == "reviewer",
                 )
             ).all()
             if total_answers >= expected_answers:

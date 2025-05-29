@@ -86,11 +86,13 @@ Copy this file into your repo and keep it updated as you implement new helpers.
 | `get_all_schemas(session)`                                | ✔︎     | List                       |
 | `get_schema_questions(schema_id, session)`                | ✔︎     | List questions             |
 | `get_schema_id_by_name(name, session)`                    | ✔︎     | Resolver                   |
-| `create_schema(name, rules_json, session)`                | ✔︎     | • Validate group reuse 🛡️ |
-| `add_question_group_to_schema(schema_id, group_id, display_order, session)` | ✔︎ | Add group to schema |
-| `remove_question_group_from_schema(schema_id, group_id, session)` | ✔︎ | Remove group from schema |
-| `archive_schema(schema_id, session)`                      | ✔︎     | Soft delete                |
-| `unarchive_schema(schema_id, session)`                    | ✔︎     | Restore schema             |
+| `create_schema(name, question_group_ids, session)` | ✔︎ | Create new schema |
+| `archive_schema(schema_id, session)` | ✔︎ | Archive schema |
+| `unarchive_schema(schema_id, session)` | ✔︎ | Unarchive schema |
+| `get_question_group_order(schema_id, session)` | ✔︎ | Get ordered list of group IDs |
+| `update_question_group_order(schema_id, group_ids, session)` | ✔︎ | Update group display order |
+
+Note: Schemas are immutable after creation to maintain data integrity. The display order of question groups can be modified as it only affects UI presentation.
 
 ---
 

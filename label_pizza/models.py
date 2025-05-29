@@ -121,6 +121,7 @@ class ProjectUserRole(Base):
     role = Column(Enum("annotator", "reviewer", "admin", "model", name="project_roles"), nullable=False)
     assigned_at = Column(DateTime(timezone=True), default=now)
     completed_at = Column(DateTime(timezone=True), nullable=True)
+    is_archived = Column(Boolean, default=False)
     __table_args__ = (
         PrimaryKeyConstraint('project_id', 'user_id', 'role'),
         Index("ix_user_projects", "user_id"),

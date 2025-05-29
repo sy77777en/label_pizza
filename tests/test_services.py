@@ -113,10 +113,13 @@ def test_video_service_get_all_videos(session):
     assert df.iloc[0]["Archived"] == False
 
 def test_video_service_get_all_videos_with_project(session, test_video, test_schema, test_question_group):
+    # Create a new schema with the question group
+    schema = SchemaService.create_schema("test_schema_with_project", [test_question_group.id], session)
+    
     # Add video to project through service layer
     ProjectService.create_project(
         name="test_project_with_status",
-        schema_id=test_schema.id,
+        schema_id=schema.id,
         video_ids=[test_video.id],
         session=session
     )
@@ -132,19 +135,19 @@ def test_video_service_get_all_videos_with_project(session, test_video, test_sch
         session=session
     )
     
-    # Add question group to schema
-    SchemaService.add_question_group_to_schema(test_schema.id, test_question_group.id, 0, session)
-    
     df = VideoService.get_videos_with_project_status(session)
     assert len(df) == 1
     assert "test_project_with_status" in df.iloc[0]["Projects"]
     assert "✗" in df.iloc[0]["Projects"]  # No ground truth yet
 
 def test_video_service_get_all_videos_with_ground_truth(session, test_video, test_schema, test_user, test_question_group):
+    # Create a new schema with the question group
+    schema = SchemaService.create_schema("test_schema_with_gt", [test_question_group.id], session)
+    
     # Add video to project through service layer
     ProjectService.create_project(
         name="test_project_with_gt",
-        schema_id=test_schema.id,
+        schema_id=schema.id,
         video_ids=[test_video.id],
         session=session
     )
@@ -160,9 +163,6 @@ def test_video_service_get_all_videos_with_ground_truth(session, test_video, tes
         default="option1",
         session=session
     )
-    
-    # Add question group to schema
-    SchemaService.add_question_group_to_schema(test_schema.id, test_question_group.id, 0, session)
     
     # Get the question
     question = QuestionService.get_question_by_text(question_text, session)
@@ -530,38 +530,6 @@ def test_schema_service_get_schema_id_by_name(session, test_schema):
     # Test getting non-existent schema
     with pytest.raises(ValueError, match="not found"):
         SchemaService.get_schema_id_by_name("non_existent", session)
-
-def test_schema_service_add_question_group_to_schema(session, test_schema, test_question_group):
-    # Add a question to the question group first
-    QuestionService.add_question(
-        text="test question",
-        qtype="single",
-        group_name=test_question_group.title,
-        options=["option1", "option2"],
-        default="option1",
-        session=session
-    )
-    
-    # Test adding a question group to schema through service layer
-    SchemaService.add_question_group_to_schema(test_schema.id, test_question_group.id, 0, session)
-    
-    # Verify the relationship was created by checking schema questions
-    df = SchemaService.get_schema_questions(test_schema.id, session)
-    assert len(df) > 0  # Should have questions from the group
-    assert df.iloc[0]["Text"] == "test question"
-    assert df.iloc[0]["Type"] == "single"
-    assert df.iloc[0]["Options"] == "option1, option2"
-
-def test_schema_service_remove_question_group_from_schema(session, test_schema, test_question_group):
-    # Add question group to schema through service layer
-    SchemaService.add_question_group_to_schema(test_schema.id, test_question_group.id, 0, session)
-    
-    # Remove the question group through service layer
-    SchemaService.remove_question_group_from_schema(test_schema.id, test_question_group.id, session)
-    
-    # Verify the relationship was removed by checking schema questions
-    df = SchemaService.get_schema_questions(test_schema.id, session)
-    assert len(df) == 0  # Should have no questions after removing group
 
 def test_schema_service_question_group_operations(session, test_schema, test_question_group):
     """Test adding and removing question groups from schema."""

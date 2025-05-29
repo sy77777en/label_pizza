@@ -15,26 +15,31 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Test database setup
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def engine():
-    # Use the test database configuration
+    """Create a test database engine."""
     return test_engine
 
 @pytest.fixture(scope="function")
 def tables(engine):
-    # Initialize test database
-    init_test_db()
+    """Create and drop all tables for each test."""
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
     yield
-    # Clean up after tests
     Base.metadata.drop_all(engine)
 
 @pytest.fixture(scope="function")
 def session(engine, tables):
-    # Get a new test session
-    session = get_test_session()
+    """Create a new database session for a test."""
+    connection = engine.connect()
+    transaction = connection.begin()
+    session = Session(bind=connection)
+    
     yield session
+    
     session.close()
+    transaction.rollback()
+    connection.close()
 
 # Test data setup
 @pytest.fixture
