@@ -157,12 +157,32 @@ Note: Schemas are immutable after creation to maintain data integrity. The displ
 
 ## GroundTruthService
 
+The GroundTruthService provides methods for managing ground truth answers in the system. It includes functionality for submitting, retrieving, and overriding ground truth answers.
+
 | Function                                                                                                                  | Status | Rules                                                                                                              |
 | ------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------ |
-| `submit_ground_truth(video_id, question_id, project_id, reviewer_id, answer_value, session, confidence_score=None, notes=None)` | ✔︎ | • reviewer role required 🛡️<br>• type & option validation 🛡️ |
+| `submit_ground_truth_to_question_group(video_id, project_id, reviewer_id, question_group_id, answers, session, confidence_scores=None, notes=None)` | ✔︎ | • reviewer role required 🛡️<br>• type & option validation 🛡️ |
 | `get_ground_truth(video_id, project_id, session)`                                                                         | ✔︎     | Get ground truth answers for video/project                                                                         |
-| `override_ground_truth(video_id, question_id, project_id, admin_id, new_answer_value, session)`                           | ✔︎     | • admin role required 🛡️<br>• tracks modifications 🛡️ |
+| `override_ground_truth_to_question_group(video_id, project_id, question_group_id, admin_id, answers, session)`           | ✔︎     | • admin role required 🛡️<br>• tracks modifications 🛡️ |
 | `get_reviewer_accuracy(reviewer_id, project_id, session)`                                                                 | ✔︎     | Calculate accuracy based on admin modifications                                                                    |
+| `get_annotator_accuracy(project_id, question_id, session)`                                                                | ✔︎     | Calculate annotator accuracy for a specific question                                                               |
+
+### Notes
+- The single-question `override_ground_truth()` method has been removed in favor of the question group-based `override_ground_truth_to_question_group()` method
+- All ground truth operations now work at the question group level for better consistency and atomicity
+- The service maintains backward compatibility with existing data while enforcing the new group-based approach
+- Admin overrides are tracked with timestamps and admin IDs for audit purposes
+
+### Validation Rules
+
+1. Project and user must exist and be active
+2. User must have appropriate role (reviewer for submission, admin for override)
+3. Question group must exist and not be archived
+4. Answers must match questions in the group
+5. Answer values must be valid for their question types
+6. For single-choice questions, answers must be one of the defined options
+7. For description questions, answers must be strings
+8. Confidence scores must be floats if provided
 
 ---
 

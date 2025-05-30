@@ -1,226 +1,15 @@
 import pytest
-from label_pizza.services import AnnotatorService, GroundTruthService, ProjectService
+from label_pizza.services import AnnotatorService, GroundTruthService, ProjectService, AuthService, QuestionService, QuestionGroupService
 import pandas as pd
 from datetime import datetime, timezone
-
-def test_annotator_service_create_annotator(session, test_user, test_project):
-    """Test creating a new annotator."""
-    annotator = AnnotatorService.create_annotator(
-        user_id=test_user.id,
-        project_id=test_project.id,
-        session=session
-    )
-    assert annotator.user_id == test_user.id
-    assert annotator.project_id == test_project.id
-    assert not annotator.is_archived
-
-def test_annotator_service_create_annotator_duplicate(session, test_user, test_project):
-    """Test creating a duplicate annotator."""
-    AnnotatorService.create_annotator(
-        user_id=test_user.id,
-        project_id=test_project.id,
-        session=session
-    )
-    with pytest.raises(ValueError, match="already exists"):
-        AnnotatorService.create_annotator(
-            user_id=test_user.id,
-            project_id=test_project.id,
-            session=session
-        )
-
-def test_annotator_service_create_annotator_invalid_user(session, test_project):
-    """Test creating an annotator with invalid user."""
-    with pytest.raises(ValueError, match="User not found"):
-        AnnotatorService.create_annotator(
-            user_id=999,
-            project_id=test_project.id,
-            session=session
-        )
-
-def test_annotator_service_create_annotator_invalid_project(session, test_user):
-    """Test creating an annotator with invalid project."""
-    with pytest.raises(ValueError, match="Project not found"):
-        AnnotatorService.create_annotator(
-            user_id=test_user.id,
-            project_id=999,
-            session=session
-        )
-
-def test_annotator_service_get_annotator(session, test_user, test_project):
-    """Test getting an annotator."""
-    annotator = AnnotatorService.create_annotator(
-        user_id=test_user.id,
-        project_id=test_project.id,
-        session=session
-    )
-    result = AnnotatorService.get_annotator(
-        user_id=test_user.id,
-        project_id=test_project.id,
-        session=session
-    )
-    assert result.id == annotator.id
-    assert result.user_id == test_user.id
-    assert result.project_id == test_project.id
-
-def test_annotator_service_get_annotator_not_found(session, test_user, test_project):
-    """Test getting a non-existent annotator."""
-    with pytest.raises(ValueError, match="Annotator not found"):
-        AnnotatorService.get_annotator(
-            user_id=test_user.id,
-            project_id=test_project.id,
-            session=session
-        )
-
-def test_annotator_service_get_annotator_archived(session, test_user, test_project):
-    """Test getting an archived annotator."""
-    annotator = AnnotatorService.create_annotator(
-        user_id=test_user.id,
-        project_id=test_project.id,
-        session=session
-    )
-    AnnotatorService.archive_annotator(annotator.id, session)
-    with pytest.raises(ValueError, match="Annotator not found"):
-        AnnotatorService.get_annotator(
-            user_id=test_user.id,
-            project_id=test_project.id,
-            session=session
-        )
-
-def test_annotator_service_archive_annotator(session, test_user, test_project):
-    """Test archiving an annotator."""
-    annotator = AnnotatorService.create_annotator(
-        user_id=test_user.id,
-        project_id=test_project.id,
-        session=session
-    )
-    AnnotatorService.archive_annotator(annotator.id, session)
-    result = AnnotatorService.get_annotator(
-        user_id=test_user.id,
-        project_id=test_project.id,
-        session=session,
-        include_archived=True
-    )
-    assert result.is_archived
-
-def test_annotator_service_archive_annotator_not_found(session):
-    """Test archiving a non-existent annotator."""
-    with pytest.raises(ValueError, match="Annotator not found"):
-        AnnotatorService.archive_annotator(999, session)
-
-def test_annotator_service_get_annotator_include_archived(session, test_user, test_project):
-    """Test getting an annotator including archived ones."""
-    annotator = AnnotatorService.create_annotator(
-        user_id=test_user.id,
-        project_id=test_project.id,
-        session=session
-    )
-    AnnotatorService.archive_annotator(annotator.id, session)
-    result = AnnotatorService.get_annotator(
-        user_id=test_user.id,
-        project_id=test_project.id,
-        session=session,
-        include_archived=True
-    )
-    assert result.id == annotator.id
-    assert result.is_archived
-
-def test_annotator_service_get_all_annotators(session, test_user, test_project):
-    """Test getting all annotators."""
-    annotator = AnnotatorService.create_annotator(
-        user_id=test_user.id,
-        project_id=test_project.id,
-        session=session
-    )
-    results = AnnotatorService.get_all_annotators(session)
-    assert len(results) == 1
-    assert results[0].id == annotator.id
-    assert results[0].user_id == test_user.id
-    assert results[0].project_id == test_project.id
-
-def test_annotator_service_get_all_annotators_empty(session):
-    """Test getting all annotators when none exist."""
-    results = AnnotatorService.get_all_annotators(session)
-    assert len(results) == 0
-
-def test_annotator_service_get_all_annotators_with_archived(session, test_user, test_project):
-    """Test getting all annotators including archived ones."""
-    annotator = AnnotatorService.create_annotator(
-        user_id=test_user.id,
-        project_id=test_project.id,
-        session=session
-    )
-    AnnotatorService.archive_annotator(annotator.id, session)
-    results = AnnotatorService.get_all_annotators(session, include_archived=True)
-    assert len(results) == 1
-    assert results[0].id == annotator.id
-    assert results[0].is_archived
-
-def test_annotator_service_get_annotators_by_project(session, test_user, test_project):
-    """Test getting annotators by project."""
-    annotator = AnnotatorService.create_annotator(
-        user_id=test_user.id,
-        project_id=test_project.id,
-        session=session
-    )
-    results = AnnotatorService.get_annotators_by_project(test_project.id, session)
-    assert len(results) == 1
-    assert results[0].id == annotator.id
-    assert results[0].project_id == test_project.id
-
-def test_annotator_service_get_annotators_by_project_empty(session, test_project):
-    """Test getting annotators by project when none exist."""
-    results = AnnotatorService.get_annotators_by_project(test_project.id, session)
-    assert len(results) == 0
-
-def test_annotator_service_get_annotators_by_project_with_archived(session, test_user, test_project):
-    """Test getting annotators by project including archived ones."""
-    annotator = AnnotatorService.create_annotator(
-        user_id=test_user.id,
-        project_id=test_project.id,
-        session=session
-    )
-    AnnotatorService.archive_annotator(annotator.id, session)
-    results = AnnotatorService.get_annotators_by_project(test_project.id, session, include_archived=True)
-    assert len(results) == 1
-    assert results[0].id == annotator.id
-    assert results[0].is_archived
-
-def test_annotator_service_get_annotators_by_user(session, test_user, test_project):
-    """Test getting annotators by user."""
-    annotator = AnnotatorService.create_annotator(
-        user_id=test_user.id,
-        project_id=test_project.id,
-        session=session
-    )
-    results = AnnotatorService.get_annotators_by_user(test_user.id, session)
-    assert len(results) == 1
-    assert results[0].id == annotator.id
-    assert results[0].user_id == test_user.id
-
-def test_annotator_service_get_annotators_by_user_empty(session, test_user):
-    """Test getting annotators by user when none exist."""
-    results = AnnotatorService.get_annotators_by_user(test_user.id, session)
-    assert len(results) == 0
-
-def test_annotator_service_get_annotators_by_user_with_archived(session, test_user, test_project):
-    """Test getting annotators by user including archived ones."""
-    annotator = AnnotatorService.create_annotator(
-        user_id=test_user.id,
-        project_id=test_project.id,
-        session=session
-    )
-    AnnotatorService.archive_annotator(annotator.id, session)
-    results = AnnotatorService.get_annotators_by_user(test_user.id, session, include_archived=True)
-    assert len(results) == 1
-    assert results[0].id == annotator.id
-    assert results[0].is_archived
+from sqlalchemy import select
+from label_pizza.models import Question, QuestionGroupQuestion, SchemaQuestionGroup, Project
 
 def test_annotator_service_submit_answer_to_question_group(session, test_user, test_project, test_video, test_question_group):
     """Test submitting answers to a question group."""
     # Create answers
     answers = {
-        "Test Question 1": "option1",
-        "Test Question 2": "option2"
+        "test question": "option1"
     }
     
     # Submit answers
@@ -235,19 +24,16 @@ def test_annotator_service_submit_answer_to_question_group(session, test_user, t
     
     # Verify answers were submitted
     result = AnnotatorService.get_answers(test_video.id, test_project.id, session)
-    assert len(result) == 2
+    assert len(result) == 1
     assert result.iloc[0]["Answer Value"] == "option1"
-    assert result.iloc[1]["Answer Value"] == "option2"
 
 def test_annotator_service_submit_answer_with_confidence(session, test_user, test_project, test_video, test_question_group):
     """Test submitting answers with confidence scores."""
     answers = {
-        "Test Question 1": "option1",
-        "Test Question 2": "option2"
+        "test question": "option1"
     }
     confidence_scores = {
-        "Test Question 1": 0.8,
-        "Test Question 2": 0.9
+        "test question": 0.8
     }
     
     AnnotatorService.submit_answer_to_question_group(
@@ -261,19 +47,16 @@ def test_annotator_service_submit_answer_with_confidence(session, test_user, tes
     )
     
     result = AnnotatorService.get_answers(test_video.id, test_project.id, session)
-    assert len(result) == 2
+    assert len(result) == 1
     assert result.iloc[0]["Confidence Score"] == 0.8
-    assert result.iloc[1]["Confidence Score"] == 0.9
 
 def test_annotator_service_submit_answer_with_notes(session, test_user, test_project, test_video, test_question_group):
     """Test submitting answers with notes."""
     answers = {
-        "Test Question 1": "option1",
-        "Test Question 2": "option2"
+        "test question": "option1"
     }
     notes = {
-        "Test Question 1": "Note 1",
-        "Test Question 2": "Note 2"
+        "test question": "Note 1"
     }
     
     AnnotatorService.submit_answer_to_question_group(
@@ -287,13 +70,12 @@ def test_annotator_service_submit_answer_with_notes(session, test_user, test_pro
     )
     
     result = AnnotatorService.get_answers(test_video.id, test_project.id, session)
-    assert len(result) == 2
+    assert len(result) == 1
     assert result.iloc[0]["Notes"] == "Note 1"
-    assert result.iloc[1]["Notes"] == "Note 2"
 
 def test_annotator_service_submit_answer_invalid_user(session, test_project, test_video, test_question_group):
     """Test submitting answers with invalid user."""
-    answers = {"Test Question 1": "option1"}
+    answers = {"test question": "option1"}
     
     with pytest.raises(ValueError, match="User with ID 999 not found"):
         AnnotatorService.submit_answer_to_question_group(
@@ -307,7 +89,7 @@ def test_annotator_service_submit_answer_invalid_user(session, test_project, tes
 
 def test_annotator_service_submit_answer_invalid_project(session, test_user, test_video, test_question_group):
     """Test submitting answers with invalid project."""
-    answers = {"Test Question 1": "option1"}
+    answers = {"test question": "option1"}
     
     with pytest.raises(ValueError, match="Project with ID 999 not found"):
         AnnotatorService.submit_answer_to_question_group(
@@ -321,7 +103,7 @@ def test_annotator_service_submit_answer_invalid_project(session, test_user, tes
 
 def test_annotator_service_submit_answer_invalid_question_group(session, test_user, test_project, test_video):
     """Test submitting answers with invalid question group."""
-    answers = {"Test Question 1": "option1"}
+    answers = {"test question": "option1"}
     
     with pytest.raises(ValueError, match="Question group with ID 999 not found"):
         AnnotatorService.submit_answer_to_question_group(
@@ -335,7 +117,7 @@ def test_annotator_service_submit_answer_invalid_question_group(session, test_us
 
 def test_annotator_service_submit_answer_invalid_option(session, test_user, test_project, test_video, test_question_group):
     """Test submitting answers with invalid option."""
-    answers = {"Test Question 1": "invalid_option"}
+    answers = {"test question": "invalid_option"}
     
     with pytest.raises(ValueError, match="Answer value 'invalid_option' not in options"):
         AnnotatorService.submit_answer_to_question_group(
@@ -347,11 +129,118 @@ def test_annotator_service_submit_answer_invalid_option(session, test_user, test
             session=session
         )
 
+def test_annotator_service_submit_answer_invalid_question_text(session, test_user, test_project, test_video, test_question_group):
+    """Test submitting answers with invalid question text."""
+    answers = {
+        "Invalid Question": "option1"
+    }
+    with pytest.raises(ValueError, match="Answers do not match questions in group"):
+        AnnotatorService.submit_answer_to_question_group(
+            video_id=test_video.id,
+            project_id=test_project.id,
+            user_id=test_user.id,
+            question_group_id=test_question_group.id,
+            answers=answers,
+            session=session
+        )
+
+def test_annotator_service_submit_answer_missing_questions(session, test_user, test_project, test_video, test_question_group):
+    """Test submitting answers with missing questions."""
+    answers = {}  # Empty answers
+    with pytest.raises(ValueError, match="Answers do not match questions in group"):
+        AnnotatorService.submit_answer_to_question_group(
+            video_id=test_video.id,
+            project_id=test_project.id,
+            user_id=test_user.id,
+            question_group_id=test_question_group.id,
+            answers=answers,
+            session=session
+        )
+
+def test_annotator_service_submit_answer_invalid_confidence(session, test_user, test_project, test_video, test_question_group):
+    """Test submitting answers with invalid confidence scores."""
+    answers = {
+        "test question": "option1"
+    }
+    confidence_scores = {
+        "test question": "1.5" # invalid string format (should be float)
+    }
+    with pytest.raises(ValueError, match="Confidence score for question 'test question' must be a float"):
+        AnnotatorService.submit_answer_to_question_group(
+            video_id=test_video.id,
+            project_id=test_project.id,
+            user_id=test_user.id,
+            question_group_id=test_question_group.id,
+            answers=answers,
+            confidence_scores=confidence_scores,
+            session=session
+        )
+
+def test_annotator_service_update_existing_answer(session, test_user, test_project, test_video, test_question_group):
+    """Test updating an existing answer."""
+    # Submit initial answer
+    initial_answers = {
+        "test question": "option1"
+    }
+    AnnotatorService.submit_answer_to_question_group(
+        video_id=test_video.id,
+        project_id=test_project.id,
+        user_id=test_user.id,
+        question_group_id=test_question_group.id,
+        answers=initial_answers,
+        session=session
+    )
+    
+    # Update answer
+    updated_answers = {
+        "test question": "option2"
+    }
+    AnnotatorService.submit_answer_to_question_group(
+        video_id=test_video.id,
+        project_id=test_project.id,
+        user_id=test_user.id,
+        question_group_id=test_question_group.id,
+        answers=updated_answers,
+        session=session
+    )
+    
+    # Verify update
+    result = AnnotatorService.get_answers(test_video.id, test_project.id, session)
+    assert len(result) == 1
+    assert result.iloc[0]["Answer Value"] == "option2"
+
+def test_annotator_service_get_question_answers(session, test_user, test_project, test_video, test_question_group):
+    """Test getting answers for a specific question."""
+    # Submit answers
+    answers = {
+        "test question": "option1"
+    }
+    AnnotatorService.submit_answer_to_question_group(
+        video_id=test_video.id,
+        project_id=test_project.id,
+        user_id=test_user.id,
+        question_group_id=test_question_group.id,
+        answers=answers,
+        session=session
+    )
+    
+    # Get the question using QuestionService
+    question = QuestionService.get_question_by_text("test question", session)
+    
+    # Get answers for the question
+    result = AnnotatorService.get_question_answers(
+        question_id=question.id,
+        project_id=test_project.id,
+        session=session
+    )
+    assert len(result) == 1
+    assert result.iloc[0]["Answer Value"] == "option1"
+    assert result.iloc[0]["User ID"] == test_user.id
+
 def test_ground_truth_service_submit_ground_truth(session, test_user, test_project, test_video, test_question_group):
     """Test submitting ground truth answers."""
     answers = {
-        "Test Question 1": "option1",
-        "Test Question 2": "option2"
+        "test question": "option1"
     }
     
     GroundTruthService.submit_ground_truth_to_question_group(
@@ -364,30 +253,30 @@ def test_ground_truth_service_submit_ground_truth(session, test_user, test_proje
     )
     
     result = GroundTruthService.get_ground_truth(test_video.id, test_project.id, session)
-    assert len(result) == 2
+    assert len(result) == 1
     assert result.iloc[0]["Answer Value"] == "option1"
-    assert result.iloc[1]["Answer Value"] == "option2"
 
 def test_ground_truth_service_override_ground_truth(session, test_user, test_project, test_video, test_question_group):
     """Test overriding ground truth answers."""
     # First submit initial ground truth
-    answers = {"Test Question 1": "option1"}
+    initial_answers = {"test question": "option1"}
     GroundTruthService.submit_ground_truth_to_question_group(
         video_id=test_video.id,
         project_id=test_project.id,
         reviewer_id=test_user.id,
         question_group_id=test_question_group.id,
-        answers=answers,
+        answers=initial_answers,
         session=session
     )
     
     # Then override it
-    GroundTruthService.override_ground_truth(
+    override_answers = {"test question": "option2"}
+    GroundTruthService.override_ground_truth_to_question_group(
         video_id=test_video.id,
-        question_id=test_question_group.questions[0].id,
         project_id=test_project.id,
+        question_group_id=test_question_group.id,
         admin_id=test_user.id,
-        new_answer_value="option2",
+        answers=override_answers,
         session=session
     )
     
@@ -398,48 +287,97 @@ def test_ground_truth_service_override_ground_truth(session, test_user, test_pro
 
 def test_ground_truth_service_override_ground_truth_invalid_admin(session, test_project, test_video, test_question_group):
     """Test overriding ground truth with invalid admin."""
-    with pytest.raises(ValueError, match="User 999 is not an admin"):
-        GroundTruthService.override_ground_truth(
+    # Create a new non-admin user
+    AuthService.create_user(
+        user_id="2",
+        email="test@test.com",
+        password_hash="test",
+        user_type="human",
+        session=session
+    )
+    user = AuthService.get_user_by_id("2", session)
+
+    # Add the user to the project
+    ProjectService.add_user_to_project(
+        user_id=user.id,
+        project_id=test_project.id,
+        role="reviewer",
+        session=session
+    )
+
+    # submit ground truth
+    answers = {"test question": "option1"}
+    GroundTruthService.submit_ground_truth_to_question_group(
+        video_id=test_video.id,
+        project_id=test_project.id,
+        reviewer_id=user.id,
+        question_group_id=test_question_group.id,
+        answers=answers,
+        session=session
+    )
+
+    override_answers = {"test question": "option2"}
+    with pytest.raises(ValueError, match="User 1 does not have admin role in project 1"):
+        GroundTruthService.override_ground_truth_to_question_group(
             video_id=test_video.id,
-            question_id=test_question_group.questions[0].id,
             project_id=test_project.id,
-            admin_id=999,
-            new_answer_value="option2",
+            question_group_id=test_question_group.id,
+            admin_id=user.id,
+            answers=override_answers,
             session=session
         )
 
+    AuthService.update_user_role(
+        user_id=user.id,
+        new_role="admin",
+        session=session
+    )
+    # Admin can override ground truth
+    GroundTruthService.override_ground_truth_to_question_group(
+        video_id=test_video.id,
+        project_id=test_project.id,
+        question_group_id=test_question_group.id,
+        admin_id=user.id,
+        answers=override_answers,
+        session=session
+    )
+
+    assert GroundTruthService.get_ground_truth(test_video.id, test_project.id, session).iloc[0]["Answer Value"] == "option2"
+
 def test_ground_truth_service_override_ground_truth_invalid_option(session, test_user, test_project, test_video, test_question_group):
     """Test overriding ground truth with invalid option."""
+    override_answers = {"test question": "invalid_option"}
     with pytest.raises(ValueError, match="Answer value 'invalid_option' not in options"):
-        GroundTruthService.override_ground_truth(
+        GroundTruthService.override_ground_truth_to_question_group(
             video_id=test_video.id,
-            question_id=test_question_group.questions[0].id,
             project_id=test_project.id,
+            question_group_id=test_question_group.id,
             admin_id=test_user.id,
-            new_answer_value="invalid_option",
+            answers=override_answers,
             session=session
         )
 
 def test_ground_truth_service_get_reviewer_accuracy(session, test_user, test_project, test_video, test_question_group):
     """Test getting reviewer accuracy."""
     # Submit some ground truth answers
-    answers = {"Test Question 1": "option1"}
+    initial_answers = {"test question": "option1"}
     GroundTruthService.submit_ground_truth_to_question_group(
         video_id=test_video.id,
         project_id=test_project.id,
         reviewer_id=test_user.id,
         question_group_id=test_question_group.id,
-        answers=answers,
+        answers=initial_answers,
         session=session
     )
     
-    # Override one answer
-    GroundTruthService.override_ground_truth(
+    # Override all answers
+    override_answers = {"test question": "option2"}
+    GroundTruthService.override_ground_truth_to_question_group(
         video_id=test_video.id,
-        question_id=test_question_group.questions[0].id,
         project_id=test_project.id,
+        question_group_id=test_question_group.id,
         admin_id=test_user.id,
-        new_answer_value="option2",
+        answers=override_answers,
         session=session
     )
     
@@ -449,7 +387,7 @@ def test_ground_truth_service_get_reviewer_accuracy(session, test_user, test_pro
 def test_ground_truth_service_get_annotator_accuracy(session, test_user, test_project, test_video, test_question_group):
     """Test getting annotator accuracy."""
     # Submit annotator answer
-    answers = {"Test Question 1": "option1"}
+    answers = {"test question": "option1"}
     AnnotatorService.submit_answer_to_question_group(
         video_id=test_video.id,
         project_id=test_project.id,
@@ -469,10 +407,188 @@ def test_ground_truth_service_get_annotator_accuracy(session, test_user, test_pr
         session=session
     )
     
+    # Get the question using QuestionService
+    question = QuestionService.get_question_by_text("test question", session)
+    
     accuracy = GroundTruthService.get_annotator_accuracy(
         project_id=test_project.id,
-        question_id=test_question_group.questions[0].id,
+        question_id=question.id,
         session=session
     )
     assert len(accuracy) == 1
-    assert accuracy.iloc[0]["Correct"] == 1  # Answer matches ground truth 
+    assert accuracy.iloc[0]["Correct"] == 1  # Answer matches ground truth
+
+def test_ground_truth_service_submit_ground_truth_invalid_question_text(session, test_user, test_project, test_video, test_question_group):
+    """Test submitting ground truth with invalid question text."""
+    answers = {
+        "Invalid Question": "option1"
+    }
+    with pytest.raises(ValueError, match="Answers do not match questions in group"):
+        GroundTruthService.submit_ground_truth_to_question_group(
+            video_id=test_video.id,
+            project_id=test_project.id,
+            reviewer_id=test_user.id,
+            question_group_id=test_question_group.id,
+            answers=answers,
+            session=session
+        )
+
+def test_ground_truth_service_override_same_value(session, test_user, test_project, test_video, test_question_group):
+    """Test overriding ground truth with same value (should not update)."""
+    # Submit initial ground truth
+    initial_answers = {
+        "test question": "option1"
+    }
+    GroundTruthService.submit_ground_truth_to_question_group(
+        video_id=test_video.id,
+        project_id=test_project.id,
+        reviewer_id=test_user.id,
+        question_group_id=test_question_group.id,
+        answers=initial_answers,
+        session=session
+    )
+    
+    # Get initial ground truth
+    initial_gt = GroundTruthService.get_ground_truth(test_video.id, test_project.id, session)
+    initial_modified_at = initial_gt.iloc[0]["Modified At"]
+    
+    # Override with same value
+    GroundTruthService.override_ground_truth_to_question_group(
+        video_id=test_video.id,
+        project_id=test_project.id,
+        question_group_id=test_question_group.id,
+        admin_id=test_user.id,
+        answers=initial_answers,
+        session=session
+    )
+    
+    # Verify no update occurred
+    updated_gt = GroundTruthService.get_ground_truth(test_video.id, test_project.id, session)
+    assert updated_gt.iloc[0]["Modified At"] == initial_modified_at
+
+def test_ground_truth_service_reviewer_accuracy_no_answers(session, test_user, test_project):
+    """Test reviewer accuracy calculation with no answers."""
+    accuracy = GroundTruthService.get_reviewer_accuracy(test_user.id, test_project.id, session)
+    assert accuracy == 0.0
+
+def test_ground_truth_service_reviewer_accuracy_all_modified(session, test_user, test_project, test_video, test_question_group):
+    """Test reviewer accuracy calculation with all modified answers."""
+    # Submit initial ground truth
+    initial_answers = {
+        "test question": "option1"
+    }
+    GroundTruthService.submit_ground_truth_to_question_group(
+        video_id=test_video.id,
+        project_id=test_project.id,
+        reviewer_id=test_user.id,
+        question_group_id=test_question_group.id,
+        answers=initial_answers,
+        session=session
+    )
+    
+    # Override all answers
+    override_answers = {
+        "test question": "option2"
+    }
+    GroundTruthService.override_ground_truth_to_question_group(
+        video_id=test_video.id,
+        project_id=test_project.id,
+        question_group_id=test_question_group.id,
+        admin_id=test_user.id,
+        answers=override_answers,
+        session=session
+    )
+    
+    # Verify accuracy is 0
+    accuracy = GroundTruthService.get_reviewer_accuracy(test_user.id, test_project.id, session)
+    assert accuracy == 0.0
+
+def test_ground_truth_service_annotator_accuracy_mixed(session, test_user, test_project, test_video, test_question_group):
+    """Test annotator accuracy calculation with mixed correct/incorrect answers."""
+    # Submit ground truth
+    gt_answers = {
+        "test question": "option1"
+    }
+    GroundTruthService.submit_ground_truth_to_question_group(
+        video_id=test_video.id,
+        project_id=test_project.id,
+        reviewer_id=test_user.id,
+        question_group_id=test_question_group.id,
+        answers=gt_answers,
+        session=session
+    )
+    
+    # Submit annotator answers (one correct, one incorrect)
+    annotator_answers = {
+        "test question": "option2"  # Incorrect
+    }
+    AnnotatorService.submit_answer_to_question_group(
+        video_id=test_video.id,
+        project_id=test_project.id,
+        user_id=test_user.id,
+        question_group_id=test_question_group.id,
+        answers=annotator_answers,
+        session=session
+    )
+    
+    # Get the question using QuestionService
+    question = QuestionService.get_question_by_text("test question", session)
+    
+    # Verify accuracy is 0%
+    accuracy_df = GroundTruthService.get_annotator_accuracy(
+        project_id=test_project.id,
+        question_id=question.id,
+        session=session
+    )
+    assert len(accuracy_df) == 1
+    assert accuracy_df.iloc[0]["Correct"] == 0
+
+def test_answer_services_verification_function(session, test_user, test_project, test_video, test_question_group):
+    """Test answer submission with verification function."""
+    # Add verification function to question group
+    test_question_group.verification_function = "verify_answers"
+    session.commit()
+    
+    # Submit answers that should fail verification
+    answers = {
+        "test question": "invalid_option"
+    }
+    with pytest.raises(ValueError, match="Verification function 'verify_answers' not found in verify.py"):
+        AnnotatorService.submit_answer_to_question_group(
+            video_id=test_video.id,
+            project_id=test_project.id,
+            user_id=test_user.id,
+            question_group_id=test_question_group.id,
+            answers=answers,
+            session=session
+        )
+
+def test_answer_services_completion_status(session, test_user, test_project, test_video, test_question_group):
+    """Test completion status updates."""
+    # Get the question group id
+    question_group_id = test_question_group.id
+    # Submit answers for all questions
+    # Get all questions in the question group
+    questions = QuestionGroupService.get_group_questions(question_group_id, session)
+    answers = {q["Text"]: "option1" for _, q in questions.iterrows()}
+    AnnotatorService.submit_answer_to_question_group(
+        video_id=test_video.id,
+        project_id=test_project.id,
+        user_id=test_user.id,
+        question_group_id=question_group_id,
+        answers=answers,
+        session=session
+    )
+    
+    # Get user's role using AuthService
+    assignments = AuthService.get_project_assignments(session)
+    user_role = assignments[
+        (assignments["User ID"] == test_user.id) & 
+        (assignments["Project ID"] == test_project.id) &
+        (assignments["Role"] == "annotator") &
+        (assignments["Archived"] == False)
+    ].iloc[0]
+    
+    # Verify completion status
+    assert user_role["Completed At"] is not None
+    assert user_role["Completed At"] <= datetime.now(timezone.utc)

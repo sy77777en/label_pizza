@@ -267,9 +267,12 @@ class ProjectService:
             session: Database session
             
         Returns:
-            Project object if found, None otherwise
+            Project object if found, raises ValueError otherwise
         """
-        return session.scalar(select(Project).where(Project.name == name))
+        project = session.scalar(select(Project).where(Project.name == name))
+        if not project:
+            raise ValueError(f"Project with name '{name}' not found")
+        return project
 
     @staticmethod
     def get_all_projects(session: Session) -> pd.DataFrame:
@@ -477,9 +480,12 @@ class ProjectService:
             session: Database session
         
         Returns:
-            Project object if found, None otherwise
+            Project object if found, raises ValueError otherwise
         """
-        return session.get(Project, project_id)
+        project = session.get(Project, project_id)
+        if not project:
+            raise ValueError(f"Project with ID {project_id} not found")
+        return project
 
     @staticmethod
     def add_user_to_project(project_id: int, user_id: int, role: str, session: Session) -> None:
@@ -1180,6 +1186,22 @@ class AuthService:
         if not user:
             raise ValueError(f"User with ID '{user_id}' not found")
         return user
+    
+    @staticmethod
+    def get_user_by_name(user_name: str, session: Session) -> Optional[User]:
+        """Get a user by their name.
+        
+        Args:
+            user_name: The name of the user
+            session: Database session
+            
+        Returns:
+            User object if found, raises ValueError otherwise
+        """
+        user = session.scalar(select(User).where(User.user_id_str == user_name))
+        if not user:
+            raise ValueError(f"User with name '{user_name}' not found")
+        return user
 
     @staticmethod
     def get_user_by_email(email: str, session: Session) -> Optional[User]:
@@ -1335,17 +1357,6 @@ class AuthService:
             raise ValueError(f"User with ID {user_id} not found")
         if new_role not in ["human", "model", "admin"]:
             raise ValueError(f"Invalid role: {new_role}")
-        
-        # If changing to admin role, assign to all projects
-        if new_role == "admin" and user.user_type != "admin":
-            # Get all non-archived projects
-            projects = session.scalars(
-                select(Project).where(Project.is_archived == False)
-            ).all()
-            
-            # Assign user as admin to each project
-            for project in projects:
-                ProjectService.add_user_to_project(user_id, project.id, "admin", session)
 
         # Cannot change from human/admin to model
         if user.user_type == "human" or user.user_type == "admin":
@@ -1372,8 +1383,21 @@ class AuthService:
             for assignment in assignments:
                 assignment.is_archived = True
         
-        user.user_type = new_role
-        session.commit()
+        # If changing to admin role, assign to all projects
+        if new_role == "admin" and user.user_type != "admin":
+            user.user_type = new_role
+            session.commit()
+            # Get all non-archived projects
+            projects = session.scalars(
+                select(Project).where(Project.is_archived == False)
+            ).all()
+            
+            # Assign user as admin to each project
+            for project in projects:
+                ProjectService.add_user_to_project(user_id, project.id, "admin", session)
+        else:
+            user.user_type = new_role
+            session.commit()
 
     @staticmethod
     def toggle_user_archived(user_id: int, session: Session) -> None:
@@ -1567,31 +1591,6 @@ class AuthService:
         for assignment in assignments:
             assignment.is_archived = True
         
-        session.commit()
-
-    @staticmethod
-    def unarchive_user_from_project(user_id: int, project_id: int, session: Session) -> None:
-        """Unarchive a user's assignment from a project.
-        
-        Args:
-            user_id: The ID of the user
-            project_id: The ID of the project
-            session: Database session
-            
-        Raises:
-            ValueError: If assignment not found
-        """
-        assignment = session.scalar(
-            select(ProjectUserRole).where(
-                ProjectUserRole.user_id == user_id,
-                ProjectUserRole.project_id == project_id
-            )
-        )
-        
-        if not assignment:
-            return
-        
-        assignment.is_archived = False
         session.commit()
 
 class QuestionGroupService:
@@ -2310,6 +2309,10 @@ class AnnotatorService(BaseAnswerService):
         for question in questions:
             answer_value = answers[question.text]
             confidence_score = confidence_scores.get(question.text) if confidence_scores else None
+            # If confidence score is not None, check if it's float
+            if confidence_score is not None:
+                if not isinstance(confidence_score, float):
+                    raise ValueError(f"Confidence score for question '{question.text}' must be a float")
             note = notes.get(question.text) if notes else None
             
             # Validate answer value
@@ -2468,6 +2471,10 @@ class GroundTruthService(BaseAnswerService):
         for question in questions:
             answer_value = answers[question.text]
             confidence_score = confidence_scores.get(question.text) if confidence_scores else None
+            # If confidence score is not None, check if it's float
+            if confidence_score is not None:
+                if not isinstance(confidence_score, float):
+                    raise ValueError(f"Confidence score for question '{question.text}' must be a float")
             note = notes.get(question.text) if notes else None
             
             # Validate answer value
@@ -2538,64 +2545,6 @@ class GroundTruthService(BaseAnswerService):
             }
             for gt in gts
         ])
-
-    @staticmethod
-    def override_ground_truth(
-        video_id: int,
-        question_id: int,
-        project_id: int,
-        admin_id: int,
-        new_answer_value: str,
-        session: Session
-    ) -> None:
-        """Override a ground truth answer (admin only).
-        
-        Args:
-            video_id: The ID of the video
-            question_id: The ID of the question
-            project_id: The ID of the project
-            admin_id: The ID of the admin
-            new_answer_value: The new answer value
-            session: Database session
-            
-        Raises:
-            ValueError: If validation fails
-        """
-        # Check if admin is active
-        admin = session.get(User, admin_id)
-        if not admin:
-            raise ValueError(f"Admin with ID {admin_id} not found")
-        if admin.is_archived:
-            raise ValueError("Admin is archived")
-        if admin.user_type != "admin":
-            raise ValueError(f"User {admin_id} is not an admin")
-            
-        # Get ground truth
-        gt = session.get(ReviewerGroundTruth, (video_id, question_id, project_id))
-        if not gt:
-            raise ValueError(f"No ground truth found for video {video_id}, question {question_id}, project {project_id}")
-            
-        # Get question to validate answer type
-        question = session.get(Question, question_id)
-        if not question:
-            raise ValueError(f"Question with ID {question_id} not found")
-            
-        # Validate answer value for single-choice questions
-        if question.type == "single":
-            if not question.options:
-                raise ValueError("Question has no options defined")
-            if new_answer_value not in question.options:
-                raise ValueError(f"Answer value '{new_answer_value}' not in options: {', '.join(question.options)}")
-        elif question.type == "description":
-            if not isinstance(new_answer_value, str):
-                raise ValueError("Description answers must be strings")
-        
-        # Update ground truth
-        gt.answer_value = new_answer_value
-        gt.modified_by_admin_id = admin_id
-        gt.modified_by_admin_at = datetime.now(timezone.utc)
-        
-        session.commit()
 
     @staticmethod
     def get_reviewer_accuracy(reviewer_id: int, project_id: int, session: Session) -> float:
