@@ -1,4 +1,4 @@
-# Video-Labeling Platform · Database Schema v 1.0
+# Video-Labeling Platform · Database Schema v 1.1
 > **PostgreSQL + SQLAlchemy** — soft links (no hard FKs); integrity enforced in the service layer.
 
 ---
@@ -254,16 +254,16 @@ For single-choice questions:
 
 ## 11 · `answer_reviews`
 
-| column | type |
-| ------ | ---- |
-| `id`           | INT PK |
-| `answer_id`    | INT |
-| `reviewer_id`  | INT |
-| `status`       | ENUM (pending / approved / rejected) |
-| `comment`      | TEXT |
-| `reviewed_at`  | TIMESTAMPTZ |
+| column | type | notes |
+| ------ | ---- | ----- |
+| `id` | INT PK |
+| `answer_id` | INT UNIQUE | Reference to annotator_answers.id |
+| `reviewer_id` | INT | Reviewer who performed the review |
+| `status` | ENUM (pending / approved / rejected) |
+| `comment` | TEXT |
+| `reviewed_at` | TIMESTAMPTZ |
 
-**Rationale** – Manual moderation of free-text; single-choice rows auto-grade.
+**Rationale** – Tracks review status and comments for annotator answers. One review per answer. Manual moderation of free-text; single-choice rows auto-grade.
 
 ---
 

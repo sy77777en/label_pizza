@@ -10,21 +10,16 @@ import json
 Base = declarative_base()
 now = lambda: datetime.utcnow()
 
-# ---------- Helper --------------------------------------------------------
-class QueryHelper:
-    @staticmethod
-    def active(query):
-        mdl = query.column_descriptions[0]["entity"]
-        if hasattr(mdl, "is_archived"):
-            return query.filter(mdl.is_archived.is_(False))
-        return query
-# --------------------------------------------------------------------------
 
 class User(Base):
+    """Global identity; user_type='admin' bypasses project ACLs.
+    Soft-disable via is_archived keeps audit history.
+    Email is only required for human and admin users; model users don't have emails.
+    """
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
-    user_id_str = Column(String(128), unique=True, nullable=False)
-    email = Column(String(255), unique=True, nullable=True)
+    user_id_str = Column(String(128), unique=True, nullable=False)  # login / SSO handle
+    email = Column(String(255), unique=True, nullable=True)  # Required for human/admin users, NULL for model users
     password_hash = Column(Text, nullable=False)
     user_type = Column(Enum("human", "model", "admin", name="user_types"), default="human")
     created_at = Column(DateTime(timezone=True), default=now)
@@ -32,9 +27,12 @@ class User(Base):
     is_archived = Column(Boolean, default=False)
 
 class Video(Base):
+    """video_uid lets UI find assets without joins; metadata stays searchable.
+    Archiving supports takedowns.
+    """
     __tablename__ = "videos"
     id = Column(Integer, primary_key=True)
-    video_uid = Column(String(255), unique=True, nullable=False)
+    video_uid = Column(String(255), unique=True, nullable=False)  # file-name or UUID
     url = Column(Text)
     video_metadata = Column(JSONB)
     created_at = Column(DateTime(timezone=True), default=now)
@@ -42,23 +40,37 @@ class Video(Base):
     is_archived = Column(Boolean, default=False)
 
 class VideoTag(Base):
+    """Global flags (NSFW, epilepsy). Only trusted actors write rows."""
     __tablename__ = "video_tags"
     video_id = Column(Integer, primary_key=True)
     tag = Column(String(64), primary_key=True)
     tag_source = Column(Enum("model", "reviewer", name="tag_sources"), default="model")
     created_at = Column(DateTime(timezone=True), default=now)
-    __table_args__ = (Index("ix_tag_lookup", "tag"),)
+    __table_args__ = (
+        Index("ix_tag_lookup", "tag", postgresql_using="gin"),  # GIN index for tag lookups
+    )
 
 class QuestionGroup(Base):
+    """Question group for bundling logically related questions.
+    Verification function allows custom validation per question group.
+    """
     __tablename__ = "question_groups"
     id = Column(Integer, primary_key=True)
     title = Column(String(255), unique=True, nullable=False)
     description = Column(Text)
-    is_reusable = Column(Boolean, default=False)
+    is_reusable = Column(Boolean, default=False)  # TRUE ⇒ can be imported by many schemas
     is_archived = Column(Boolean, default=False)
     verification_function = Column(String(255), nullable=True)  # Name of verification function in verify.py
 
 class Question(Base):
+    """Supports both radio and free-text; single-choice values indexed, descriptions not.
+    Question text must be unique to prevent confusion and ensure consistent labeling.
+    For single-choice questions:
+    - options stores the actual values used in answers
+    - display_values stores the UI-friendly text for each option
+    - Both arrays must have matching lengths
+    - For description-type questions, both fields are NULL
+    """
     __tablename__ = "questions"
     id = Column(Integer, primary_key=True)
     text = Column(Text, unique=True)
@@ -66,11 +78,11 @@ class Question(Base):
     options = Column(JSONB, nullable=True)  # Actual option values used in answers
     display_values = Column(JSONB, nullable=True)  # Display text for options in UI
     default_option = Column(String(120), nullable=True)
-
     is_archived = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), default=now)
 
 class QuestionGroupQuestion(Base):
+    """Many-to-many relationship between questions and groups with ordering."""
     __tablename__ = "question_group_questions"
     question_group_id = Column(Integer, nullable=False)
     question_id = Column(Integer, nullable=False)
@@ -80,16 +92,17 @@ class QuestionGroupQuestion(Base):
     )
 
 class Schema(Base):
+    """Reusable question sets; no FK allows forks without cascade.
+    """
     __tablename__ = "schemas"
     id = Column(Integer, primary_key=True)
     name = Column(Text, unique=True, nullable=False)
-    rules_json = Column(JSONB)
     created_at = Column(DateTime(timezone=True), default=now)
     updated_at = Column(DateTime(timezone=True), default=now, onupdate=now)
     is_archived = Column(Boolean, default=False)
 
-
 class SchemaQuestionGroup(Base):
+    """Many-to-many relationship between schemas and question groups with ordering."""
     __tablename__ = "schema_question_groups"
     schema_id = Column(Integer, nullable=False)
     question_group_id = Column(Integer, nullable=False)
@@ -99,9 +112,10 @@ class SchemaQuestionGroup(Base):
     )
 
 class Project(Base):
+    """A project = schema + video subset + roles; archiving hides it while retaining history."""
     __tablename__ = "projects"
     id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
+    name = Column(Text, nullable=False)  # Changed from String to Text to match design
     schema_id = Column(Integer, nullable=False)
     description = Column(Text)
     created_at = Column(DateTime(timezone=True), default=now)
@@ -124,13 +138,14 @@ class ProjectUserRole(Base):
     is_archived = Column(Boolean, default=False)
     __table_args__ = (
         PrimaryKeyConstraint('project_id', 'user_id', 'role'),
-        Index("ix_user_projects", "user_id"),
+        Index("ix_user_projects", "user_id"),  # Index for user's project lookups
     )
 
 class ProjectGroup(Base):
+    """Bundles arbitrary projects for export/report dashboards."""
     __tablename__ = "project_groups"
     id = Column(Integer, primary_key=True)
-    name = Column(String, unique=True, nullable=False)
+    name = Column(Text, unique=True, nullable=False)  # Changed from String to Text to match design
     description = Column(Text)
     created_at = Column(DateTime(timezone=True), default=now)
     is_archived = Column(Boolean, default=False)
@@ -141,6 +156,7 @@ class ProjectGroupProject(Base):
     project_id = Column(Integer, primary_key=True)
 
 class AnnotatorAnswer(Base):
+    """Stores annotator submissions with confidence scores and modification history."""
     __tablename__ = "annotator_answers"
     id = Column(Integer, primary_key=True)
     video_id = Column(Integer, nullable=False)
@@ -164,12 +180,12 @@ class AnnotatorAnswer(Base):
         Index("ix_proj_q_val_single", "project_id", "question_id", "answer_value", 
               postgresql_where=(answer_type == "single")),  # Fast lookups for single-choice answers
         Index("ix_annotator_vid_q", "video_id", "question_id"),  # Query answers for specific video+question
-
         Index("ix_annotator_user_proj", "user_id", "project_id"),  # Query annotator's answers for a project
         Index("ix_annotator_user_proj_q", "user_id", "project_id", "question_id"),  # Query annotator's answers for a project+question
     )
 
 class ReviewerGroundTruth(Base):
+    """Stores ground truth answers with modification tracking and accuracy metrics."""
     __tablename__ = "reviewer_ground_truth"
     
     # Composite primary key ensures exactly one ground truth per (video, question, project)
@@ -209,10 +225,11 @@ class ReviewerGroundTruth(Base):
     )
 
 class AnswerReview(Base):
+    """Tracks review status and comments for annotator answers. One review per answer."""
     __tablename__ = "answer_reviews"
     id = Column(Integer, primary_key=True)
-    answer_id = Column(Integer, nullable=False, unique=True)
-    reviewer_id = Column(Integer, nullable=False)
+    answer_id = Column(Integer, nullable=False, unique=True)  # Reference to annotator_answers.id
+    reviewer_id = Column(Integer, nullable=False)  # Reviewer who performed the review
     status = Column(Enum("pending", "approved", "rejected", name="review_status"), default="pending")
     comment = Column(Text)
     reviewed_at = Column(DateTime(timezone=True), default=now)
