@@ -1,5 +1,5 @@
 import pytest
-from label_pizza.services import ProjectGroupService, ProjectService
+from label_pizza.services import ProjectGroupService, ProjectService, SchemaService, QuestionGroupService, QuestionService, VideoService
 from label_pizza.models import ProjectGroup, ProjectGroupProject, Project, Video, Schema, Question, QuestionGroup, QuestionGroupQuestion, SchemaQuestionGroup
 
 def test_project_group_service_create_project_group(session, test_project):
@@ -117,8 +117,8 @@ def test_project_group_service_edit_project_group_duplicate_name(session, test_p
 
 def test_project_group_service_edit_project_group_add_remove_projects(session, test_project):
     """Test adding and removing projects from a project group."""
-    # Create another project
-    schema = Schema(name="test_schema")
+    # Create another project with a different schema
+    schema = Schema(name="test_schema_2")  # Changed schema name to be unique
     session.add(schema)
     session.flush()
     
@@ -212,50 +212,82 @@ def test_project_group_service_list_project_groups(session, test_project):
     assert group_names == {"group1", "group2"}
 
 def test_project_group_service_validate_project_group_uniqueness(session):
-    """Test validation of project group uniqueness."""
-    # Create schema
-    schema = Schema(name="test_schema")
-    session.add(schema)
-    session.flush()
+    """Test that project group validation prevents adding projects with overlapping content."""
+    # Create a question
+    question = QuestionService.add_question(
+        text="test_question",
+        qtype="single",
+        options=["yes", "no"],
+        default=None,
+        session=session
+    )
     
-    # Create question group
-    question_group = QuestionGroup(title="test_group", description="Test group")
-    session.add(question_group)
-    session.flush()
+    # Create a question group
+    question_group = QuestionGroupService.create_group(
+        title="test_group",
+        description="Test group",
+        is_reusable=True,
+        question_ids=[question.id],
+        verification_function=None,
+        session=session
+    )
     
-    # Create question
-    question = Question(text="test_question", type="single", options=["yes", "no"])
-    session.add(question)
-    session.flush()
+    # Create a schema with the question group
+    schema = SchemaService.create_schema(
+        name="test_schema",
+        question_group_ids=[question_group.id],
+        session=session
+    )
     
-    # Add question to group
-    session.add(QuestionGroupQuestion(question_group_id=question_group.id, question_id=question.id))
+    # Create a video
+    VideoService.add_video(
+        url="http://example.com/video.mp4",
+        session=session
+    )
+    video = VideoService.get_video_by_uid("video.mp4", session)
     
-    # Add group to schema
-    session.add(SchemaQuestionGroup(schema_id=schema.id, question_group_id=question_group.id))
+    # Create two projects with the same schema and video
+    ProjectService.create_project(
+        name="project1",
+        schema_id=schema.id,
+        video_ids=[video.id],
+        session=session
+    )
+    project1 = ProjectService.get_project_by_name("project1", session)
     
-    # Create video
-    video = Video(video_uid="test_video", url="http://example.com/video")
-    session.add(video)
-    session.flush()
-    
-    # Create two projects with same schema and video
-    project1 = Project(name="project1", schema_id=schema.id)
-    project2 = Project(name="project2", schema_id=schema.id)
-    session.add_all([project1, project2])
-    session.flush()
-    
-    session.add_all([
-        ProjectVideo(project_id=project1.id, video_id=video.id),
-        ProjectVideo(project_id=project2.id, video_id=video.id)
-    ])
-    session.commit()
-    
-    # Try to create group with both projects
-    with pytest.raises(ValueError, match="Projects .* have overlapping questions and videos"):
+    ProjectService.create_project(
+        name="project2",
+        schema_id=schema.id,
+        video_ids=[video.id],
+        session=session
+    )
+    project2 = ProjectService.get_project_by_name("project2", session)
+    # Try to create a group with both projects - should fail due to overlap
+    with pytest.raises(ValueError, match="Projects .* have overlapping questions and videos: .*"):
         ProjectGroupService.create_project_group(
             name="test_group",
             description="Test description",
             project_ids=[project1.id, project2.id],
             session=session
-        ) 
+        )
+    
+    # Create a group with one project - should succeed
+    ProjectGroupService.create_project_group(
+        name="test_group_success",
+        description="Test description",
+        project_ids=[project1.id],
+        session=session
+    )
+
+    # Get the group
+    group = ProjectGroupService.get_project_group_by_name("test_group_success", session)
+
+    with pytest.raises(ValueError, match="Projects .* have overlapping questions and videos: .*"):
+        ProjectGroupService.edit_project_group(
+            group_id=group.id,
+            name="test_group_failed",
+            description="Test description",
+            add_project_ids=[project2.id],
+            remove_project_ids=None,
+            session=session
+        )

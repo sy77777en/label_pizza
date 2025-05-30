@@ -23,7 +23,7 @@ class User(Base):
     password_hash = Column(Text, nullable=False)
     user_type = Column(Enum("human", "model", "admin", name="user_types"), default="human")
     created_at = Column(DateTime(timezone=True), default=now)
-    updated_at = Column(DateTime(timezone=True), default=now)
+    updated_at = Column(DateTime(timezone=True), default=now, onupdate=now)
     is_archived = Column(Boolean, default=False)
 
 class Video(Base):

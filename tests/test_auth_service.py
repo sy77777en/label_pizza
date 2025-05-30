@@ -257,7 +257,7 @@ def test_auth_service_update_user_password(session, test_user):
     user = AuthService.get_user_by_id("test_user", session)
     assert user is not None
     assert user.password_hash == "new_password"
-    assert user.password_updated_at is not None
+    assert user.updated_at is not None
 
 def test_auth_service_update_user_role(session, test_user):
     """Test updating a user's role."""

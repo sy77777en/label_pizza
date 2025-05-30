@@ -277,18 +277,18 @@ def test_question_service_edit_question_duplicate_text(session, test_question):
 
 def test_question_service_edit_question_single_choice_no_options(session, test_question):
     """Test editing a single-choice question without options."""
-    with pytest.raises(ValueError, match="must have options"):
+    with pytest.raises(ValueError, match="Cannot remove existing options: .*"):
         QuestionService.edit_question(
             test_question.id,
             new_text="test question",
-            new_opts=[],
-            new_default=None,
+            new_opts=["option1"],
+            new_default="option1",
             session=session
         )
 
 def test_question_service_edit_question_single_choice_empty_options(session, test_question):
     """Test editing a single-choice question with empty options."""
-    with pytest.raises(ValueError, match="must have options"):
+    with pytest.raises(ValueError, match="Cannot change question type"):
         QuestionService.edit_question(
             test_question.id,
             new_text="test question",

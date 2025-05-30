@@ -161,11 +161,11 @@ def test_video_service_get_videos_with_ground_truth(session, test_video, test_us
     )
     project = ProjectService.get_project_by_name("test_project_with_gt", session)
     
-    # Add reviewer role to user
+    # Add admin role to user
     ProjectService.add_user_to_project(
         project_id=project.id,
         user_id=test_user.id,
-        role="reviewer",
+        role="admin",
         session=session
     )
     session.commit()  # Commit to ensure role is available
@@ -365,7 +365,7 @@ def test_video_service_get_all_videos_with_metadata(session):
     assert df.iloc[0]["Archived"] == False
 
 
-def test_video_service_get_all_videos_with_review(session, test_video, test_schema, test_user):
+def test_video_service_get_all_videos_with_review(session, test_video, test_user):
     """Test getting videos with review status."""
     # Add questions to group through service layer
     questions = []
@@ -407,11 +407,11 @@ def test_video_service_get_all_videos_with_review(session, test_video, test_sche
     )
     project = ProjectService.get_project_by_name("test_project_with_review", session)
     
-    # Add reviewer role to user
+    # Add admin role to user
     ProjectService.add_user_to_project(
         project_id=project.id,
         user_id=test_user.id,
-        role="reviewer",
+        role="admin",
         session=session
     )
     session.commit()  # Commit to ensure role is available

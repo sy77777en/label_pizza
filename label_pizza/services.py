@@ -606,7 +606,6 @@ class SchemaService:
             rows.append({
                 "ID": s.id,
                 "Name": s.name,
-                "Rules": s.rules_json,
                 "Question Groups": ", ".join(g.title for g in groups) if groups else "No groups"
             })
         return pd.DataFrame(rows)
@@ -1346,7 +1345,6 @@ class AuthService:
             raise ValueError(f"User with ID {user_id} not found")
         
         user.password_hash = new_password  # Note: In production, this should be hashed
-        user.password_updated_at = datetime.now(timezone.utc)
         session.commit()
 
     @staticmethod
@@ -2827,7 +2825,7 @@ class GroundTruthService(BaseAnswerService):
 
 class ProjectGroupService:
     @staticmethod
-    def create_project_group(name: str, description: str, project_ids: list[int] | None, session: Session):
+    def create_project_group(name: str, description: str, project_ids: list[int] | None, session: Session) -> ProjectGroup:
         """Create a new project group with optional list of project IDs, enforcing uniqueness constraints."""
         # Check for unique name
         existing = session.scalar(select(ProjectGroup).where(ProjectGroup.name == name))
@@ -2847,7 +2845,7 @@ class ProjectGroupService:
         return group
 
     @staticmethod
-    def edit_project_group(group_id: int, name: str | None, description: str | None, add_project_ids: list[int] | None, remove_project_ids: list[int] | None, session: Session):
+    def edit_project_group(group_id: int, name: str | None, description: str | None, add_project_ids: list[int] | None, remove_project_ids: list[int] | None, session: Session) -> ProjectGroup:
         """Edit group name/description, add/remove projects, enforcing uniqueness constraints when adding."""
         group = session.get(ProjectGroup, group_id)
         if not group:
@@ -2855,7 +2853,7 @@ class ProjectGroupService:
         if name:
             # Check for unique name
             existing = session.scalar(select(ProjectGroup).where(ProjectGroup.name == name, ProjectGroup.id != group_id))
-            if existing:
+            if existing and existing.id != group_id:
                 raise ValueError(f"Project group with name '{name}' already exists")
             group.name = name
         if description:
@@ -2886,6 +2884,14 @@ class ProjectGroupService:
             .where(ProjectGroupProject.project_group_id == group_id)
         ).all()
         return {"group": group, "projects": projects}
+    
+    @staticmethod
+    def get_project_group_by_name(name: str, session: Session):
+        """Get a project group by name."""
+        group = session.scalar(select(ProjectGroup).where(ProjectGroup.name == name))
+        if not group:
+            raise ValueError(f"Project group with name '{name}' not found")
+        return group
 
     @staticmethod
     def list_project_groups(session: Session):
