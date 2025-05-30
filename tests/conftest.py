@@ -12,6 +12,13 @@ from label_pizza.services import (
 )
 from label_pizza.db import Base, test_engine, TestSessionLocal, init_test_db, get_test_session
 from dotenv import load_dotenv
+import os
+import sys
+from pathlib import Path
+
+# Add project root to Python path
+project_root = Path(__file__).parent.parent.absolute()
+sys.path.insert(0, str(project_root))
 
 load_dotenv()
 

@@ -47,7 +47,7 @@ class VideoTag(Base):
     tag_source = Column(Enum("model", "reviewer", name="tag_sources"), default="model")
     created_at = Column(DateTime(timezone=True), default=now)
     __table_args__ = (
-        Index("ix_tag_lookup", "tag", postgresql_using="gin"),  # GIN index for tag lookups
+        Index("ix_tag_lookup", "tag"),  # Regular B-tree index for tag lookups
     )
 
 class QuestionGroup(Base):
