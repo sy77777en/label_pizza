@@ -24,7 +24,7 @@ class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
     user_id_str = Column(String(128), unique=True, nullable=False)
-    email = Column(String(255), unique=True, nullable=False)
+    email = Column(String(255), unique=True, nullable=True)
     password_hash = Column(Text, nullable=False)
     user_type = Column(Enum("human", "model", "admin", name="user_types"), default="human")
     created_at = Column(DateTime(timezone=True), default=now)
@@ -132,8 +132,6 @@ class ProjectGroup(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True, nullable=False)
     description = Column(Text)
-    is_default = Column(Boolean, default=False)
-    owner_user_id = Column(Integer)
     created_at = Column(DateTime(timezone=True), default=now)
     is_archived = Column(Boolean, default=False)
 

@@ -365,7 +365,7 @@ class ProjectService:
         ).all()
         
         for admin in admin_users:
-            AuthService.add_user_to_project(admin.id, project.id, "admin", session)
+            ProjectService.add_user_to_project(admin.id, project.id, "admin", session)
         
         session.commit()
 
@@ -1174,9 +1174,31 @@ class AuthService:
             session: Database session
             
         Returns:
-            User object if found, None otherwise
+            User object if found, raises ValueError otherwise
         """
-        return session.scalar(select(User).where(User.user_id_str == user_id))
+        user = session.scalar(select(User).where(User.user_id_str == user_id))
+        if not user:
+            raise ValueError(f"User with ID '{user_id}' not found")
+        return user
+
+    @staticmethod
+    def get_user_by_email(email: str, session: Session) -> Optional[User]:
+        """Get a user by their email.
+        
+        Args:
+            email: The email of the user
+            session: Database session
+            
+        Returns:
+            User object if found, raises ValueError otherwise
+            
+        Raises:
+            ValueError: If user not found
+        """
+        user = session.scalar(select(User).where(User.email == email))
+        if not user:
+            raise ValueError(f"User with email '{email}' not found")
+        return user
 
     @staticmethod
     def authenticate(email: str, pwd: str, role: str, session: Session) -> Optional[dict]:
@@ -1232,6 +1254,27 @@ class AuthService:
         ])
 
     @staticmethod
+    def get_users_by_type(user_type: str, session: Session) -> List[User]:
+        """Get all users of a specific type.
+        
+        Args:
+            user_type: The type of users to get ('human', 'model', or 'admin')
+            session: Database session
+            
+        Returns:
+            List of User objects of the specified type
+            
+        Raises:
+            ValueError: If user_type is invalid
+        """
+        if user_type not in ["human", "model", "admin"]:
+            raise ValueError(f"Invalid user type: {user_type}")
+            
+        return session.scalars(
+            select(User).where(User.user_type == user_type)
+        ).all()
+
+    @staticmethod
     def update_user_id(user_id: int, new_user_id: str, session: Session) -> None:
         """Update a user's ID."""
         user = session.get(User, user_id)
@@ -1254,6 +1297,14 @@ class AuthService:
         user = session.get(User, user_id)
         if not user:
             raise ValueError(f"User with ID {user_id} not found")
+        
+        # Model users cannot have emails
+        if user.user_type == "model":
+            raise ValueError("Model users cannot have emails")
+        
+        # Email is required for human and admin users
+        if not new_email:
+            raise ValueError("Email is required for human and admin users")
         
         # Check if new email already exists
         existing = session.scalar(
@@ -1294,7 +1345,7 @@ class AuthService:
             
             # Assign user as admin to each project
             for project in projects:
-                AuthService.add_user_to_project(user_id, project.id, "admin", session)
+                ProjectService.add_user_to_project(user_id, project.id, "admin", session)
 
         # Cannot change from human/admin to model
         if user.user_type == "human" or user.user_type == "admin":
@@ -1363,10 +1414,18 @@ class AuthService:
         if user_type not in ["human", "model", "admin"]:
             raise ValueError("Invalid user type. Must be one of: human, model, admin")
         
+        # For model users, email should be None
+        if user_type == "model":
+            if email:
+                raise ValueError("Model users cannot have emails")
+        elif not email:
+            raise ValueError("Email is required for human and admin users")
+        
         # Check if user already exists
         existing_user = session.scalar(
             select(User).where(
-                (User.user_id_str == user_id) | (User.email == email)
+                (User.user_id_str == user_id) | 
+                (User.email == email)
             )
         )
         if existing_user:
@@ -1389,7 +1448,7 @@ class AuthService:
             ).all()
             
             for project in projects:
-                AuthService.add_user_to_project(user.id, project.id, "admin", session)
+                ProjectService.add_user_to_project(user.id, project.id, "admin", session)
         
         session.commit()
         return user
@@ -2716,7 +2775,7 @@ class GroundTruthService(BaseAnswerService):
 
 class ProjectGroupService:
     @staticmethod
-    def create_project_group(name: str, description: str, owner_user_id: int, project_ids: list[int] | None, session: Session):
+    def create_project_group(name: str, description: str, project_ids: list[int] | None, session: Session):
         """Create a new project group with optional list of project IDs, enforcing uniqueness constraints."""
         # Check for unique name
         existing = session.scalar(select(ProjectGroup).where(ProjectGroup.name == name))
@@ -2725,8 +2784,6 @@ class ProjectGroupService:
         group = ProjectGroup(
             name=name,
             description=description,
-            owner_user_id=owner_user_id,
-            is_default=False
         )
         session.add(group)
         session.flush()  # get group.id

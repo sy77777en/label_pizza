@@ -191,7 +191,7 @@ Note: Schemas are immutable after creation to maintain data integrity. The displ
 
 | Function                                                                                                   | Status | Notes                                                                                                    |
 | ---------------------------------------------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------- |
-| `create_project_group(name, description, owner_user_id, project_ids, session)`                             | ✔︎     | Enforces uniqueness of (video, question) pairs across projects in group                                  |
+| `create_project_group(name, description, project_ids, session)`                             | ✔︎     | Enforces uniqueness of (video, question) pairs across projects in group                                  |
 | `edit_project_group(group_id, name, description, add_project_ids, remove_project_ids, session)`            | ✔︎     | Enforces uniqueness constraint when adding projects                                                      |
 | `get_project_group_by_id(group_id, session)`                                                               | ✔︎     | Returns group and its projects                                                                           |
 | `list_project_groups(session)`                                                                             | ✔︎     | Lists all project groups                                                                                 |

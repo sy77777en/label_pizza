@@ -24,7 +24,7 @@
 | ------ | ---- | ----------- |
 | `id`                | INT PK |
 | `user_id_str`       | VARCHAR(128) UNIQUE | login / SSO handle |
-| `email`             | VARCHAR(255) UNIQUE |
+| `email`             | VARCHAR(255) UNIQUE | Required for human/admin users, NULL for model users |
 | `password_hash`     | TEXT |
 | `user_type`         | ENUM (human / model / admin) |
 | `created_at`        | TIMESTAMPTZ |
@@ -33,6 +33,7 @@
 
 **Rationale** – Global identity; `user_type='admin'` bypasses project ACLs.  
 Soft-disable via `is_archived` keeps audit history.
+Email is only required for human and admin users; model users don't have emails.
 
 ---
 
@@ -178,8 +179,6 @@ For single-choice questions:
 | `id`           | INT PK |
 | `name`         | TEXT UNIQUE |
 | `description`  | TEXT |
-| `is_default`   | BOOL |
-| `owner_user_id`| INT nullable (NULL ⇒ global) |
 | `created_at`   | TIMESTAMPTZ |
 | `is_archived`  | BOOL |
 
