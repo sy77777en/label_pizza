@@ -1549,20 +1549,24 @@ class AuthService:
             session: Database session
             
         Raises:
-            ValueError: If assignment not found
+            ValueError: If no assignments found
         """
-        assignment = session.scalar(
+        # Get all role assignments for this user in this project
+        assignments = session.scalars(
             select(ProjectUserRole).where(
                 ProjectUserRole.user_id == user_id,
-                ProjectUserRole.project_id == project_id
+                ProjectUserRole.project_id == project_id,
+                ProjectUserRole.is_archived == False
             )
-        )
+        ).all()
         
-        if not assignment:
-            raise ValueError(f"No assignment found for user {user_id} in project {project_id}")
+        if not assignments:
+            return
         
-        # Instead of deleting, mark as archived
-        assignment.is_archived = True
+        # Archive all role assignments
+        for assignment in assignments:
+            assignment.is_archived = True
+        
         session.commit()
 
     @staticmethod
@@ -1585,7 +1589,7 @@ class AuthService:
         )
         
         if not assignment:
-            raise ValueError(f"No assignment found for user {user_id} in project {project_id}")
+            return
         
         assignment.is_archived = False
         session.commit()

@@ -368,10 +368,6 @@ def test_auth_service_archive_user_from_project(session, test_user, test_project
     assignments = AuthService.get_project_assignments(session)
     assert len(assignments) == 0
 
-    # Unarchive user from project
-    AuthService.unarchive_user_from_project(test_user.id, test_project.id, session)
-    assignments = AuthService.get_project_assignments(session)
-    assert len(assignments) == 3 # 1 admin, 1 annotator, 1 reviewer
 
 def test_auth_service_unarchive_user_from_project(session, test_user, test_project):
     """Test unarchiving a user from a project."""
@@ -380,13 +376,40 @@ def test_auth_service_unarchive_user_from_project(session, test_user, test_proje
     
     # Archive user from project
     AuthService.archive_user_from_project(test_user.id, test_project.id, session)
+    # Verify assignment is not archived
+    assignments = AuthService.get_project_assignments(session)
+    assert len(assignments) == 0
     
-    # Unarchive user from project
-    AuthService.unarchive_user_from_project(test_user.id, test_project.id, session)
-    
+    ProjectService.add_user_to_project(test_user.id, test_project.id, "admin", session)
     # Verify assignment is not archived
     assignments = AuthService.get_project_assignments(session)
     assert len(assignments) == 3 # 1 admin, 1 annotator, 1 reviewer
+
+
+def test_auth_service_unarchive_reviewer_from_project(session, test_project):
+    """Test unarchiving a reviewer from a project."""
+    # Add user to project
+    test_user = AuthService.create_user(
+        user_id="test_user",
+        email="test@example.com",
+        password_hash="test_hash",
+        user_type="human",
+        session=session
+    )
+    ProjectService.add_user_to_project(test_user.id, test_project.id, "reviewer", session)
+    assignments = AuthService.get_project_assignments(session)
+    assert len(assignments) == 2 # 1 reviewer, 1 annotator
+
+    # Archive user from project
+    AuthService.archive_user_from_project(test_user.id, test_project.id, session)
+    # Verify assignment is not archived
+    assignments = AuthService.get_project_assignments(session)
+    assert len(assignments) == 0
+    
+    ProjectService.add_user_to_project(test_user.id, test_project.id, "annotator", session)
+    # Verify assignment is not archived
+    assignments = AuthService.get_project_assignments(session)
+    assert len(assignments) == 1 # 1 annotator
 
 def test_auth_service_update_user_email_model_user(session):
     """Test that model users cannot have emails updated."""
