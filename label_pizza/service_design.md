@@ -1,9 +1,6 @@
-Below is a **single reference document (`docs/service_api.md`)** that describes every service-layer API you now have **plus the functions you still need to add** (tagged **🚧 Pending**).
-Copy this file into your repo and keep it updated as you implement new helpers.
-
 ---
 
-# Service-Layer API Spec (v 0.3)
+# Service-Layer API Spec
 
 > **Scope** – pure-Python helpers that wrap SQLAlchemy sessions.
 > **Goal** – allow UI (Streamlit, REST, CLI) and tests to call business logic without writing SQL.
