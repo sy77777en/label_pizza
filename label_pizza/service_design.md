@@ -1,6 +1,6 @@
 ---
 
-# Service-Layer API Spec
+Service-Layer API Spec
 
 > **Scope** – pure-Python helpers that wrap SQLAlchemy sessions.
 > **Goal** – allow UI (Streamlit, REST, CLI) and tests to call business logic without writing SQL.
