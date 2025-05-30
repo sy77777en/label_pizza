@@ -3,7 +3,7 @@ from label_pizza.services import AnnotatorService, GroundTruthService, ProjectSe
 import pandas as pd
 from datetime import datetime, timezone
 from sqlalchemy import select
-from label_pizza.models import Question, QuestionGroupQuestion, SchemaQuestionGroup, Project
+from label_pizza.models import Question, QuestionGroupQuestion, SchemaQuestionGroup, Project, AnnotatorAnswer, AnswerReview
 
 def test_annotator_service_submit_answer_to_question_group(session, test_user, test_project, test_video, test_question_group):
     """Test submitting answers to a question group."""
@@ -592,3 +592,161 @@ def test_answer_services_completion_status(session, test_user, test_project, tes
     # Verify completion status
     assert user_role["Completed At"] is not None
     assert user_role["Completed At"] <= datetime.now(timezone.utc)
+
+def test_ground_truth_service_submit_answer_review(session, test_user, test_project, test_video, test_question_group):
+    """Test submitting an answer review."""
+    # Create a description question
+    QuestionService.add_question(
+        text="description question",
+        qtype="description",
+        options=None,
+        default=None,
+        session=session
+    )
+    question = QuestionService.get_question_by_text("description question", session)
+    
+    # Create a new question group with the description question
+    description_group = QuestionGroupService.create_group(
+        title="Description Group",
+        description="Group for description questions",
+        is_reusable=True,
+        question_ids=[question.id],
+        verification_function=None,
+        session=session
+    )
+    
+    # Submit an answer
+    answers = {"description question": "test answer"}
+    AnnotatorService.submit_answer_to_question_group(
+        video_id=test_video.id,
+        project_id=test_project.id,
+        user_id=test_user.id,
+        question_group_id=description_group.id,
+        answers=answers,
+        session=session
+    )
+    
+    # Get the answer using AnnotatorService
+    result = AnnotatorService.get_answers(test_video.id, test_project.id, session)
+    answer_id = int(result.iloc[0]["Answer ID"])  # Convert to Python int
+    
+    # Submit review
+    GroundTruthService.submit_answer_review(
+        answer_id=answer_id,
+        reviewer_id=test_user.id,
+        status="approved",
+        comment="Good answer",
+        session=session
+    )
+    
+    # Verify review was created using GroundTruthService
+    review_result = GroundTruthService.get_answer_review(answer_id, session)
+    assert review_result is not None
+    assert review_result["status"] == "approved"
+    assert review_result["comment"] == "Good answer"
+    assert review_result["reviewer_id"] == test_user.id
+    assert review_result["reviewed_at"] is not None
+    
+    # Test overriding existing review
+    GroundTruthService.submit_answer_review(
+        answer_id=answer_id,
+        reviewer_id=test_user.id,
+        status="rejected",
+        comment="Changed my mind",
+        session=session
+    )
+    
+    # Verify review was updated
+    review_result = GroundTruthService.get_answer_review(answer_id, session)
+    assert review_result is not None
+    assert review_result["status"] == "rejected"
+    assert review_result["comment"] == "Changed my mind"
+    assert review_result["reviewer_id"] == test_user.id
+    assert review_result["reviewed_at"] is not None
+
+def test_ground_truth_service_submit_answer_review_invalid_answer(session, test_user):
+    """Test submitting review for non-existent answer."""
+    with pytest.raises(ValueError, match="Answer with ID 999 not found"):
+        GroundTruthService.submit_answer_review(
+            answer_id=999,
+            reviewer_id=test_user.id,
+            status="approved",
+            session=session
+        )
+
+def test_ground_truth_service_submit_answer_review_invalid_status(session, test_user, test_project, test_video, test_question_group):
+    """Test submitting review with invalid status."""
+    # Create a description question
+    QuestionService.add_question(
+        text="description question",
+        qtype="description",
+        options=None,
+        default=None,
+        session=session
+    )
+    question = QuestionService.get_question_by_text("description question", session)
+    
+    # Create a new question group with the description question
+    description_group = QuestionGroupService.create_group(
+        title="Description Group",
+        description="Group for description questions",
+        is_reusable=True,
+        question_ids=[question.id],
+        verification_function=None,
+        session=session
+    )
+    
+    # Submit an answer
+    answers = {"description question": "test answer"}
+    AnnotatorService.submit_answer_to_question_group(
+        video_id=test_video.id,
+        project_id=test_project.id,
+        user_id=test_user.id,
+        question_group_id=description_group.id,
+        answers=answers,
+        session=session
+    )
+    
+    # Get the answer using AnnotatorService
+    result = AnnotatorService.get_answers(test_video.id, test_project.id, session)
+    answer_id = int(result.iloc[0]["Answer ID"])  # Convert to Python int
+    
+    # Try to submit review with invalid status
+    with pytest.raises(ValueError, match="Invalid review status: invalid"):
+        GroundTruthService.submit_answer_review(
+            answer_id=answer_id,
+            reviewer_id=test_user.id,
+            status="invalid",
+            session=session
+        )
+
+def test_ground_truth_service_submit_answer_review_single_choice(session, test_user, test_project, test_video, test_question_group):
+    """Test submitting review for single-choice question."""
+    # Submit an answer
+    answers = {"test question": "option1"}
+    AnnotatorService.submit_answer_to_question_group(
+        video_id=test_video.id,
+        project_id=test_project.id,
+        user_id=test_user.id,
+        question_group_id=test_question_group.id,
+        answers=answers,
+        session=session
+    )
+    
+    # Get the answer using AnnotatorService
+    result = AnnotatorService.get_answers(test_video.id, test_project.id, session)
+    answer_id = int(result.iloc[0]["Answer ID"])  # Convert to Python int
+    
+    # Try to submit review for single-choice question
+    with pytest.raises(ValueError, match="Question 'test question' is not a description type question"):
+        GroundTruthService.submit_answer_review(
+            answer_id=answer_id,
+            reviewer_id=test_user.id,
+            status="approved",
+            session=session
+        )
+
+def test_ground_truth_service_get_answer_review_nonexistent(session):
+    """Test getting review for non-existent answer."""
+    review_result = GroundTruthService.get_answer_review(999, session)
+    assert review_result is None

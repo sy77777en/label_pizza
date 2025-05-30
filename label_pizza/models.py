@@ -211,7 +211,7 @@ class ReviewerGroundTruth(Base):
 class AnswerReview(Base):
     __tablename__ = "answer_reviews"
     id = Column(Integer, primary_key=True)
-    answer_id = Column(Integer, nullable=False)
+    answer_id = Column(Integer, nullable=False, unique=True)
     reviewer_id = Column(Integer, nullable=False)
     status = Column(Enum("pending", "approved", "rejected", name="review_status"), default="pending")
     comment = Column(Text)

@@ -1,5 +1,5 @@
 import pytest
-from label_pizza.services import ProjectGroupService
+from label_pizza.services import ProjectGroupService, ProjectService
 from label_pizza.models import ProjectGroup, ProjectGroupProject, Project, Video, Schema, Question, QuestionGroup, QuestionGroupQuestion, SchemaQuestionGroup
 
 def test_project_group_service_create_project_group(session, test_project):
@@ -14,13 +14,10 @@ def test_project_group_service_create_project_group(session, test_project):
     assert group.name == "test_group"
     assert group.description == "Test group description"
     
-    # Verify project assignment
-    project_assignments = session.scalars(
-        select(ProjectGroupProject)
-        .where(ProjectGroupProject.project_group_id == group.id)
-    ).all()
-    assert len(project_assignments) == 1
-    assert project_assignments[0].project_id == test_project.id
+    # Verify project assignment using get_project_group_by_id
+    result = ProjectGroupService.get_project_group_by_id(group.id, session)
+    assert len(result["projects"]) == 1
+    assert result["projects"][0].id == test_project.id
 
 def test_project_group_service_create_project_group_duplicate(session, test_project):
     """Test creating a project group with duplicate name."""
@@ -74,13 +71,10 @@ def test_project_group_service_edit_project_group(session, test_project):
     assert updated_group.name == "updated_group"
     assert updated_group.description == "Updated description"
     
-    # Verify project assignments unchanged
-    project_assignments = session.scalars(
-        select(ProjectGroupProject)
-        .where(ProjectGroupProject.project_group_id == group.id)
-    ).all()
-    assert len(project_assignments) == 1
-    assert project_assignments[0].project_id == test_project.id
+    # Verify project assignments unchanged using get_project_group_by_id
+    result = ProjectGroupService.get_project_group_by_id(group.id, session)
+    assert len(result["projects"]) == 1
+    assert result["projects"][0].id == test_project.id
 
 def test_project_group_service_edit_project_group_not_found(session):
     """Test editing a non-existent project group."""
@@ -150,13 +144,10 @@ def test_project_group_service_edit_project_group_add_remove_projects(session, t
         session=session
     )
     
-    # Verify both projects are assigned
-    project_assignments = session.scalars(
-        select(ProjectGroupProject)
-        .where(ProjectGroupProject.project_group_id == group.id)
-    ).all()
-    assert len(project_assignments) == 2
-    project_ids = {a.project_id for a in project_assignments}
+    # Verify both projects are assigned using get_project_group_by_id
+    result = ProjectGroupService.get_project_group_by_id(group.id, session)
+    assert len(result["projects"]) == 2
+    project_ids = {p.id for p in result["projects"]}
     assert project_ids == {test_project.id, project2.id}
     
     # Remove first project
@@ -169,13 +160,10 @@ def test_project_group_service_edit_project_group_add_remove_projects(session, t
         session=session
     )
     
-    # Verify only second project remains
-    project_assignments = session.scalars(
-        select(ProjectGroupProject)
-        .where(ProjectGroupProject.project_group_id == group.id)
-    ).all()
-    assert len(project_assignments) == 1
-    assert project_assignments[0].project_id == project2.id
+    # Verify only second project remains using get_project_group_by_id
+    result = ProjectGroupService.get_project_group_by_id(group.id, session)
+    assert len(result["projects"]) == 1
+    assert result["projects"][0].id == project2.id
 
 def test_project_group_service_get_project_group_by_id(session, test_project):
     """Test getting a project group by ID."""

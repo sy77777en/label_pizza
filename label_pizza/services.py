@@ -2365,6 +2365,7 @@ class AnnotatorService(BaseAnswerService):
             DataFrame containing answers with columns:
             - Question ID
             - User ID
+            - Answer ID
             - Answer Value
             - Created At
             - Modified At
@@ -2383,6 +2384,7 @@ class AnnotatorService(BaseAnswerService):
             {
                 "Question ID": a.question_id,
                 "User ID": a.user_id,
+                "Answer ID": a.id,
                 "Answer Value": a.answer_value,
                 "Confidence Score": a.confidence_score,
                 "Created At": a.created_at,
@@ -2725,6 +2727,103 @@ class GroundTruthService(BaseAnswerService):
                 gt.modified_by_admin_at = datetime.now(timezone.utc)
         
         session.commit()
+
+    @staticmethod
+    def submit_answer_review(
+        answer_id: int,
+        reviewer_id: int,
+        status: str,  # "approved"/"rejected"/"pending"
+        session: Session,
+        comment: Optional[str] = None  # Optional comment for the review
+    ) -> None:
+        """Submit a review for a description-type answer.
+        
+        Args:
+            answer_id: The ID of the answer to review
+            reviewer_id: The ID of the reviewer
+            status: Review status ("approved"/"rejected"/"pending")
+            session: Database session
+            comment: Optional review comment
+            
+        Raises:
+            ValueError: If validation fails
+        """
+        # Get the answer
+        answer = session.get(AnnotatorAnswer, answer_id)
+        if not answer:
+            raise ValueError(f"Answer with ID {answer_id} not found")
+            
+        # Get the question
+        question = session.get(Question, answer.question_id)
+        if not question:
+            raise ValueError(f"Question with ID {answer.question_id} not found")
+            
+        # Verify question is description type
+        if question.type != "description":
+            raise ValueError(f"Question '{question.text}' is not a description type question")
+            
+        # Validate reviewer role
+        GroundTruthService._validate_user_role(reviewer_id, answer.project_id, "reviewer", session)
+        
+        # Validate review status
+        valid_statuses = {"approved", "rejected", "pending"}
+        if status not in valid_statuses:
+            raise ValueError(f"Invalid review status: {status}. Must be one of {valid_statuses}")
+        
+        # Create or update review
+        review = session.scalar(
+            select(AnswerReview)
+            .where(AnswerReview.answer_id == answer_id)
+        )
+        
+        if review:
+            # Update existing review
+            review.status = status
+            review.comment = comment
+            review.reviewer_id = reviewer_id  # Update reviewer in case it's different
+            review.reviewed_at = datetime.now(timezone.utc)
+        else:
+            # Create new review
+            review = AnswerReview(
+                answer_id=answer_id,
+                reviewer_id=reviewer_id,
+                status=status,
+                comment=comment
+            )
+            session.add(review)
+            
+        session.commit()
+
+    @staticmethod
+    def get_answer_review(answer_id: int, session: Session) -> Optional[dict]:
+        """Get the review for a specific answer.
+        
+        Args:
+            answer_id: The ID of the answer
+            session: Database session
+            
+        Returns:
+            Dictionary containing the review with keys:
+            - status: The review status ("approved"/"rejected"/"pending")
+            - comment: The review comment
+            - reviewer_id: The ID of the reviewer
+            - reviewed_at: When the review was made
+            Returns None if no review exists
+        """
+        review = session.scalar(
+            select(AnswerReview)
+            .where(AnswerReview.answer_id == answer_id)
+        )
+        
+        if not review:
+            return None
+            
+        return {
+            "status": review.status,
+            "comment": review.comment,
+            "reviewer_id": review.reviewer_id,
+            "reviewed_at": review.reviewed_at
+        }
 
 class ProjectGroupService:
     @staticmethod
