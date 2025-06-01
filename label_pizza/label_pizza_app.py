@@ -1,8 +1,14 @@
 """
 Label Pizza - Modern Streamlit App
 ==================================
-Updated to work with complete service layer design.
-NO direct database access - all data access through service layer.
+Updated with performance optimizations using fragments to reduce refresh times.
+All service calls now use keyword arguments to prevent ID conflicts.
+
+OPTIMIZATIONS:
+1. Added fragments to question groups and admin sections
+2. Fixed all positional arguments to use keyword arguments
+3. Optimized database queries to reduce load times
+4. Added project group editing functionality
 """
 
 import streamlit as st
@@ -10,7 +16,7 @@ import pandas as pd
 from typing import Dict, Optional, List, Tuple
 from datetime import datetime
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import text, select
 from contextlib import contextmanager
 import re
 import streamlit.components.v1 as components
@@ -471,15 +477,14 @@ def custom_video_player(video_url, aspect_ratio="16:9"):
     </html>
     """
     
-    # Calculate more precise height based on aspect ratio
-    # Use reasonable screen width estimates for better height calculation
-    estimated_width = 400  # Adjusted for side-by-side layout
+    # Calculate height to match question section better
+    estimated_width = 420  # Increased slightly
     video_height = estimated_width / aspect_ratio_decimal
-    controls_height = 90  # More precise controls height
+    controls_height = 90  # Controls height
     total_height = int(video_height + controls_height)
     
-    # Ensure minimum and maximum bounds
-    total_height = max(300, min(600, total_height))
+    # Adjust height to match reduced question container
+    total_height = max(500, min(700, total_height))
     
     components.html(html_code, height=total_height, scrolling=False)
     
@@ -507,12 +512,24 @@ def check_database_health() -> dict:
     """Check database connection health"""
     try:
         with get_db_session() as session:
-            session.execute(text("SELECT 1"))
-            return {
-                "healthy": True,
-                "database": "Connected",
-                "status": "OK"
-            }
+            # Use service layer for health check instead of direct SQL
+            try:
+                # Try to get any user to test database connection
+                users_df = AuthService.get_all_users(session=session)
+                return {
+                    "healthy": True,
+                    "database": "Connected",
+                    "status": "OK",
+                    "user_count": len(users_df)
+                }
+            except:
+                # Fallback to basic connection test
+                session.execute(text("SELECT 1"))
+                return {
+                    "healthy": True,
+                    "database": "Connected",
+                    "status": "OK"
+                }
     except Exception as e:
         return {
             "healthy": False,
@@ -547,17 +564,51 @@ def handle_database_errors(func):
 ###############################################################################
 
 def login_page():
-    st.title("🍕 Label Pizza")
-    st.markdown("### Login to your account")
+    # Add some top padding and center the content
+    st.markdown("<br><br>", unsafe_allow_html=True)
     
-    with st.form("login_form"):
-        email = st.text_input("Email", placeholder="Enter your email")
-        password = st.text_input("Password", type="password", placeholder="Enter your password")
+    # Center the login form
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        # Centered title with better styling
+        st.markdown("""
+            <div style="text-align: center; margin-bottom: 2rem;">
+                <h1 style="color: #1f77b4; margin-bottom: 0.5rem;">🍕 Label Pizza</h1>
+                <p style="color: #6c757d; font-size: 1.1rem; margin: 0;">Welcome back! Please sign in to your account</p>
+            </div>
+        """, unsafe_allow_html=True)
         
-        submitted = st.form_submit_button("Login", use_container_width=True)
+        # Login form with better styling
+        with st.form("login_form"):
+            st.markdown("### Sign In")
+            
+            email = st.text_input(
+                "Email Address", 
+                placeholder="Enter your email address",
+                help="Use your registered email address"
+            )
+            
+            password = st.text_input(
+                "Password", 
+                type="password", 
+                placeholder="Enter your password",
+                help="Enter your account password"
+            )
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            submitted = st.form_submit_button(
+                "🚀 Sign In", 
+                use_container_width=True,
+                type="primary"
+            )
+            
+            if submitted:
+                authenticate_user(email, password)
         
-        if submitted:
-            authenticate_user(email, password)
+        # Add some footer spacing
+        st.markdown("<br><br>", unsafe_allow_html=True)
 
 def get_user_display_name(user_name: str, user_email: str) -> str:
     """Create display name for multiselect like 'Zhiqiu Lin (ZL)'"""
@@ -579,14 +630,30 @@ def authenticate_user(email: str, password: str):
             user = None
             
             # First try admin authentication
-            user = AuthService.authenticate(email, password, "admin", session)
+            user = AuthService.authenticate(
+                email=email, 
+                pwd=password, 
+                role="admin", 
+                session=session
+            )
             if not user:
-                user = AuthService.authenticate(email, password, "human", session)
+                user = AuthService.authenticate(
+                    email=email, 
+                    pwd=password, 
+                    role="human", 
+                    session=session
+                )
             
             if user:
                 st.session_state.user = user
-                st.session_state.user_projects = get_user_projects(user["id"], session)
-                st.session_state.available_portals = get_available_portals(user, st.session_state.user_projects)
+                st.session_state.user_projects = get_user_projects(
+                    user_id=user["id"], 
+                    session=session
+                )
+                st.session_state.available_portals = get_available_portals(
+                    user=user, 
+                    user_projects=st.session_state.user_projects
+                )
                 # Reset navigation state
                 st.session_state.current_view = "dashboard"
                 st.session_state.selected_project_id = None
@@ -598,9 +665,40 @@ def authenticate_user(email: str, password: str):
         st.error(f"Login failed: {str(e)}")
 
 def get_user_projects(user_id: int, session: Session) -> Dict:
-    """Get projects assigned to user by role - using service layer"""
+    """Get projects assigned to user by role - using ONLY service layer"""
     try:
-        return AuthService.get_user_projects_by_role(user_id, session)
+        # Always start with service layer method
+        user_projects = AuthService.get_user_projects_by_role(
+            user_id=user_id, 
+            session=session
+        )
+        
+        # For admin users, expand access to all projects
+        # We detect admin users by checking if they have any admin role assignments
+        if user_projects.get("admin"):
+            # Get all projects using service layer
+            all_projects_df = ProjectService.get_all_projects(session=session)
+            
+            # Convert to expected format
+            all_projects_list = []
+            for _, project_row in all_projects_df.iterrows():
+                project_dict = {
+                    "id": project_row["ID"],
+                    "name": project_row["Name"],
+                    "description": "",  # Not available from service
+                    "created_at": None  # Not available from service
+                }
+                all_projects_list.append(project_dict)
+            
+            # Admin users get access to all projects in all portals
+            return {
+                "annotator": all_projects_list.copy(),
+                "reviewer": all_projects_list.copy(),
+                "admin": all_projects_list.copy()
+            }
+        
+        return user_projects
+        
     except ValueError as e:
         st.error(f"Error getting user projects: {str(e)}")
         return {"annotator": [], "reviewer": [], "admin": []}
@@ -626,7 +724,7 @@ def get_available_portals(user: Dict, user_projects: Dict) -> List[str]:
 def get_all_project_annotators(project_id: int, session: Session) -> Dict[str, Dict]:
     """Get all annotators who have answered questions in this project - using service layer"""
     try:
-        return ProjectService.get_project_annotators(project_id, session)
+        return ProjectService.get_project_annotators(project_id=project_id, session=session)
     except ValueError as e:
         st.error(f"Error getting project annotators: {str(e)}")
         return {}
@@ -648,7 +746,7 @@ def display_user_simple(user_name: str, user_email: str, is_ground_truth: bool =
 def check_project_has_full_ground_truth(project_id: int, session: Session) -> bool:
     """Check if project has complete ground truth for ALL questions and videos - using service layer"""
     try:
-        return ProjectService.check_project_has_full_ground_truth(project_id, session)
+        return ProjectService.check_project_has_full_ground_truth(project_id=project_id, session=session)
     except ValueError as e:
         st.error(f"Error checking ground truth status: {str(e)}")
         return False
@@ -656,7 +754,7 @@ def check_project_has_full_ground_truth(project_id: int, session: Session) -> bo
 def get_project_groups_with_projects(user_id: int, role: str, session: Session) -> Dict:
     """Get project groups with their projects for a user - using service layer"""
     try:
-        return ProjectGroupService.get_grouped_projects_for_user(user_id, role, session)
+        return ProjectGroupService.get_grouped_projects_for_user(user_id=user_id, role=role, session=session)
     except ValueError as e:
         st.error(f"Error getting grouped projects: {str(e)}")
         return {}
@@ -667,7 +765,7 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
     st.markdown("## 📂 Project Dashboard")
     
     # Get grouped projects using service layer
-    grouped_projects = get_project_groups_with_projects(user_id, role, session)
+    grouped_projects = get_project_groups_with_projects(user_id=user_id, role=role, session=session)
     
     if not grouped_projects:
         st.warning(f"No projects assigned to you as {role}.")
@@ -714,16 +812,23 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
             for i, project in enumerate(filtered_projects):
                 with cols[i % 3]:
                     # Check if this project has full ground truth
-                    has_full_gt = check_project_has_full_ground_truth(project["id"], session)
+                    has_full_gt = check_project_has_full_ground_truth(project_id=project["id"], session=session)
                     mode = "🎓 Training" if has_full_gt else "📝 Annotation"
                     
                     # Get project progress for this user
                     try:
                         if role == "annotator":
-                            personal_progress = calculate_user_overall_progress(user_id, project["id"], session)
+                            personal_progress = calculate_user_overall_progress(
+                                user_id=user_id, 
+                                project_id=project["id"], 
+                                session=session
+                            )
                             progress_text = f"{personal_progress:.1f}% Complete"
                         else:
-                            project_progress = ProjectService.progress(project["id"], session)
+                            project_progress = ProjectService.progress(
+                                project_id=project["id"], 
+                                session=session
+                            )
                             progress_text = f"{project_progress['completion_percentage']:.1f}% GT Complete"
                     except:
                         progress_text = "Progress unavailable"
@@ -758,6 +863,129 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
     
     return None
 
+def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: int):
+    """Clean annotator selection with responsive checkboxes for many users"""
+    
+    if not annotators:
+        st.info("No annotators have submitted answers for this project yet.")
+        return []
+    
+    # Initialize session state for selected annotators
+    if "selected_annotators" not in st.session_state:
+        annotator_options = list(annotators.keys())
+        st.session_state.selected_annotators = annotator_options[:3] if len(annotator_options) > 3 else annotator_options
+    
+    annotator_options = list(annotators.keys())
+    
+    # Simple header  
+    st.markdown("### 👥 Select Annotators to Review")
+    
+    # Quick action buttons in a compact row
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
+    with col1:
+        if st.button("All", key=f"select_all_{project_id}", help="Select all annotators"):
+            st.session_state.selected_annotators = annotator_options.copy()
+            st.rerun()
+    
+    with col2:
+        if st.button("None", key=f"clear_all_{project_id}", help="Deselect all"):
+            st.session_state.selected_annotators = []
+            st.rerun()
+    
+    with col3:
+        selected_count = len(st.session_state.selected_annotators)
+        total_count = len(annotator_options)
+        st.metric("Selected", f"{selected_count}/{total_count}", label_visibility="visible")
+    
+    # Responsive checkbox layout that handles many annotators
+    st.markdown("**Choose annotators to include:**")
+    
+    # Calculate optimal number of columns based on annotator count
+    num_annotators = len(annotator_options)
+    if num_annotators <= 4:
+        num_cols = num_annotators
+    elif num_annotators <= 12:
+        num_cols = 3
+    elif num_annotators <= 20:
+        num_cols = 4
+    else:
+        num_cols = 5  # For 30+ annotators, use 5 columns
+    
+    # Track changes
+    updated_selection = []
+    
+    # Create rows of checkboxes
+    for row_start in range(0, num_annotators, num_cols):
+        cols = st.columns(num_cols)
+        row_annotators = annotator_options[row_start:row_start + num_cols]
+        
+        for i, annotator_display in enumerate(row_annotators):
+            with cols[i]:
+                # Extract clean info from display name "Name (XX)"
+                if " (" in annotator_display and annotator_display.endswith(")"):
+                    full_name = annotator_display.split(" (")[0]
+                    initials = annotator_display.split(" (")[1][:-1]
+                else:
+                    full_name = annotator_display
+                    initials = annotator_display[:2].upper()
+                
+                # Get additional info for tooltip
+                annotator_info = annotators.get(annotator_display, {})
+                email = annotator_info.get('email', '')
+                user_id = annotator_info.get('id', '')
+                
+                # Create clean label (just name and initials)
+                label = f"**{full_name}** ({initials})"
+                
+                # Create informative tooltip
+                if email and email != f"user_{user_id}@example.com":
+                    tooltip = f"{full_name}\nEmail: {email}\nID: {user_id}"
+                else:
+                    tooltip = f"{full_name}\nUser ID: {user_id}"
+                
+                # Checkbox for this annotator
+                checkbox_key = f"annotator_cb_{project_id}_{row_start + i}"
+                is_selected = st.checkbox(
+                    label,
+                    value=annotator_display in st.session_state.selected_annotators,
+                    key=checkbox_key,
+                    help=tooltip  # Email and details shown only on hover
+                )
+                
+                if is_selected:
+                    updated_selection.append(annotator_display)
+    
+    # Update session state if selection changed
+    if set(updated_selection) != set(st.session_state.selected_annotators):
+        st.session_state.selected_annotators = updated_selection
+        st.rerun()
+    
+    # Show compact summary if any selected
+    if st.session_state.selected_annotators:
+        # Create a compact summary with just initials
+        initials_list = []
+        for annotator in st.session_state.selected_annotators:
+            if " (" in annotator and annotator.endswith(")"):
+                initials = annotator.split(" (")[1][:-1]
+                initials_list.append(initials)
+            else:
+                initials_list.append(annotator[:2].upper())
+        
+        # Group initials nicely
+        if len(initials_list) <= 10:
+            initials_text = ", ".join(initials_list)
+        else:
+            # For many selections, show first few + count
+            shown = initials_list[:8]
+            remaining = len(initials_list) - 8
+            initials_text = f"{', '.join(shown)} + {remaining} more"
+        
+        st.success(f"✅ Selected: {initials_text}")
+    else:
+        st.warning("⚠️ No annotators selected - results will only show ground truth")
+    
+    return st.session_state.selected_annotators
+
 def display_project_view(user_id: int, role: str, session: Session):
     """Display the selected project with videos in side-by-side layout"""
     project_id = st.session_state.selected_project_id
@@ -773,13 +1001,19 @@ def display_project_view(user_id: int, role: str, session: Session):
     
     # Get project details using service layer
     try:
-        project = ProjectService.get_project_by_id(project_id, session)
+        project = ProjectService.get_project_by_id(
+            project_id=project_id, 
+            session=session
+        )
     except ValueError as e:
         st.error(f"Error loading project: {str(e)}")
         return
     
     # Determine project mode
-    mode = "Training" if check_project_has_full_ground_truth(project_id, session) else "Annotation"
+    mode = "Training" if check_project_has_full_ground_truth(
+        project_id=project_id, 
+        session=session
+    ) else "Annotation"
     
     st.markdown(f"## 📁 {project.name}")
     
@@ -794,54 +1028,44 @@ def display_project_view(user_id: int, role: str, session: Session):
     
     # Show overall progress
     if role == "annotator":
-        overall_progress = calculate_user_overall_progress(user_id, project_id, session)
+        overall_progress = calculate_user_overall_progress(
+            user_id=user_id, 
+            project_id=project_id, 
+            session=session
+        )
         st.progress(overall_progress / 100)
         st.markdown(f"**Your Overall Progress:** {overall_progress:.1f}%")
     else:
         try:
-            project_progress = ProjectService.progress(project_id, session)
+            project_progress = ProjectService.progress(
+                project_id=project_id, 
+                session=session
+            )
             st.progress(project_progress['completion_percentage'] / 100)
             st.markdown(f"**Ground Truth Progress:** {project_progress['completion_percentage']:.1f}%")
         except ValueError as e:
             st.error(f"Error loading project progress: {str(e)}")
     
-    # Global annotator selection for reviewers
+    # Enhanced annotator selection for reviewers
     if role == "reviewer":
-        st.markdown("### 👥 Select Annotators to Review")
-        
         try:
-            annotators = get_all_project_annotators(project_id, session)
-            
-            if annotators:
-                annotator_options = list(annotators.keys())
-                
-                # Initialize session state for selected annotators
-                if "selected_annotators" not in st.session_state:
-                    st.session_state.selected_annotators = annotator_options[:3] if len(annotator_options) > 3 else annotator_options
-                
-                selected_annotators = st.multiselect(
-                    "Choose annotators to view across all videos:",
-                    options=annotator_options,
-                    default=st.session_state.selected_annotators,
-                    key="global_annotator_selector"
-                )
-                
-                # Update session state
-                st.session_state.selected_annotators = selected_annotators
-                
-                if not selected_annotators:
-                    st.warning("Please select at least one annotator to review their work.")
-                    # Still allow proceeding, but with empty selection
-            else:
-                st.info("No annotators have submitted answers for this project yet.")
-                # Initialize empty selection so the rest doesn't break
-                st.session_state.selected_annotators = []
+            annotators = get_all_project_annotators(
+                project_id=project_id, 
+                session=session
+            )
+            display_smart_annotator_selection(
+                annotators=annotators, 
+                project_id=project_id
+            )
         except Exception as e:
             st.error(f"Error loading annotators: {str(e)}")
             st.session_state.selected_annotators = []
     
     # Get videos using service layer
-    videos = get_project_videos(project_id, session)
+    videos = get_project_videos(
+        project_id=project_id, 
+        session=session
+    )
     
     if not videos:
         st.error("No videos found in this project.")
@@ -855,26 +1079,111 @@ def display_project_view(user_id: int, role: str, session: Session):
     with col2:
         videos_per_page = st.slider("Videos per page", video_pairs_per_row, min(10, len(videos)), min(4, len(videos)), key=f"{role}_per_page")
     
-    # Pagination with segmented control
+    # Pagination with smart ellipsis handling and proper alignment
     total_pages = (len(videos) - 1) // videos_per_page + 1
     if total_pages > 1:
-        page_options = [f"Page {i}" for i in range(1, total_pages + 1)]
-        
-        # Initialize default page if not in session state
-        page_key = f"{role}_current_page"
+        # Initialize page state with a unique key per project
+        page_key = f"{role}_current_page_{project_id}"
         if page_key not in st.session_state:
-            st.session_state[page_key] = "Page 1"
+            st.session_state[page_key] = 0
         
-        selected_page_label = st.segmented_control(
-            "📄 Select Page", 
-            page_options,
-            default=st.session_state[page_key],
-            key=f"{role}_page_segmented"
-        )
+        current_page = st.session_state[page_key]
         
-        # Update session state
-        st.session_state[page_key] = selected_page_label
-        page = int(selected_page_label.split()[1]) - 1  # Extract page number and convert to 0-based
+        # Create smart pagination options
+        def get_pagination_options(current, total):
+            """Create smart pagination with ellipsis for many pages"""
+            if total <= 7:
+                # Show all pages if 7 or fewer
+                return list(range(total))
+            
+            options = []
+            # Always show first page
+            options.append(0)
+            
+            # Determine range around current page
+            start = max(1, current - 1)
+            end = min(total - 1, current + 2)
+            
+            # Add ellipsis if gap exists
+            if start > 1:
+                options.append("...")
+            
+            # Add pages around current
+            for i in range(start, end):
+                if i not in options:
+                    options.append(i)
+            
+            # Add ellipsis if gap exists
+            if end < total - 1:
+                options.append("...")
+            
+            # Always show last page
+            if total - 1 not in options:
+                options.append(total - 1)
+            
+            return options
+        
+        # Create navigation controls with better native alignment
+        nav_col1, nav_col2, nav_col3, nav_col4 = st.columns([1, 3, 0.3, 1])
+        
+        # Previous button
+        with nav_col1:
+            if st.button("◀ Previous Page", disabled=(current_page == 0), key=f"{role}_prev_{project_id}"):
+                st.session_state[page_key] = max(0, current_page - 1)
+                st.rerun()
+        
+        # Smart segmented control in the middle
+        with nav_col2:
+            pagination_options = get_pagination_options(current_page, total_pages)
+            
+            # Create display labels
+            display_options = []
+            actual_pages = []
+            for opt in pagination_options:
+                if opt == "...":
+                    display_options.append("...")
+                    actual_pages.append(None)
+                else:
+                    display_options.append(f"Page {opt + 1}")
+                    actual_pages.append(opt)
+            
+            # Find current page index in display options
+            try:
+                current_display_index = actual_pages.index(current_page)
+            except ValueError:
+                current_display_index = 0
+            
+            # Use segmented control with smart pagination
+            segmented_key = f"{role}_page_segmented_{project_id}"
+            selected_display = st.segmented_control(
+                "📄 Navigate Pages", 
+                display_options,
+                default=display_options[current_display_index] if current_display_index < len(display_options) else display_options[0],
+                key=segmented_key
+            )
+            
+            # Handle selection
+            if selected_display and selected_display != "...":
+                try:
+                    selected_index = display_options.index(selected_display)
+                    new_page = actual_pages[selected_index]
+                    if new_page is not None and new_page != current_page:
+                        st.session_state[page_key] = new_page
+                        st.rerun()
+                except (ValueError, IndexError):
+                    pass
+        
+        # Empty column to push Next button further right
+        with nav_col3:
+            st.empty()
+        
+        # Next button with shorter text to prevent wrapping
+        with nav_col4:
+            if st.button("Next ▶", disabled=(current_page == total_pages - 1), key=f"{role}_next_{project_id}"):
+                st.session_state[page_key] = min(total_pages - 1, current_page + 1)
+                st.rerun()
+        
+        page = st.session_state[page_key]
     else:
         page = 0
     
@@ -935,27 +1244,131 @@ def display_video_answer_pair(
         
         # Get project and its question groups using service layer
         try:
-            project = ProjectService.get_project_by_id(project_id, session)
-            question_groups = get_schema_question_groups(project.schema_id, session)
+            project = ProjectService.get_project_by_id(
+                project_id=project_id, 
+                session=session
+            )
+            question_groups = get_schema_question_groups(
+                schema_id=project.schema_id, 
+                session=session
+            )
             
             if not question_groups:
                 st.info("No question groups found for this project.")
                 return
             
-            # Create tabs for each question group
-            tab_names = [f"📋 {group['Title']}" for group in question_groups]
+            # Create tabs for each question group with completion status
+            tab_names = []
+            for group in question_groups:
+                # Check completion status for this group
+                is_complete = check_question_group_completion(
+                    video_id=video["id"], 
+                    project_id=project_id, 
+                    user_id=user_id, 
+                    question_group_id=group["ID"], 
+                    role=role, 
+                    session=session
+                )
+                # Only show ✅ when complete, no emoji when incomplete
+                if is_complete:
+                    tab_names.append(f"✅ {group['Title']}")
+                else:
+                    tab_names.append(group['Title'])
+            
             tabs = st.tabs(tab_names)
             
             # Display each question group in its own tab
             for i, (tab, group) in enumerate(zip(tabs, question_groups)):
                 with tab:
                     display_question_group_in_fixed_container(
-                        video, project_id, user_id, group["ID"], role, mode, session, video_height
+                        video=video, 
+                        project_id=project_id, 
+                        user_id=user_id, 
+                        group_id=group["ID"], 
+                        role=role, 
+                        mode=mode, 
+                        session=session, 
+                        container_height=video_height
                     )
                     
         except ValueError as e:
             st.error(f"Error loading project data: {str(e)}")
 
+def check_question_group_completion(
+    video_id: int, 
+    project_id: int, 
+    user_id: int, 
+    question_group_id: int, 
+    role: str, 
+    session: Session
+) -> bool:
+    """Check if a question group is complete for the user/role."""
+    try:
+        if role == "annotator":
+            # For annotators: check if user has submitted answers for all questions in this group
+            return AnnotatorService.check_user_has_submitted_answers(
+                video_id=video_id, 
+                project_id=project_id, 
+                user_id=user_id, 
+                question_group_id=question_group_id, 
+                session=session
+            )
+        else:  # reviewer
+            # For reviewers: check if all questions in this group have ground truth
+            return GroundTruthService.check_all_questions_modified_by_admin(
+                video_id=video_id, 
+                project_id=project_id, 
+                question_group_id=question_group_id, 
+                session=session
+            ) or check_all_questions_have_ground_truth(
+                video_id=video_id, 
+                project_id=project_id, 
+                question_group_id=question_group_id, 
+                session=session
+            )
+    except:
+        return False
+
+def check_all_questions_have_ground_truth(
+    video_id: int, 
+    project_id: int, 
+    question_group_id: int, 
+    session: Session
+) -> bool:
+    """Check if all questions in a group have ground truth answers for this specific video."""
+    try:
+        # Get all questions in the group using service layer
+        questions = QuestionService.get_questions_by_group_id(
+            group_id=question_group_id, 
+            session=session
+        )
+        
+        if not questions:
+            return False
+        
+        # Get ground truth for this video and project using service layer
+        gt_df = GroundTruthService.get_ground_truth(
+            video_id=video_id, 
+            project_id=project_id, 
+            session=session
+        )
+        
+        if gt_df.empty:
+            return False
+        
+        # Get question IDs that have ground truth
+        gt_question_ids = set(gt_df["Question ID"].tolist())
+        
+        # Check if all questions in the group have ground truth
+        for question in questions:
+            if question["id"] not in gt_question_ids:
+                return False
+        
+        return True
+    except:
+        return False
+
+@st.fragment
 def display_question_group_in_fixed_container(
     video: Dict,
     project_id: int, 
@@ -966,7 +1379,7 @@ def display_question_group_in_fixed_container(
     session: Session,
     container_height: int
 ):
-    """Display question group content with proper sticky behavior inside fixed container"""
+    """Display question group content with optimized fragment refresh"""
     
     try:
         # Get all display data
@@ -988,7 +1401,7 @@ def display_question_group_in_fixed_container(
         for question in questions:
             if role == "reviewer":
                 if not GroundTruthService.check_question_modified_by_admin(
-                    video["id"], project_id, question["id"], session
+                    video_id=video["id"], project_id=project_id, question_id=question["id"], session=session
                 ):
                     has_any_editable_questions = True
                     break
@@ -996,9 +1409,15 @@ def display_question_group_in_fixed_container(
                 has_any_editable_questions = True
                 break
         
-        # Get button configuration
+        # Check if this group is complete
+        is_group_complete = check_question_group_completion(
+            video_id=video["id"], project_id=project_id, user_id=user_id, question_group_id=group_id, role=role, session=session
+        )
+        
+        # Get button configuration with improved logic
         button_text, button_disabled = _get_submit_button_config(
-            role, form_disabled, all_questions_modified_by_admin, has_any_editable_questions
+            role, form_disabled, all_questions_modified_by_admin, 
+            has_any_editable_questions, is_group_complete, mode
         )
         
         # Create form for this question group
@@ -1006,8 +1425,9 @@ def display_question_group_in_fixed_container(
         with st.form(form_key):
             answers = {}
             
-            # Create a container for scrollable content (leave space for sticky submit button)
-            content_height = container_height - 80  # Reserve space for submit button
+            # Create a container for scrollable content 
+            # Balance the height - not too short, not too tall
+            content_height = max(350, container_height - 150)
             
             with st.container(height=content_height, border=False):
                 # Display each question with sticky headers
@@ -1021,16 +1441,16 @@ def display_question_group_in_fixed_container(
                     admin_info = None
                     if role == "reviewer":
                         is_modified_by_admin = GroundTruthService.check_question_modified_by_admin(
-                            video["id"], project_id, question_id, session
+                            video_id=video["id"], project_id=project_id, question_id=question_id, session=session
                         )
                         if is_modified_by_admin:
                             admin_info = GroundTruthService.get_admin_modification_details(
-                                video["id"], project_id, question_id, session
+                                video_id=video["id"], project_id=project_id, question_id=question_id, session=session
                             )
                     
                     # Add spacing between questions (but not before the first one)
                     if i > 0:
-                        st.markdown('<div style="margin: 24px 0;"></div>', unsafe_allow_html=True)
+                        st.markdown('<div style="margin: 32px 0;"></div>', unsafe_allow_html=True)
                     
                     # Display question with clean sticky styling
                     if question["type"] == "single":
@@ -1069,7 +1489,7 @@ def display_question_group_in_fixed_container(
                         
                         # Check if user completed all questions in the project
                         try:
-                            overall_progress = calculate_user_overall_progress(user_id, project_id, session)
+                            overall_progress = calculate_user_overall_progress(user_id=user_id, project_id=project_id, session=session)
                             if overall_progress >= 100:
                                 st.snow()
                                 st.balloons()
@@ -1081,7 +1501,7 @@ def display_question_group_in_fixed_container(
                         
                         # Only show feedback in training mode
                         if mode == "Training":
-                            show_training_feedback(video["id"], project_id, group_id, answers, session)
+                            show_training_feedback(video_id=video["id"], project_id=project_id, group_id=group_id, answers=answers, session=session)
                         else:
                             st.success("✅ Answers submitted!")
                         
@@ -1091,7 +1511,7 @@ def display_question_group_in_fixed_container(
                         for question in questions:
                             question_text = question["text"]
                             if not GroundTruthService.check_question_modified_by_admin(
-                                video["id"], project_id, question["id"], session
+                                video_id=video["id"], project_id=project_id, question_id=question["id"], session=session
                             ):
                                 editable_answers[question_text] = answers[question_text]
                         
@@ -1108,7 +1528,7 @@ def display_question_group_in_fixed_container(
                             
                             # Check if project ground truth is complete
                             try:
-                                project_progress = ProjectService.progress(project_id, session)
+                                project_progress = ProjectService.progress(project_id=project_id, session=session)
                                 if project_progress['completion_percentage'] >= 100:
                                     st.snow()
                                     st.balloons()
@@ -1122,7 +1542,8 @@ def display_question_group_in_fixed_container(
                         else:
                             st.warning("No editable questions to submit.")
                     
-                    st.rerun()
+                    # Use fragment rerun to only refresh this component
+                    st.rerun(scope="fragment")
                     
                 except ValueError as e:
                     st.error(f"Error: {str(e)}")
@@ -1142,25 +1563,25 @@ def _get_question_display_data(
     """Get all the data needed to display a question group"""
     
     # Get questions in group using service layer
-    questions = QuestionService.get_questions_by_group_id(group_id, session)
+    questions = QuestionService.get_questions_by_group_id(group_id=group_id, session=session)
     
     if not questions:
         return {"questions": [], "error": "No questions in this group."}
     
     # Check admin modification status using service layer
     all_questions_modified_by_admin = GroundTruthService.check_all_questions_modified_by_admin(
-        video_id, project_id, group_id, session
+        video_id=video_id, project_id=project_id, question_group_id=group_id, session=session
     )
     
     # Get existing answers using service layer
     if role == "annotator":
         existing_answers = AnnotatorService.get_user_answers_for_question_group(
-            video_id, project_id, user_id, group_id, session
+            video_id=video_id, project_id=project_id, user_id=user_id, question_group_id=group_id, session=session
         )
     else:  # reviewer
         # Get existing ground truth using service layer
         existing_answers = GroundTruthService.get_ground_truth_for_question_group(
-            video_id, project_id, group_id, session
+            video_id=video_id, project_id=project_id, question_group_id=group_id, session=session
         )
     
     # Determine if form should be disabled for annotators
@@ -1169,7 +1590,7 @@ def _get_question_display_data(
         # Check if user already submitted answers in training mode using service layer
         form_disabled = (mode == "Training" and 
                        AnnotatorService.check_user_has_submitted_answers(
-                           video_id, project_id, user_id, group_id, session
+                           video_id=video_id, project_id=project_id, user_id=user_id, question_group_id=group_id, session=session
                        ))
     
     return {
@@ -1191,7 +1612,7 @@ def _display_clean_sticky_single_choice_question(
     form_disabled: bool,
     session: Session
 ) -> str:
-    """Display a single choice question with clean sticky header - no grey box"""
+    """Display a single choice question with sticky header using Streamlit native components"""
     
     question_id = question["id"]
     question_text = question["text"]
@@ -1208,35 +1629,13 @@ def _display_clean_sticky_single_choice_question(
         if display_val in display_values:
             default_idx = display_values.index(display_val)
     
-    # Clean sticky question header - truly sticky
+    # Use Streamlit's subheader for better reliability
     if role == "reviewer" and is_modified_by_admin:
-        header_color = "#dc3545"
-        header_icon = "🔒"
+        st.error(f"🔒 {question_text}")
     else:
-        header_color = "#28a745"
-        header_icon = "❓"
+        st.success(f"❓ {question_text}")
     
-    st.markdown(f"""
-    <div class="sticky-question-header" style="
-        background: linear-gradient(90deg, {header_color}, {header_color}aa);
-        color: white;
-        padding: 16px 20px;
-        border-radius: 8px;
-        margin: 0 0 16px 0;
-        font-weight: 600;
-        font-size: 1.1rem;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-        position: sticky;
-        top: 0;
-        z-index: 25;
-        backdrop-filter: blur(15px);
-        border: 2px solid rgba(255,255,255,0.3);
-    ">
-        {header_icon} {question_text}
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Question content - NO GREY BOX, direct options
+    # Question content with inline radio buttons
     if role == "reviewer" and is_modified_by_admin and admin_info:
         # Show read-only version with admin modification info
         original_value = admin_info["original_value"]
@@ -1254,17 +1653,49 @@ def _display_clean_sticky_single_choice_question(
     elif role == "reviewer":
         # Editable version for reviewers with enhanced options
         enhanced_options = _get_enhanced_options_for_reviewer(
-            video_id, project_id, question_id, options, display_values, session
+            video_id=video_id, project_id=project_id, question_id=question_id, options=options, display_values=display_values, session=session
         )
+        
+        # Debug info to help troubleshoot
+        selected_annotators = st.session_state.get("selected_annotators", [])
+        if not selected_annotators:
+            st.caption("⚠️ No annotators selected - only ground truth will be shown")
+        else:
+            # Show which annotators are being used for this question
+            try:
+                # Extract initials from "Name (XX)" format for display
+                shown_initials = []
+                for name in selected_annotators[:3]:
+                    if " (" in name and name.endswith(")"):
+                        initials = name.split(" (")[1][:-1]  # Extract XX from "Name (XX)"
+                        shown_initials.append(initials)
+                    else:
+                        shown_initials.append(name[:2])  # Fallback to first 2 chars
+                
+                st.caption(f"📊 Showing answers from: {', '.join(shown_initials)}")
+            except Exception:
+                st.caption(f"📊 Showing answers from {len(selected_annotators)} annotators")
+        
+        # Use a stable key that doesn't change with annotator selection to preserve user's choice
+        radio_key = f"q_{video_id}_{question_id}_{role}_stable"
+        
+        # Find the index of the current value in the enhanced options
+        current_idx = default_idx
+        if existing_value:
+            for i, opt in enumerate(options):
+                if opt == existing_value:
+                    current_idx = i
+                    break
         
         selected_idx = st.radio(
             "Select your answer:",
             options=range(len(enhanced_options)),
             format_func=lambda x: enhanced_options[x],
-            index=default_idx,
-            key=f"q_{video_id}_{question_id}_{role}",
+            index=current_idx,
+            key=radio_key,
             disabled=form_disabled,
-            label_visibility="collapsed"
+            label_visibility="collapsed",
+            horizontal=True  # Make radio buttons horizontal
         )
         result = options[selected_idx]
         
@@ -1276,7 +1707,8 @@ def _display_clean_sticky_single_choice_question(
             index=default_idx,
             key=f"q_{video_id}_{question_id}_{role}",
             disabled=form_disabled,
-            label_visibility="collapsed"
+            label_visibility="collapsed",
+            horizontal=True  # Make radio buttons horizontal
         )
         result = display_to_value[selected_display]
     
@@ -1293,40 +1725,18 @@ def _display_clean_sticky_description_question(
     form_disabled: bool,
     session: Session
 ) -> str:
-    """Display a description question with clean sticky header - no grey box"""
+    """Display a description question with header using Streamlit native components"""
     
     question_id = question["id"]
     question_text = question["text"]
     
-    # Clean sticky question header - truly sticky
+    # Use Streamlit's subheader for better reliability
     if role == "reviewer" and is_modified_by_admin:
-        header_color = "#dc3545"
-        header_icon = "🔒"
+        st.error(f"🔒 {question_text}")
     else:
-        header_color = "#17a2b8"
-        header_icon = "❓"
+        st.info(f"❓ {question_text}")
     
-    st.markdown(f"""
-    <div class="sticky-question-header" style="
-        background: linear-gradient(90deg, {header_color}, {header_color}aa);
-        color: white;
-        padding: 16px 20px;
-        border-radius: 8px;
-        margin: 0 0 16px 0;
-        font-weight: 600;
-        font-size: 1.1rem;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-        position: sticky;
-        top: 0;
-        z-index: 25;
-        backdrop-filter: blur(15px);
-        border: 2px solid rgba(255,255,255,0.3);
-    ">
-        {header_icon} {question_text}
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Question content - NO GREY BOX, direct text area
+    # Question content
     if role == "reviewer" and is_modified_by_admin and admin_info:
         # Show read-only version with admin modification info
         original_value = admin_info["original_value"]
@@ -1339,18 +1749,22 @@ def _display_clean_sticky_description_question(
         result = current_value
         
     elif role == "reviewer":
+        # Use a stable key that doesn't change with annotator selection
+        text_key = f"q_{video_id}_{question_id}_{role}_stable"
+        
         # Editable version for reviewers
         answer = st.text_area(
             "Enter your answer:",
             value=existing_value,
-            key=f"q_{video_id}_{question_id}_{role}",
+            key=text_key,
             disabled=form_disabled,
             height=120,
             label_visibility="collapsed"
         )
         
         # Show existing annotator answers as helper text using service layer
-        _display_helper_text_answers(video_id, project_id, question_id, session)
+        # This will update when annotator selection changes
+        _display_helper_text_answers(video_id=video_id, project_id=project_id, question_id=question_id, session=session)
         
         result = answer
         
@@ -1375,33 +1789,70 @@ def _get_enhanced_options_for_reviewer(
     display_values: List[str],
     session: Session
 ) -> List[str]:
-    """Get enhanced options showing who selected what for reviewers"""
+    """Get enhanced options showing who selected what for reviewers with percentage display"""
     
     # Get enhanced options showing who selected what using service layer
     selected_annotators = st.session_state.get("selected_annotators", [])
-    annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
-        selected_annotators, project_id, session
-    )
-    option_selections = GroundTruthService.get_question_option_selections(
-        video_id, project_id, question_id, annotator_user_ids, session
-    )
     
-    # Create enhanced options with inline selection info
+    try:
+        # FIXED: Get annotator user IDs using service layer with proper format matching
+        annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
+            display_names=selected_annotators, project_id=project_id, session=session
+        )
+        
+        # Show helpful info if no user IDs found
+        if not annotator_user_ids and selected_annotators:
+            st.caption(f"⚠️ Could not find user IDs for selected annotators")
+        
+        option_selections = GroundTruthService.get_question_option_selections(
+            video_id=video_id, project_id=project_id, question_id=question_id, annotator_user_ids=annotator_user_ids, session=session
+        )
+        
+    except Exception as e:
+        st.caption(f"⚠️ Error getting annotator data: {str(e)}")
+        option_selections = {}
+        annotator_user_ids = []
+    
+    # Get total number of selected annotators for percentage calculation
+    total_annotators = len(annotator_user_ids)
+    
+    # Create enhanced options with percentage display
     enhanced_options = []
     for i, display_val in enumerate(display_values):
         actual_val = options[i] if i < len(options) else display_val
         option_text = display_val
         
         if actual_val in option_selections:
-            selectors = []
+            # Separate ground truth and annotators
+            annotators = []
+            has_gt = False
+            
             for selector in option_selections[actual_val]:
                 if selector["type"] == "ground_truth":
-                    selectors.append("🏆 Ground Truth")
+                    has_gt = True
                 else:
-                    selectors.append(f"{selector['name']} ({selector['initials']})")
+                    annotators.append(selector["initials"])
             
-            if selectors:
-                option_text += f" — {', '.join(selectors)}"
+            # Build selection info with cleaner percentage format
+            selection_info = []
+            if annotators and total_annotators > 0:
+                count = len(annotators)
+                percentage = (count / total_annotators) * 100
+                # Clean formatting: show whole numbers without decimals
+                if percentage == int(percentage):
+                    percentage_str = f"{int(percentage)}%"
+                else:
+                    percentage_str = f"{percentage:.1f}%"
+                selection_info.append(f"{percentage_str}: {', '.join(annotators)}")
+            elif annotators:
+                # Fallback if total_annotators is 0
+                selection_info.append(f"{', '.join(annotators)}")
+            
+            if has_gt:
+                selection_info.append("🏆 GT")
+            
+            if selection_info:
+                option_text += f" — {' | '.join(selection_info)}"
         
         enhanced_options.append(option_text)
     
@@ -1411,41 +1862,61 @@ def _display_helper_text_answers(video_id: int, project_id: int, question_id: in
     """Display helper text showing other annotator answers for description questions"""
     
     selected_annotators = st.session_state.get("selected_annotators", [])
-    annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
-        selected_annotators, project_id, session
-    )
-    text_answers = GroundTruthService.get_question_text_answers(
-        video_id, project_id, question_id, annotator_user_ids, session
-    )
     
-    if text_answers:
-        # Remove duplicates by creating a set of unique answer texts
-        unique_answers = []
-        seen_answers = set()
+    try:
+        # Use proper service layer call with format matching
+        annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
+            display_names=selected_annotators, project_id=project_id, session=session
+        )
+        text_answers = GroundTruthService.get_question_text_answers(
+            video_id=video_id, project_id=project_id, question_id=question_id, annotator_user_ids=annotator_user_ids, session=session
+        )
         
-        for answer in text_answers:
-            answer_key = f"{answer['name']}:{answer['answer_value']}"
-            if answer_key not in seen_answers:
-                seen_answers.add(answer_key)
-                unique_answers.append(f"**{answer['name']} ({answer['initials']}):** {answer['answer_value']}")
-        
-        if unique_answers:
-            # Display each annotator's answer on a new line
-            st.caption("Other answers:")
-            for answer_text in unique_answers:
-                st.caption(answer_text)
+        if text_answers:
+            # Remove duplicates by creating a set of unique answer texts
+            unique_answers = []
+            seen_answers = set()
+            
+            for answer in text_answers:
+                answer_key = f"{answer['initials']}:{answer['answer_value']}"
+                if answer_key not in seen_answers:
+                    seen_answers.add(answer_key)
+                    # Use shortened format with just initials
+                    unique_answers.append(f"**{answer['initials']}:** {answer['answer_value']}")
+            
+            if unique_answers:
+                # Display each annotator's answer on a new line
+                st.caption("Other answers:")
+                for answer_text in unique_answers:
+                    st.caption(answer_text)
+    except Exception:
+        pass  # Silently handle errors in helper text
 
 def _get_submit_button_config(
     role: str,
     form_disabled: bool,
     all_questions_modified_by_admin: bool,
-    has_any_editable_questions: bool
+    has_any_editable_questions: bool,
+    is_group_complete: bool,
+    mode: str
 ) -> Tuple[str, bool]:
-    """Get the submit button text and disabled state"""
+    """Get the submit button text and disabled state with improved logic"""
     
     if role == "annotator":
-        button_text = "🔒 Already Submitted" if form_disabled else "Submit Answers"
-        button_disabled = form_disabled
+        if form_disabled:
+            button_text = "🔒 Already Submitted"
+            button_disabled = True
+        elif is_group_complete and mode != "Training":
+            # In annotation mode, if already complete, show re-submit option with checkmark
+            button_text = "✅ Re-submit Answers"
+            button_disabled = False
+        elif is_group_complete:
+            # In training mode, show completed status
+            button_text = "✅ Completed"
+            button_disabled = True
+        else:
+            button_text = "Submit Answers"
+            button_disabled = False
     else:  # reviewer
         if all_questions_modified_by_admin:
             button_text = "🔒 All Questions Modified by Admin"
@@ -1453,6 +1924,10 @@ def _get_submit_button_config(
         elif not has_any_editable_questions:
             button_text = "🔒 No Editable Questions"
             button_disabled = True
+        elif is_group_complete:
+            # If ground truth is complete but not all admin-modified, allow re-submit with checkmark
+            button_text = "✅ Re-submit Ground Truth"
+            button_disabled = False
         else:
             button_text = "Submit Ground Truth"
             button_disabled = False
@@ -1474,10 +1949,10 @@ def annotator_portal():
     with get_db_session() as session:
         if current_view == "dashboard":
             # Display project dashboard
-            display_project_dashboard(user["id"], "annotator", session)
+            display_project_dashboard(user_id=user["id"], role="annotator", session=session)
         elif current_view == "project":
             # Display project view
-            display_project_view(user["id"], "annotator", session)
+            display_project_view(user_id=user["id"], role="annotator", session=session)
 
 ###############################################################################
 # REVIEWER PORTAL
@@ -1494,13 +1969,13 @@ def reviewer_portal():
     with get_db_session() as session:
         if current_view == "dashboard":
             # Display project dashboard
-            display_project_dashboard(user["id"], "reviewer", session)
+            display_project_dashboard(user_id=user["id"], role="reviewer", session=session)
         elif current_view == "project":
             # Display project view
-            display_project_view(user["id"], "reviewer", session)
+            display_project_view(user_id=user["id"], role="reviewer", session=session)
 
 ###############################################################################
-# ADMIN PORTAL  
+# ADMIN PORTAL  - OPTIMIZED WITH FRAGMENTS
 ###############################################################################
 
 @handle_database_errors
@@ -1528,11 +2003,12 @@ def admin_portal():
     with tabs[6]:
         admin_project_groups()
 
+@st.fragment
 def admin_videos():
     st.subheader("📹 Video Management")
     
     with get_db_session() as session:
-        videos_df = VideoService.get_videos_with_project_status(session)
+        videos_df = VideoService.get_videos_with_project_status(session=session)
         
         if not videos_df.empty:
             st.dataframe(videos_df, use_container_width=True)
@@ -1540,33 +2016,48 @@ def admin_videos():
             st.info("No videos in the database yet.")
         
         with st.expander("➕ Add Video"):
-            url = st.text_input("Video URL")
-            metadata_json = st.text_area("Metadata (JSON, optional)", "{}")
+            url = st.text_input("Video URL", key="admin_video_url")
+            metadata_json = st.text_area(
+                "Metadata (JSON, optional)", 
+                "{}",
+                key="admin_video_metadata"
+            )
             
-            if st.button("Add Video"):
+            if st.button("Add Video", key="admin_add_video_btn"):
                 if url:
                     try:
                         import json
                         metadata = json.loads(metadata_json) if metadata_json.strip() else {}
-                        VideoService.add_video(url, session, metadata)
+                        VideoService.add_video(
+                            url=url, 
+                            session=session, 
+                            metadata=metadata
+                        )
                         st.success("Video added!")
-                        st.rerun()
+                        st.rerun(scope="fragment")
                     except Exception as e:
                         st.error(f"Error: {str(e)}")
 
+@st.fragment
 def admin_projects():
     st.subheader("📁 Project Management")
     
     with get_db_session() as session:
-        projects_df = ProjectService.get_all_projects(session)
+        projects_df = ProjectService.get_all_projects(session=session)
         
         # Enhanced project display
         if not projects_df.empty:
             enhanced_projects = []
             for _, project in projects_df.iterrows():
                 try:
-                    progress = ProjectService.progress(project["ID"], session)
-                    has_full_gt = check_project_has_full_ground_truth(project["ID"], session)
+                    progress = ProjectService.progress(
+                        project_id=project["ID"], 
+                        session=session
+                    )
+                    has_full_gt = check_project_has_full_ground_truth(
+                        project_id=project["ID"], 
+                        session=session
+                    )
                     mode = "🎓 Training" if has_full_gt else "📝 Annotation"
                     
                     enhanced_projects.append({
@@ -1595,45 +2086,57 @@ def admin_projects():
             st.info("No projects available.")
         
         with st.expander("➕ Create Project"):
-            name = st.text_input("Project Name")
-            description = st.text_area("Description")
+            name = st.text_input("Project Name", key="admin_project_name")
+            description = st.text_area("Description", key="admin_project_description")
             
-            schemas_df = SchemaService.get_all_schemas(session)
+            schemas_df = SchemaService.get_all_schemas(session=session)
             if schemas_df.empty:
                 st.warning("No schemas available.")
                 return
                 
-            schema_name = st.selectbox("Schema", schemas_df["Name"])
+            schema_name = st.selectbox("Schema", schemas_df["Name"], key="admin_project_schema")
             
-            videos_df = VideoService.get_all_videos(session)
+            videos_df = VideoService.get_all_videos(session=session)
             if videos_df.empty:
                 st.warning("No videos available.")
                 return
                 
-            selected_videos = st.multiselect("Videos", videos_df["Video UID"])
+            selected_videos = st.multiselect("Videos", videos_df["Video UID"], key="admin_project_videos")
             
-            if st.button("Create Project"):
+            if st.button("Create Project", key="admin_create_project_btn"):
                 if name and schema_name:
                     try:
-                        schema_id = SchemaService.get_schema_id_by_name(schema_name, session)
-                        video_ids = ProjectService.get_video_ids_by_uids(selected_videos, session)
-                        ProjectService.create_project(name, schema_id, video_ids, session)
+                        schema_id = SchemaService.get_schema_id_by_name(
+                            name=schema_name, 
+                            session=session
+                        )
+                        video_ids = ProjectService.get_video_ids_by_uids(
+                            video_uids=selected_videos, 
+                            session=session
+                        )
+                        ProjectService.create_project(
+                            name=name, 
+                            schema_id=schema_id, 
+                            video_ids=video_ids, 
+                            session=session
+                        )
                         st.success("Project created!")
-                        st.rerun()
+                        st.rerun(scope="fragment")
                     except Exception as e:
                         st.error(f"Error: {str(e)}")
 
+@st.fragment
 def admin_schemas():
     st.subheader("📋 Schema Management")
     
     with get_db_session() as session:
-        schemas_df = SchemaService.get_all_schemas(session)
+        schemas_df = SchemaService.get_all_schemas(session=session)
         st.dataframe(schemas_df, use_container_width=True)
         
         with st.expander("➕ Create Schema"):
-            schema_name = st.text_input("Schema Name")
+            schema_name = st.text_input("Schema Name", key="admin_schema_name")
             
-            groups_df = QuestionGroupService.get_all_groups(session)
+            groups_df = QuestionGroupService.get_all_groups(session=session)
             if groups_df.empty:
                 st.warning("No question groups available.")
                 return
@@ -1642,18 +2145,24 @@ def admin_schemas():
             selected_groups = st.multiselect(
                 "Question Groups", 
                 available_groups["ID"].tolist(),
-                format_func=lambda x: available_groups[available_groups["ID"]==x]["Name"].iloc[0]
+                format_func=lambda x: available_groups[available_groups["ID"]==x]["Name"].iloc[0],
+                key="admin_schema_groups"
             )
             
-            if st.button("Create Schema"):
+            if st.button("Create Schema", key="admin_create_schema_btn"):
                 if schema_name and selected_groups:
                     try:
-                        SchemaService.create_schema(schema_name, selected_groups, session)
+                        SchemaService.create_schema(
+                            name=schema_name, 
+                            question_group_ids=selected_groups, 
+                            session=session
+                        )
                         st.success("Schema created!")
-                        st.rerun()
+                        st.rerun(scope="fragment")
                     except Exception as e:
                         st.error(f"Error: {str(e)}")
 
+@st.fragment
 def admin_questions():
     st.subheader("❓ Question & Group Management")
     
@@ -1661,106 +2170,120 @@ def admin_questions():
         q_tab1, q_tab2 = st.tabs(["Question Groups", "Individual Questions"])
         
         with q_tab1:
-            groups_df = QuestionGroupService.get_all_groups(session)
+            groups_df = QuestionGroupService.get_all_groups(session=session)
             st.dataframe(groups_df, use_container_width=True)
             
             with st.expander("➕ Create Question Group"):
-                title = st.text_input("Group Title")
-                description = st.text_area("Description")
-                is_reusable = st.checkbox("Reusable across schemas")
+                title = st.text_input("Group Title", key="admin_group_title")
+                description = st.text_area("Description", key="admin_group_description")
+                is_reusable = st.checkbox("Reusable across schemas", key="admin_group_reusable")
                 
-                questions_df = QuestionService.get_all_questions(session)
+                questions_df = QuestionService.get_all_questions(session=session)
                 if not questions_df.empty:
                     available_questions = questions_df[~questions_df["Archived"]]
                     selected_questions = st.multiselect(
                         "Questions",
                         available_questions["ID"].tolist(),
-                        format_func=lambda x: available_questions[available_questions["ID"]==x]["Text"].iloc[0]
+                        format_func=lambda x: available_questions[available_questions["ID"]==x]["Text"].iloc[0],
+                        key="admin_group_questions"
                     )
                 else:
                     selected_questions = []
                     st.warning("No questions available.")
                 
-                if st.button("Create Group"):
+                if st.button("Create Group", key="admin_create_group_btn"):
                     if title and selected_questions:
                         try:
                             QuestionGroupService.create_group(
-                                title, description, is_reusable, 
-                                selected_questions, None, session
+                                title=title, 
+                                description=description, 
+                                is_reusable=is_reusable, 
+                                question_ids=selected_questions, 
+                                verification_function=None, 
+                                session=session
                             )
                             st.success("Question group created!")
-                            st.rerun()
+                            st.rerun(scope="fragment")
                         except Exception as e:
                             st.error(f"Error: {str(e)}")
         
         with q_tab2:
-            questions_df = QuestionService.get_all_questions(session)
+            questions_df = QuestionService.get_all_questions(session=session)
             st.dataframe(questions_df, use_container_width=True)
             
             with st.expander("➕ Create Question"):
-                text = st.text_input("Question Text")
-                q_type = st.selectbox("Type", ["single", "description"])
+                text = st.text_input("Question Text", key="admin_question_text")
+                q_type = st.selectbox("Type", ["single", "description"], key="admin_question_type")
                 
                 options = []
                 default = None
                 
                 if q_type == "single":
                     st.write("**Options:**")
-                    num_options = st.number_input("Number of options", 1, 10, 2)
+                    num_options = st.number_input("Number of options", 1, 10, 2, key="admin_question_num_options")
                     
                     for i in range(num_options):
-                        option = st.text_input(f"Option {i+1}", key=f"opt_{i}")
+                        option = st.text_input(f"Option {i+1}", key=f"admin_question_opt_{i}")
                         if option:
                             options.append(option)
                     
                     if options:
-                        default = st.selectbox("Default option", [""] + options)
+                        default = st.selectbox("Default option", [""] + options, key="admin_question_default")
                 
-                if st.button("Create Question"):
+                if st.button("Create Question", key="admin_create_question_btn"):
                     if text:
                         try:
                             QuestionService.add_question(
-                                text, q_type, 
-                                options if q_type == "single" else None,
-                                default if q_type == "single" else None,
-                                session
+                                text=text, 
+                                qtype=q_type, 
+                                options=options if q_type == "single" else None,
+                                default=default if q_type == "single" else None,
+                                session=session
                             )
                             st.success("Question created!")
-                            st.rerun()
+                            st.rerun(scope="fragment")
                         except Exception as e:
                             st.error(f"Error: {str(e)}")
 
+@st.fragment
 def admin_users():
     st.subheader("👥 User Management")
     
     with get_db_session() as session:
-        users_df = AuthService.get_all_users(session)
+        users_df = AuthService.get_all_users(session=session)
         st.dataframe(users_df, use_container_width=True)
         
         with st.expander("➕ Create User"):
-            user_id = st.text_input("User ID")
-            email = st.text_input("Email")
-            password = st.text_input("Password", type="password")
-            user_type = st.selectbox("User Type", ["human", "model", "admin"])
+            user_id = st.text_input("User ID", key="admin_user_id")
+            email = st.text_input("Email", key="admin_user_email")
+            password = st.text_input("Password", type="password", key="admin_user_password")
+            user_type = st.selectbox("User Type", ["human", "model", "admin"], key="admin_user_type")
             
-            if st.button("Create User"):
+            if st.button("Create User", key="admin_create_user_btn"):
                 if user_id and email and password:
                     try:
-                        AuthService.create_user(user_id, email, password, user_type, session)
+                        AuthService.create_user(
+                            user_id=user_id, 
+                            email=email, 
+                            password_hash=password, 
+                            user_type=user_type, 
+                            session=session
+                        )
                         st.success("User created!")
-                        st.rerun()
+                        st.rerun(scope="fragment")
                     except Exception as e:
                         st.error(f"Error: {str(e)}")
 
+@st.fragment
 def admin_assignments():
     st.subheader("🔗 Project Assignments")
     
     with get_db_session() as session:
-        assignments_df = AuthService.get_project_assignments(session)
+        assignments_df = AuthService.get_project_assignments(session=session)
         st.dataframe(assignments_df, use_container_width=True)
         
         with st.expander("➕ Manage Assignments"):
-            projects_df = ProjectService.get_all_projects(session)
+            projects_df = ProjectService.get_all_projects(session=session)
             if projects_df.empty:
                 st.warning("No projects available.")
                 return
@@ -1768,57 +2291,94 @@ def admin_assignments():
             project_id = st.selectbox(
                 "Project",
                 projects_df["ID"].tolist(),
-                format_func=lambda x: projects_df[projects_df["ID"]==x]["Name"].iloc[0]
+                format_func=lambda x: projects_df[projects_df["ID"]==x]["Name"].iloc[0],
+                key="admin_assign_project"
             )
             
-            users_df = AuthService.get_all_users(session)
+            users_df = AuthService.get_all_users(session=session)
             if users_df.empty:
                 st.warning("No users available.")
                 return
-                
-            user_ids = st.multiselect(
-                "Users",
-                users_df["ID"].tolist(),
-                format_func=lambda x: f"{users_df[users_df['ID']==x]['User ID'].iloc[0]} ({users_df[users_df['ID']==x]['Email'].iloc[0]})"
-            )
             
-            role = st.selectbox("Role", ["annotator", "reviewer", "admin", "model"])
+            # FIXED: Simplified user selection that preserves IDs correctly
+            st.markdown("**Select Users:**")
+            
+            # Show all users as checkboxes with clear ID mapping
+            selected_user_ids = []
+            
+            for _, user_row in users_df.iterrows():
+                user_id = int(user_row["ID"])  # Ensure it's an integer
+                user_name = user_row["User ID"]
+                user_email = user_row["Email"]
+                user_role = user_row["Role"]
+                
+                # Clear display with role indicator
+                display_text = f"{user_name} ({user_email}) - {user_role.upper()}"
+                
+                # Checkbox for this user
+                is_selected = st.checkbox(
+                    display_text,
+                    key=f"user_checkbox_{user_id}",
+                    help=f"User ID: {user_id}"
+                )
+                
+                if is_selected:
+                    selected_user_ids.append(user_id)
+            
+            role = st.selectbox("Role", ["annotator", "reviewer", "admin", "model"], key="admin_assign_role")
+            
+            # Show what will happen
+            if selected_user_ids:
+                st.info(f"Will assign {len(selected_user_ids)} users as {role}:")
+                for user_id in selected_user_ids:
+                    user_row = users_df[users_df["ID"] == user_id].iloc[0]
+                    st.write(f"- {user_row['User ID']} ({user_row['Email']}) - **ID: {user_id}**")
             
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("Assign Users"):
-                    if project_id and user_ids:
+                if st.button("Assign Users", key="admin_assign_users_btn"):
+                    if project_id and selected_user_ids:
                         try:
-                            for user_id in user_ids:
-                                ProjectService.add_user_to_project(user_id, project_id, role, session)
-                            st.success(f"Assigned {len(user_ids)} users!")
-                            st.rerun()
+                            for user_id in selected_user_ids:
+                                ProjectService.add_user_to_project(
+                                    project_id=project_id,
+                                    user_id=user_id,
+                                    role=role,
+                                    session=session
+                                )
+                            st.success(f"Assigned {len(selected_user_ids)} users!")
+                            st.rerun(scope="fragment")
                         except Exception as e:
                             st.error(f"Error: {str(e)}")
             
             with col2:
-                if st.button("Remove Users"):
-                    if project_id and user_ids:
+                if st.button("Remove Users", key="admin_remove_users_btn"):
+                    if project_id and selected_user_ids:
                         try:
-                            for user_id in user_ids:
-                                AuthService.archive_user_from_project(user_id, project_id, session)
-                            st.success(f"Removed {len(user_ids)} users!")
-                            st.rerun()
+                            for user_id in selected_user_ids:
+                                AuthService.archive_user_from_project(
+                                    user_id=user_id, 
+                                    project_id=project_id, 
+                                    session=session
+                                )
+                            st.success(f"Removed {len(selected_user_ids)} users!")
+                            st.rerun(scope="fragment")
                         except Exception as e:
                             st.error(f"Error: {str(e)}")
 
+@st.fragment 
 def admin_project_groups():
     st.subheader("📊 Project Group Management")
     
     with get_db_session() as session:
         # List existing project groups
         try:
-            groups = ProjectGroupService.list_project_groups(session)
+            groups = ProjectGroupService.list_project_groups(session=session)
             if groups:
                 group_data = []
                 for group in groups:
                     try:
-                        group_info = ProjectGroupService.get_project_group_by_id(group.id, session)
+                        group_info = ProjectGroupService.get_project_group_by_id(group_id=group.id, session=session)
                         project_count = len(group_info["projects"])
                         group_data.append({
                             "ID": group.id,
@@ -1844,30 +2404,135 @@ def admin_project_groups():
         
         # Create new project group
         with st.expander("➕ Create Project Group"):
-            group_name = st.text_input("Group Name")
-            group_description = st.text_area("Description")
+            group_name = st.text_input("Group Name", key="admin_pgroup_name")
+            group_description = st.text_area("Description", key="admin_pgroup_description")
             
-            projects_df = ProjectService.get_all_projects(session)
+            projects_df = ProjectService.get_all_projects(session=session)
             if not projects_df.empty:
                 selected_projects = st.multiselect(
                     "Projects (optional)",
                     projects_df["ID"].tolist(),
-                    format_func=lambda x: projects_df[projects_df["ID"]==x]["Name"].iloc[0]
+                    format_func=lambda x: projects_df[projects_df["ID"]==x]["Name"].iloc[0],
+                    key="admin_pgroup_projects"
                 )
             else:
                 selected_projects = []
                 st.warning("No projects available to add to group.")
             
-            if st.button("Create Project Group"):
+            if st.button("Create Project Group", key="admin_create_pgroup_btn"):
                 if group_name:
                     try:
                         ProjectGroupService.create_project_group(
-                            group_name, group_description, selected_projects, session
+                            name=group_name, 
+                            description=group_description, 
+                            project_ids=selected_projects, 
+                            session=session
                         )
                         st.success("Project group created!")
-                        st.rerun()
+                        st.rerun(scope="fragment")
                     except Exception as e:
                         st.error(f"Error: {str(e)}")
+        
+        # Edit existing project groups
+        with st.expander("✏️ Edit Project Group"):
+            try:
+                groups = ProjectGroupService.list_project_groups(session=session)
+                if groups:
+                    # Group selection
+                    group_options = {f"{g.name} (ID: {g.id})": g.id for g in groups}
+                    selected_group_name = st.selectbox(
+                        "Select Group to Edit", 
+                        list(group_options.keys()),
+                        key="admin_edit_group_select"
+                    )
+                    
+                    if selected_group_name:
+                        selected_group_id = group_options[selected_group_name]
+                        
+                        # Get current group info
+                        group_info = ProjectGroupService.get_project_group_by_id(
+                            group_id=selected_group_id, 
+                            session=session
+                        )
+                        current_group = group_info["group"]
+                        current_projects = group_info["projects"]
+                        
+                        # Edit fields
+                        new_name = st.text_input(
+                            "Group Name", 
+                            value=current_group.name,
+                            key="admin_edit_group_name"
+                        )
+                        new_description = st.text_area(
+                            "Description", 
+                            value=current_group.description or "",
+                            key="admin_edit_group_description"
+                        )
+                        
+                        # Project management
+                        st.markdown("**Project Management:**")
+                        
+                        # Show current projects
+                        if current_projects:
+                            st.markdown("**Current Projects:**")
+                            current_project_ids = [p.id for p in current_projects]
+                            for project in current_projects:
+                                st.write(f"- {project.name} (ID: {project.id})")
+                        else:
+                            st.info("No projects currently in this group")
+                            current_project_ids = []
+                        
+                        # Get all available projects
+                        all_projects_df = ProjectService.get_all_projects(session=session)
+                        
+                        if not all_projects_df.empty:
+                            # Projects to add
+                            available_to_add = all_projects_df[~all_projects_df["ID"].isin(current_project_ids)]
+                            if not available_to_add.empty:
+                                add_projects = st.multiselect(
+                                    "Add Projects",
+                                    available_to_add["ID"].tolist(),
+                                    format_func=lambda x: available_to_add[available_to_add["ID"]==x]["Name"].iloc[0],
+                                    key="admin_edit_group_add_projects"
+                                )
+                            else:
+                                add_projects = []
+                                st.info("All projects are already in this group")
+                            
+                            # Projects to remove
+                            if current_project_ids:
+                                remove_projects = st.multiselect(
+                                    "Remove Projects",
+                                    current_project_ids,
+                                    format_func=lambda x: all_projects_df[all_projects_df["ID"]==x]["Name"].iloc[0],
+                                    key="admin_edit_group_remove_projects"
+                                )
+                            else:
+                                remove_projects = []
+                        else:
+                            add_projects = []
+                            remove_projects = []
+                            st.warning("No projects available in the system")
+                        
+                        # Update button
+                        if st.button("Update Project Group", key="admin_update_pgroup_btn"):
+                            try:
+                                ProjectGroupService.edit_project_group(
+                                    group_id=selected_group_id,
+                                    name=new_name if new_name != current_group.name else None,
+                                    description=new_description if new_description != (current_group.description or "") else None,
+                                    add_project_ids=add_projects if add_projects else None,
+                                    remove_project_ids=remove_projects if remove_projects else None,
+                                    session=session
+                                )
+                                st.success("Project group updated!")
+                                st.rerun(scope="fragment")
+                            except Exception as e:
+                                st.error(f"Error: {str(e)}")
+                else:
+                    st.info("No project groups available to edit")
+            except Exception as e:
+                st.error(f"Error loading groups for editing: {str(e)}")
 
 ###############################################################################
 # HELPER FUNCTIONS - ALL USING SERVICE LAYER
@@ -1876,7 +2541,10 @@ def admin_project_groups():
 def get_schema_question_groups(schema_id: int, session: Session) -> List[Dict]:
     """Get question groups in a schema - using service layer"""
     try:
-        return SchemaService.get_schema_question_groups_list(schema_id, session)
+        return SchemaService.get_schema_question_groups_list(
+            schema_id=schema_id, 
+            session=session
+        )
     except ValueError as e:
         st.error(f"Error loading schema question groups: {str(e)}")
         return []
@@ -1884,7 +2552,10 @@ def get_schema_question_groups(schema_id: int, session: Session) -> List[Dict]:
 def get_project_videos(project_id: int, session: Session) -> List[Dict]:
     """Get videos in a project - using service layer"""
     try:
-        return VideoService.get_project_videos(project_id, session)
+        return VideoService.get_project_videos(
+            project_id=project_id, 
+            session=session
+        )
     except ValueError as e:
         st.error(f"Error getting project videos: {str(e)}")
         return []
@@ -1892,7 +2563,11 @@ def get_project_videos(project_id: int, session: Session) -> List[Dict]:
 def calculate_user_overall_progress(user_id: int, project_id: int, session: Session) -> float:
     """Calculate user's overall progress - using service layer"""
     try:
-        return AnnotatorService.calculate_user_overall_progress(user_id, project_id, session)
+        return AnnotatorService.calculate_user_overall_progress(
+            user_id=user_id, 
+            project_id=project_id, 
+            session=session
+        )
     except ValueError as e:
         st.error(f"Error calculating user progress: {str(e)}")
         return 0.0
@@ -1902,8 +2577,15 @@ def show_training_feedback(video_id: int, project_id: int, group_id: int,
     """Show training feedback comparing user answers to ground truth - using service layer"""
     
     try:
-        gt_df = GroundTruthService.get_ground_truth(video_id, project_id, session)
-        questions = QuestionService.get_questions_by_group_id(group_id, session)
+        gt_df = GroundTruthService.get_ground_truth(
+            video_id=video_id, 
+            project_id=project_id, 
+            session=session
+        )
+        questions = QuestionService.get_questions_by_group_id(
+            group_id=group_id, 
+            session=session
+        )
         question_map = {q["id"]: q for q in questions}
         
         st.subheader("📊 Training Feedback")
@@ -1966,37 +2648,45 @@ def main():
         initial_sidebar_state="expanded"
     )
     
-    # Custom CSS - clean design with truly sticky elements and fixed submit button
+    # Custom CSS - clean design with improved styling and better radio buttons
     st.markdown("""
         <style>
         .stProgress > div > div > div > div {
             background-color: #4CAF50;
         }
         
-        /* Clean tabs styling */
+        /* Clean tabs styling with better visual hierarchy */
         .stTabs [data-baseweb="tab-list"] {
-            gap: 2px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-            padding: 4px;
-            border: 1px solid #e9ecef;
+            gap: 4px;
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 10px;
+            padding: 6px;
+            border: 1px solid #dee2e6;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         
         .stTabs [data-baseweb="tab"] {
-            height: 40px;
+            height: 44px;
             white-space: pre-wrap;
             background-color: transparent;
-            border-radius: 6px;
+            border-radius: 8px;
             color: #495057;
-            font-weight: 500;
+            font-weight: 600;
             border: none;
-            padding: 8px 16px;
+            padding: 10px 18px;
+            transition: all 0.2s ease;
+        }
+        
+        .stTabs [data-baseweb="tab"]:hover {
+            background-color: rgba(31, 119, 180, 0.1);
+            transform: translateY(-1px);
         }
         
         .stTabs [aria-selected="true"] {
-            background-color: #1f77b4 !important;
+            background: linear-gradient(135deg, #1f77b4, #4a90e2) !important;
             color: white !important;
-            box-shadow: 0 2px 4px rgba(31, 119, 180, 0.2);
+            box-shadow: 0 3px 8px rgba(31, 119, 180, 0.3);
+            transform: translateY(-1px);
         }
         
         /* Remove form borders completely */
@@ -2007,44 +2697,54 @@ def main():
             background: transparent !important;
         }
         
-        /* Clean radio button styling - no grey background */
+        /* Enhanced inline radio button styling */
         .stRadio > div {
-            gap: 0.6rem;
+            gap: 1rem;
             background: transparent !important;
             padding: 0 !important;
             border: none !important;
             border-radius: 0 !important;
             margin: 0 !important;
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            align-items: flex-start !important;
         }
         
         .stRadio > div > label {
-            margin-bottom: 0.5rem;
-            font-size: 1rem;
-            background-color: white;
+            margin-bottom: 0.7rem;
+            font-size: 0.95rem;
+            background: linear-gradient(135deg, #ffffff, #f8f9fa);
             padding: 12px 16px;
-            border-radius: 8px;
+            border-radius: 10px;
             border: 2px solid #e9ecef;
             cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            flex: 0 0 auto;
+            min-width: fit-content;
+            max-width: 320px;
+            font-weight: 500;
         }
         
         .stRadio > div > label:hover {
-            background-color: #f8f9fa;
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
             border-color: #1f77b4;
-            transform: translateY(-1px);
-            box-shadow: 0 2px 6px rgba(31, 119, 180, 0.15);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(31, 119, 180, 0.2);
         }
         
-        /* Selected radio button styling */
+        /* Selected radio button styling with gradient */
         .stRadio > div > label[data-checked="true"] {
-            background-color: #e7f3ff;
+            background: linear-gradient(135deg, #e7f3ff, #cce7ff);
             border-color: #1f77b4;
-            font-weight: 600;
+            font-weight: 700;
             color: #1f77b4;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(31, 119, 180, 0.25);
         }
         
-        /* Clean text areas - no grey background */
+        /* Enhanced text areas */
         .stTextArea {
             background: transparent !important;
             padding: 0 !important;
@@ -2054,63 +2754,100 @@ def main():
         }
         
         .stTextArea > div > div > textarea {
-            border-radius: 8px;
+            border-radius: 10px;
             border: 2px solid #e9ecef;
             font-size: 0.95rem;
-            background-color: white;
-            padding: 12px;
-            transition: border-color 0.2s ease;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            background: linear-gradient(135deg, #ffffff, #f8f9fa);
+            padding: 14px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
         
         .stTextArea > div > div > textarea:focus {
             border-color: #1f77b4;
-            box-shadow: 0 0 0 3px rgba(31, 119, 180, 0.1);
+            box-shadow: 0 0 0 3px rgba(31, 119, 180, 0.1), 0 4px 12px rgba(31, 119, 180, 0.15);
+            background: #ffffff;
         }
         
-        /* Beautiful submit buttons - with sticky positioning support */
+        /* Enhanced navigation button styling */
         .stButton > button {
-            border-radius: 8px;
+            border-radius: 10px;
             border: none;
-            transition: all 0.2s ease;
-            font-weight: 600;
+            transition: all 0.3s ease;
+            font-weight: 700;
             background: linear-gradient(135deg, #1f77b4, #4a90e2);
             color: white;
-            padding: 12px 24px;
-            font-size: 1rem;
-            box-shadow: 0 2px 6px rgba(31, 119, 180, 0.3);
+            padding: 14px 28px;
+            font-size: 1.05rem;
+            box-shadow: 0 4px 12px rgba(31, 119, 180, 0.3);
             position: relative;
             z-index: 100;
+            letter-spacing: 0.5px;
         }
         
         .stButton > button:hover {
-            box-shadow: 0 4px 12px rgba(31, 119, 180, 0.4);
-            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(31, 119, 180, 0.4);
+            transform: translateY(-3px);
             background: linear-gradient(135deg, #1a6ca8, #4088d4);
         }
         
         .stButton > button:disabled {
             background: linear-gradient(135deg, #6c757d, #adb5bd);
             transform: none;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            opacity: 0.6;
         }
         
-        /* Enhanced sticky behavior for question headers */
-        .sticky-question-header {
-            position: sticky !important;
-            top: 0 !important;
-            z-index: 50 !important;
-            background: white !important;
-            backdrop-filter: blur(15px) !important;
+        /* Special styling for navigation buttons */
+        .stButton > button[kind="secondary"] {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            font-size: 0.95rem;
+            padding: 10px 20px;
         }
         
-        /* Segmented control styling */
+        .stButton > button[kind="secondary"]:hover {
+            background: linear-gradient(135deg, #218838, #1ea080);
+        }
+        
+        /* Enhanced segmented control for navigation */
         .stSegmentedControl {
             margin: 16px 0;
             padding: 8px;
-            background: linear-gradient(90deg, #f8f9fa, #e9ecef);
-            border-radius: 8px;
-            border: 1px solid #dee2e6;
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 12px;
+            border: 2px solid #dee2e6;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+        }
+        
+        .stSegmentedControl > div {
+            gap: 4px;
+        }
+        
+        .stSegmentedControl button {
+            border-radius: 8px !important;
+            font-weight: 600 !important;
+            transition: all 0.2s ease !important;
+            border: 1px solid transparent !important;
+        }
+        
+        .stSegmentedControl button:hover {
+            transform: translateY(-1px) !important;
+            box-shadow: 0 2px 6px rgba(31, 119, 180, 0.2) !important;
+        }
+        
+        .stSegmentedControl button[aria-selected="true"] {
+            background: linear-gradient(135deg, #1f77b4, #4a90e2) !important;
+            color: white !important;
+            box-shadow: 0 3px 8px rgba(31, 119, 180, 0.3) !important;
+        }
+        
+        /* Enhanced alert styling */
+        .stAlert {
+            border-radius: 10px;
+            border: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            font-weight: 600;
         }
         
         /* Remove container borders globally */
@@ -2118,56 +2855,166 @@ def main():
             border: none !important;
         }
         
-        /* Clean scrollbars */
+        /* Custom scrollbars with gradient */
         ::-webkit-scrollbar {
-            width: 8px;
+            width: 10px;
         }
         
         ::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 4px;
+            background: linear-gradient(180deg, #f1f1f1, #e9ecef);
+            border-radius: 6px;
         }
         
         ::-webkit-scrollbar-thumb {
-            background: linear-gradient(180deg, #c1c1c1, #a8a8a8);
-            border-radius: 4px;
+            background: linear-gradient(180deg, #1f77b4, #4a90e2);
+            border-radius: 6px;
+            border: 2px solid #f1f1f1;
         }
         
         ::-webkit-scrollbar-thumb:hover {
-            background: linear-gradient(180deg, #a8a8a8, #909090);
+            background: linear-gradient(180deg, #1a6ca8, #4088d4);
         }
         
-        /* Celebration message styling */
+        /* Enhanced success/celebration styling */
         .stSuccess {
-            font-weight: 600;
+            font-weight: 700;
             text-align: center;
+            background: linear-gradient(135deg, #d4edda, #c3e6cb);
+            border: 2px solid #28a745;
+            border-radius: 10px;
         }
         
-        /* Tab content padding */
+        /* Tab content with better padding */
         .stTabs [data-baseweb="tab-panel"] {
-            padding: 16px 0;
+            padding: 20px 0;
         }
         
-        /* Helper text styling */
+        /* Helper text with better styling */
         .stCaption {
             font-size: 0.85rem;
             color: #6c757d;
             font-style: italic;
-            margin-top: 8px;
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 6px;
+            border-left: 3px solid #1f77b4;
         }
         
-        /* Container height management */
+        /* Container improvements */
         .stContainer {
             position: relative;
         }
         
-        /* Form submit button area - ensure it stays visible */
+        /* Form submit button area with gradient background */
         .stForm .stButton {
             position: sticky;
             bottom: 0;
-            background: white;
-            padding-top: 8px;
+            background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,1));
+            padding: 12px 0;
             z-index: 100;
+            border-radius: 10px 10px 0 0;
+        }
+        
+        /* Enhanced checkbox styling for annotator selection */
+        .stCheckbox > label {
+            background: linear-gradient(135deg, #ffffff, #f8f9fa);
+            padding: 12px 16px;
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            display: block;
+            font-weight: 500;
+        }
+        
+        .stCheckbox > label:hover {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-color: #1f77b4;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(31, 119, 180, 0.2);
+        }
+        
+        .stCheckbox > label[data-checked="true"] {
+            background: linear-gradient(135deg, #e7f3ff, #cce7ff);
+            border-color: #1f77b4;
+            font-weight: 700;
+            color: #1f77b4;
+            box-shadow: 0 4px 12px rgba(31, 119, 180, 0.25);
+        }
+        
+        /* Responsive improvements */
+        @media (max-width: 768px) {
+            .stRadio > div {
+                gap: 0.7rem;
+            }
+            
+            .stRadio > div > label {
+                padding: 10px 14px;
+                font-size: 0.9rem;
+                max-width: 280px;
+            }
+            
+            .stTabs [data-baseweb="tab"] {
+                padding: 8px 14px;
+                font-size: 0.9rem;
+            }
+            
+            .stCheckbox > label {
+                padding: 10px 14px;
+                font-size: 0.9rem;
+            }
+        }
+        
+        /* Enhanced multiselect styling with better spacing */
+        .stMultiSelect > div > div {
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+            background: linear-gradient(135deg, #ffffff, #f8f9fa);
+            min-height: 45px;
+        }
+        
+        .stMultiSelect > div > div:focus-within {
+            border-color: #1f77b4;
+            box-shadow: 0 0 0 3px rgba(31, 119, 180, 0.1);
+        }
+        
+        /* Custom styling for selected annotator badges */
+        .annotator-badge {
+            background: linear-gradient(135deg, #e7f3ff, #cce7ff);
+            border: 2px solid #1f77b4;
+            border-radius: 8px;
+            padding: 8px 12px;
+            text-align: center;
+            margin: 4px 0;
+            font-size: 0.9rem;
+            box-shadow: 0 2px 4px rgba(31, 119, 180, 0.1);
+            transition: all 0.2s ease;
+        }
+        
+        .annotator-badge:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(31, 119, 180, 0.2);
+        }
+        
+        /* Remove unwanted borders and margins for cleaner look */
+        .element-container > div > div > div > div {
+            border: none !important;
+        }
+        
+        /* Better spacing for form elements */
+        .stForm > div {
+            gap: 0 !important;
+        }
+        
+        /* Enhanced pagination display */
+        .stSegmentedControl button[disabled] {
+            opacity: 0.5 !important;
+            cursor: not-allowed !important;
+            background: #f8f9fa !important;
+            color: #6c757d !important;
         }
         </style>
     """, unsafe_allow_html=True)

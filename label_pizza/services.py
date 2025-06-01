@@ -397,13 +397,18 @@ class ProjectService:
             
             session.add(ProjectVideo(project_id=project.id, video_id=vid))
         
-        # Assign all admin users to the project
+        # Assign all admin users to the project using KEYWORD ARGUMENTS
         admin_users = session.scalars(
             select(User).where(User.user_type == "admin", User.is_archived == False)
         ).all()
         
         for admin in admin_users:
-            ProjectService.add_user_to_project(admin.id, project.id, "admin", session)
+            ProjectService.add_user_to_project(
+                project_id=project.id, 
+                user_id=admin.id, 
+                role="admin", 
+                session=session
+            )
         
         session.commit()
 
@@ -1250,7 +1255,7 @@ class QuestionService:
             ValueError: If question not found or validation fails
         """
         # Get question
-        q = QuestionService.get_question_by_id(question_id, session)
+        q = QuestionService.get_question_by_id(question_id=question_id, session=session)
 
         # Check if question is archived
         if q.is_archived:
@@ -1608,9 +1613,14 @@ class AuthService:
                 select(Project).where(Project.is_archived == False)
             ).all()
             
-            # Assign user as admin to each project
+            # Assign user as admin to each project using KEYWORD ARGUMENTS
             for project in projects:
-                ProjectService.add_user_to_project(user_id, project.id, "admin", session)
+                ProjectService.add_user_to_project(
+                    project_id=project.id, 
+                    user_id=user_id, 
+                    role="admin", 
+                    session=session
+                )
         else:
             user.user_type = new_role
             session.commit()
@@ -1681,14 +1691,19 @@ class AuthService:
         session.add(user)
         session.flush()  # Get user ID
         
-        # If user is admin, assign to all existing projects
+        # If user is admin, assign to all existing projects using KEYWORD ARGUMENTS
         if user_type == "admin" and not is_archived:
             projects = session.scalars(
                 select(Project).where(Project.is_archived == False)
             ).all()
             
             for project in projects:
-                ProjectService.add_user_to_project(user.id, project.id, "admin", session)
+                ProjectService.add_user_to_project(
+                    project_id=project.id, 
+                    user_id=user.id, 
+                    role="admin", 
+                    session=session
+                )
         
         session.commit()
         return user
@@ -1760,7 +1775,12 @@ class AuthService:
         """Assign multiple users to a project with the same role."""
         for user_id in user_ids:
             try:
-                AuthService.assign_user_to_project(user_id, project_id, role, session)
+                AuthService.assign_user_to_project(
+                    user_id=user_id, 
+                    project_id=project_id, 
+                    role=role, 
+                    session=session
+                )
             except ValueError as e:
                 # Log error but continue with other assignments
                 print(f"Error assigning user {user_id}: {str(e)}")
@@ -2586,19 +2606,19 @@ class AnnotatorService(BaseAnswerService):
             ValueError: If validation fails or verification fails
         """
         # Validate project and user
-        project, user = AnnotatorService._validate_project_and_user(project_id, user_id, session)
+        project, user = AnnotatorService._validate_project_and_user(project_id=project_id, user_id=user_id, session=session)
         
         # Validate user role
-        AnnotatorService._validate_user_role(user_id, project_id, "annotator", session)
+        AnnotatorService._validate_user_role(user_id=user_id, project_id=project_id, required_role="annotator", session=session)
             
         # Validate question group and get questions
-        group, questions = AnnotatorService._validate_question_group(question_group_id, session)
+        group, questions = AnnotatorService._validate_question_group(question_group_id=question_group_id, session=session)
         
         # Validate answers match questions
-        AnnotatorService._validate_answers_match_questions(answers, questions)
+        AnnotatorService._validate_answers_match_questions(answers=answers, questions=questions)
             
         # Run verification if specified
-        AnnotatorService._run_verification(group, answers)
+        AnnotatorService._run_verification(group=group, answers=answers)
             
         # Submit each answer
         for question in questions:
@@ -2611,7 +2631,7 @@ class AnnotatorService(BaseAnswerService):
             note = notes.get(question.text) if notes else None
             
             # Validate answer value
-            AnnotatorService._validate_answer_value(question, answer_value)
+            AnnotatorService._validate_answer_value(question=question, answer_value=answer_value)
             
             # Check for existing answer
             existing = session.scalar(
@@ -2645,7 +2665,7 @@ class AnnotatorService(BaseAnswerService):
         session.commit()
         
         # Check and update completion status
-        AnnotatorService._check_and_update_completion(user_id, project_id, session)
+        AnnotatorService._check_and_update_completion(user_id=user_id, project_id=project_id, session=session)
 
     @staticmethod
     def get_answers(video_id: int, project_id: int, session: Session) -> pd.DataFrame:
@@ -2917,19 +2937,19 @@ class GroundTruthService(BaseAnswerService):
             ValueError: If validation fails or verification fails
         """
         # Validate project and reviewer
-        project, reviewer = GroundTruthService._validate_project_and_user(project_id, reviewer_id, session)
+        project, reviewer = GroundTruthService._validate_project_and_user(project_id=project_id, user_id=reviewer_id, session=session)
         
         # Validate reviewer role
-        GroundTruthService._validate_user_role(reviewer_id, project_id, "reviewer", session)
+        GroundTruthService._validate_user_role(user_id=reviewer_id, project_id=project_id, required_role="reviewer", session=session)
             
         # Validate question group and get questions
-        group, questions = GroundTruthService._validate_question_group(question_group_id, session)
+        group, questions = GroundTruthService._validate_question_group(question_group_id=question_group_id, session=session)
         
         # Validate answers match questions
-        GroundTruthService._validate_answers_match_questions(answers, questions)
+        GroundTruthService._validate_answers_match_questions(answers=answers, questions=questions)
             
         # Run verification if specified
-        GroundTruthService._run_verification(group, answers)
+        GroundTruthService._run_verification(group=group, answers=answers)
             
         # Submit each ground truth answer
         for question in questions:
@@ -2942,7 +2962,7 @@ class GroundTruthService(BaseAnswerService):
             note = notes.get(question.text) if notes else None
             
             # Validate answer value
-            GroundTruthService._validate_answer_value(question, answer_value)
+            GroundTruthService._validate_answer_value(question=question, answer_value=answer_value)
             
             # Check for existing ground truth
             existing = session.get(ReviewerGroundTruth, (video_id, question.id, project_id))
@@ -2972,7 +2992,7 @@ class GroundTruthService(BaseAnswerService):
         session.commit()
         
         # Check and update completion status
-        GroundTruthService._check_and_update_completion(reviewer_id, project_id, session)
+        GroundTruthService._check_and_update_completion(user_id=reviewer_id, project_id=project_id, session=session)
 
     @staticmethod
     def get_ground_truth(video_id: int, project_id: int, session: Session) -> pd.DataFrame:
@@ -3156,26 +3176,26 @@ class GroundTruthService(BaseAnswerService):
             ValueError: If validation fails
         """
         # Validate project and admin
-        project, admin = GroundTruthService._validate_project_and_user(project_id, admin_id, session)
+        project, admin = GroundTruthService._validate_project_and_user(project_id=project_id, user_id=admin_id, session=session)
         
         # Validate project admin role
-        GroundTruthService._validate_user_role(admin_id, project_id, "admin", session)
+        GroundTruthService._validate_user_role(user_id=admin_id, project_id=project_id, required_role="admin", session=session)
             
         # Validate question group and get questions
-        group, questions = GroundTruthService._validate_question_group(question_group_id, session)
+        group, questions = GroundTruthService._validate_question_group(question_group_id=question_group_id, session=session)
         
         # Validate answers match questions
-        GroundTruthService._validate_answers_match_questions(answers, questions)
+        GroundTruthService._validate_answers_match_questions(answers=answers, questions=questions)
             
         # Run verification if specified
-        GroundTruthService._run_verification(group, answers)
+        GroundTruthService._run_verification(group=group, answers=answers)
             
         # Override each ground truth answer
         for question in questions:
             answer_value = answers[question.text]
             
             # Validate answer value
-            GroundTruthService._validate_answer_value(question, answer_value)
+            GroundTruthService._validate_answer_value(question=question, answer_value=answer_value)
             
             # Get ground truth
             gt = session.get(ReviewerGroundTruth, (video_id, question.id, project_id))
@@ -3225,7 +3245,7 @@ class GroundTruthService(BaseAnswerService):
             raise ValueError(f"Question '{question.text}' is not a description type question")
             
         # Validate reviewer role
-        GroundTruthService._validate_user_role(reviewer_id, answer.project_id, "reviewer", session)
+        GroundTruthService._validate_user_role(user_id=reviewer_id, project_id=answer.project_id, required_role="reviewer", session=session)
         
         # Validate review status
         valid_statuses = {"approved", "rejected", "pending"}
@@ -3358,158 +3378,11 @@ class GroundTruthService(BaseAnswerService):
         
         # Check if all questions have been modified by admin
         for question in questions:
-            if not GroundTruthService.check_question_modified_by_admin(video_id, project_id, question.id, session):
+            if not GroundTruthService.check_question_modified_by_admin(video_id=video_id, project_id=project_id, question_id=question.id, session=session):
                 return False
         
         return True
 
-    @staticmethod
-    def get_question_option_selections(video_id: int, project_id: int, question_id: int, annotator_user_ids: List[int], session: Session) -> Dict[str, List[Dict[str, str]]]:
-        """Get who selected which option for a single-choice question.
-        
-        Args:
-            video_id: The ID of the video
-            project_id: The ID of the project
-            question_id: The ID of the question
-            annotator_user_ids: List of annotator user IDs to include
-            session: Database session
-            
-        Returns:
-            Dictionary mapping option values to list of selector info dicts.
-            Each selector dict contains: name, initials, type ('annotator' or 'ground_truth')
-        """
-        option_selections = {}
-        
-        # Get annotator answers
-        for user_id in annotator_user_ids:
-            answer = session.scalar(
-                select(AnnotatorAnswer)
-                .where(
-                    AnnotatorAnswer.video_id == video_id,
-                    AnnotatorAnswer.project_id == project_id,
-                    AnnotatorAnswer.question_id == question_id,
-                    AnnotatorAnswer.user_id == user_id
-                )
-            )
-            
-            if answer:
-                user = session.get(User, user_id)
-                if user:
-                    name_parts = user.user_id_str.split()
-                    if len(name_parts) >= 2:
-                        initials = f"{name_parts[0][0]}{name_parts[-1][0]}".upper()
-                    else:
-                        initials = user.user_id_str[:2].upper()
-                    
-                    option_value = answer.answer_value
-                    if option_value not in option_selections:
-                        option_selections[option_value] = []
-                    
-                    option_selections[option_value].append({
-                        "name": user.user_id_str,
-                        "initials": initials,
-                        "type": "annotator"
-                    })
-        
-        # Get ground truth answer
-        gt_answer = session.scalar(
-            select(ReviewerGroundTruth)
-            .where(
-                ReviewerGroundTruth.video_id == video_id,
-                ReviewerGroundTruth.project_id == project_id,
-                ReviewerGroundTruth.question_id == question_id
-            )
-        )
-        
-        if gt_answer:
-            option_value = gt_answer.answer_value
-            if option_value not in option_selections:
-                option_selections[option_value] = []
-            
-            option_selections[option_value].append({
-                "name": "Ground Truth",
-                "initials": "GT",
-                "type": "ground_truth"
-            })
-        
-        return option_selections
-
-    @staticmethod
-    def get_question_text_answers(video_id: int, project_id: int, question_id: int, annotator_user_ids: List[int], session: Session) -> List[Dict[str, str]]:
-        """Get text answers for a description question.
-        
-        Args:
-            video_id: The ID of the video
-            project_id: The ID of the project
-            question_id: The ID of the question
-            annotator_user_ids: List of annotator user IDs to include
-            session: Database session
-            
-        Returns:
-            List of answer dictionaries containing: name, initials, answer_value
-        """
-        text_answers = []
-        
-        for user_id in annotator_user_ids:
-            answer = session.scalar(
-                select(AnnotatorAnswer)
-                .where(
-                    AnnotatorAnswer.video_id == video_id,
-                    AnnotatorAnswer.project_id == project_id,
-                    AnnotatorAnswer.question_id == question_id,
-                    AnnotatorAnswer.user_id == user_id
-                )
-            )
-            
-            if answer:
-                user = session.get(User, user_id)
-                if user:
-                    name_parts = user.user_id_str.split()
-                    if len(name_parts) >= 2:
-                        initials = f"{name_parts[0][0]}{name_parts[-1][0]}".upper()
-                    else:
-                        initials = user.user_id_str[:2].upper()
-                    
-                    text_answers.append({
-                        "name": user.user_id_str,
-                        "initials": initials,
-                        "answer_value": answer.answer_value
-                    })
-        
-        return text_answers
-    
-    @staticmethod
-    def get_ground_truth_for_question_group(video_id: int, project_id: int, question_group_id: int, session: Session) -> Dict[str, str]:
-        """Get existing ground truth for a video and question group.
-        
-        Args:
-            video_id: The ID of the video
-            project_id: The ID of the project
-            question_group_id: The ID of the question group
-            session: Database session
-            
-        Returns:
-            Dictionary mapping question text to answer value
-        """
-        gts = session.scalars(
-            select(ReviewerGroundTruth)
-            .join(Question, ReviewerGroundTruth.question_id == Question.id)
-            .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
-            .where(
-                ReviewerGroundTruth.video_id == video_id,
-                ReviewerGroundTruth.project_id == project_id,
-                QuestionGroupQuestion.question_group_id == question_group_id
-            )
-        ).all()
-        
-        result = {}
-        for gt in gts:
-            question = session.get(Question, gt.question_id)
-            if question:
-                result[question.text] = gt.answer_value
-        
-        return result
-    
     @staticmethod
     def get_question_option_selections(video_id: int, project_id: int, question_id: int, annotator_user_ids: List[int], session: Session) -> Dict[str, List[Dict[str, str]]]:
         """Get who selected which option for a single-choice question.
@@ -3603,7 +3476,81 @@ class GroundTruthService(BaseAnswerService):
         
         return option_selections
 
-
+    @staticmethod
+    def get_question_text_answers(video_id: int, project_id: int, question_id: int, annotator_user_ids: List[int], session: Session) -> List[Dict[str, str]]:
+        """Get text answers for a description question.
+        
+        Args:
+            video_id: The ID of the video
+            project_id: The ID of the project
+            question_id: The ID of the question
+            annotator_user_ids: List of annotator user IDs to include
+            session: Database session
+            
+        Returns:
+            List of answer dictionaries containing: name, initials, answer_value
+        """
+        text_answers = []
+        
+        for user_id in annotator_user_ids:
+            answer = session.scalar(
+                select(AnnotatorAnswer)
+                .where(
+                    AnnotatorAnswer.video_id == video_id,
+                    AnnotatorAnswer.project_id == project_id,
+                    AnnotatorAnswer.question_id == question_id,
+                    AnnotatorAnswer.user_id == user_id
+                )
+            )
+            
+            if answer:
+                user = session.get(User, user_id)
+                if user:
+                    name_parts = user.user_id_str.split()
+                    if len(name_parts) >= 2:
+                        initials = f"{name_parts[0][0]}{name_parts[-1][0]}".upper()
+                    else:
+                        initials = user.user_id_str[:2].upper()
+                    
+                    text_answers.append({
+                        "name": user.user_id_str,
+                        "initials": initials,
+                        "answer_value": answer.answer_value
+                    })
+        
+        return text_answers
+    
+    @staticmethod
+    def get_ground_truth_for_question_group(video_id: int, project_id: int, question_group_id: int, session: Session) -> Dict[str, str]:
+        """Get existing ground truth for a video and question group.
+        
+        Args:
+            video_id: The ID of the video
+            project_id: The ID of the project
+            question_group_id: The ID of the question group
+            session: Database session
+            
+        Returns:
+            Dictionary mapping question text to answer value
+        """
+        gts = session.scalars(
+            select(ReviewerGroundTruth)
+            .join(Question, ReviewerGroundTruth.question_id == Question.id)
+            .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
+            .where(
+                ReviewerGroundTruth.video_id == video_id,
+                ReviewerGroundTruth.project_id == project_id,
+                QuestionGroupQuestion.question_group_id == question_group_id
+            )
+        ).all()
+        
+        result = {}
+        for gt in gts:
+            question = session.get(Question, gt.question_id)
+            if question:
+                result[question.text] = gt.answer_value
+        
+        return result
 
 class ProjectGroupService:
     @staticmethod
@@ -3620,7 +3567,7 @@ class ProjectGroupService:
         session.add(group)
         session.flush()  # get group.id
         if project_ids:
-            ProjectGroupService._validate_project_group_uniqueness(project_ids, session)
+            ProjectGroupService._validate_project_group_uniqueness(project_ids=project_ids, session=session)
             for pid in project_ids:
                 session.add(ProjectGroupProject(project_group_id=group.id, project_id=pid))
         session.commit()
@@ -3645,7 +3592,7 @@ class ProjectGroupService:
             current_ids = set(row.project_id for row in session.scalars(select(ProjectGroupProject).where(ProjectGroupProject.project_group_id == group_id)).all())
             new_ids = set(add_project_ids)
             all_ids = list(current_ids | new_ids)
-            ProjectGroupService._validate_project_group_uniqueness(all_ids, session)
+            ProjectGroupService._validate_project_group_uniqueness(project_ids=all_ids, session=session)
             for pid in new_ids - current_ids:
                 session.add(ProjectGroupProject(project_group_id=group_id, project_id=pid))
         if remove_project_ids:
@@ -3689,7 +3636,7 @@ class ProjectGroupService:
         project_videos = {}
         for p in projects:
             if not p:
-                raise ValueError(f"Project with ID {p.id if p else None} not found")
+                raise ValueError(f"Project not found")
             # Get all questions in schema
             qids = set(session.scalars(
                 select(Question.id)
@@ -3716,7 +3663,32 @@ class ProjectGroupService:
                     continue  # No conflict
                 v_overlap = project_videos[projects[i].id] & project_videos[projects[j].id]
                 if v_overlap:
-                    raise ValueError(f"Projects {projects[i].id} and {projects[j].id} have overlapping questions and videos: {v_overlap}")
+                    # Get project names
+                    project1_name = projects[i].name
+                    project2_name = projects[j].name
+                    
+                    # Get video UIDs for better readability
+                    overlapping_video_uids = []
+                    for video_id in v_overlap:
+                        video = session.get(Video, video_id)
+                        if video:
+                            overlapping_video_uids.append(video.video_uid)
+                    
+                    # Format the error message with better readability
+                    if len(overlapping_video_uids) <= 5:
+                        # Show all video UIDs if 5 or fewer
+                        video_list = ", ".join(overlapping_video_uids)
+                        error_msg = (f"Cannot group projects '{project1_name}' and '{project2_name}' together. "
+                                   f"They have {len(overlapping_video_uids)} overlapping videos with shared questions: {video_list}")
+                    else:
+                        # Show first 3 and summary if more than 5
+                        preview_videos = ", ".join(overlapping_video_uids[:3])
+                        remaining_count = len(overlapping_video_uids) - 3
+                        error_msg = (f"Cannot group projects '{project1_name}' and '{project2_name}' together. "
+                                   f"They have {len(overlapping_video_uids)} overlapping videos with shared questions. "
+                                   f"Examples: {preview_videos} (and {remaining_count} more)")
+                    
+                    raise ValueError(error_msg)
 
     @staticmethod
     def get_grouped_projects_for_user(user_id: int, role: str, session: Session) -> Dict[str, List[Dict[str, Any]]]:
