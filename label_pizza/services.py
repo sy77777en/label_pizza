@@ -256,6 +256,41 @@ class VideoService:
         )
         session.add(video)
         session.commit()
+    
+    @staticmethod
+    def get_project_videos(project_id: int, session: Session) -> List[Dict[str, Any]]:
+        """Get all non-archived videos in a project.
+        
+        Args:
+            project_id: The ID of the project
+            session: Database session
+            
+        Returns:
+            List of video dictionaries containing: id, uid, url, metadata
+            
+        Raises:
+            ValueError: If project not found
+        """
+        # Validate project exists
+        project = session.get(Project, project_id)
+        if not project:
+            raise ValueError(f"Project with ID {project_id} not found")
+        
+        videos = session.scalars(
+            select(Video)
+            .join(ProjectVideo, Video.id == ProjectVideo.video_id)
+            .where(
+                ProjectVideo.project_id == project_id,
+                Video.is_archived == False
+            )
+        ).all()
+        
+        return [{
+            "id": v.id,
+            "uid": v.video_uid,
+            "url": v.url,
+            "metadata": v.video_metadata
+        } for v in videos]
 
 class ProjectService:
     @staticmethod
@@ -577,6 +612,121 @@ class ProjectService:
             raise ValueError(f"Invalid role: {role}")
             
         session.commit()
+    
+    @staticmethod
+    def get_project_annotators(project_id: int, session: Session) -> Dict[str, Dict[str, Any]]:
+        """Get all annotators who have submitted answers in a project.
+        
+        Args:
+            project_id: The ID of the project
+            session: Database session
+            
+        Returns:
+            Dictionary mapping display names to annotator info.
+            Each annotator info contains: id, name, email
+            
+        Raises:
+            ValueError: If project not found
+        """
+        # Validate project exists
+        project = session.get(Project, project_id)
+        if not project:
+            raise ValueError(f"Project with ID {project_id} not found")
+        
+        # Get all users who have submitted answers in this project
+        user_ids = session.scalars(
+            select(AnnotatorAnswer.user_id)
+            .where(AnnotatorAnswer.project_id == project_id)
+            .distinct()
+        ).all()
+        
+        annotators = {}
+        for user_id in user_ids:
+            user = session.get(User, user_id)
+            if user and not user.is_archived:
+                user_name = user.user_id_str
+                user_email = user.email or f"user_{user.id}@example.com"
+                
+                # Create display name with initials
+                name_parts = user_name.split()
+                if len(name_parts) >= 2:
+                    initials = f"{name_parts[0][0]}{name_parts[-1][0]}".upper()
+                else:
+                    initials = user_name[:2].upper()
+                
+                display_name = f"{user_name} ({initials})"
+                
+                annotators[display_name] = {
+                    'id': user_id,
+                    'name': user_name,
+                    'email': user_email
+                }
+        
+        return annotators
+
+    @staticmethod
+    def check_project_has_full_ground_truth(project_id: int, session: Session) -> bool:
+        """Check if project has complete ground truth for all questions and videos.
+        
+        Args:
+            project_id: The ID of the project
+            session: Database session
+            
+        Returns:
+            True if project has complete ground truth, False otherwise
+            
+        Raises:
+            ValueError: If project not found
+        """
+        # Validate project exists
+        project = session.get(Project, project_id)
+        if not project:
+            raise ValueError(f"Project with ID {project_id} not found")
+        
+        try:
+            # Get total questions in schema
+            total_questions = session.scalar(
+                select(func.count())
+                .select_from(Question)
+                .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
+                .join(SchemaQuestionGroup, QuestionGroupQuestion.question_group_id == SchemaQuestionGroup.question_group_id)
+                .where(
+                    SchemaQuestionGroup.schema_id == project.schema_id,
+                    Question.is_archived == False
+                )
+            )
+            
+            # Get total videos in project
+            total_videos = session.scalar(
+                select(func.count())
+                .select_from(ProjectVideo)
+                .join(Video, ProjectVideo.video_id == Video.id)
+                .where(
+                    ProjectVideo.project_id == project_id,
+                    Video.is_archived == False
+                )
+            )
+            
+            if total_questions == 0 or total_videos == 0:
+                return False
+            
+            # Get total ground truth answers
+            gt_count = session.scalar(
+                select(func.count())
+                .select_from(ReviewerGroundTruth)
+                .join(Question, ReviewerGroundTruth.question_id == Question.id)
+                .where(
+                    ReviewerGroundTruth.project_id == project_id,
+                    Question.is_archived == False
+                )
+            )
+            
+            expected_answers = total_questions * total_videos
+            return gt_count >= expected_answers
+            
+        except Exception:
+            return False
+
 
 class SchemaService:
     @staticmethod
@@ -943,6 +1093,38 @@ class SchemaService:
             })
             
         return pd.DataFrame(rows)
+    
+    @staticmethod
+    def get_schema_question_groups_list(schema_id: int, session: Session) -> List[Dict[str, Any]]:
+        """Get question groups in a schema as a list of dictionaries.
+        
+        Args:
+            schema_id: The ID of the schema
+            session: Database session
+            
+        Returns:
+            List of question group dictionaries containing: ID, Title, Description
+            
+        Raises:
+            ValueError: If schema not found
+        """
+        # Check if schema exists
+        schema = session.get(Schema, schema_id)
+        if not schema:
+            raise ValueError(f"Schema with ID {schema_id} not found")
+        
+        groups = session.scalars(
+            select(QuestionGroup)
+            .join(SchemaQuestionGroup, QuestionGroup.id == SchemaQuestionGroup.question_group_id)
+            .where(SchemaQuestionGroup.schema_id == schema_id)
+            .order_by(SchemaQuestionGroup.display_order)
+        ).all()
+        
+        return [{
+            "ID": g.id,
+            "Title": g.title,
+            "Description": g.description
+        } for g in groups]
 
 class QuestionService:
     @staticmethod
@@ -1168,6 +1350,42 @@ class QuestionService:
         if not question:
             raise ValueError(f"Question with ID {question_id} not found")
         return question
+    
+    @staticmethod
+    def get_questions_by_group_id(group_id: int, session: Session) -> List[Dict[str, Any]]:
+        """Get all questions in a group as dictionaries.
+        
+        Args:
+            group_id: The ID of the question group
+            session: Database session
+            
+        Returns:
+            List of question dictionaries containing: id, text, type, options, display_values, default_option
+            
+        Raises:
+            ValueError: If group not found
+        """
+        # Check if group exists
+        group = session.get(QuestionGroup, group_id)
+        if not group:
+            raise ValueError(f"Question group with ID {group_id} not found")
+        
+        questions = session.scalars(
+            select(Question)
+            .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
+            .where(QuestionGroupQuestion.question_group_id == group_id)
+            .order_by(QuestionGroupQuestion.display_order)
+        ).all()
+        
+        return [{
+            "id": q.id,
+            "text": q.text,
+            "type": q.type,
+            "options": q.options,
+            "display_values": q.display_values,
+            "default_option": q.default_option
+        } for q in questions]
+
 
 class AuthService:
     @staticmethod
@@ -1590,6 +1808,85 @@ class AuthService:
             assignment.is_archived = True
         
         session.commit()
+    
+    @staticmethod
+    def get_annotator_user_ids_from_display_names(display_names: List[str], project_id: int, session: Session) -> List[int]:
+        """Convert display names to user IDs for annotators in a project.
+        
+        Args:
+            display_names: List of display names like "John Doe (JD)"
+            project_id: The ID of the project
+            session: Database session
+            
+        Returns:
+            List of unique user IDs (no duplicates)
+        """
+        # Remove duplicates from input list first
+        unique_display_names = list(dict.fromkeys(display_names))
+        
+        user_ids = []
+        
+        # Get all annotators in project
+        annotators = session.scalars(
+            select(User)
+            .join(ProjectUserRole, User.id == ProjectUserRole.user_id)
+            .where(
+                ProjectUserRole.project_id == project_id,
+                ProjectUserRole.role.in_(["annotator", "reviewer", "admin"]),
+                ProjectUserRole.is_archived == False,
+                User.is_archived == False
+            )
+            .distinct()  # Ensure no duplicate users
+        ).all()
+        
+        # Create mapping from display names to user IDs
+        for annotator in annotators:
+            name_parts = annotator.user_id_str.split()
+            if len(name_parts) >= 2:
+                initials = f"{name_parts[0][0]}{name_parts[-1][0]}".upper()
+            else:
+                initials = annotator.user_id_str[:2].upper()
+            
+            display_name = f"{annotator.user_id_str} ({initials})"
+            if display_name in unique_display_names:
+                user_ids.append(annotator.id)
+        
+        # Return unique user IDs only
+        return list(set(user_ids))
+    
+    @staticmethod
+    def get_user_projects_by_role(user_id: int, session: Session) -> Dict[str, List[Dict[str, Any]]]:
+        """Get projects assigned to user by role.
+        
+        Args:
+            user_id: The ID of the user
+            session: Database session
+            
+        Returns:
+            Dictionary with role keys containing lists of project info dicts
+        """
+        assignments = session.scalars(
+            select(ProjectUserRole)
+            .join(Project, ProjectUserRole.project_id == Project.id)
+            .where(
+                ProjectUserRole.user_id == user_id,
+                ProjectUserRole.is_archived == False,
+                Project.is_archived == False
+            )
+        ).all()
+        
+        projects = {"annotator": [], "reviewer": [], "admin": []}
+        for assignment in assignments:
+            project = session.get(Project, assignment.project_id)
+            if project and not project.is_archived:
+                projects[assignment.role].append({
+                    "id": project.id,
+                    "name": project.name,
+                    "description": project.description
+                })
+        
+        return projects
+
 
 class QuestionGroupService:
     @staticmethod
@@ -2424,6 +2721,173 @@ class AnnotatorService(BaseAnswerService):
             }
             for a in answers
         ])
+    
+    @staticmethod
+    def get_user_answers_for_question_group(video_id: int, project_id: int, user_id: int, question_group_id: int, session: Session) -> Dict[str, str]:
+        """Get user's existing answers for a video and question group as a dictionary.
+        
+        Args:
+            video_id: The ID of the video
+            project_id: The ID of the project
+            user_id: The ID of the user
+            question_group_id: The ID of the question group
+            session: Database session
+            
+        Returns:
+            Dictionary mapping question text to answer value
+        """
+        answers = session.scalars(
+            select(AnnotatorAnswer)
+            .join(Question, AnnotatorAnswer.question_id == Question.id)
+            .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
+            .where(
+                AnnotatorAnswer.video_id == video_id,
+                AnnotatorAnswer.project_id == project_id,
+                AnnotatorAnswer.user_id == user_id,
+                QuestionGroupQuestion.question_group_id == question_group_id
+            )
+        ).all()
+        
+        result = {}
+        for answer in answers:
+            question = session.get(Question, answer.question_id)
+            if question:
+                result[question.text] = answer.answer_value
+        
+        return result
+
+    @staticmethod
+    def check_user_has_submitted_answers(video_id: int, project_id: int, user_id: int, question_group_id: int, session: Session) -> bool:
+        """Check if user has submitted any answers for a question group.
+        
+        Args:
+            video_id: The ID of the video
+            project_id: The ID of the project
+            user_id: The ID of the user
+            question_group_id: The ID of the question group
+            session: Database session
+            
+        Returns:
+            True if user has submitted answers, False otherwise
+        """
+        answer_count = session.scalar(
+            select(func.count())
+            .select_from(AnnotatorAnswer)
+            .join(Question, AnnotatorAnswer.question_id == Question.id)
+            .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
+            .where(
+                AnnotatorAnswer.video_id == video_id,
+                AnnotatorAnswer.project_id == project_id,
+                AnnotatorAnswer.user_id == user_id,
+                QuestionGroupQuestion.question_group_id == question_group_id
+            )
+        )
+        
+        return answer_count > 0
+    
+    @staticmethod
+    def calculate_user_overall_progress(user_id: int, project_id: int, session: Session) -> float:
+        """Calculate user's overall progress across all question groups in a project.
+        
+        Args:
+            user_id: The ID of the user
+            project_id: The ID of the project
+            session: Database session
+            
+        Returns:
+            Progress percentage (0-100)
+            
+        Raises:
+            ValueError: If project or user not found
+        """
+        # Validate project and user
+        project = session.get(Project, project_id)
+        if not project:
+            raise ValueError(f"Project with ID {project_id} not found")
+        
+        user = session.get(User, user_id)
+        if not user:
+            raise ValueError(f"User with ID {user_id} not found")
+        
+        # Get total questions across all groups in schema
+        total_questions = session.scalar(
+            select(func.count())
+            .select_from(Question)
+            .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
+            .join(SchemaQuestionGroup, QuestionGroupQuestion.question_group_id == SchemaQuestionGroup.question_group_id)
+            .where(
+                SchemaQuestionGroup.schema_id == project.schema_id,
+                Question.is_archived == False
+            )
+        )
+        
+        # Get total videos in project
+        total_videos = session.scalar(
+            select(func.count())
+            .select_from(ProjectVideo)
+            .join(Video, ProjectVideo.video_id == Video.id)
+            .where(
+                ProjectVideo.project_id == project_id,
+                Video.is_archived == False
+            )
+        )
+        
+        # Get user's total answers
+        answered = session.scalar(
+            select(func.count())
+            .select_from(AnnotatorAnswer)
+            .join(Question, AnnotatorAnswer.question_id == Question.id)
+            .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
+            .join(SchemaQuestionGroup, QuestionGroupQuestion.question_group_id == SchemaQuestionGroup.question_group_id)
+            .where(
+                AnnotatorAnswer.user_id == user_id,
+                AnnotatorAnswer.project_id == project_id,
+                SchemaQuestionGroup.schema_id == project.schema_id,
+                Question.is_archived == False
+            )
+        )
+        
+        total_possible = total_questions * total_videos
+        return (answered / total_possible * 100) if total_possible > 0 else 0.0
+    
+    @staticmethod
+    def get_all_user_answers_for_question_group(video_id: int, project_id: int, question_group_id: int, session: Session) -> List[Dict[str, Any]]:
+        """Get all users' answers for a video and question group.
+        
+        Args:
+            video_id: The ID of the video
+            project_id: The ID of the project
+            question_group_id: The ID of the question group
+            session: Database session
+            
+        Returns:
+            List of answer dictionaries
+        """
+        answers = session.scalars(
+            select(AnnotatorAnswer)
+            .join(Question, AnnotatorAnswer.question_id == Question.id)
+            .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
+            .where(
+                AnnotatorAnswer.video_id == video_id,
+                AnnotatorAnswer.project_id == project_id,
+                QuestionGroupQuestion.question_group_id == question_group_id
+            )
+        ).all()
+        
+        result = []
+        for answer in answers:
+            question = session.get(Question, answer.question_id)
+            if question:
+                result.append({
+                    "user_id": answer.user_id,
+                    "question_id": question.id,
+                    "question_text": question.text,
+                    "answer_value": answer.answer_value,
+                    "created_at": answer.created_at,
+                    "modified_at": answer.modified_at
+                })
+        
+        return result
 
 class GroundTruthService(BaseAnswerService):
     @staticmethod
@@ -2822,6 +3286,324 @@ class GroundTruthService(BaseAnswerService):
             "reviewer_id": review.reviewer_id,
             "reviewed_at": review.reviewed_at
         }
+    
+    @staticmethod
+    def check_question_modified_by_admin(video_id: int, project_id: int, question_id: int, session: Session) -> bool:
+        """Check if a question's ground truth has been modified by admin.
+        
+        Args:
+            video_id: The ID of the video
+            project_id: The ID of the project  
+            question_id: The ID of the question
+            session: Database session
+            
+        Returns:
+            True if the question has been modified by admin, False otherwise
+        """
+        gt = session.get(ReviewerGroundTruth, (video_id, question_id, project_id))
+        return gt is not None and gt.modified_by_admin_id is not None
+
+    @staticmethod
+    def get_admin_modification_details(video_id: int, project_id: int, question_id: int, session: Session) -> Optional[Dict[str, Any]]:
+        """Get admin modification details for a question.
+        
+        Args:
+            video_id: The ID of the video
+            project_id: The ID of the project
+            question_id: The ID of the question
+            session: Database session
+            
+        Returns:
+            Dictionary with admin modification details or None if not modified by admin.
+            Contains: original_value, current_value, admin_id, admin_name, modified_at
+        """
+        gt = session.get(ReviewerGroundTruth, (video_id, question_id, project_id))
+        if not gt or gt.modified_by_admin_id is None:
+            return None
+        
+        # Get admin user info
+        admin_user = session.get(User, gt.modified_by_admin_id)
+        admin_name = admin_user.user_id_str if admin_user else f"Admin {gt.modified_by_admin_id}"
+        
+        return {
+            "original_value": gt.original_answer_value,
+            "current_value": gt.answer_value,
+            "admin_id": gt.modified_by_admin_id,
+            "admin_name": admin_name,
+            "modified_at": gt.modified_by_admin_at
+        }
+
+    @staticmethod
+    def check_all_questions_modified_by_admin(video_id: int, project_id: int, question_group_id: int, session: Session) -> bool:
+        """Check if all questions in a group have been modified by admin.
+        
+        Args:
+            video_id: The ID of the video
+            project_id: The ID of the project
+            question_group_id: The ID of the question group
+            session: Database session
+            
+        Returns:
+            True if all questions in the group have been modified by admin, False otherwise
+        """
+        # Get all questions in the group
+        questions = session.scalars(
+            select(Question)
+            .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
+            .where(QuestionGroupQuestion.question_group_id == question_group_id)
+        ).all()
+        
+        if not questions:
+            return False
+        
+        # Check if all questions have been modified by admin
+        for question in questions:
+            if not GroundTruthService.check_question_modified_by_admin(video_id, project_id, question.id, session):
+                return False
+        
+        return True
+
+    @staticmethod
+    def get_question_option_selections(video_id: int, project_id: int, question_id: int, annotator_user_ids: List[int], session: Session) -> Dict[str, List[Dict[str, str]]]:
+        """Get who selected which option for a single-choice question.
+        
+        Args:
+            video_id: The ID of the video
+            project_id: The ID of the project
+            question_id: The ID of the question
+            annotator_user_ids: List of annotator user IDs to include
+            session: Database session
+            
+        Returns:
+            Dictionary mapping option values to list of selector info dicts.
+            Each selector dict contains: name, initials, type ('annotator' or 'ground_truth')
+        """
+        option_selections = {}
+        
+        # Get annotator answers
+        for user_id in annotator_user_ids:
+            answer = session.scalar(
+                select(AnnotatorAnswer)
+                .where(
+                    AnnotatorAnswer.video_id == video_id,
+                    AnnotatorAnswer.project_id == project_id,
+                    AnnotatorAnswer.question_id == question_id,
+                    AnnotatorAnswer.user_id == user_id
+                )
+            )
+            
+            if answer:
+                user = session.get(User, user_id)
+                if user:
+                    name_parts = user.user_id_str.split()
+                    if len(name_parts) >= 2:
+                        initials = f"{name_parts[0][0]}{name_parts[-1][0]}".upper()
+                    else:
+                        initials = user.user_id_str[:2].upper()
+                    
+                    option_value = answer.answer_value
+                    if option_value not in option_selections:
+                        option_selections[option_value] = []
+                    
+                    option_selections[option_value].append({
+                        "name": user.user_id_str,
+                        "initials": initials,
+                        "type": "annotator"
+                    })
+        
+        # Get ground truth answer
+        gt_answer = session.scalar(
+            select(ReviewerGroundTruth)
+            .where(
+                ReviewerGroundTruth.video_id == video_id,
+                ReviewerGroundTruth.project_id == project_id,
+                ReviewerGroundTruth.question_id == question_id
+            )
+        )
+        
+        if gt_answer:
+            option_value = gt_answer.answer_value
+            if option_value not in option_selections:
+                option_selections[option_value] = []
+            
+            option_selections[option_value].append({
+                "name": "Ground Truth",
+                "initials": "GT",
+                "type": "ground_truth"
+            })
+        
+        return option_selections
+
+    @staticmethod
+    def get_question_text_answers(video_id: int, project_id: int, question_id: int, annotator_user_ids: List[int], session: Session) -> List[Dict[str, str]]:
+        """Get text answers for a description question.
+        
+        Args:
+            video_id: The ID of the video
+            project_id: The ID of the project
+            question_id: The ID of the question
+            annotator_user_ids: List of annotator user IDs to include
+            session: Database session
+            
+        Returns:
+            List of answer dictionaries containing: name, initials, answer_value
+        """
+        text_answers = []
+        
+        for user_id in annotator_user_ids:
+            answer = session.scalar(
+                select(AnnotatorAnswer)
+                .where(
+                    AnnotatorAnswer.video_id == video_id,
+                    AnnotatorAnswer.project_id == project_id,
+                    AnnotatorAnswer.question_id == question_id,
+                    AnnotatorAnswer.user_id == user_id
+                )
+            )
+            
+            if answer:
+                user = session.get(User, user_id)
+                if user:
+                    name_parts = user.user_id_str.split()
+                    if len(name_parts) >= 2:
+                        initials = f"{name_parts[0][0]}{name_parts[-1][0]}".upper()
+                    else:
+                        initials = user.user_id_str[:2].upper()
+                    
+                    text_answers.append({
+                        "name": user.user_id_str,
+                        "initials": initials,
+                        "answer_value": answer.answer_value
+                    })
+        
+        return text_answers
+    
+    @staticmethod
+    def get_ground_truth_for_question_group(video_id: int, project_id: int, question_group_id: int, session: Session) -> Dict[str, str]:
+        """Get existing ground truth for a video and question group.
+        
+        Args:
+            video_id: The ID of the video
+            project_id: The ID of the project
+            question_group_id: The ID of the question group
+            session: Database session
+            
+        Returns:
+            Dictionary mapping question text to answer value
+        """
+        gts = session.scalars(
+            select(ReviewerGroundTruth)
+            .join(Question, ReviewerGroundTruth.question_id == Question.id)
+            .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
+            .where(
+                ReviewerGroundTruth.video_id == video_id,
+                ReviewerGroundTruth.project_id == project_id,
+                QuestionGroupQuestion.question_group_id == question_group_id
+            )
+        ).all()
+        
+        result = {}
+        for gt in gts:
+            question = session.get(Question, gt.question_id)
+            if question:
+                result[question.text] = gt.answer_value
+        
+        return result
+    
+    @staticmethod
+    def get_question_option_selections(video_id: int, project_id: int, question_id: int, annotator_user_ids: List[int], session: Session) -> Dict[str, List[Dict[str, str]]]:
+        """Get who selected which option for a single-choice question.
+        
+        Args:
+            video_id: The ID of the video
+            project_id: The ID of the project
+            question_id: The ID of the question
+            annotator_user_ids: List of annotator user IDs to include
+            session: Database session
+            
+        Returns:
+            Dictionary mapping option values to list of selector info dicts.
+            Each selector dict contains: name, initials, type ('annotator' or 'ground_truth')
+        """
+        option_selections = {}
+        
+        # Track which users we've already processed to avoid duplicates
+        processed_users = set()
+        
+        # Get annotator answers
+        for user_id in annotator_user_ids:
+            # Skip if we've already processed this user
+            if user_id in processed_users:
+                continue
+            processed_users.add(user_id)
+            
+            answer = session.scalar(
+                select(AnnotatorAnswer)
+                .where(
+                    AnnotatorAnswer.video_id == video_id,
+                    AnnotatorAnswer.project_id == project_id,
+                    AnnotatorAnswer.question_id == question_id,
+                    AnnotatorAnswer.user_id == user_id
+                )
+            )
+            
+            if answer:
+                user = session.get(User, user_id)
+                if user:
+                    name_parts = user.user_id_str.split()
+                    if len(name_parts) >= 2:
+                        initials = f"{name_parts[0][0]}{name_parts[-1][0]}".upper()
+                    else:
+                        initials = user.user_id_str[:2].upper()
+                    
+                    option_value = answer.answer_value
+                    if option_value not in option_selections:
+                        option_selections[option_value] = []
+                    
+                    # Check if this user is already in the list for this option
+                    user_already_listed = any(
+                        selector["name"] == user.user_id_str and selector["type"] == "annotator"
+                        for selector in option_selections[option_value]
+                    )
+                    
+                    if not user_already_listed:
+                        option_selections[option_value].append({
+                            "name": user.user_id_str,
+                            "initials": initials,
+                            "type": "annotator"
+                        })
+        
+        # Get ground truth answer
+        gt_answer = session.scalar(
+            select(ReviewerGroundTruth)
+            .where(
+                ReviewerGroundTruth.video_id == video_id,
+                ReviewerGroundTruth.project_id == project_id,
+                ReviewerGroundTruth.question_id == question_id
+            )
+        )
+        
+        if gt_answer:
+            option_value = gt_answer.answer_value
+            if option_value not in option_selections:
+                option_selections[option_value] = []
+            
+            # Check if ground truth is already listed
+            gt_already_listed = any(
+                selector["type"] == "ground_truth"
+                for selector in option_selections[option_value]
+            )
+            
+            if not gt_already_listed:
+                option_selections[option_value].append({
+                    "name": "Ground Truth",
+                    "initials": "GT",
+                    "type": "ground_truth"
+                })
+        
+        return option_selections
+
+
 
 class ProjectGroupService:
     @staticmethod
@@ -2935,3 +3717,69 @@ class ProjectGroupService:
                 v_overlap = project_videos[projects[i].id] & project_videos[projects[j].id]
                 if v_overlap:
                     raise ValueError(f"Projects {projects[i].id} and {projects[j].id} have overlapping questions and videos: {v_overlap}")
+
+    @staticmethod
+    def get_grouped_projects_for_user(user_id: int, role: str, session: Session) -> Dict[str, List[Dict[str, Any]]]:
+        """Get project groups with their projects for a user.
+        
+        Args:
+            user_id: The ID of the user
+            role: The role to filter by
+            session: Database session
+            
+        Returns:
+            Dictionary mapping group names to lists of project info dicts
+        """
+        # Get all projects assigned to user
+        user_projects = session.scalars(
+            select(Project)
+            .join(ProjectUserRole, Project.id == ProjectUserRole.project_id)
+            .where(
+                ProjectUserRole.user_id == user_id,
+                ProjectUserRole.role == role,
+                ProjectUserRole.is_archived == False,
+                Project.is_archived == False
+            )
+        ).all()
+        
+        if not user_projects:
+            return {"Unassigned": []}
+        
+        # Get all project groups
+        project_groups = session.scalars(select(ProjectGroup).where(ProjectGroup.is_archived == False)).all()
+        
+        # Group projects
+        grouped_projects = {"Unassigned": []}
+        
+        # Add named groups
+        for group in project_groups:
+            grouped_projects[group.name] = []
+        
+        # Categorize projects
+        for project in user_projects:
+            # Check if project is in any group
+            group_assignment = session.scalar(
+                select(ProjectGroupProject)
+                .join(ProjectGroup, ProjectGroupProject.project_group_id == ProjectGroup.id)
+                .where(
+                    ProjectGroupProject.project_id == project.id,
+                    ProjectGroup.is_archived == False
+                )
+            )
+            
+            project_dict = {
+                "id": project.id,
+                "name": project.name,
+                "description": project.description,
+                "created_at": project.created_at
+            }
+            
+            if group_assignment:
+                group_name = session.get(ProjectGroup, group_assignment.project_group_id).name
+                if group_name in grouped_projects:
+                    grouped_projects[group_name].append(project_dict)
+            else:
+                grouped_projects["Unassigned"].append(project_dict)
+        
+        # Remove empty groups
+        return {name: projects for name, projects in grouped_projects.items() if projects}

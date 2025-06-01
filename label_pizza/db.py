@@ -1,6 +1,7 @@
 # db.py  – lives next to models.py and app.py
 import os
 from sqlalchemy import create_engine
+from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker, declarative_base
 from dotenv import load_dotenv
 
@@ -13,7 +14,13 @@ Base = declarative_base()
 from label_pizza.models import *  # This ensures all models are registered with Base
 
 # Production database configuration
-engine = create_engine(os.environ["DBURL"], echo=False, future=True)
+engine = create_engine(
+    os.environ["DBURL"],
+    echo=False,
+    future=True,
+    pool_pre_ping=True,
+    pool_recycle=300,  # optional, good for long-lived apps
+)
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 # Test database configuration

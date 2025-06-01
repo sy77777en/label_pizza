@@ -23,6 +23,7 @@ dependencies = [
     "psycopg2-binary",
     "python-dotenv",
     "pytest",
+    "reflex"
 ]
 
 # This section tells setuptools to find packages automatically
