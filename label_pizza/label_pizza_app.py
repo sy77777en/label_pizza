@@ -988,6 +988,28 @@ def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: i
     
     return st.session_state.selected_annotators
 
+
+def display_project_progress(user_id: int, project_id: int, role: str, session: Session):
+    """Display project progress in a refreshable fragment"""
+    if role == "annotator":
+        overall_progress = calculate_user_overall_progress(
+            user_id=user_id, 
+            project_id=project_id, 
+            session=session
+        )
+        st.progress(overall_progress / 100)
+        st.markdown(f"**Your Overall Progress:** {overall_progress:.1f}%")
+    else:
+        try:
+            project_progress = ProjectService.progress(
+                project_id=project_id, 
+                session=session
+            )
+            st.progress(project_progress['completion_percentage'] / 100)
+            st.markdown(f"**Ground Truth Progress:** {project_progress['completion_percentage']:.1f}%")
+        except ValueError as e:
+            st.error(f"Error loading project progress: {str(e)}")
+
 def display_project_view(user_id: int, role: str, session: Session):
     """Display the selected project with videos in side-by-side layout"""
     project_id = st.session_state.selected_project_id
@@ -1029,24 +1051,7 @@ def display_project_view(user_id: int, role: str, session: Session):
         st.info("🔍 **Review Mode** - Help create the ground truth dataset!")
     
     # Show overall progress
-    if role == "annotator":
-        overall_progress = calculate_user_overall_progress(
-            user_id=user_id, 
-            project_id=project_id, 
-            session=session
-        )
-        st.progress(overall_progress / 100)
-        st.markdown(f"**Your Overall Progress:** {overall_progress:.1f}%")
-    else:
-        try:
-            project_progress = ProjectService.progress(
-                project_id=project_id, 
-                session=session
-            )
-            st.progress(project_progress['completion_percentage'] / 100)
-            st.markdown(f"**Ground Truth Progress:** {project_progress['completion_percentage']:.1f}%")
-        except ValueError as e:
-            st.error(f"Error loading project progress: {str(e)}")
+    display_project_progress(user_id=user_id, project_id=project_id, role=role, session=session)
     
     # Enhanced annotator selection for reviewers
     if role == "reviewer":
@@ -1079,17 +1084,70 @@ def display_project_view(user_id: int, role: str, session: Session):
     with col1:
         video_pairs_per_row = st.slider("Video-Answer pairs per row", 1, 2, 1, key=f"{role}_pairs_per_row")
     with col2:
-        videos_per_page = st.slider("Videos per page", video_pairs_per_row, min(10, len(videos)), min(4, len(videos)), key=f"{role}_per_page")
-    
-    # Pagination with smart ellipsis handling and improved alignment
-    total_pages = (len(videos) - 1) // videos_per_page + 1
-    if total_pages > 1:
-        # Initialize page state with a unique key per project
-        page_key = f"{role}_current_page_{project_id}"
-        if page_key not in st.session_state:
-            st.session_state[page_key] = 0
+        # Handle edge cases for projects with very few videos
+        min_videos_per_page = video_pairs_per_row
+        max_videos_per_page = max(min(10, len(videos)), video_pairs_per_row + 1)  # Ensure max > min
+        default_videos_per_page = min(min(4, len(videos)), max_videos_per_page)
         
-        current_page = st.session_state[page_key]
+        if len(videos) == 1:
+            # Special case: only 1 video, no need for slider
+            st.write("Videos per page: 1 (only 1 video in project)")
+            videos_per_page = 1
+        elif max_videos_per_page > min_videos_per_page:
+            videos_per_page = st.slider(
+                "Videos per page", 
+                min_videos_per_page, 
+                max_videos_per_page, 
+                default_videos_per_page, 
+                key=f"{role}_per_page"
+            )
+        else:
+            # Fallback: show all videos if slider would be invalid
+            st.write(f"Videos per page: {len(videos)} (showing all)")
+            videos_per_page = len(videos)
+    
+    # Calculate pagination parameters (but don't show UI controls yet)
+    total_pages = (len(videos) - 1) // videos_per_page + 1
+    
+    # Initialize page state with a unique key per project
+    page_key = f"{role}_current_page_{project_id}"
+    if page_key not in st.session_state:
+        st.session_state[page_key] = 0
+    
+    current_page = st.session_state[page_key]
+    
+    # Calculate which videos to show on current page
+    start_idx = current_page * videos_per_page
+    end_idx = min(start_idx + videos_per_page, len(videos))
+    page_videos = videos[start_idx:end_idx]
+    
+    st.markdown(f"**Showing videos {start_idx + 1}-{end_idx} of {len(videos)}**")
+    
+    # Display videos in new side-by-side layout
+    for i in range(0, len(page_videos), video_pairs_per_row):
+        row_videos = page_videos[i:i + video_pairs_per_row]
+        
+        if video_pairs_per_row == 1:
+            # Single pair takes full width
+            display_video_answer_pair(
+                row_videos[0], project_id, user_id, role, mode, session
+            )
+        else:
+            # Multiple pairs in a row - create columns for each pair
+            pair_cols = st.columns(video_pairs_per_row)
+            for j, video in enumerate(row_videos):
+                with pair_cols[j]:
+                    display_video_answer_pair(
+                        video, project_id, user_id, role, mode, session
+                    )
+        
+        # Add some spacing between rows
+        st.markdown("---")
+    
+    # PAGINATION CONTROLS MOVED TO BOTTOM
+    if total_pages > 1:
+        # st.markdown("---")  # Separator line before pagination
+        # st.markdown("### 📄 Page Navigation")
         
         # Create smart pagination options
         def get_pagination_options(current, total):
@@ -1183,36 +1241,8 @@ def display_project_view(user_id: int, role: str, session: Session):
                 st.session_state[page_key] = min(total_pages - 1, current_page + 1)
                 st.rerun()
         
-        page = st.session_state[page_key]
-    else:
-        page = 0
-    
-    start_idx = page * videos_per_page
-    end_idx = min(start_idx + videos_per_page, len(videos))
-    page_videos = videos[start_idx:end_idx]
-    
-    st.markdown(f"**Showing videos {start_idx + 1}-{end_idx} of {len(videos)}**")
-    
-    # Display videos in new side-by-side layout
-    for i in range(0, len(page_videos), video_pairs_per_row):
-        row_videos = page_videos[i:i + video_pairs_per_row]
-        
-        if video_pairs_per_row == 1:
-            # Single pair takes full width
-            display_video_answer_pair(
-                row_videos[0], project_id, user_id, role, mode, session
-            )
-        else:
-            # Multiple pairs in a row - create columns for each pair
-            pair_cols = st.columns(video_pairs_per_row)
-            for j, video in enumerate(row_videos):
-                with pair_cols[j]:
-                    display_video_answer_pair(
-                        video, project_id, user_id, role, mode, session
-                    )
-        
-        # Add some spacing between rows
-        st.markdown("---")
+        # Show current page info at the bottom
+        st.markdown(f"<div style='text-align: center; color: #6c757d; margin-top: 1rem;'>Page {current_page + 1} of {total_pages}</div>", unsafe_allow_html=True)
 
 def display_video_answer_pair(
     video: Dict,
@@ -1328,6 +1358,34 @@ def check_question_group_completion(
             )
     except:
         return False
+
+@st.dialog("🎉 Congratulations!")
+def show_annotator_completion():
+    """Simple completion popup for annotators"""
+    st.markdown("### 🎉 **CONGRATULATIONS!** 🎉")
+    st.success("You've completed all questions in this project!")
+    st.info("Great work! You can now move on to other projects or review your answers.")
+    
+    # Trigger celebrations
+    st.snow()
+    st.balloons()
+    
+    if st.button("Close", use_container_width=True):
+        st.rerun()
+
+@st.dialog("🎉 Outstanding Work!")
+def show_reviewer_completion():
+    """Simple completion popup for reviewers"""
+    st.markdown("### 🎉 **OUTSTANDING WORK!** 🎉")
+    st.success("This project's ground truth dataset is now complete!")
+    st.info("Please notify the admin that you have completed this project. Excellent job!")
+    
+    # Trigger celebrations
+    st.snow()
+    st.balloons()
+    
+    if st.button("Close", use_container_width=True):
+        st.rerun()
 
 def check_all_questions_have_ground_truth(
     video_id: int, 
@@ -1491,17 +1549,14 @@ def display_question_group_in_fixed_container(
                         try:
                             overall_progress = calculate_user_overall_progress(user_id=user_id, project_id=project_id, session=session)
                             if overall_progress >= 100:
-                                st.snow()
-                                st.balloons()
-                                st.success("🎉 **CONGRATULATIONS!** 🎉")
-                                st.success("You've completed all questions in this project!")
-                                st.info("Great work! You can now move on to other projects or review your answers.")
+                                show_annotator_completion()  # Just call the dialog directly!
+                                return
                         except:
                             pass  # Don't let progress calculation errors break submission
                         
                         # Only show feedback in training mode
                         if mode == "Training":
-                            show_training_feedback(video_id=video["id"], project_id=project_id, group_id=group_id, answers=answers, session=session)
+                            show_training_feedback(video_id=video["id"], project_id=project_id, group_id=group_id, user_answers=answers, session=session)
                         else:
                             st.success("✅ Answers submitted!")
                         
@@ -1530,11 +1585,8 @@ def display_question_group_in_fixed_container(
                             try:
                                 project_progress = ProjectService.progress(project_id=project_id, session=session)
                                 if project_progress['completion_percentage'] >= 100:
-                                    st.snow()
-                                    st.balloons()
-                                    st.success("🎉 **OUTSTANDING WORK!** 🎉")
-                                    st.success("This project's ground truth dataset is now complete!")
-                                    st.info("Your expert reviews have created a high-quality training dataset. Excellent job!")
+                                    show_reviewer_completion()  # Just call the dialog directly!
+                                    return
                             except:
                                 pass  # Don't let progress calculation errors break submission
                             
