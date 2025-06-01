@@ -855,10 +855,26 @@ def display_project_view(user_id: int, role: str, session: Session):
     with col2:
         videos_per_page = st.slider("Videos per page", video_pairs_per_row, min(10, len(videos)), min(4, len(videos)), key=f"{role}_per_page")
     
-    # Pagination
+    # Pagination with segmented control
     total_pages = (len(videos) - 1) // videos_per_page + 1
     if total_pages > 1:
-        page = st.selectbox("Page", list(range(1, total_pages + 1)), key=f"{role}_page") - 1
+        page_options = [f"Page {i}" for i in range(1, total_pages + 1)]
+        
+        # Initialize default page if not in session state
+        page_key = f"{role}_current_page"
+        if page_key not in st.session_state:
+            st.session_state[page_key] = "Page 1"
+        
+        selected_page_label = st.segmented_control(
+            "📄 Select Page", 
+            page_options,
+            default=st.session_state[page_key],
+            key=f"{role}_page_segmented"
+        )
+        
+        # Update session state
+        st.session_state[page_key] = selected_page_label
+        page = int(selected_page_label.split()[1]) - 1  # Extract page number and convert to 0-based
     else:
         page = 0
     
@@ -872,18 +888,19 @@ def display_project_view(user_id: int, role: str, session: Session):
     for i in range(0, len(page_videos), video_pairs_per_row):
         row_videos = page_videos[i:i + video_pairs_per_row]
         
-        # Create columns for each video-answer pair
         if video_pairs_per_row == 1:
             # Single pair takes full width
             display_video_answer_pair(
                 row_videos[0], project_id, user_id, role, mode, session
             )
         else:
-            # Multiple pairs in a row
-            for video in row_videos:
-                display_video_answer_pair(
-                    video, project_id, user_id, role, mode, session
-                )
+            # Multiple pairs in a row - create columns for each pair
+            pair_cols = st.columns(video_pairs_per_row)
+            for j, video in enumerate(row_videos):
+                with pair_cols[j]:
+                    display_video_answer_pair(
+                        video, project_id, user_id, role, mode, session
+                    )
         
         # Add some spacing between rows
         st.markdown("---")
@@ -896,39 +913,222 @@ def display_video_answer_pair(
     mode: str,
     session: Session
 ):
-    """Display a single video-answer pair in side-by-side layout"""
+    """Display a single video-answer pair in side-by-side layout with tabs"""
     
     # Create two columns: video (left) and answers (right)
     video_col, answer_col = st.columns([1, 1])
     
     with video_col:
         # Centered video title
-        st.markdown(f"<h4 style='text-align: center;'>📹 {video['uid']}</h4>", unsafe_allow_html=True)
+        st.markdown(f"<h4 style='text-align: center; margin-bottom: 10px;'>📹 {video['uid']}</h4>", unsafe_allow_html=True)
         
         # Video player - get the height for matching
         video_height = custom_video_player(video["url"])
     
     with answer_col:
-        # Centered answer forms title
-        st.markdown(f"<h4 style='text-align: center;'>📋 Questions for {video['uid']}</h4>", unsafe_allow_html=True)
+        # Centered answer forms title with better styling
+        st.markdown(f"""
+        <h4 style='text-align: center; margin-bottom: 15px; color: #1f77b4;'>
+            📋 Questions for {video['uid']}
+        </h4>
+        """, unsafe_allow_html=True)
         
-        # Container with fixed height matching the video
-        with st.container(height=video_height, border=True):
-            try:
-                # Get project and its question groups using service layer
-                project = ProjectService.get_project_by_id(project_id, session)
-                question_groups = get_schema_question_groups(project.schema_id, session)
-                
-                # Display all question groups in the scrollable container
-                for group in question_groups:
-                    st.markdown(f"**📋 {group['Title']}**")
-                    display_question_group_for_video(
-                        video, project_id, user_id, group["ID"], role, mode, session
+        # Get project and its question groups using service layer
+        try:
+            project = ProjectService.get_project_by_id(project_id, session)
+            question_groups = get_schema_question_groups(project.schema_id, session)
+            
+            if not question_groups:
+                st.info("No question groups found for this project.")
+                return
+            
+            # Create tabs for each question group
+            tab_names = [f"📋 {group['Title']}" for group in question_groups]
+            tabs = st.tabs(tab_names)
+            
+            # Display each question group in its own tab
+            for i, (tab, group) in enumerate(zip(tabs, question_groups)):
+                with tab:
+                    display_question_group_in_fixed_container(
+                        video, project_id, user_id, group["ID"], role, mode, session, video_height
                     )
-                    st.markdown("---")  # Separator between groups
                     
-            except ValueError as e:
-                st.error(f"Error loading project data: {str(e)}")
+        except ValueError as e:
+            st.error(f"Error loading project data: {str(e)}")
+
+def display_question_group_in_fixed_container(
+    video: Dict,
+    project_id: int, 
+    user_id: int,
+    group_id: int,
+    role: str,
+    mode: str,
+    session: Session,
+    container_height: int
+):
+    """Display question group content with proper sticky behavior inside fixed container"""
+    
+    try:
+        # Get all display data
+        display_data = _get_question_display_data(
+            video["id"], project_id, user_id, group_id, role, mode, session
+        )
+        
+        if display_data["error"]:
+            st.info(display_data["error"])
+            return
+        
+        questions = display_data["questions"]
+        all_questions_modified_by_admin = display_data["all_questions_modified_by_admin"]
+        existing_answers = display_data["existing_answers"]
+        form_disabled = display_data["form_disabled"]
+        
+        # Determine if we have editable questions
+        has_any_editable_questions = False
+        for question in questions:
+            if role == "reviewer":
+                if not GroundTruthService.check_question_modified_by_admin(
+                    video["id"], project_id, question["id"], session
+                ):
+                    has_any_editable_questions = True
+                    break
+            else:
+                has_any_editable_questions = True
+                break
+        
+        # Get button configuration
+        button_text, button_disabled = _get_submit_button_config(
+            role, form_disabled, all_questions_modified_by_admin, has_any_editable_questions
+        )
+        
+        # Create form for this question group
+        form_key = f"form_{video['id']}_{group_id}_{role}"
+        with st.form(form_key):
+            answers = {}
+            
+            # Create a container for scrollable content (leave space for sticky submit button)
+            content_height = container_height - 80  # Reserve space for submit button
+            
+            with st.container(height=content_height, border=False):
+                # Display each question with sticky headers
+                for i, question in enumerate(questions):
+                    question_id = question["id"]
+                    question_text = question["text"]
+                    existing_value = existing_answers.get(question_text, "")
+                    
+                    # Check if this specific question has been modified by admin
+                    is_modified_by_admin = False
+                    admin_info = None
+                    if role == "reviewer":
+                        is_modified_by_admin = GroundTruthService.check_question_modified_by_admin(
+                            video["id"], project_id, question_id, session
+                        )
+                        if is_modified_by_admin:
+                            admin_info = GroundTruthService.get_admin_modification_details(
+                                video["id"], project_id, question_id, session
+                            )
+                    
+                    # Add spacing between questions (but not before the first one)
+                    if i > 0:
+                        st.markdown('<div style="margin: 24px 0;"></div>', unsafe_allow_html=True)
+                    
+                    # Display question with clean sticky styling
+                    if question["type"] == "single":
+                        answers[question_text] = _display_clean_sticky_single_choice_question(
+                            question, video["id"], project_id, role, existing_value,
+                            is_modified_by_admin, admin_info, form_disabled, session
+                        )
+                    else:  # description
+                        answers[question_text] = _display_clean_sticky_description_question(
+                            question, video["id"], project_id, role, existing_value,
+                            is_modified_by_admin, admin_info, form_disabled, session
+                        )
+            
+            # Submit button outside the scrollable content - will be sticky
+            st.markdown('<div style="margin: 8px 0;"></div>', unsafe_allow_html=True)
+            
+            submitted = st.form_submit_button(
+                button_text, 
+                use_container_width=True,
+                disabled=button_disabled
+            )
+            
+            # Handle form submission
+            if submitted and not button_disabled:
+                try:
+                    if role == "annotator":
+                        # Submit annotator answers using service layer
+                        AnnotatorService.submit_answer_to_question_group(
+                            video_id=video["id"],
+                            project_id=project_id,
+                            user_id=user_id,
+                            question_group_id=group_id,
+                            answers=answers,
+                            session=session
+                        )
+                        
+                        # Check if user completed all questions in the project
+                        try:
+                            overall_progress = calculate_user_overall_progress(user_id, project_id, session)
+                            if overall_progress >= 100:
+                                st.snow()
+                                st.balloons()
+                                st.success("🎉 **CONGRATULATIONS!** 🎉")
+                                st.success("You've completed all questions in this project!")
+                                st.info("Great work! You can now move on to other projects or review your answers.")
+                        except:
+                            pass  # Don't let progress calculation errors break submission
+                        
+                        # Only show feedback in training mode
+                        if mode == "Training":
+                            show_training_feedback(video["id"], project_id, group_id, answers, session)
+                        else:
+                            st.success("✅ Answers submitted!")
+                        
+                    else:  # reviewer
+                        # Filter out admin-modified questions from answers
+                        editable_answers = {}
+                        for question in questions:
+                            question_text = question["text"]
+                            if not GroundTruthService.check_question_modified_by_admin(
+                                video["id"], project_id, question["id"], session
+                            ):
+                                editable_answers[question_text] = answers[question_text]
+                        
+                        if editable_answers:
+                            # Submit ground truth for editable questions only using service layer
+                            GroundTruthService.submit_ground_truth_to_question_group(
+                                video_id=video["id"],
+                                project_id=project_id,
+                                reviewer_id=user_id,
+                                question_group_id=group_id,
+                                answers=editable_answers,
+                                session=session
+                            )
+                            
+                            # Check if project ground truth is complete
+                            try:
+                                project_progress = ProjectService.progress(project_id, session)
+                                if project_progress['completion_percentage'] >= 100:
+                                    st.snow()
+                                    st.balloons()
+                                    st.success("🎉 **OUTSTANDING WORK!** 🎉")
+                                    st.success("This project's ground truth dataset is now complete!")
+                                    st.info("Your expert reviews have created a high-quality training dataset. Excellent job!")
+                            except:
+                                pass  # Don't let progress calculation errors break submission
+                            
+                            st.success("✅ Ground truth submitted!")
+                        else:
+                            st.warning("No editable questions to submit.")
+                    
+                    st.rerun()
+                    
+                except ValueError as e:
+                    st.error(f"Error: {str(e)}")
+                    
+    except ValueError as e:
+        st.error(f"Error loading question group: {str(e)}")
 
 def _get_question_display_data(
     video_id: int, 
@@ -980,7 +1180,7 @@ def _get_question_display_data(
         "error": None
     }
 
-def _display_single_choice_question(
+def _display_clean_sticky_single_choice_question(
     question: Dict,
     video_id: int,
     project_id: int,
@@ -991,7 +1191,7 @@ def _display_single_choice_question(
     form_disabled: bool,
     session: Session
 ) -> str:
-    """Display a single choice question and return the selected answer"""
+    """Display a single choice question with clean sticky header - no grey box"""
     
     question_id = question["id"]
     question_text = question["text"]
@@ -1008,28 +1208,48 @@ def _display_single_choice_question(
         if display_val in display_values:
             default_idx = display_values.index(display_val)
     
-    # Question label - clean without unnecessary prefixes
+    # Clean sticky question header - truly sticky
     if role == "reviewer" and is_modified_by_admin:
-        label = f"🔒 Admin Modified: {question_text}"
+        header_color = "#dc3545"
+        header_icon = "🔒"
     else:
-        label = question_text
+        header_color = "#28a745"
+        header_icon = "❓"
     
+    st.markdown(f"""
+    <div class="sticky-question-header" style="
+        background: linear-gradient(90deg, {header_color}, {header_color}aa);
+        color: white;
+        padding: 16px 20px;
+        border-radius: 8px;
+        margin: 0 0 16px 0;
+        font-weight: 600;
+        font-size: 1.1rem;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        position: sticky;
+        top: 0;
+        z-index: 25;
+        backdrop-filter: blur(15px);
+        border: 2px solid rgba(255,255,255,0.3);
+    ">
+        {header_icon} {question_text}
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Question content - NO GREY BOX, direct options
     if role == "reviewer" and is_modified_by_admin and admin_info:
         # Show read-only version with admin modification info
-        st.markdown(f"**{label}**")
-        
         original_value = admin_info["original_value"]
         current_value = admin_info["current_value"]
         admin_name = admin_info["admin_name"]
         
-        # Show original and current values
         original_display = value_to_display.get(original_value, original_value)
         current_display = value_to_display.get(current_value, current_value)
         
         st.warning(f"**Original Answer:** {original_display}")
         st.error(f"**Admin Override by {admin_name}:** {current_display}")
         
-        return current_value
+        result = current_value
         
     elif role == "reviewer":
         # Editable version for reviewers with enhanced options
@@ -1038,25 +1258,114 @@ def _display_single_choice_question(
         )
         
         selected_idx = st.radio(
-            label,
+            "Select your answer:",
             options=range(len(enhanced_options)),
             format_func=lambda x: enhanced_options[x],
             index=default_idx,
             key=f"q_{video_id}_{question_id}_{role}",
-            disabled=form_disabled
+            disabled=form_disabled,
+            label_visibility="collapsed"
         )
-        return options[selected_idx]
+        result = options[selected_idx]
         
     else:
         # Regular display for annotators
         selected_display = st.radio(
-            label,
+            "Select your answer:",
             options=display_values,
             index=default_idx,
             key=f"q_{video_id}_{question_id}_{role}",
-            disabled=form_disabled
+            disabled=form_disabled,
+            label_visibility="collapsed"
         )
-        return display_to_value[selected_display]
+        result = display_to_value[selected_display]
+    
+    return result
+
+def _display_clean_sticky_description_question(
+    question: Dict,
+    video_id: int,
+    project_id: int,
+    role: str,
+    existing_value: str,
+    is_modified_by_admin: bool,
+    admin_info: Optional[Dict],
+    form_disabled: bool,
+    session: Session
+) -> str:
+    """Display a description question with clean sticky header - no grey box"""
+    
+    question_id = question["id"]
+    question_text = question["text"]
+    
+    # Clean sticky question header - truly sticky
+    if role == "reviewer" and is_modified_by_admin:
+        header_color = "#dc3545"
+        header_icon = "🔒"
+    else:
+        header_color = "#17a2b8"
+        header_icon = "❓"
+    
+    st.markdown(f"""
+    <div class="sticky-question-header" style="
+        background: linear-gradient(90deg, {header_color}, {header_color}aa);
+        color: white;
+        padding: 16px 20px;
+        border-radius: 8px;
+        margin: 0 0 16px 0;
+        font-weight: 600;
+        font-size: 1.1rem;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        position: sticky;
+        top: 0;
+        z-index: 25;
+        backdrop-filter: blur(15px);
+        border: 2px solid rgba(255,255,255,0.3);
+    ">
+        {header_icon} {question_text}
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Question content - NO GREY BOX, direct text area
+    if role == "reviewer" and is_modified_by_admin and admin_info:
+        # Show read-only version with admin modification info
+        original_value = admin_info["original_value"]
+        current_value = admin_info["current_value"]
+        admin_name = admin_info["admin_name"]
+        
+        st.warning(f"**Original Answer:** {original_value}")
+        st.error(f"**Admin Override by {admin_name}:** {current_value}")
+        
+        result = current_value
+        
+    elif role == "reviewer":
+        # Editable version for reviewers
+        answer = st.text_area(
+            "Enter your answer:",
+            value=existing_value,
+            key=f"q_{video_id}_{question_id}_{role}",
+            disabled=form_disabled,
+            height=120,
+            label_visibility="collapsed"
+        )
+        
+        # Show existing annotator answers as helper text using service layer
+        _display_helper_text_answers(video_id, project_id, question_id, session)
+        
+        result = answer
+        
+    else:
+        # Regular text area for annotators
+        result = st.text_area(
+            "Enter your answer:",
+            value=existing_value,
+            key=f"q_{video_id}_{question_id}_{role}",
+            disabled=form_disabled,
+            height=120,
+            label_visibility="collapsed"
+        )
+    
+    return result
 
 def _get_enhanced_options_for_reviewer(
     video_id: int,
@@ -1097,66 +1406,6 @@ def _get_enhanced_options_for_reviewer(
         enhanced_options.append(option_text)
     
     return enhanced_options
-
-def _display_description_question(
-    question: Dict,
-    video_id: int,
-    project_id: int,
-    role: str,
-    existing_value: str,
-    is_modified_by_admin: bool,
-    admin_info: Optional[Dict],
-    form_disabled: bool,
-    session: Session
-) -> str:
-    """Display a description question and return the entered text"""
-    
-    question_id = question["id"]
-    question_text = question["text"]
-    
-    # Question label - clean without unnecessary prefixes
-    if role == "reviewer" and is_modified_by_admin:
-        label = f"🔒 Admin Modified: {question_text}"
-    else:
-        label = question_text
-    
-    if role == "reviewer" and is_modified_by_admin and admin_info:
-        # Show read-only version with admin modification info
-        st.markdown(f"**{label}**")
-        
-        original_value = admin_info["original_value"]
-        current_value = admin_info["current_value"]
-        admin_name = admin_info["admin_name"]
-        
-        st.warning(f"**Original Answer:** {original_value}")
-        st.error(f"**Admin Override by {admin_name}:** {current_value}")
-        
-        return current_value
-        
-    elif role == "reviewer":
-        # Editable version for reviewers
-        answer = st.text_area(
-            label,
-            value=existing_value,
-            key=f"q_{video_id}_{question_id}_{role}",
-            disabled=form_disabled,
-            height=100  # Smaller height to fit in scrollable container
-        )
-        
-        # Show existing annotator answers as helper text using service layer
-        _display_helper_text_answers(video_id, project_id, question_id, session)
-        
-        return answer
-        
-    else:
-        # Regular text area for annotators
-        return st.text_area(
-            label,
-            value=existing_value,
-            key=f"q_{video_id}_{question_id}_{role}",
-            disabled=form_disabled,
-            height=100  # Smaller height to fit in scrollable container
-        )
 
 def _display_helper_text_answers(video_id: int, project_id: int, question_id: int, session: Session):
     """Display helper text showing other annotator answers for description questions"""
@@ -1209,131 +1458,6 @@ def _get_submit_button_config(
             button_disabled = False
     
     return button_text, button_disabled
-
-def display_question_group_for_video(
-    video: Dict,
-    project_id: int, 
-    user_id: int,
-    group_id: int,
-    role: str,
-    mode: str,
-    session: Session
-):
-    """Display a single question group for a video - modularized and clean"""
-    
-    try:
-        # Get all display data
-        display_data = _get_question_display_data(
-            video["id"], project_id, user_id, group_id, role, mode, session
-        )
-        
-        if display_data["error"]:
-            st.info(display_data["error"])
-            return
-        
-        questions = display_data["questions"]
-        all_questions_modified_by_admin = display_data["all_questions_modified_by_admin"]
-        existing_answers = display_data["existing_answers"]
-        form_disabled = display_data["form_disabled"]
-        
-        # Create form
-        form_key = f"form_{video['id']}_{group_id}_{role}"
-        with st.form(form_key):
-            answers = {}
-            has_any_editable_questions = False
-            
-            for question in questions:
-                question_id = question["id"]
-                question_text = question["text"]
-                existing_value = existing_answers.get(question_text, "")
-                
-                # Check if this specific question has been modified by admin
-                is_modified_by_admin = False
-                admin_info = None
-                if role == "reviewer":
-                    is_modified_by_admin = GroundTruthService.check_question_modified_by_admin(
-                        video["id"], project_id, question_id, session
-                    )
-                    if is_modified_by_admin:
-                        admin_info = GroundTruthService.get_admin_modification_details(
-                            video["id"], project_id, question_id, session
-                        )
-                    else:
-                        has_any_editable_questions = True
-                
-                # Display question based on type
-                if question["type"] == "single":
-                    answers[question_text] = _display_single_choice_question(
-                        question, video["id"], project_id, role, existing_value,
-                        is_modified_by_admin, admin_info, form_disabled, session
-                    )
-                else:  # description
-                    answers[question_text] = _display_description_question(
-                        question, video["id"], project_id, role, existing_value,
-                        is_modified_by_admin, admin_info, form_disabled, session
-                    )
-            
-            # Submit button
-            button_text, button_disabled = _get_submit_button_config(
-                role, form_disabled, all_questions_modified_by_admin, has_any_editable_questions
-            )
-            
-            submitted = st.form_submit_button(
-                button_text, 
-                use_container_width=True,
-                disabled=button_disabled
-            )
-            
-            if submitted and not button_disabled:
-                try:
-                    if role == "annotator":
-                        # Submit annotator answers using service layer
-                        AnnotatorService.submit_answer_to_question_group(
-                            video_id=video["id"],
-                            project_id=project_id,
-                            user_id=user_id,
-                            question_group_id=group_id,
-                            answers=answers,
-                            session=session
-                        )
-                        
-                        # Only show feedback in training mode
-                        if mode == "Training":
-                            show_training_feedback(video["id"], project_id, group_id, answers, session)
-                        else:
-                            st.success("✅ Answers submitted!")
-                        
-                    else:  # reviewer
-                        # Filter out admin-modified questions from answers
-                        editable_answers = {}
-                        for question in questions:
-                            question_text = question["text"]
-                            if not GroundTruthService.check_question_modified_by_admin(
-                                video["id"], project_id, question["id"], session
-                            ):
-                                editable_answers[question_text] = answers[question_text]
-                        
-                        if editable_answers:
-                            # Submit ground truth for editable questions only using service layer
-                            GroundTruthService.submit_ground_truth_to_question_group(
-                                video_id=video["id"],
-                                project_id=project_id,
-                                reviewer_id=user_id,
-                                question_group_id=group_id,
-                                answers=editable_answers,
-                                session=session
-                            )
-                            st.success("✅ Ground truth submitted!")
-                        else:
-                            st.warning("No editable questions to submit.")
-                    
-                    st.rerun()
-                    
-                except ValueError as e:
-                    st.error(f"Error: {str(e)}")
-                    
-    except ValueError as e:
-        st.error(f"Error loading question group: {str(e)}")
 
 ###############################################################################
 # ANNOTATOR PORTAL
@@ -1842,17 +1966,208 @@ def main():
         initial_sidebar_state="expanded"
     )
     
-    # Custom CSS - simplified
+    # Custom CSS - clean design with truly sticky elements and fixed submit button
     st.markdown("""
         <style>
         .stProgress > div > div > div > div {
             background-color: #4CAF50;
         }
+        
+        /* Clean tabs styling */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 2px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 4px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .stTabs [data-baseweb="tab"] {
+            height: 40px;
+            white-space: pre-wrap;
+            background-color: transparent;
+            border-radius: 6px;
+            color: #495057;
+            font-weight: 500;
+            border: none;
+            padding: 8px 16px;
+        }
+        
+        .stTabs [aria-selected="true"] {
+            background-color: #1f77b4 !important;
+            color: white !important;
+            box-shadow: 0 2px 4px rgba(31, 119, 180, 0.2);
+        }
+        
+        /* Remove form borders completely */
         .stForm {
-            border: 1px solid #e0e0e0;
-            border-radius: 0.5rem;
-            padding: 1rem;
-            margin-bottom: 1rem;
+            border: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            background: transparent !important;
+        }
+        
+        /* Clean radio button styling - no grey background */
+        .stRadio > div {
+            gap: 0.6rem;
+            background: transparent !important;
+            padding: 0 !important;
+            border: none !important;
+            border-radius: 0 !important;
+            margin: 0 !important;
+        }
+        
+        .stRadio > div > label {
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+            background-color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .stRadio > div > label:hover {
+            background-color: #f8f9fa;
+            border-color: #1f77b4;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 6px rgba(31, 119, 180, 0.15);
+        }
+        
+        /* Selected radio button styling */
+        .stRadio > div > label[data-checked="true"] {
+            background-color: #e7f3ff;
+            border-color: #1f77b4;
+            font-weight: 600;
+            color: #1f77b4;
+        }
+        
+        /* Clean text areas - no grey background */
+        .stTextArea {
+            background: transparent !important;
+            padding: 0 !important;
+            border: none !important;
+            border-radius: 0 !important;
+            margin: 0 !important;
+        }
+        
+        .stTextArea > div > div > textarea {
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+            font-size: 0.95rem;
+            background-color: white;
+            padding: 12px;
+            transition: border-color 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .stTextArea > div > div > textarea:focus {
+            border-color: #1f77b4;
+            box-shadow: 0 0 0 3px rgba(31, 119, 180, 0.1);
+        }
+        
+        /* Beautiful submit buttons - with sticky positioning support */
+        .stButton > button {
+            border-radius: 8px;
+            border: none;
+            transition: all 0.2s ease;
+            font-weight: 600;
+            background: linear-gradient(135deg, #1f77b4, #4a90e2);
+            color: white;
+            padding: 12px 24px;
+            font-size: 1rem;
+            box-shadow: 0 2px 6px rgba(31, 119, 180, 0.3);
+            position: relative;
+            z-index: 100;
+        }
+        
+        .stButton > button:hover {
+            box-shadow: 0 4px 12px rgba(31, 119, 180, 0.4);
+            transform: translateY(-2px);
+            background: linear-gradient(135deg, #1a6ca8, #4088d4);
+        }
+        
+        .stButton > button:disabled {
+            background: linear-gradient(135deg, #6c757d, #adb5bd);
+            transform: none;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        
+        /* Enhanced sticky behavior for question headers */
+        .sticky-question-header {
+            position: sticky !important;
+            top: 0 !important;
+            z-index: 50 !important;
+            background: white !important;
+            backdrop-filter: blur(15px) !important;
+        }
+        
+        /* Segmented control styling */
+        .stSegmentedControl {
+            margin: 16px 0;
+            padding: 8px;
+            background: linear-gradient(90deg, #f8f9fa, #e9ecef);
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+        
+        /* Remove container borders globally */
+        .element-container {
+            border: none !important;
+        }
+        
+        /* Clean scrollbars */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #c1c1c1, #a8a8a8);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(180deg, #a8a8a8, #909090);
+        }
+        
+        /* Celebration message styling */
+        .stSuccess {
+            font-weight: 600;
+            text-align: center;
+        }
+        
+        /* Tab content padding */
+        .stTabs [data-baseweb="tab-panel"] {
+            padding: 16px 0;
+        }
+        
+        /* Helper text styling */
+        .stCaption {
+            font-size: 0.85rem;
+            color: #6c757d;
+            font-style: italic;
+            margin-top: 8px;
+        }
+        
+        /* Container height management */
+        .stContainer {
+            position: relative;
+        }
+        
+        /* Form submit button area - ensure it stays visible */
+        .stForm .stButton {
+            position: sticky;
+            bottom: 0;
+            background: white;
+            padding-top: 8px;
+            z-index: 100;
         }
         </style>
     """, unsafe_allow_html=True)
