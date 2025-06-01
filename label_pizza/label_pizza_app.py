@@ -9,6 +9,8 @@ OPTIMIZATIONS:
 2. Fixed all positional arguments to use keyword arguments
 3. Optimized database queries to reduce load times
 4. Added project group editing functionality
+5. Fixed pagination button alignment and text consistency
+6. Improved annotator selection button clarity
 """
 
 import streamlit as st
@@ -880,15 +882,15 @@ def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: i
     # Simple header  
     st.markdown("### 👥 Select Annotators to Review")
     
-    # Quick action buttons in a compact row
+    # Quick action buttons in a compact row with clearer text
     col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
     with col1:
-        if st.button("All", key=f"select_all_{project_id}", help="Select all annotators"):
+        if st.button("Select All Annotators", key=f"select_all_{project_id}", help="Select all annotators"):
             st.session_state.selected_annotators = annotator_options.copy()
             st.rerun()
     
     with col2:
-        if st.button("None", key=f"clear_all_{project_id}", help="Deselect all"):
+        if st.button("Deselect All Annotators", key=f"clear_all_{project_id}", help="Deselect all annotators"):
             st.session_state.selected_annotators = []
             st.rerun()
     
@@ -1079,7 +1081,7 @@ def display_project_view(user_id: int, role: str, session: Session):
     with col2:
         videos_per_page = st.slider("Videos per page", video_pairs_per_row, min(10, len(videos)), min(4, len(videos)), key=f"{role}_per_page")
     
-    # Pagination with smart ellipsis handling and proper alignment
+    # Pagination with smart ellipsis handling and improved alignment
     total_pages = (len(videos) - 1) // videos_per_page + 1
     if total_pages > 1:
         # Initialize page state with a unique key per project
@@ -1123,44 +1125,47 @@ def display_project_view(user_id: int, role: str, session: Session):
             
             return options
         
-        # Create navigation controls with better native alignment
-        nav_col1, nav_col2, nav_col3, nav_col4 = st.columns([1, 3, 0.3, 1])
+        nav_col1, nav_col2, nav_col3 = st.columns([1, 5, 1])
         
         # Previous button
         with nav_col1:
-            if st.button("◀ Previous Page", disabled=(current_page == 0), key=f"{role}_prev_{project_id}"):
+            if st.button("◀ Previous Page", disabled=(current_page == 0), key=f"{role}_prev_{project_id}", use_container_width=True):
                 st.session_state[page_key] = max(0, current_page - 1)
                 st.rerun()
         
         # Smart segmented control in the middle
         with nav_col2:
-            pagination_options = get_pagination_options(current_page, total_pages)
+            # Create nested columns to center the segmented control
+            _, center_col, _ = st.columns([1, 2, 1])
             
-            # Create display labels
-            display_options = []
-            actual_pages = []
-            for opt in pagination_options:
-                if opt == "...":
-                    display_options.append("...")
-                    actual_pages.append(None)
-                else:
-                    display_options.append(f"Page {opt + 1}")
-                    actual_pages.append(opt)
-            
-            # Find current page index in display options
-            try:
-                current_display_index = actual_pages.index(current_page)
-            except ValueError:
-                current_display_index = 0
-            
-            # Use segmented control with smart pagination
-            segmented_key = f"{role}_page_segmented_{project_id}"
-            selected_display = st.segmented_control(
-                "📄 Navigate Pages", 
-                display_options,
-                default=display_options[current_display_index] if current_display_index < len(display_options) else display_options[0],
-                key=segmented_key
-            )
+            with center_col:
+                pagination_options = get_pagination_options(current_page, total_pages)
+                
+                # Create display labels
+                display_options = []
+                actual_pages = []
+                for opt in pagination_options:
+                    if opt == "...":
+                        display_options.append("...")
+                        actual_pages.append(None)
+                    else:
+                        display_options.append(f"Page {opt + 1}")
+                        actual_pages.append(opt)
+                
+                # Find current page index in display options
+                try:
+                    current_display_index = actual_pages.index(current_page)
+                except ValueError:
+                    current_display_index = 0
+                
+                # Use segmented control with smart pagination
+                segmented_key = f"{role}_page_segmented_{project_id}"
+                selected_display = st.segmented_control(
+                    "📄 Navigate Pages", 
+                    display_options,
+                    default=display_options[current_display_index] if current_display_index < len(display_options) else display_options[0],
+                    key=segmented_key
+                )
             
             # Handle selection
             if selected_display and selected_display != "...":
@@ -1173,13 +1178,8 @@ def display_project_view(user_id: int, role: str, session: Session):
                 except (ValueError, IndexError):
                     pass
         
-        # Empty column to push Next button further right
         with nav_col3:
-            st.empty()
-        
-        # Next button with shorter text to prevent wrapping
-        with nav_col4:
-            if st.button("Next ▶", disabled=(current_page == total_pages - 1), key=f"{role}_next_{project_id}"):
+            if st.button("Next Page ▶", disabled=(current_page == total_pages - 1), key=f"{role}_next_{project_id}", use_container_width=True):
                 st.session_state[page_key] = min(total_pages - 1, current_page + 1)
                 st.rerun()
         
