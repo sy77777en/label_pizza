@@ -2326,97 +2326,758 @@ def admin_users():
                     except Exception as e:
                         st.error(f"Error: {str(e)}")
 
+def perform_bulk_assignments(project_ids, user_ids, role, session, action_type):
+    """Perform bulk assignments or removals with progress tracking"""
+    
+    total_operations = len(user_ids) * len(project_ids)
+    success_count = 0
+    error_count = 0
+    
+    progress_bar = st.progress(0)
+    status_container = st.empty()
+    
+    operation_counter = 0
+    
+    for project_id in project_ids:
+        for user_id in user_ids:
+            try:
+                if action_type == "assign":
+                    ProjectService.add_user_to_project(
+                        project_id=project_id,
+                        user_id=user_id,
+                        role=role,
+                        session=session
+                    )
+                else:  # remove
+                    AuthService.archive_user_from_project(
+                        user_id=user_id, 
+                        project_id=project_id, 
+                        session=session
+                    )
+                success_count += 1
+            except Exception as e:
+                error_count += 1
+                # Only show first few errors to avoid spam
+                if error_count <= 3:
+                    st.error(f"Failed: User {user_id} {'to' if action_type == 'assign' else 'from'} Project {project_id}")
+            
+            operation_counter += 1
+            progress = operation_counter / total_operations
+            progress_bar.progress(progress)
+            status_container.text(f"Processing: {operation_counter}/{total_operations}")
+    
+    # Final results
+    action_word = "assignments" if action_type == "assign" else "removals"
+    if success_count > 0:
+        st.success(f"✅ Successfully completed {success_count} {action_word}!")
+    if error_count > 0:
+        st.warning(f"⚠️ {error_count} {action_word} failed")
+    
+    # Clear selections after successful operation
+    if success_count > 0:
+        st.session_state.selected_project_ids = []
+        st.session_state.selected_user_ids = []
+        st.rerun(scope="fragment")
+
 @st.fragment
+def display_assignment_management(session: Session):
+    """Optimized assignment management with fragments to reduce refresh issues"""
+    
+    st.markdown("### 🎯 Assign Users to Projects")
+    
+    # Initialize session state for selections
+    if "selected_project_ids" not in st.session_state:
+        st.session_state.selected_project_ids = []
+    if "selected_user_ids" not in st.session_state:
+        st.session_state.selected_user_ids = []
+    if "assignment_role" not in st.session_state:
+        st.session_state.assignment_role = "annotator"
+    
+    # Project selection section
+    st.markdown("**Step 1: Select Projects**")
+    
+    try:
+        projects_df = ProjectService.get_all_projects(session=session)
+        if projects_df.empty:
+            st.warning("No projects available.")
+            return
+    except Exception as e:
+        st.error(f"Error loading projects: {str(e)}")
+        return
+    
+    # Project search
+    project_search = st.text_input("🔍 Search projects", placeholder="Project name...", key="proj_search_mgmt")
+    
+    # Filter projects
+    filtered_projects = []
+    for _, project_row in projects_df.iterrows():
+        if not project_search or project_search.lower() in project_row["Name"].lower():
+            filtered_projects.append(project_row)
+    
+    if not filtered_projects:
+        st.warning("No projects match the search criteria.")
+        return
+    
+    st.info(f"Found {len(filtered_projects)} projects")
+    
+    # Quick select buttons
+    select_col1, select_col2 = st.columns(2)
+    with select_col1:
+        if st.button("Select All Visible Projects", key="select_all_projects_mgmt"):
+            st.session_state.selected_project_ids = [int(p["ID"]) for p in filtered_projects]
+            st.rerun(scope="fragment")
+    
+    with select_col2:
+        if st.button("Clear Project Selection", key="clear_projects_mgmt"):
+            st.session_state.selected_project_ids = []
+            st.rerun(scope="fragment")
+    
+    # Display project selection with simpler state management
+    project_cols = st.columns(4)
+    current_selections = []
+    
+    for i, project_row in enumerate(filtered_projects):
+        with project_cols[i % 4]:
+            project_id = int(project_row["ID"])
+            project_name = project_row["Name"]
+            
+            # Use current session state value
+            is_selected = project_id in st.session_state.selected_project_ids
+            
+            # Checkbox without auto-refresh
+            checkbox_value = st.checkbox(
+                project_name,
+                value=is_selected,
+                key=f"proj_cb_mgmt_{project_id}",
+                help=f"Project ID: {project_id}"
+            )
+            
+            if checkbox_value:
+                current_selections.append(project_id)
+    
+    # Update session state only if changed
+    if set(current_selections) != set(st.session_state.selected_project_ids):
+        st.session_state.selected_project_ids = current_selections
+        st.rerun(scope="fragment")
+    
+    if not st.session_state.selected_project_ids:
+        st.info("Please select projects above to continue.")
+        return
+    
+    st.success(f"✅ Selected {len(st.session_state.selected_project_ids)} projects")
+    
+    # User selection section
+    st.markdown("**Step 2: Select Users**")
+    
+    try:
+        users_df = AuthService.get_all_users(session=session)
+        if users_df.empty:
+            st.warning("No users available.")
+            return
+    except Exception as e:
+        st.error(f"Error loading users: {str(e)}")
+        return
+    
+    # User filters
+    user_filter_col1, user_filter_col2 = st.columns(2)
+    with user_filter_col1:
+        user_search = st.text_input("Search users", placeholder="Name or email...", key="user_search_mgmt")
+    with user_filter_col2:
+        user_role_filter = st.selectbox("Filter by user role", ["All", "admin", "human", "model"], key="user_role_filter_mgmt")
+    
+    # Filter users
+    filtered_users = []
+    for _, user_row in users_df.iterrows():
+        # Role filter
+        if user_role_filter != "All" and user_row["Role"] != user_role_filter:
+            continue
+        
+        # Search filter
+        if user_search:
+            if (user_search.lower() not in user_row["User ID"].lower() and 
+                user_search.lower() not in user_row["Email"].lower()):
+                continue
+        
+        filtered_users.append(user_row)
+    
+    if not filtered_users:
+        st.warning("No users match the search criteria.")
+        return
+    
+    st.info(f"Found {len(filtered_users)} users")
+    
+    # User selection with pagination
+    users_per_page = 12
+    total_pages = (len(filtered_users) - 1) // users_per_page + 1
+    
+    if total_pages > 1:
+        page = st.selectbox(f"Page (showing {users_per_page} users per page)", 
+                           range(1, total_pages + 1), key="user_page_mgmt") - 1
+    else:
+        page = 0
+    
+    start_idx = page * users_per_page
+    end_idx = min(start_idx + users_per_page, len(filtered_users))
+    page_users = filtered_users[start_idx:end_idx]
+    
+    # Quick select buttons for users
+    user_select_col1, user_select_col2 = st.columns(2)
+    with user_select_col1:
+        if st.button("Select All on Page", key="select_all_users_mgmt"):
+            page_user_ids = [int(u["ID"]) for u in page_users]
+            st.session_state.selected_user_ids = list(set(st.session_state.selected_user_ids + page_user_ids))
+            st.rerun(scope="fragment")
+    
+    with user_select_col2:
+        if st.button("Clear User Selection", key="clear_users_mgmt"):
+            st.session_state.selected_user_ids = []
+            st.rerun(scope="fragment")
+    
+    # Display users
+    user_cols = st.columns(4)
+    current_user_selections = list(st.session_state.selected_user_ids)  # Copy current state
+    
+    for i, user_row in enumerate(page_users):
+        with user_cols[i % 4]:
+            user_id = int(user_row["ID"])
+            user_name = user_row["User ID"]
+            user_email = user_row["Email"]
+            user_role = user_row["Role"]
+            
+            # Check current state
+            is_selected = user_id in st.session_state.selected_user_ids
+            
+            checkbox_value = st.checkbox(
+                user_name,
+                value=is_selected,
+                key=f"user_cb_mgmt_{user_id}",
+                help=f"Email: {user_email}\nRole: {user_role}\nID: {user_id}"
+            )
+            
+            # Update local selection list
+            if checkbox_value and user_id not in current_user_selections:
+                current_user_selections.append(user_id)
+            elif not checkbox_value and user_id in current_user_selections:
+                current_user_selections.remove(user_id)
+    
+    # Update session state only if changed
+    if set(current_user_selections) != set(st.session_state.selected_user_ids):
+        st.session_state.selected_user_ids = current_user_selections
+        st.rerun(scope="fragment")
+    
+    if not st.session_state.selected_user_ids:
+        st.info("Please select users above to continue.")
+        return
+    
+    st.success(f"✅ Selected {len(st.session_state.selected_user_ids)} users")
+    
+    # Assignment role and actions
+    st.markdown("**Step 3: Assignment Role & Actions**")
+    
+    role = st.selectbox("Assignment Role", ["annotator", "reviewer", "admin", "model"], 
+                       index=["annotator", "reviewer", "admin", "model"].index(st.session_state.assignment_role),
+                       key="assign_role_mgmt")
+    
+    if role != st.session_state.assignment_role:
+        st.session_state.assignment_role = role
+    
+    # Show summary
+    st.info(f"Ready to assign {len(st.session_state.selected_user_ids)} users as **{role}** to {len(st.session_state.selected_project_ids)} projects")
+    
+    # Action buttons
+    action_col1, action_col2 = st.columns(2)
+    
+    with action_col1:
+        if st.button("✅ Execute Assignments", key="execute_assignments", use_container_width=True):
+            # Inline assignment logic to avoid scoping issues
+            project_ids = st.session_state.selected_project_ids
+            user_ids = st.session_state.selected_user_ids
+            total_operations = len(user_ids) * len(project_ids)
+            success_count = 0
+            error_count = 0
+            
+            progress_bar = st.progress(0)
+            status_container = st.empty()
+            
+            operation_counter = 0
+            
+            for project_id in project_ids:
+                for user_id in user_ids:
+                    try:
+                        ProjectService.add_user_to_project(
+                            project_id=project_id,
+                            user_id=user_id,
+                            role=role,
+                            session=session
+                        )
+                        success_count += 1
+                    except Exception as e:
+                        error_count += 1
+                        if error_count <= 3:
+                            st.error(f"Failed to assign user {user_id} to project {project_id}: {str(e)}")
+                    
+                    operation_counter += 1
+                    progress = operation_counter / total_operations
+                    progress_bar.progress(progress)
+                    status_container.text(f"Processing: {operation_counter}/{total_operations}")
+            
+            # Final results
+            if success_count > 0:
+                st.success(f"✅ Successfully completed {success_count} assignments!")
+            if error_count > 0:
+                st.warning(f"⚠️ {error_count} assignments failed")
+            
+            # Clear selections after successful operation
+            if success_count > 0:
+                st.session_state.selected_project_ids = []
+                st.session_state.selected_user_ids = []
+                st.rerun(scope="fragment")
+    
+    with action_col2:
+        if st.button("🗑️ Remove Assignments", key="execute_removals", use_container_width=True):
+            # Inline removal logic to avoid scoping issues
+            project_ids = st.session_state.selected_project_ids
+            user_ids = st.session_state.selected_user_ids
+            total_operations = len(user_ids) * len(project_ids)
+            success_count = 0
+            error_count = 0
+            
+            progress_bar = st.progress(0)
+            status_container = st.empty()
+            
+            operation_counter = 0
+            
+            for project_id in project_ids:
+                for user_id in user_ids:
+                    try:
+                        AuthService.archive_user_from_project(
+                            user_id=user_id, 
+                            project_id=project_id, 
+                            session=session
+                        )
+                        success_count += 1
+                    except Exception as e:
+                        error_count += 1
+                        if error_count <= 3:
+                            st.error(f"Failed to remove user {user_id} from project {project_id}: {str(e)}")
+                    
+                    operation_counter += 1
+                    progress = operation_counter / total_operations
+                    progress_bar.progress(progress)
+                    status_container.text(f"Processing: {operation_counter}/{total_operations}")
+            
+            # Final results
+            if success_count > 0:
+                st.success(f"🗑️ Successfully removed {success_count} assignments!")
+            if error_count > 0:
+                st.warning(f"⚠️ {error_count} removals failed")
+            
+            # Clear selections after successful operation
+            if success_count > 0:
+                st.session_state.selected_project_ids = []
+                st.session_state.selected_user_ids = []
+                st.rerun(scope="fragment")
+
+@st.fragment 
 def admin_assignments():
     st.subheader("🔗 Project Assignments")
     
+    def get_user_role_emoji(role):
+        """Get appropriate emoji for user role"""
+        if role == "human":
+            return "👤"
+        elif role == "admin":
+            return "👑"
+        elif role == "model":
+            return "🤖"
+        else:
+            return "❓"
+    
     with get_db_session() as session:
+        # Get raw assignments data
         assignments_df = AuthService.get_project_assignments(session=session)
-        st.dataframe(assignments_df, use_container_width=True)
         
-        with st.expander("➕ Manage Assignments"):
-            projects_df = ProjectService.get_all_projects(session=session)
-            if projects_df.empty:
-                st.warning("No projects available.")
-                return
-                
-            project_id = st.selectbox(
-                "Project",
-                projects_df["ID"].tolist(),
-                format_func=lambda x: projects_df[projects_df["ID"]==x]["Name"].iloc[0],
-                key="admin_assign_project"
-            )
+        if not assignments_df.empty:
+            # ASSIGNMENT MANAGEMENT SECTION - OPTIMIZED WITH FRAGMENT
+            with st.expander("➕ **Manage Project Assignments**", expanded=False):
+                display_assignment_management(session)
             
+            st.markdown("---")  # Separator before assignment data
+            
+            # Get additional data for enhanced display
             users_df = AuthService.get_all_users(session=session)
-            if users_df.empty:
-                st.warning("No users available.")
-                return
+            projects_df = ProjectService.get_all_projects(session=session)
             
-            # FIXED: Simplified user selection that preserves IDs correctly
-            st.markdown("**Select Users:**")
+            # Get project groups for organization
+            try:
+                project_groups = ProjectGroupService.list_project_groups(session=session)
+                project_group_lookup = {}
+                for group in project_groups:
+                    group_info = ProjectGroupService.get_project_group_by_id(group_id=group.id, session=session)
+                    for project in group_info["projects"]:
+                        project_group_lookup[project.id] = group.name
+            except:
+                project_group_lookup = {}
             
-            # Show all users as checkboxes with clear ID mapping
-            selected_user_ids = []
+            # Create lookup dictionaries
+            user_lookup = {row["ID"]: {"name": row["User ID"], "email": row["Email"], "role": row["Role"]} for _, row in users_df.iterrows()}
+            project_lookup = {row["ID"]: row["Name"] for _, row in projects_df.iterrows()}
             
-            for _, user_row in users_df.iterrows():
-                user_id = int(user_row["ID"])  # Ensure it's an integer
-                user_name = user_row["User ID"]
-                user_email = user_row["Email"]
-                user_role = user_row["Role"]
+            # Process assignments - consolidate by user and project, but keep role-specific dates
+            user_assignments = {}
+            
+            for _, assignment in assignments_df.iterrows():
+                user_id = assignment["User ID"]
+                project_id = assignment["Project ID"]
+                user_info = user_lookup.get(user_id, {"name": f"Unknown User {user_id}", "email": "Unknown", "role": "Unknown"})
+                project_name = project_lookup.get(project_id, f"Unknown Project {project_id}")
+                project_group = project_group_lookup.get(project_id, "Ungrouped")
                 
-                # Clear display with role indicator
-                display_text = f"{user_name} ({user_email}) - {user_role.upper()}"
+                if user_id not in user_assignments:
+                    user_assignments[user_id] = {
+                        "name": user_info["name"],
+                        "email": user_info["email"],
+                        "user_role": user_info["role"],
+                        "projects": {},
+                        "is_archived": True  # Start as True, set False if any active assignment found
+                    }
                 
-                # Checkbox for this user
-                is_selected = st.checkbox(
-                    display_text,
-                    key=f"user_checkbox_{user_id}",
-                    help=f"User ID: {user_id}"
-                )
+                # Store role assignments separately with their own dates
+                project_key = project_id
+                if project_key not in user_assignments[user_id]["projects"]:
+                    user_assignments[user_id]["projects"][project_key] = {
+                        "name": project_name,
+                        "group": project_group,
+                        "role_assignments": {}  # Changed to store each role separately
+                    }
                 
-                if is_selected:
-                    selected_user_ids.append(user_id)
+                # Store each role assignment with its specific dates
+                role = assignment["Role"]
+                if role not in user_assignments[user_id]["projects"][project_key]["role_assignments"]:
+                    user_assignments[user_id]["projects"][project_key]["role_assignments"][role] = {
+                        "assigned_date": None,
+                        "completed_date": None,
+                        "archived": assignment.get("Archived", False)
+                    }
+                
+                role_data = user_assignments[user_id]["projects"][project_key]["role_assignments"][role]
+                
+                # Set assignment date
+                if assignment.get("Assigned At"):
+                    try:
+                        if hasattr(assignment["Assigned At"], 'strftime'):
+                            assigned_date = assignment["Assigned At"].strftime("%Y-%m-%d")
+                        else:
+                            assigned_date = str(assignment["Assigned At"])[:10]
+                        role_data["assigned_date"] = assigned_date
+                    except:
+                        role_data["assigned_date"] = "Unknown"
+                
+                # Set completion date
+                if assignment.get("Completed At"):
+                    try:
+                        if hasattr(assignment["Completed At"], 'strftime'):
+                            completed_date = assignment["Completed At"].strftime("%Y-%m-%d")
+                        else:
+                            completed_date = str(assignment["Completed At"])[:10]
+                        role_data["completed_date"] = completed_date
+                    except:
+                        role_data["completed_date"] = "Unknown"
+                
+                # Update user archive status
+                if not assignment.get("Archived", False):
+                    user_assignments[user_id]["is_archived"] = False
             
-            role = st.selectbox("Role", ["annotator", "reviewer", "admin", "model"], key="admin_assign_role")
+            # Search and filter controls
+            st.markdown("### 🔍 Search & Filter")
+            col1, col2, col3, col4 = st.columns(4)
             
-            # Show what will happen
-            if selected_user_ids:
-                st.info(f"Will assign {len(selected_user_ids)} users as {role}:")
-                for user_id in selected_user_ids:
-                    user_row = users_df[users_df["ID"] == user_id].iloc[0]
-                    st.write(f"- {user_row['User ID']} ({user_row['Email']}) - **ID: {user_id}**")
-            
-            col1, col2 = st.columns(2)
             with col1:
-                if st.button("Assign Users", key="admin_assign_users_btn"):
-                    if project_id and selected_user_ids:
-                        try:
-                            for user_id in selected_user_ids:
-                                ProjectService.add_user_to_project(
-                                    project_id=project_id,
-                                    user_id=user_id,
-                                    role=role,
-                                    session=session
-                                )
-                            st.success(f"Assigned {len(selected_user_ids)} users!")
-                            st.rerun(scope="fragment")
-                        except Exception as e:
-                            st.error(f"Error: {str(e)}")
+                search_term = st.text_input("🔍 Search users", placeholder="Name or email...")
             
             with col2:
-                if st.button("Remove Users", key="admin_remove_users_btn"):
-                    if project_id and selected_user_ids:
-                        try:
-                            for user_id in selected_user_ids:
-                                AuthService.archive_user_from_project(
-                                    user_id=user_id, 
-                                    project_id=project_id, 
-                                    session=session
-                                )
-                            st.success(f"Removed {len(selected_user_ids)} users!")
-                            st.rerun(scope="fragment")
-                        except Exception as e:
-                            st.error(f"Error: {str(e)}")
+                status_filter = st.selectbox("Status", ["All", "Active", "Archived"])
+            
+            with col3:
+                role_filter = st.selectbox("User Role", ["All", "admin", "human", "model"])
+            
+            with col4:
+                project_role_filter = st.selectbox("Assignment Role", ["All", "annotator", "reviewer", "admin", "model"])
+            
+            # Apply filters
+            filtered_assignments = {}
+            for user_id, user_data in user_assignments.items():
+                # Search filter
+                if search_term:
+                    if (search_term.lower() not in user_data["name"].lower() and 
+                        search_term.lower() not in user_data["email"].lower()):
+                        continue
+                
+                # Status filter
+                if status_filter == "Active" and user_data["is_archived"]:
+                    continue
+                elif status_filter == "Archived" and not user_data["is_archived"]:
+                    continue
+                
+                # User role filter
+                if role_filter != "All" and user_data["user_role"] != role_filter:
+                    continue
+                
+                # Project role filter - Updated for new structure
+                if project_role_filter != "All":
+                    has_role = False
+                    for project_id, project_info in user_data["projects"].items():
+                        if project_role_filter in project_info["role_assignments"]:
+                            has_role = True
+                            break
+                    if not has_role:
+                        continue
+                
+                filtered_assignments[user_id] = user_data
+            
+            # Display results count
+            total_users = len(user_assignments)
+            filtered_count = len(filtered_assignments)
+            st.info(f"📊 Showing **{filtered_count}** of **{total_users}** total users")
+            
+            # Main assignments table
+            if filtered_assignments:
+                st.markdown("### 📋 Assignment Overview")
+                
+                # Prepare data for display with role-specific dates
+                display_data = []
+                for user_id, user_data in filtered_assignments.items():
+                    # Group projects by project group
+                    grouped_projects = {}
+                    for project_id, project_info in user_data["projects"].items():
+                        project_group = project_info["group"]
+                        project_name = project_info["name"]
+                        
+                        if project_group not in grouped_projects:
+                            grouped_projects[project_group] = []
+                        
+                        # Build clean, readable role display for this project
+                        role_parts = []
+                        
+                        for role, role_data in project_info["role_assignments"].items():
+                            # Check if role is completed (for annotator/reviewer only)
+                            is_completed = (role != "admin" and 
+                                          role_data["completed_date"] and 
+                                          role_data["completed_date"] != "Unknown")
+                            
+                            # Add completion emoji for non-admin completed roles
+                            completion_emoji = "✅ " if is_completed else ""
+                            
+                            # Build date info for this role
+                            if role == "admin":
+                                # Admin: just assignment date
+                                if role_data["assigned_date"]:
+                                    date_part = f"({role_data['assigned_date']})"
+                                else:
+                                    date_part = "(not set)"
+                            else:
+                                # Annotator/Reviewer: assignment → completion
+                                assigned = role_data["assigned_date"] if role_data["assigned_date"] else "not set"
+                                completed = role_data["completed_date"] if role_data["completed_date"] and role_data["completed_date"] != "Unknown" else None
+                                
+                                if completed:
+                                    date_part = f"({assigned} → {completed})"
+                                else:
+                                    date_part = f"({assigned})"
+                            
+                            # Add archived indicator if needed
+                            archived_indicator = " 🗄️" if role_data["archived"] else ""
+                            
+                            role_parts.append(f"{completion_emoji}{role.title()}{date_part}{archived_indicator}")
+                        
+                        # Create clean project display
+                        roles_text = ", ".join(role_parts)
+                        project_display = f"  • **{project_name}**: {roles_text}"
+                        
+                        grouped_projects[project_group].append({
+                            "display": project_display,
+                            "name": project_name,
+                            "roles": list(project_info["role_assignments"].keys())
+                        })
+                    
+                    # Format grouped projects with search data
+                    projects_data = []
+                    projects_display = ""
+                    
+                    for group_name in sorted(grouped_projects.keys()):
+                        if projects_display:  # Add spacing between groups
+                            projects_display += "\n---\n\n"
+                        
+                        if group_name != "Ungrouped":
+                            projects_display += f"## 📁 {group_name}\n\n"
+                        else:
+                            projects_display += f"## 📄 Individual Projects\n\n"
+                        
+                        for project_info in grouped_projects[group_name]:
+                            projects_display += f"{project_info['display']}\n\n"
+                            # Store searchable data
+                            projects_data.append({
+                                "group": group_name,
+                                "name": project_info["name"],
+                                "roles": project_info["roles"],
+                                "display": project_info["display"]
+                            })
+                    
+                    display_data.append({
+                        "User Name": user_data["name"],
+                        "Email": user_data["email"],
+                        "User Role": user_data["user_role"].upper(),
+                        "Status": "🗄️ Archived" if user_data["is_archived"] else "✅ Active",
+                        "Project Assignments": projects_display.strip(),
+                        "Projects Data": projects_data,  # For search functionality
+                        "Total Projects": len(user_data["projects"])
+                    })
+                
+                # Sort by name for consistency
+                display_data.sort(key=lambda x: x["User Name"])
+                
+                # Display in a much cleaner, card-based format
+                for i, user_data in enumerate(display_data):
+                    # Create a styled card for each user with project preview
+                    status_color = "#dc3545" if "Archived" in user_data["Status"] else "#28a745"
+                    
+                    # Get a few sample projects for preview
+                    sample_projects = user_data["Projects Data"][:3] if user_data["Projects Data"] else []
+                    sample_text = ""
+                    if sample_projects:
+                        sample_names = [p["name"] for p in sample_projects]
+                        if len(user_data["Projects Data"]) > 3:
+                            sample_text = f"Recent: {', '.join(sample_names[:2])}... (+{len(user_data['Projects Data'])-2} more)"
+                        else:
+                            sample_text = f"Projects: {', '.join(sample_names)}"
+                    
+                    with st.container():
+                        st.markdown(f"""
+                        <div style="
+                            border: 2px solid {status_color};
+                            border-radius: 10px;
+                            padding: 15px;
+                            margin: 10px 0;
+                            background: linear-gradient(135deg, #ffffff, #f8f9fa);
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                        ">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="flex: 1;">
+                                    <h4 style="margin: 0; color: #1f77b4;">👤 {user_data['User Name']}</h4>
+                                    <p style="margin: 5px 0; color: #6c757d;">📧 {user_data['Email']}</p>
+                                    <p style="margin: 5px 0; color: #6c757d; font-size: 0.9rem; font-style: italic;">{sample_text}</p>
+                                </div>
+                                <div style="text-align: right;">
+                                    <span style="
+                                        background: {status_color};
+                                        color: white;
+                                        padding: 5px 10px;
+                                        border-radius: 15px;
+                                        font-weight: bold;
+                                        font-size: 0.9rem;
+                                        margin-left: 10px;
+                                    ">{user_data["Status"]}</span>
+                                    <br><br>
+                                    <span style="color: #495057; font-weight: bold;">
+                                        {get_user_role_emoji(user_data['User Role'].lower())} {user_data['User Role']}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # Count total projects for this user
+                        total_projects = user_data["Total Projects"]
+                        
+                        # Projects in expandable section with search and pagination
+                        with st.expander(f"📁 View assignments ({total_projects} projects)", expanded=False):
+                            if user_data["Projects Data"]:
+                                # Per-user search and filter
+                                search_col1, search_col2 = st.columns(2)
+                                
+                                with search_col1:
+                                    user_search = st.text_input(
+                                        f"🔍 Search projects for {user_data['User Name']}", 
+                                        placeholder="Project name...",
+                                        key=f"user_search_{i}"
+                                    )
+                                
+                                with search_col2:
+                                    role_options = ["All"] + list(set([role for project in user_data["Projects Data"] for role in project["roles"]]))
+                                    user_role_filter = st.selectbox(
+                                        "Filter by role",
+                                        role_options,
+                                        key=f"user_role_filter_{i}"
+                                    )
+                                
+                                # Filter projects based on search
+                                filtered_projects = user_data["Projects Data"]
+                                
+                                if user_search:
+                                    filtered_projects = [p for p in filtered_projects if user_search.lower() in p["name"].lower()]
+                                
+                                if user_role_filter != "All":
+                                    filtered_projects = [p for p in filtered_projects if user_role_filter in p["roles"]]
+                                
+                                # Show filtered count
+                                if len(filtered_projects) != total_projects:
+                                    st.info(f"Showing {len(filtered_projects)} of {total_projects} projects")
+                                
+                                # Pagination for projects (show 10 per page)
+                                projects_per_page = 10
+                                total_project_pages = (len(filtered_projects) - 1) // projects_per_page + 1 if filtered_projects else 1
+                                
+                                if total_project_pages > 1:
+                                    project_page = st.selectbox(
+                                        f"Page", 
+                                        range(1, total_project_pages + 1),
+                                        key=f"project_page_{i}"
+                                    ) - 1
+                                else:
+                                    project_page = 0
+                                
+                                # Show projects for current page
+                                start_idx = project_page * projects_per_page
+                                end_idx = min(start_idx + projects_per_page, len(filtered_projects))
+                                page_projects = filtered_projects[start_idx:end_idx]
+                                
+                                if page_projects:
+                                    # Group projects by group for display
+                                    display_groups = {}
+                                    for project in page_projects:
+                                        group = project["group"]
+                                        if group not in display_groups:
+                                            display_groups[group] = []
+                                        display_groups[group].append(project["display"])
+                                    
+                                    # Display grouped projects
+                                    for group_name in sorted(display_groups.keys()):
+                                        if group_name != "Ungrouped":
+                                            st.markdown(f"### 📁 {group_name}")
+                                        else:
+                                            st.markdown(f"### 📄 Individual Projects")
+                                        
+                                        for project_display in display_groups[group_name]:
+                                            st.markdown(project_display)
+                                        
+                                        if len(display_groups) > 1:  # Add separator between groups
+                                            st.markdown("---")
+                                else:
+                                    st.info("No projects match the current filters.")
+                            else:
+                                st.info("No project assignments")
+            else:
+                st.warning("No users match the current filters.")
+        else:
+            st.info("No project assignments found in the database.")
+        
+        # Raw data in collapsed expander
+        with st.expander("🗄️ Raw Assignment Data (Database View)", expanded=False):
+            if not assignments_df.empty:
+                st.markdown("**Direct database table view:**")
+                st.dataframe(assignments_df, use_container_width=True)
+            else:
+                st.info("No raw assignment data available.")
 
 @st.fragment 
 def admin_project_groups():
