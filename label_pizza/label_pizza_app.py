@@ -11,6 +11,8 @@ OPTIMIZATIONS:
 4. Added project group editing functionality
 5. Fixed pagination button alignment and text consistency
 6. Improved annotator selection button clarity
+7. Fixed tab completion status updates
+8. Enhanced training mode with ground truth display
 """
 
 import streamlit as st
@@ -647,6 +649,10 @@ def authenticate_user(email: str, password: str):
                 )
             
             if user:
+                # Ensure email is properly set in session state
+                if 'email' not in user or not user['email']:
+                    user['email'] = email  # Use the email from login form
+                    
                 st.session_state.user = user
                 st.session_state.user_projects = get_user_projects(
                     user_id=user["id"], 
@@ -1244,6 +1250,7 @@ def display_project_view(user_id: int, role: str, session: Session):
         # Show current page info at the bottom
         st.markdown(f"<div style='text-align: center; color: #6c757d; margin-top: 1rem;'>Page {current_page + 1} of {total_pages}</div>", unsafe_allow_html=True)
 
+@st.fragment
 def display_video_answer_pair(
     video: Dict,
     project_id: int,
@@ -1254,57 +1261,76 @@ def display_video_answer_pair(
 ):
     """Display a single video-answer pair in side-by-side layout with tabs"""
     
-    # Create two columns: video (left) and answers (right)
-    video_col, answer_col = st.columns([1, 1])
+    # Add unique identifier for this video to prevent fragment conflicts
+    video_fragment_key = f"{project_id}_{video['id']}_{user_id}_{role}"
     
-    with video_col:
-        # Centered video title
-        st.markdown(f"<h4 style='text-align: center; margin-bottom: 10px;'>📹 {video['uid']}</h4>", unsafe_allow_html=True)
+    # Get project and its question groups using service layer first
+    try:
+        project = ProjectService.get_project_by_id(
+            project_id=project_id, 
+            session=session
+        )
+        question_groups = get_schema_question_groups(
+            schema_id=project.schema_id, 
+            session=session
+        )
         
-        # Video player - get the height for matching
-        video_height = custom_video_player(video["url"])
-    
-    with answer_col:
-        # Centered answer forms title with better styling
+        if not question_groups:
+            st.info("No question groups found for this project.")
+            return
+        
+        # Check completion status for each group
+        completion_status = {}
+        for group in question_groups:
+            is_complete = check_question_group_completion(
+                video_id=video["id"], 
+                project_id=project_id, 
+                user_id=user_id, 
+                question_group_id=group["ID"], 
+                role=role, 
+                session=session
+            )
+            completion_status[group["ID"]] = is_complete
+        
+        # Create centered progress header spanning both columns
+        completed_count = sum(completion_status.values())
+        total_count = len(question_groups)
+        
+        # Create detailed completion status - show all groups, emoji only for completed
+        completion_details = []
+        for group in question_groups:
+            if completion_status[group["ID"]]:
+                completion_details.append(f"✅ {group['Title']}")
+            else:
+                completion_details.append(group['Title'])
+        
+        # Centered progress box spanning both columns
         st.markdown(f"""
-        <h4 style='text-align: center; margin-bottom: 15px; color: #1f77b4;'>
-            📋 Questions for {video['uid']}
-        </h4>
+        <div style="
+            background: linear-gradient(135deg, #e8f4f8, #d5e8f0);
+            border: 2px solid #3498db;
+            border-radius: 10px;
+            padding: 10px 16px;
+            margin-bottom: 15px;
+            text-align: center;
+            box-shadow: 0 2px 6px rgba(52, 152, 219, 0.2);
+        ">
+            <div style="color: #2980b9; font-weight: 500; font-size: 0.95rem;">
+                📋 {video['uid']} - {' | '.join(completion_details)} - Progress: {completed_count}/{total_count} Complete
+            </div>
+        </div>
         """, unsafe_allow_html=True)
         
-        # Get project and its question groups using service layer
-        try:
-            project = ProjectService.get_project_by_id(
-                project_id=project_id, 
-                session=session
-            )
-            question_groups = get_schema_question_groups(
-                schema_id=project.schema_id, 
-                session=session
-            )
-            
-            if not question_groups:
-                st.info("No question groups found for this project.")
-                return
-            
-            # Create tabs for each question group with completion status
-            tab_names = []
-            for group in question_groups:
-                # Check completion status for this group
-                is_complete = check_question_group_completion(
-                    video_id=video["id"], 
-                    project_id=project_id, 
-                    user_id=user_id, 
-                    question_group_id=group["ID"], 
-                    role=role, 
-                    session=session
-                )
-                # Only show ✅ when complete, no emoji when incomplete
-                if is_complete:
-                    tab_names.append(f"✅ {group['Title']}")
-                else:
-                    tab_names.append(group['Title'])
-            
+        # Create two columns: video (left) and answers (right)
+        video_col, answer_col = st.columns([1, 1])
+        
+        with video_col:
+            # Video player without title (title is now in the centered header)
+            video_height = custom_video_player(video["url"])
+        
+        with answer_col:
+            # Create tabs with static names (no ✅ to avoid jumping)
+            tab_names = [group['Title'] for group in question_groups]
             tabs = st.tabs(tab_names)
             
             # Display each question group in its own tab
@@ -1321,8 +1347,8 @@ def display_video_answer_pair(
                         container_height=video_height
                     )
                     
-        except ValueError as e:
-            st.error(f"Error loading project data: {str(e)}")
+    except ValueError as e:
+        st.error(f"Error loading project data: {str(e)}")
 
 def check_question_group_completion(
     video_id: int, 
@@ -1426,7 +1452,6 @@ def check_all_questions_have_ground_truth(
     except:
         return False
 
-@st.fragment
 def display_question_group_in_fixed_container(
     video: Dict,
     project_id: int, 
@@ -1453,6 +1478,25 @@ def display_question_group_in_fixed_container(
         all_questions_modified_by_admin = display_data["all_questions_modified_by_admin"]
         existing_answers = display_data["existing_answers"]
         form_disabled = display_data["form_disabled"]
+        
+        # Get ground truth for training mode display
+        gt_answers = {}
+        if mode == "Training" and role == "annotator":
+            try:
+                gt_df = GroundTruthService.get_ground_truth(
+                    video_id=video["id"], 
+                    project_id=project_id, 
+                    session=session
+                )
+                if not gt_df.empty:
+                    question_map = {q["id"]: q for q in questions}
+                    for _, gt_row in gt_df.iterrows():
+                        question_id = gt_row["Question ID"]
+                        if question_id in question_map:
+                            question_text = question_map[question_id]["text"]
+                            gt_answers[question_text] = gt_row["Answer Value"]
+            except:
+                pass  # If can't get GT, continue without it
         
         # Determine if we have editable questions
         has_any_editable_questions = False
@@ -1493,6 +1537,7 @@ def display_question_group_in_fixed_container(
                     question_id = question["id"]
                     question_text = question["text"]
                     existing_value = existing_answers.get(question_text, "")
+                    gt_value = gt_answers.get(question_text, "")
                     
                     # Check if this specific question has been modified by admin
                     is_modified_by_admin = False
@@ -1514,12 +1559,14 @@ def display_question_group_in_fixed_container(
                     if question["type"] == "single":
                         answers[question_text] = _display_clean_sticky_single_choice_question(
                             question, video["id"], project_id, role, existing_value,
-                            is_modified_by_admin, admin_info, form_disabled, session
+                            is_modified_by_admin, admin_info, form_disabled, session,
+                            gt_value, mode  # Added GT value and mode
                         )
                     else:  # description
                         answers[question_text] = _display_clean_sticky_description_question(
                             question, video["id"], project_id, role, existing_value,
-                            is_modified_by_admin, admin_info, form_disabled, session
+                            is_modified_by_admin, admin_info, form_disabled, session,
+                            gt_value, mode  # Added GT value and mode
                         )
             
             # Submit button outside the scrollable content - will be sticky
@@ -1549,7 +1596,7 @@ def display_question_group_in_fixed_container(
                         try:
                             overall_progress = calculate_user_overall_progress(user_id=user_id, project_id=project_id, session=session)
                             if overall_progress >= 100:
-                                show_annotator_completion()  # Just call the dialog directly!
+                                show_annotator_completion()
                                 return
                         except:
                             pass  # Don't let progress calculation errors break submission
@@ -1585,7 +1632,7 @@ def display_question_group_in_fixed_container(
                             try:
                                 project_progress = ProjectService.progress(project_id=project_id, session=session)
                                 if project_progress['completion_percentage'] >= 100:
-                                    show_reviewer_completion()  # Just call the dialog directly!
+                                    show_reviewer_completion()
                                     return
                             except:
                                 pass  # Don't let progress calculation errors break submission
@@ -1594,8 +1641,11 @@ def display_question_group_in_fixed_container(
                         else:
                             st.warning("No editable questions to submit.")
                     
-                    # Use fragment rerun to only refresh this component
+                    # Simple rerun - the fragment will handle the refresh
                     st.rerun(scope="fragment")
+                    
+                except ValueError as e:
+                    st.error(f"Error: {str(e)}")
                     
                 except ValueError as e:
                     st.error(f"Error: {str(e)}")
@@ -1662,7 +1712,9 @@ def _display_clean_sticky_single_choice_question(
     is_modified_by_admin: bool,
     admin_info: Optional[Dict],
     form_disabled: bool,
-    session: Session
+    session: Session,
+    gt_value: str = "",
+    mode: str = ""
 ) -> str:
     """Display a single choice question with sticky header using Streamlit native components"""
     
@@ -1686,6 +1738,39 @@ def _display_clean_sticky_single_choice_question(
         st.error(f"🔒 {question_text}")
     else:
         st.success(f"❓ {question_text}")
+    
+    # Training mode feedback - positioned right after question, before options
+    if mode == "Training" and form_disabled and gt_value and role == "annotator":
+        if existing_value == gt_value:
+            st.markdown("""
+                <div style="
+                    background: linear-gradient(135deg, #d1f2eb, #a3e4d7);
+                    border: 2px solid #27ae60;
+                    border-radius: 8px;
+                    padding: 12px 16px;
+                    margin: 10px 0 15px 0;
+                    box-shadow: 0 2px 6px rgba(39, 174, 96, 0.2);
+                ">
+                    <span style="color: #1e8449; font-weight: 600; font-size: 0.95rem;">
+                        ✅ Excellent! You selected the correct answer.
+                    </span>
+                </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+                <div style="
+                    background: linear-gradient(135deg, #fadbd8, #f1948a);
+                    border: 2px solid #e74c3c;
+                    border-radius: 8px;
+                    padding: 12px 16px;
+                    margin: 10px 0 15px 0;
+                    box-shadow: 0 2px 6px rgba(231, 76, 60, 0.2);
+                ">
+                    <span style="color: #c0392b; font-weight: 600; font-size: 0.95rem;">
+                        ❌ Incorrect. The ground truth answer is highlighted below.
+                    </span>
+                </div>
+            """, unsafe_allow_html=True)
     
     # Question content with inline radio buttons
     if role == "reviewer" and is_modified_by_admin and admin_info:
@@ -1753,16 +1838,42 @@ def _display_clean_sticky_single_choice_question(
         
     else:
         # Regular display for annotators
-        selected_display = st.radio(
-            "Select your answer:",
-            options=display_values,
-            index=default_idx,
-            key=f"q_{video_id}_{question_id}_{role}",
-            disabled=form_disabled,
-            label_visibility="collapsed",
-            horizontal=True  # Make radio buttons horizontal
-        )
-        result = display_to_value[selected_display]
+        # ENHANCED FOR TRAINING MODE: Show ground truth after submission
+        if mode == "Training" and form_disabled and gt_value:
+            # In training mode after submission, enhance options to show ground truth
+            enhanced_display_values = []
+            for i, display_val in enumerate(display_values):
+                actual_val = options[i] if i < len(options) else display_val
+                if actual_val == gt_value:
+                    enhanced_display_values.append(f"🏆 {display_val} (Ground Truth)")
+                elif actual_val == existing_value and actual_val != gt_value:
+                    enhanced_display_values.append(f"❌ {display_val} (Your Answer)")
+                else:
+                    enhanced_display_values.append(display_val)
+            
+            selected_display = st.radio(
+                "Select your answer:",
+                options=enhanced_display_values,
+                index=default_idx,
+                key=f"q_{video_id}_{question_id}_{role}",
+                disabled=form_disabled,
+                label_visibility="collapsed",
+                horizontal=True
+            )
+            
+            result = display_to_value.get(selected_display.replace("🏆 ", "").replace(" (Ground Truth)", "").replace("❌ ", "").replace(" (Your Answer)", ""), existing_value)
+        else:
+            # Normal display or annotation mode
+            selected_display = st.radio(
+                "Select your answer:",
+                options=display_values,
+                index=default_idx,
+                key=f"q_{video_id}_{question_id}_{role}",
+                disabled=form_disabled,
+                label_visibility="collapsed",
+                horizontal=True  # Make radio buttons horizontal
+            )
+            result = display_to_value[selected_display]
     
     return result
 
@@ -1775,7 +1886,9 @@ def _display_clean_sticky_description_question(
     is_modified_by_admin: bool,
     admin_info: Optional[Dict],
     form_disabled: bool,
-    session: Session
+    session: Session,
+    gt_value: str = "",
+    mode: str = ""
 ) -> str:
     """Display a description question with header using Streamlit native components"""
     
@@ -1787,6 +1900,54 @@ def _display_clean_sticky_description_question(
         st.error(f"🔒 {question_text}")
     else:
         st.info(f"❓ {question_text}")
+    
+    # Training mode feedback - positioned right after question, before text area
+    if mode == "Training" and form_disabled and gt_value and role == "annotator":
+        if existing_value.strip().lower() == gt_value.strip().lower():
+            st.markdown("""
+                <div style="
+                    background: linear-gradient(135deg, #d1f2eb, #a3e4d7);
+                    border: 2px solid #27ae60;
+                    border-radius: 8px;
+                    padding: 12px 16px;
+                    margin: 10px 0 15px 0;
+                    box-shadow: 0 2px 6px rgba(39, 174, 96, 0.2);
+                ">
+                    <span style="color: #1e8449; font-weight: 600; font-size: 0.95rem;">
+                        ✅ Excellent! Your answer matches the ground truth exactly.
+                    </span>
+                </div>
+            """, unsafe_allow_html=True)
+        elif existing_value.strip():
+            st.markdown("""
+                <div style="
+                    background: linear-gradient(135deg, #fdeaa7, #f39c12);
+                    border: 2px solid #f39c12;
+                    border-radius: 8px;
+                    padding: 12px 16px;
+                    margin: 10px 0 15px 0;
+                    box-shadow: 0 2px 6px rgba(243, 156, 18, 0.2);
+                ">
+                    <span style="color: #d68910; font-weight: 600; font-size: 0.95rem;">
+                        📝 Your answer differs from the ground truth. Compare them below to learn!
+                    </span>
+                </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+                <div style="
+                    background: linear-gradient(135deg, #fadbd8, #f1948a);
+                    border: 2px solid #e74c3c;
+                    border-radius: 8px;
+                    padding: 12px 16px;
+                    margin: 10px 0 15px 0;
+                    box-shadow: 0 2px 6px rgba(231, 76, 60, 0.2);
+                ">
+                    <span style="color: #c0392b; font-weight: 600; font-size: 0.95rem;">
+                        ❌ You didn't provide an answer.
+                    </span>
+                </div>
+            """, unsafe_allow_html=True)
     
     # Question content
     if role == "reviewer" and is_modified_by_admin and admin_info:
@@ -1830,6 +1991,26 @@ def _display_clean_sticky_description_question(
             height=120,
             label_visibility="collapsed"
         )
+        
+        # Show ground truth feedback in training mode after submission
+        if mode == "Training" and form_disabled and gt_value:
+            st.markdown("""
+                <div style="
+                    background: linear-gradient(135deg, #e8f4f8, #d5e8f0);
+                    border: 2px solid #3498db;
+                    border-radius: 8px;
+                    padding: 16px;
+                    margin: 15px 0 10px 0;
+                    box-shadow: 0 2px 6px rgba(52, 152, 219, 0.2);
+                ">
+                    <div style="color: #2980b9; font-weight: 700; font-size: 0.95rem; margin-bottom: 8px;">
+                        🏆 Ground Truth Answer:
+                    </div>
+                    <div style="color: #34495e; font-size: 0.9rem; line-height: 1.4; background: white; padding: 12px; border-radius: 6px; border-left: 4px solid #3498db;">
+            """ + gt_value + """
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
     
     return result
 
@@ -3752,7 +3933,13 @@ def main():
         st.markdown("### 👋 Welcome!")
         
         # Show user info simply
-        display_user_simple(user['name'], user.get('email', 'No email'), is_ground_truth=(user['role'] == 'admin'))
+        user_email = user.get('email', 'No email')
+        # Fix email display - sometimes email might be stored differently
+        if not user_email or user_email == 'No email':
+            # Try alternative email field names
+            user_email = user.get('Email', user.get('user_email', 'No email'))
+        
+        display_user_simple(user['name'], user_email, is_ground_truth=(user['role'] == 'admin'))
         st.markdown(f"**Role:** {user['role'].title()}")
         
         # Portal selection
