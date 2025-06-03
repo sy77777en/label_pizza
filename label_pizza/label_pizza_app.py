@@ -9,6 +9,7 @@ NEW FEATURES:
 3. Approve/reject/pending buttons for annotator reviews
 4. Fixed height project dashboard with scrolling and sorting
 5. Override Ground Truth functionality for meta-reviewers
+6. Improved description question review interface with elegant left-right layout
 """
 
 import streamlit as st
@@ -1632,16 +1633,6 @@ def display_question_group_in_fixed_container(
         with st.form(form_key):
             answers = {}
             
-            # NEW: Initialize answer review states for description questions
-            answer_reviews = {}
-            if role in ["reviewer", "meta_reviewer"]:
-                # Initialize review states for description questions
-                for question in questions:
-                    if question["type"] == "description":
-                        question_text = question["text"]
-                        if f"review_states_{question_text}" not in st.session_state:
-                            st.session_state[f"review_states_{question_text}"] = {}
-            
             # Create a container for scrollable content 
             # Balance the height - not too short, not too tall
             content_height = max(350, container_height - 150)
@@ -1681,7 +1672,7 @@ def display_question_group_in_fixed_container(
                         answers[question_text] = _display_clean_sticky_description_question(
                             question, video["id"], project_id, role, existing_value,
                             is_modified_by_admin, admin_info, form_disabled, session,
-                            gt_value, mode, answer_reviews
+                            gt_value, mode
                         )
             
             # Submit button outside the scrollable content - will be sticky
@@ -1734,9 +1725,6 @@ def display_question_group_in_fixed_container(
                                 session=session
                             )
                             
-                            # Submit answer reviews for description questions
-                            _submit_answer_reviews(answer_reviews, video["id"], project_id, user_id, session)
-                            
                             # NO completion check for meta-reviewers
                             st.success("✅ Ground truth overridden!")
                             
@@ -1769,9 +1757,6 @@ def display_question_group_in_fixed_container(
                                 session=session
                             )
                             
-                            # Submit answer reviews for description questions
-                            _submit_answer_reviews(answer_reviews, video["id"], project_id, user_id, session)
-                            
                             # Check if project ground truth is complete
                             try:
                                 project_progress = ProjectService.progress(project_id=project_id, session=session)
@@ -1793,45 +1778,6 @@ def display_question_group_in_fixed_container(
                     
     except ValueError as e:
         st.error(f"Error loading question group: {str(e)}")
-
-def _submit_answer_reviews(answer_reviews: Dict, video_id: int, project_id: int, user_id: int, session: Session):
-    """Submit answer reviews for annotators."""
-    for question_text, reviews in answer_reviews.items():
-        for annotator_display, review_status in reviews.items():
-            if review_status in ["approved", "rejected", "pending"]:
-                # Get annotator user ID from display name
-                try:
-                    annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
-                        display_names=[annotator_display], project_id=project_id, session=session
-                    )
-                    if annotator_user_ids:
-                        annotator_user_id = annotator_user_ids[0]
-                        
-                        # Get the annotator answer to get answer ID
-                        question = QuestionService.get_question_by_text(text=question_text, session=session)
-                        
-                        # Find the specific answer for this annotator
-                        answers_df = AnnotatorService.get_answers(video_id=video_id, project_id=project_id, session=session)
-                        
-                        if not answers_df.empty:
-                            answer_row = answers_df[
-                                (answers_df["Question ID"] == question.id) & 
-                                (answers_df["User ID"] == annotator_user_id)
-                            ]
-                            
-                            if not answer_row.empty:
-                                answer_id = answer_row.iloc[0]["Answer ID"]
-                                
-                                # Submit the review
-                                GroundTruthService.submit_answer_review(
-                                    answer_id=answer_id,
-                                    reviewer_id=user_id,
-                                    status=review_status,
-                                    session=session
-                                )
-                except Exception as e:
-                    # Continue with other reviews if one fails
-                    pass
 
 def _get_question_display_data(
     video_id: int, 
@@ -2093,10 +2039,9 @@ def _display_clean_sticky_description_question(
     form_disabled: bool,
     session: Session,
     gt_value: str = "",
-    mode: str = "",
-    answer_reviews: Optional[Dict] = None
+    mode: str = ""
 ) -> str:
-    """Display a description question with header using Streamlit native components"""
+    """Display a description question with elegant left-right layout for review interface"""
     
     question_id = question["id"]
     question_text = question["text"]
@@ -2129,15 +2074,15 @@ def _display_clean_sticky_description_question(
         elif existing_value.strip():
             st.markdown("""
                 <div style="
-                    background: linear-gradient(135deg, #fdeaa7, #f39c12);
-                    border: 2px solid #f39c12;
+                    background: linear-gradient(135deg, #e8f4f8, #d5e8f0);
+                    border: 2px solid #3498db;
                     border-radius: 8px;
                     padding: 12px 16px;
                     margin: 10px 0 15px 0;
-                    box-shadow: 0 2px 6px rgba(243, 156, 18, 0.2);
+                    box-shadow: 0 2px 6px rgba(52, 152, 219, 0.2);
                 ">
-                    <span style="color: #d68910; font-weight: 600; font-size: 0.95rem;">
-                        📝 Your answer differs from the ground truth. Compare them below to learn!
+                    <span style="color: #2980b9; font-weight: 600; font-size: 0.95rem;">
+                        📚 Great work! Check the ground truth below to learn from this example.
                     </span>
                 </div>
             """, unsafe_allow_html=True)
@@ -2152,7 +2097,7 @@ def _display_clean_sticky_description_question(
                     box-shadow: 0 2px 6px rgba(231, 76, 60, 0.2);
                 ">
                     <span style="color: #c0392b; font-weight: 600; font-size: 0.95rem;">
-                        ❌ You didn't provide an answer.
+                        📝 Please provide an answer next time. See the ground truth below to learn!
                     </span>
                 </div>
             """, unsafe_allow_html=True)
@@ -2191,7 +2136,7 @@ def _display_clean_sticky_description_question(
             label_visibility="collapsed"
         )
         
-        # NEW: Show existing annotator answers as helper text with copy/paste and approve/reject buttons
+        # NEW: Show existing annotator answers as helper text with elegant tabs and copy/review controls
         _display_enhanced_helper_text_answers(
             video_id=video_id, 
             project_id=project_id, 
@@ -2200,7 +2145,6 @@ def _display_clean_sticky_description_question(
             text_key=text_key,
             gt_value=existing_value if role == "meta_reviewer" else "",  # For meta-reviewer, show GT value
             role=role,
-            answer_reviews=answer_reviews,
             session=session
         )
         
@@ -2229,7 +2173,7 @@ def _display_clean_sticky_description_question(
                     box-shadow: 0 2px 6px rgba(52, 152, 219, 0.2);
                 ">
                     <div style="color: #2980b9; font-weight: 700; font-size: 0.95rem; margin-bottom: 8px;">
-                        🏆 Ground Truth Answer:
+                        🏆 Ground Truth Answer (for learning):
                     </div>
                     <div style="color: #34495e; font-size: 0.9rem; line-height: 1.4; background: white; padding: 12px; border-radius: 6px; border-left: 4px solid #3498db;">
             """ + gt_value + """
@@ -2247,10 +2191,9 @@ def _display_enhanced_helper_text_answers(
     text_key: str,
     gt_value: str,
     role: str,
-    answer_reviews: Optional[Dict],
     session: Session
 ):
-    """Display helper text showing other annotator answers with copy/paste and approve/reject functionality."""
+    """Display helper text showing other annotator answers with elegant tab-based interface."""
     
     selected_annotators = st.session_state.get("selected_annotators", [])
     
@@ -2260,7 +2203,7 @@ def _display_enhanced_helper_text_answers(
             display_names=selected_annotators, project_id=project_id, session=session
         )
         
-        # FIXED: Get text answers for description questions
+        # Get text answers for description questions
         text_answers = GroundTruthService.get_question_text_answers(
             video_id=video_id, 
             project_id=project_id, 
@@ -2274,10 +2217,8 @@ def _display_enhanced_helper_text_answers(
         
         # Add Ground Truth for meta-reviewer
         if role == "meta_reviewer" and gt_value:
-            gt_display = gt_value[:100] + "..." if len(gt_value) > 100 else gt_value
             all_answers.append({
                 "name": "Ground Truth",
-                "text": gt_display,
                 "full_text": gt_value,
                 "has_answer": bool(gt_value.strip()),
                 "is_gt": True,
@@ -2301,12 +2242,10 @@ def _display_enhanced_helper_text_answers(
                 answer_value = answer_info['answer_value']
                 initials = answer_info['initials']
                 
-                display_text = answer_value[:100] + "..." if len(answer_value) > 100 else answer_value
                 has_answer = bool(answer_value.strip())
                 
                 all_answers.append({
                     "name": annotator_name,
-                    "text": display_text if has_answer else "📝 (No answer provided)",
                     "full_text": answer_value,
                     "has_answer": has_answer,
                     "is_gt": False,
@@ -2316,68 +2255,67 @@ def _display_enhanced_helper_text_answers(
         
         # Show answers if we have any
         if all_answers:
-            st.caption("📋 Available answers: 📄 = Copy | ✅ = Approve | ⏳ = Pending | ❌ = Reject")
+            st.caption("📋 Available answers:")
             
-            # Decide whether to use tabs or inline based on number of answers
-            if len(all_answers) > 4:
-                # Use tabs for many answers
-                tab_names = [answer["name"] for answer in all_answers]
-                tabs = st.tabs(tab_names)
-                
-                for tab, answer in zip(tabs, all_answers):
-                    with tab:
-                        _display_single_answer(answer, text_key, question_text, answer_reviews, video_id, project_id, question_id, session)
+            # Smart tab naming: use initials when there are many annotators to prevent overflow
+            if len(all_answers) > 3:  # Changed from 6 to 3 - much more aggressive
+                # Too many for full names - use compact names
+                tab_names = []
+                for answer in all_answers:
+                    if answer["is_gt"]:
+                        tab_names.append("🏆 GT")
+                    else:
+                        # Use just initials for annotators
+                        tab_names.append(answer["initials"])
             else:
-                # Use inline for few answers
-                for i, answer in enumerate(all_answers):
-                    _display_single_answer(answer, text_key, question_text, answer_reviews, video_id, project_id, question_id, session)
-                    
-                    # Add separator between answers (except last one)
-                    if i < len(all_answers) - 1:
-                        st.caption("---")
+                # Few enough for full names (only 1-3 total)
+                tab_names = []
+                for answer in all_answers:
+                    if answer["is_gt"]:
+                        tab_names.append("Ground Truth")
+                    else:
+                        tab_names.append(answer["name"])
+            
+            tabs = st.tabs(tab_names)
+            
+            for tab, answer in zip(tabs, all_answers):
+                with tab:
+                    _display_single_answer_elegant(
+                        answer, text_key, question_text, 
+                        video_id, project_id, question_id, session
+                    )
                             
     except Exception as e:
         st.caption(f"⚠️ Could not load annotator answers: {str(e)}")
 
 
-def _display_single_answer(answer, text_key, question_text, answer_reviews, video_id, project_id, question_id, session):
-    """Display a single answer with copy and review controls."""
+def _display_single_answer_elegant(answer, text_key, question_text, video_id, project_id, question_id, session):
+    """Display a single answer with elegant left-right layout."""
     
-    # Show answer text in consistent caption style
-    st.caption(f"**{answer['name']}:** {answer['text']}")
+    # Left-right layout: description on left, controls on right - OPTIMIZED RATIO
+    desc_col, controls_col = st.columns([2.6, 1.4])  # Changed to [2.6, 1.4] as requested
     
-    # Controls row
-    copy_col, review_col = st.columns([1, 3])
-    
-    with copy_col:
-        # Copy control using segmented control (consistent with review buttons)
+    with desc_col:
+        # Show full description text in a clean text area (read-only) - INCREASED HEIGHT
         if answer['has_answer']:
-            copy_key = f"copy_{text_key}_{answer['name'].replace(' ', '_')}_{video_id}"
-            copy_action = st.segmented_control(
-                "Copy",
-                options=["📄"],
-                key=copy_key,
+            st.text_area(
+                f"{answer['name']}'s Answer:",
+                value=answer['full_text'],
+                height=200,  # Increased from 120 to 200 to span two rows
+                disabled=True,
+                key=f"display_{video_id}_{question_id}_{answer['name'].replace(' ', '_')}",
                 label_visibility="collapsed"
             )
-            
-            # Handle copy action
-            if copy_action == "📄":
-                st.session_state[text_key] = answer['full_text']
-                # Reset the segmented control by clearing its state
-                if copy_key in st.session_state:
-                    del st.session_state[copy_key]
-                st.rerun(scope="fragment")
         else:
-            st.caption("*(no answer)*")
+            st.info(f"{answer['name']}: No answer provided")
     
-    with review_col:
-        # Review controls (only for non-GT answers)
-        if not answer['is_gt'] and answer_reviews is not None:
-            # Initialize review state
-            if question_text not in answer_reviews:
-                answer_reviews[question_text] = {}
-            
-            # Get existing review status
+    with controls_col:
+        st.markdown(f"**{answer['name']}**")
+        
+        # Review controls (only for non-GT answers) - IMMEDIATE DATABASE SAVE
+        if not answer['is_gt']:
+            # Get existing review status from database
+            current_status = "pending"  # default
             try:
                 annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
                     display_names=[answer['display_name']], project_id=project_id, session=session
@@ -2397,24 +2335,18 @@ def _display_single_answer(answer, text_key, question_text, answer_reviews, vide
                             answer_id = answer_row.iloc[0]["Answer ID"]
                             existing_review = GroundTruthService.get_answer_review(answer_id=answer_id, session=session)
                             if existing_review:
-                                answer_reviews[question_text][answer['display_name']] = existing_review["status"]
-                            else:
-                                answer_reviews[question_text][answer['display_name']] = "pending"
-                        else:
-                            answer_reviews[question_text][answer['display_name']] = "pending"
-                    else:
-                        answer_reviews[question_text][answer['display_name']] = "pending"
-                else:
-                    answer_reviews[question_text][answer['display_name']] = "pending"
+                                current_status = existing_review["status"]
             except:
-                answer_reviews[question_text][answer['display_name']] = "pending"
+                current_status = "pending"
             
-            current_status = answer_reviews[question_text].get(answer['display_name'], "pending")
+            # Show current status
+            status_emoji = {"pending": "⏳", "approved": "✅", "rejected": "❌"}[current_status]
+            st.caption(f"**Status:** {status_emoji} {current_status.title()}")
             
-            # Review segmented control
+            # Review segmented control with immediate database save
             review_key = f"review_{text_key}_{answer['name'].replace(' ', '_')}_{video_id}"
             selected_status = st.segmented_control(
-                f"Review {answer['name']}",
+                "Review",
                 options=["pending", "approved", "rejected"],
                 format_func=lambda x: {"pending": "⏳", "approved": "✅", "rejected": "❌"}[x],
                 default=current_status,
@@ -2422,8 +2354,64 @@ def _display_single_answer(answer, text_key, question_text, answer_reviews, vide
                 label_visibility="collapsed"
             )
             
-            # Update review state
-            answer_reviews[question_text][answer['display_name']] = selected_status
+            # IMMEDIATE DATABASE SAVE when status changes
+            if selected_status != current_status:
+                try:
+                    # Get the answer ID and save review immediately
+                    annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
+                        display_names=[answer['display_name']], project_id=project_id, session=session
+                    )
+                    if annotator_user_ids:
+                        annotator_user_id = annotator_user_ids[0]
+                        answers_df = AnnotatorService.get_answers(video_id=video_id, project_id=project_id, session=session)
+                        
+                        if not answers_df.empty:
+                            answer_row = answers_df[
+                                (answers_df["Question ID"] == question_id) & 
+                                (answers_df["User ID"] == annotator_user_id)
+                            ]
+                            
+                            if not answer_row.empty:
+                                answer_id = answer_row.iloc[0]["Answer ID"]
+                                
+                                # Get current user ID for reviewer_id
+                                current_user = st.session_state.user
+                                reviewer_id = current_user["id"]
+                                
+                                # Save review immediately to database
+                                GroundTruthService.submit_answer_review(
+                                    answer_id=answer_id,
+                                    reviewer_id=reviewer_id,
+                                    status=selected_status,
+                                    session=session
+                                )
+                                
+                                # Show success feedback
+                                st.success(f"✅ Review saved: {selected_status}")
+                                st.rerun(scope="fragment")
+                except Exception as e:
+                    st.error(f"Error saving review: {str(e)}")
+                    st.rerun(scope="fragment")
+            
+        # Copy control below review buttons (for all answers) - FIXED: Form-compatible segmented control
+        if answer['has_answer']:
+            copy_key = f"copy_{text_key}_{answer['name'].replace(' ', '_')}_{video_id}_{question_id}"
+            
+            # Use segmented control that resets after use
+            copy_action = st.segmented_control(
+                "Copy",
+                options=["", "📄 Copy"],
+                default="",
+                key=copy_key,
+                label_visibility="collapsed"
+            )
+            
+            # Handle copy action and auto-reset
+            if copy_action == "📄 Copy":
+                st.session_state[text_key] = answer['full_text']
+                # Clear the segmented control by deleting its state
+                del st.session_state[copy_key] 
+                st.rerun(scope="fragment")
 
 def _get_enhanced_options_for_reviewer(
     video_id: int,
@@ -2898,7 +2886,10 @@ def admin_users():
         users_df = AuthService.get_all_users(session=session)
         st.dataframe(users_df, use_container_width=True)
         
-        with st.expander("➕ Create User"):
+        # Create and Edit Users in tabs
+        create_tab, edit_tab = st.tabs(["➕ Create User", "✏️ Edit User"])
+        
+        with create_tab:
             user_id = st.text_input("User ID", key="admin_user_id")
             email = st.text_input("Email", key="admin_user_email")
             password = st.text_input("Password", type="password", key="admin_user_password")
@@ -2914,10 +2905,142 @@ def admin_users():
                             user_type=user_type, 
                             session=session
                         )
-                        st.success("User created!")
+                        st.success(f"✅ User '{user_id}' created successfully!")
                         st.rerun(scope="fragment")
                     except Exception as e:
                         st.error(f"Error: {str(e)}")
+                else:
+                    st.warning("Please fill in all required fields (User ID, Email, Password)")
+        
+        with edit_tab:
+            if not users_df.empty:
+                # User selection for editing
+                user_options = {f"{row['User ID']} ({row['Email']})": row['ID'] for _, row in users_df.iterrows()}
+                selected_user_display = st.selectbox(
+                    "Select User to Edit",
+                    list(user_options.keys()),
+                    key="admin_edit_user_select"
+                )
+                
+                if selected_user_display:
+                    selected_user_id = user_options[selected_user_display]
+                    
+                    # Get current user info
+                    current_user = users_df[users_df['ID'] == selected_user_id].iloc[0]
+                    
+                    st.markdown(f"**Editing User:** {current_user['User ID']}")
+                    
+                    # Edit fields
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        new_user_id = st.text_input(
+                            "User ID",
+                            value=current_user['User ID'],
+                            key="admin_edit_user_id"
+                        )
+                        new_email = st.text_input(
+                            "Email",
+                            value=current_user['Email'],
+                            key="admin_edit_user_email"
+                        )
+                    
+                    with col2:
+                        new_role = st.selectbox(
+                            "User Type",
+                            ["human", "model", "admin"],
+                            index=["human", "model", "admin"].index(current_user['Role']),
+                            key="admin_edit_user_role"
+                        )
+                        new_password = st.text_input(
+                            "New Password (leave empty to keep current)",
+                            type="password",
+                            key="admin_edit_user_password"
+                        )
+                    
+                    # Update and Archive buttons
+                    update_col, archive_col = st.columns(2)
+                    
+                    with update_col:
+                        if st.button("💾 Update User", key="admin_update_user_btn", use_container_width=True):
+                            if new_user_id and new_email:
+                                try:
+                                    # Use individual AuthService methods
+                                    changes_made = []
+                                    
+                                    # Update User ID if changed
+                                    if new_user_id != current_user['User ID']:
+                                        AuthService.update_user_id(
+                                            user_id=selected_user_id,
+                                            new_user_id=new_user_id,
+                                            session=session
+                                        )
+                                        changes_made.append("User ID")
+                                    
+                                    # Update Email if changed
+                                    if new_email != current_user['Email']:
+                                        AuthService.update_user_email(
+                                            user_id=selected_user_id,
+                                            new_email=new_email,
+                                            session=session
+                                        )
+                                        changes_made.append("Email")
+                                    
+                                    # Update Password if provided
+                                    if new_password:
+                                        AuthService.update_user_password(
+                                            user_id=selected_user_id,
+                                            new_password=new_password,
+                                            session=session
+                                        )
+                                        changes_made.append("Password")
+                                    
+                                    # Update Role if changed
+                                    if new_role != current_user['Role']:
+                                        AuthService.update_user_role(
+                                            user_id=selected_user_id,
+                                            new_role=new_role,
+                                            session=session
+                                        )
+                                        changes_made.append("Role")
+                                    
+                                    if changes_made:
+                                        st.success(f"✅ User '{new_user_id}' updated successfully! Changed: {', '.join(changes_made)}")
+                                    else:
+                                        st.info("No changes were made")
+                                    st.rerun(scope="fragment")
+                                except Exception as e:
+                                    st.error(f"Error updating user: {str(e)}")
+                            else:
+                                st.warning("User ID and Email are required")
+                    
+                    with archive_col:
+                        archive_status = "Archived" if current_user['Archived'] else "Active"
+                        action_text = "Unarchive" if current_user['Archived'] else "Archive"
+                        
+                        if st.button(f"🗄️ {action_text} User", key="admin_archive_user_btn", use_container_width=True):
+                            if st.session_state.get(f"confirm_archive_{selected_user_id}", False):
+                                try:
+                                    AuthService.toggle_user_archived(
+                                        user_id=selected_user_id,
+                                        session=session
+                                    )
+                                    new_status = "Unarchived" if current_user['Archived'] else "Archived"
+                                    st.success(f"✅ User '{current_user['User ID']}' {new_status.lower()} successfully!")
+                                    # Clear confirmation state
+                                    if f"confirm_archive_{selected_user_id}" in st.session_state:
+                                        del st.session_state[f"confirm_archive_{selected_user_id}"]
+                                    st.rerun(scope="fragment")
+                                except Exception as e:
+                                    st.error(f"Error toggling user archive status: {str(e)}")
+                            else:
+                                st.session_state[f"confirm_archive_{selected_user_id}"] = True
+                                st.warning(f"⚠️ Click {action_text} again to confirm")
+                                st.rerun(scope="fragment")
+                        
+                        st.caption(f"**Current Status:** {archive_status}")
+            else:
+                st.info("No users available to edit")
 
 def perform_bulk_assignments(project_ids, user_ids, role, session, action_type):
     """Perform bulk assignments or removals with progress tracking"""
@@ -2972,7 +3095,7 @@ def perform_bulk_assignments(project_ids, user_ids, role, session, action_type):
         st.session_state.selected_user_ids = []
         st.rerun(scope="fragment")
 
-@st.fragment
+@st.fragment 
 def display_assignment_management(session: Session):
     """Optimized assignment management with fragments to reduce refresh issues"""
     
