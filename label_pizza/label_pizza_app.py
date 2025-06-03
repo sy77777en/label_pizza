@@ -1,18 +1,14 @@
 """
 Label Pizza - Modern Streamlit App
 ==================================
-Updated with performance optimizations using fragments to reduce refresh times.
-All service calls now use keyword arguments to prevent ID conflicts.
+Updated with Meta-Reviewer Portal, copy/paste functionality, approve/reject buttons, and improved dashboard.
 
-OPTIMIZATIONS:
-1. Added fragments to question groups and admin sections
-2. Fixed all positional arguments to use keyword arguments
-3. Optimized database queries to reduce load times
-4. Added project group editing functionality
-5. Fixed pagination button alignment and text consistency
-6. Improved annotator selection button clarity
-7. Fixed tab completion status updates
-8. Enhanced training mode with ground truth display
+NEW FEATURES:
+1. Meta-Reviewer Portal for global admins
+2. Copy & paste buttons for description answers
+3. Approve/reject/pending buttons for annotator reviews
+4. Fixed height project dashboard with scrolling and sorting
+5. Override Ground Truth functionality for meta-reviewers
 """
 
 import streamlit as st
@@ -699,10 +695,12 @@ def get_user_projects(user_id: int, session: Session) -> Dict:
                 all_projects_list.append(project_dict)
             
             # Admin users get access to all projects in all portals
+            # Meta-reviewer is just a frontend name for admin role
             return {
                 "annotator": all_projects_list.copy(),
                 "reviewer": all_projects_list.copy(),
-                "admin": all_projects_list.copy()
+                "admin": all_projects_list.copy(),
+                "meta_reviewer": all_projects_list.copy()  # Frontend only - uses admin role in backend
             }
         
         return user_projects
@@ -716,7 +714,7 @@ def get_available_portals(user: Dict, user_projects: Dict) -> List[str]:
     available_portals = []
     
     if user["role"] == "admin":
-        available_portals = ["annotator", "reviewer", "admin"]
+        available_portals = ["annotator", "reviewer", "meta_reviewer", "admin"]  # NEW: Added meta_reviewer
     else:
         if user_projects.get("annotator"):
             available_portals.append("annotator")
@@ -768,12 +766,15 @@ def get_project_groups_with_projects(user_id: int, role: str, session: Session) 
         return {}
 
 def display_project_dashboard(user_id: int, role: str, session: Session) -> Optional[int]:
-    """Display project group dashboard with scrollable containers"""
+    """Display project group dashboard with fixed heights and scrollable containers"""
     
     st.markdown("## 📂 Project Dashboard")
     
+    # For meta-reviewer frontend role, use admin role in backend
+    backend_role = "admin" if role == "meta_reviewer" else role
+    
     # Get grouped projects using service layer
-    grouped_projects = get_project_groups_with_projects(user_id=user_id, role=role, session=session)
+    grouped_projects = get_project_groups_with_projects(user_id=user_id, role=backend_role, session=session)
     
     if not grouped_projects:
         st.warning(f"No projects assigned to you as {role}.")
@@ -784,11 +785,11 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
     with col1:
         search_term = st.text_input("🔍 Search projects", placeholder="Enter project name...")
     with col2:
-        sort_by = st.selectbox("Sort by", ["Name", "Created Time", "Completion Rate"])
+        sort_by = st.selectbox("Sort by", ["Completion Rate", "Name", "Created Time"])
     with col3:
         sort_order = st.selectbox("Order", ["Ascending", "Descending"])
     
-    # Display each group with scrollable container
+    # Display each group with fixed height scrollable container
     selected_project_id = None
     
     for group_name, projects in grouped_projects.items():
@@ -806,14 +807,37 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
             st.info(f"No projects match your search in {group_name}")
             continue
         
-        # Sort projects
-        if sort_by == "Name":
+        # Calculate completion rates for sorting
+        for project in filtered_projects:
+            try:
+                if role == "annotator":
+                    project["completion_rate"] = calculate_user_overall_progress(
+                        user_id=user_id, 
+                        project_id=project["id"], 
+                        session=session
+                    )
+                else:
+                    project_progress = ProjectService.progress(
+                        project_id=project["id"], 
+                        session=session
+                    )
+                    project["completion_rate"] = project_progress['completion_percentage']
+            except:
+                project["completion_rate"] = 0.0
+        
+        # Sort projects - DEFAULT: Completion Rate Ascending
+        if sort_by == "Completion Rate":
+            filtered_projects = sorted(filtered_projects, key=lambda x: x["completion_rate"], reverse=(sort_order == "Descending"))
+        elif sort_by == "Name":
             filtered_projects = sorted(filtered_projects, key=lambda x: x["name"], reverse=(sort_order == "Descending"))
         elif sort_by == "Created Time":
-            filtered_projects = sorted(filtered_projects, key=lambda x: x["created_at"], reverse=(sort_order == "Descending"))
+            filtered_projects = sorted(filtered_projects, key=lambda x: x["created_at"] or datetime.min, reverse=(sort_order == "Descending"))
+        else:
+            # Default sort by completion rate ascending
+            filtered_projects = sorted(filtered_projects, key=lambda x: x["completion_rate"])
         
-        # Create scrollable container for projects
-        with st.container():
+        # NEW: Fixed height container with scrollable content
+        with st.container(height=400, border=True):  # Fixed height of 400px
             # Use grid layout for projects
             cols = st.columns(min(3, len(filtered_projects)))
             
@@ -823,25 +847,11 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
                     has_full_gt = check_project_has_full_ground_truth(project_id=project["id"], session=session)
                     mode = "🎓 Training" if has_full_gt else "📝 Annotation"
                     
-                    # Get project progress for this user
-                    try:
-                        if role == "annotator":
-                            personal_progress = calculate_user_overall_progress(
-                                user_id=user_id, 
-                                project_id=project["id"], 
-                                session=session
-                            )
-                            progress_text = f"{personal_progress:.1f}% Complete"
-                        else:
-                            project_progress = ProjectService.progress(
-                                project_id=project["id"], 
-                                session=session
-                            )
-                            progress_text = f"{project_progress['completion_percentage']:.1f}% GT Complete"
-                    except:
-                        progress_text = "Progress unavailable"
+                    # Get completion rate (already calculated)
+                    completion_rate = project.get("completion_rate", 0.0)
+                    progress_text = f"{completion_rate:.1f}% Complete"
                     
-                    # Project card
+                    # Project card with completion rate
                     with st.container():
                         st.markdown(f"""
                         <div style="
@@ -1005,6 +1015,17 @@ def display_project_progress(user_id: int, project_id: int, role: str, session: 
         )
         st.progress(overall_progress / 100)
         st.markdown(f"**Your Overall Progress:** {overall_progress:.1f}%")
+    elif role == "meta_reviewer":
+        # For meta-reviewers, show ground truth progress like reviewers but no completion check
+        try:
+            project_progress = ProjectService.progress(
+                project_id=project_id, 
+                session=session
+            )
+            st.progress(project_progress['completion_percentage'] / 100)
+            st.markdown(f"**Ground Truth Progress:** {project_progress['completion_percentage']:.1f}%")
+        except ValueError as e:
+            st.error(f"Error loading project progress: {str(e)}")
     else:
         try:
             project_progress = ProjectService.progress(
@@ -1053,14 +1074,16 @@ def display_project_view(user_id: int, role: str, session: Session):
             st.success("🎓 **Training Mode** - Try your best! You'll get immediate feedback after each submission.")
         else:
             st.info("📝 **Annotation Mode** - Try your best to answer the questions accurately.")
+    elif role == "meta_reviewer":
+        st.warning("🎯 **Meta-Reviewer Mode** - Override ground truth answers as needed. No completion tracking.")
     else:  # reviewer
         st.info("🔍 **Review Mode** - Help create the ground truth dataset!")
     
     # Show overall progress
     display_project_progress(user_id=user_id, project_id=project_id, role=role, session=session)
     
-    # Enhanced annotator selection for reviewers
-    if role == "reviewer":
+    # Enhanced annotator selection for reviewers and meta-reviewers
+    if role in ["reviewer", "meta_reviewer"]:
         try:
             annotators = get_all_project_annotators(
                 project_id=project_id, 
@@ -1292,11 +1315,10 @@ def display_video_answer_pair(
             )
             completion_status[group["ID"]] = is_complete
         
-        # Create centered progress header spanning both columns
+        # Create detailed completion status - show all groups, emoji only for completed
         completed_count = sum(completion_status.values())
         total_count = len(question_groups)
         
-        # Create detailed completion status - show all groups, emoji only for completed
         completion_details = []
         for group in question_groups:
             if completion_status[group["ID"]]:
@@ -1369,6 +1391,19 @@ def check_question_group_completion(
                 question_group_id=question_group_id, 
                 session=session
             )
+        elif role == "meta_reviewer":
+            # For meta-reviewers (really admins): check if all questions in this group have ground truth
+            return GroundTruthService.check_all_questions_modified_by_admin(
+                video_id=video_id, 
+                project_id=project_id, 
+                question_group_id=question_group_id, 
+                session=session
+            ) or check_all_questions_have_ground_truth(
+                video_id=video_id, 
+                project_id=project_id, 
+                question_group_id=question_group_id, 
+                session=session
+            )
         else:  # reviewer
             # For reviewers: check if all questions in this group have ground truth
             return GroundTruthService.check_all_questions_modified_by_admin(
@@ -1401,7 +1436,7 @@ def show_annotator_completion():
 
 @st.dialog("🎉 Outstanding Work!")
 def show_reviewer_completion():
-    """Simple completion popup for reviewers"""
+    """Simple completion popup for reviewers - NOT for meta-reviewers"""
     st.markdown("### 🎉 **OUTSTANDING WORK!** 🎉")
     st.success("This project's ground truth dataset is now complete!")
     st.info("Please notify the admin that you have completed this project. Excellent job!")
@@ -1452,6 +1487,45 @@ def check_all_questions_have_ground_truth(
     except:
         return False
 
+def check_ground_truth_exists_for_group(
+    video_id: int, 
+    project_id: int, 
+    question_group_id: int, 
+    session: Session
+) -> bool:
+    """Check if ANY ground truth exists for questions in this group."""
+    try:
+        # Get all questions in the group using service layer
+        questions = QuestionService.get_questions_by_group_id(
+            group_id=question_group_id, 
+            session=session
+        )
+        
+        if not questions:
+            return False
+        
+        # Get ground truth for this video and project using service layer
+        gt_df = GroundTruthService.get_ground_truth(
+            video_id=video_id, 
+            project_id=project_id, 
+            session=session
+        )
+        
+        if gt_df.empty:
+            return False
+        
+        # Get question IDs that have ground truth
+        gt_question_ids = set(gt_df["Question ID"].tolist())
+        
+        # Check if ANY question in the group has ground truth
+        for question in questions:
+            if question["id"] in gt_question_ids:
+                return True
+        
+        return False
+    except:
+        return False
+
 def display_question_group_in_fixed_container(
     video: Dict,
     project_id: int, 
@@ -1460,14 +1534,32 @@ def display_question_group_in_fixed_container(
     role: str,
     mode: str,
     session: Session,
-    container_height: int
+    container_height: int,
 ):
     """Display question group content with optimized fragment refresh"""
     
     try:
+        # First, get questions to check admin modifications
+        questions = QuestionService.get_questions_by_group_id(group_id=group_id, session=session)
+        
+        if not questions:
+            st.info("No questions in this group.")
+            return
+        
+        # Calculate if any questions are admin-modified BEFORE getting display data
+        has_any_admin_modified_questions = False
+        if role == "reviewer":
+            for question in questions:
+                if GroundTruthService.check_question_modified_by_admin(
+                    video_id=video["id"], project_id=project_id, question_id=question["id"], session=session
+                ):
+                    has_any_admin_modified_questions = True
+                    break
+        
         # Get all display data
         display_data = _get_question_display_data(
-            video["id"], project_id, user_id, group_id, role, mode, session
+            video["id"], project_id, user_id, group_id, role, mode, session,
+            has_any_admin_modified_questions
         )
         
         if display_data["error"]:
@@ -1502,11 +1594,16 @@ def display_question_group_in_fixed_container(
         has_any_editable_questions = False
         for question in questions:
             if role == "reviewer":
-                if not GroundTruthService.check_question_modified_by_admin(
+                is_admin_modified = GroundTruthService.check_question_modified_by_admin(
                     video_id=video["id"], project_id=project_id, question_id=question["id"], session=session
-                ):
+                )
+                if not is_admin_modified:
                     has_any_editable_questions = True
                     break
+            elif role == "meta_reviewer":
+                # Meta-reviewers can always edit if ground truth exists
+                has_any_editable_questions = True
+                break
             else:
                 has_any_editable_questions = True
                 break
@@ -1516,16 +1613,34 @@ def display_question_group_in_fixed_container(
             video_id=video["id"], project_id=project_id, user_id=user_id, question_group_id=group_id, role=role, session=session
         )
         
+        # NEW: For meta-reviewers, check if ground truth exists
+        ground_truth_exists = False
+        if role == "meta_reviewer":
+            ground_truth_exists = check_ground_truth_exists_for_group(
+                video_id=video["id"], project_id=project_id, question_group_id=group_id, session=session
+            )
+        
         # Get button configuration with improved logic
         button_text, button_disabled = _get_submit_button_config(
             role, form_disabled, all_questions_modified_by_admin, 
-            has_any_editable_questions, is_group_complete, mode
+            has_any_editable_questions, is_group_complete, mode, ground_truth_exists,
+            has_any_admin_modified_questions
         )
         
         # Create form for this question group
         form_key = f"form_{video['id']}_{group_id}_{role}"
         with st.form(form_key):
             answers = {}
+            
+            # NEW: Initialize answer review states for description questions
+            answer_reviews = {}
+            if role in ["reviewer", "meta_reviewer"]:
+                # Initialize review states for description questions
+                for question in questions:
+                    if question["type"] == "description":
+                        question_text = question["text"]
+                        if f"review_states_{question_text}" not in st.session_state:
+                            st.session_state[f"review_states_{question_text}"] = {}
             
             # Create a container for scrollable content 
             # Balance the height - not too short, not too tall
@@ -1542,7 +1657,7 @@ def display_question_group_in_fixed_container(
                     # Check if this specific question has been modified by admin
                     is_modified_by_admin = False
                     admin_info = None
-                    if role == "reviewer":
+                    if role in ["reviewer", "meta_reviewer"]:
                         is_modified_by_admin = GroundTruthService.check_question_modified_by_admin(
                             video_id=video["id"], project_id=project_id, question_id=question_id, session=session
                         )
@@ -1560,13 +1675,13 @@ def display_question_group_in_fixed_container(
                         answers[question_text] = _display_clean_sticky_single_choice_question(
                             question, video["id"], project_id, role, existing_value,
                             is_modified_by_admin, admin_info, form_disabled, session,
-                            gt_value, mode  # Added GT value and mode
+                            gt_value, mode
                         )
                     else:  # description
                         answers[question_text] = _display_clean_sticky_description_question(
                             question, video["id"], project_id, role, existing_value,
                             is_modified_by_admin, admin_info, form_disabled, session,
-                            gt_value, mode  # Added GT value and mode
+                            gt_value, mode, answer_reviews
                         )
             
             # Submit button outside the scrollable content - will be sticky
@@ -1606,9 +1721,35 @@ def display_question_group_in_fixed_container(
                             show_training_feedback(video_id=video["id"], project_id=project_id, group_id=group_id, user_answers=answers, session=session)
                         else:
                             st.success("✅ Answers submitted!")
-                        
+                    
+                    elif role == "meta_reviewer":
+                        # NEW: Meta-reviewer override ground truth (uses admin role in backend)
+                        try:
+                            GroundTruthService.override_ground_truth_to_question_group(
+                                video_id=video["id"],
+                                project_id=project_id,
+                                question_group_id=group_id,
+                                admin_id=user_id,
+                                answers=answers,
+                                session=session
+                            )
+                            
+                            # Submit answer reviews for description questions
+                            _submit_answer_reviews(answer_reviews, video["id"], project_id, user_id, session)
+                            
+                            # NO completion check for meta-reviewers
+                            st.success("✅ Ground truth overridden!")
+                            
+                        except ValueError as e:
+                            st.error(f"Error overriding ground truth: {str(e)}")
+                    
                     else:  # reviewer
-                        # Filter out admin-modified questions from answers
+                        # Check if any questions are admin-modified (this should block submission now)
+                        if has_any_admin_modified_questions:
+                            st.warning("Cannot submit: Some questions have been overridden by admin.")
+                            return
+                        
+                        # Filter out admin-modified questions from answers (redundant now, but keeping for safety)
                         editable_answers = {}
                         for question in questions:
                             question_text = question["text"]
@@ -1627,6 +1768,9 @@ def display_question_group_in_fixed_container(
                                 answers=editable_answers,
                                 session=session
                             )
+                            
+                            # Submit answer reviews for description questions
+                            _submit_answer_reviews(answer_reviews, video["id"], project_id, user_id, session)
                             
                             # Check if project ground truth is complete
                             try:
@@ -1647,11 +1791,47 @@ def display_question_group_in_fixed_container(
                 except ValueError as e:
                     st.error(f"Error: {str(e)}")
                     
-                except ValueError as e:
-                    st.error(f"Error: {str(e)}")
-                    
     except ValueError as e:
         st.error(f"Error loading question group: {str(e)}")
+
+def _submit_answer_reviews(answer_reviews: Dict, video_id: int, project_id: int, user_id: int, session: Session):
+    """Submit answer reviews for annotators."""
+    for question_text, reviews in answer_reviews.items():
+        for annotator_display, review_status in reviews.items():
+            if review_status in ["approved", "rejected", "pending"]:
+                # Get annotator user ID from display name
+                try:
+                    annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
+                        display_names=[annotator_display], project_id=project_id, session=session
+                    )
+                    if annotator_user_ids:
+                        annotator_user_id = annotator_user_ids[0]
+                        
+                        # Get the annotator answer to get answer ID
+                        question = QuestionService.get_question_by_text(text=question_text, session=session)
+                        
+                        # Find the specific answer for this annotator
+                        answers_df = AnnotatorService.get_answers(video_id=video_id, project_id=project_id, session=session)
+                        
+                        if not answers_df.empty:
+                            answer_row = answers_df[
+                                (answers_df["Question ID"] == question.id) & 
+                                (answers_df["User ID"] == annotator_user_id)
+                            ]
+                            
+                            if not answer_row.empty:
+                                answer_id = answer_row.iloc[0]["Answer ID"]
+                                
+                                # Submit the review
+                                GroundTruthService.submit_answer_review(
+                                    answer_id=answer_id,
+                                    reviewer_id=user_id,
+                                    status=review_status,
+                                    session=session
+                                )
+                except Exception as e:
+                    # Continue with other reviews if one fails
+                    pass
 
 def _get_question_display_data(
     video_id: int, 
@@ -1660,7 +1840,8 @@ def _get_question_display_data(
     group_id: int, 
     role: str, 
     mode: str, 
-    session: Session
+    session: Session,
+    has_any_admin_modified_questions: bool
 ) -> Dict:
     """Get all the data needed to display a question group"""
     
@@ -1680,7 +1861,7 @@ def _get_question_display_data(
         existing_answers = AnnotatorService.get_user_answers_for_question_group(
             video_id=video_id, project_id=project_id, user_id=user_id, question_group_id=group_id, session=session
         )
-    else:  # reviewer
+    else:  # reviewer or meta_reviewer (both use ground truth)
         # Get existing ground truth using service layer
         existing_answers = GroundTruthService.get_ground_truth_for_question_group(
             video_id=video_id, project_id=project_id, question_group_id=group_id, session=session
@@ -1694,6 +1875,10 @@ def _get_question_display_data(
                        AnnotatorService.check_user_has_submitted_answers(
                            video_id=video_id, project_id=project_id, user_id=user_id, question_group_id=group_id, session=session
                        ))
+    elif role == "reviewer":
+        # Disable entire form if ANY question in group is admin-modified
+        form_disabled = has_any_admin_modified_questions
+    
     
     return {
         "questions": questions,
@@ -1736,6 +1921,8 @@ def _display_clean_sticky_single_choice_question(
     # Use Streamlit's subheader for better reliability
     if role == "reviewer" and is_modified_by_admin:
         st.error(f"🔒 {question_text}")
+    elif role == "meta_reviewer" and is_modified_by_admin:
+        st.warning(f"🎯 {question_text}")  # Different styling for meta-reviewer
     else:
         st.success(f"❓ {question_text}")
     
@@ -1774,21 +1961,39 @@ def _display_clean_sticky_single_choice_question(
     
     # Question content with inline radio buttons
     if role == "reviewer" and is_modified_by_admin and admin_info:
-        # Show read-only version with admin modification info
-        original_value = admin_info["original_value"]
+        # Show disabled radio buttons with admin override info for reviewers
         current_value = admin_info["current_value"]
         admin_name = admin_info["admin_name"]
+
+        enhanced_options = _get_enhanced_options_for_reviewer(
+            video_id=video_id, project_id=project_id, question_id=question_id, 
+            options=options, display_values=display_values, session=session
+        )
         
-        original_display = value_to_display.get(original_value, original_value)
-        current_display = value_to_display.get(current_value, current_value)
+        # Find the index of the admin-overridden value
+        admin_idx = default_idx
+        if current_value and current_value in value_to_display:
+            admin_display_val = value_to_display[current_value]
+            if admin_display_val in display_values:
+                admin_idx = display_values.index(admin_display_val)
         
-        st.warning(f"**Original Answer:** {original_display}")
-        st.error(f"**Admin Override by {admin_name}:** {current_display}")
+        st.warning(f"🔒 **Overridden by {admin_name}**")
+        
+        # Show disabled radio buttons with the admin's choice selected
+        selected_display = st.radio(
+            "Admin's selection:",
+            options=enhanced_options,
+            index=admin_idx,
+            key=f"q_{video_id}_{question_id}_{role}_locked",
+            disabled=True,  # Disabled to show it's locked
+            label_visibility="collapsed",
+            horizontal=True
+        )
         
         result = current_value
         
-    elif role == "reviewer":
-        # Editable version for reviewers with enhanced options
+    elif role in ["reviewer", "meta_reviewer"]:
+        # Editable version for reviewers and meta-reviewers with enhanced options
         enhanced_options = _get_enhanced_options_for_reviewer(
             video_id=video_id, project_id=project_id, question_id=question_id, options=options, display_values=display_values, session=session
         )
@@ -1888,7 +2093,8 @@ def _display_clean_sticky_description_question(
     form_disabled: bool,
     session: Session,
     gt_value: str = "",
-    mode: str = ""
+    mode: str = "",
+    answer_reviews: Optional[Dict] = None
 ) -> str:
     """Display a description question with header using Streamlit native components"""
     
@@ -1898,6 +2104,8 @@ def _display_clean_sticky_description_question(
     # Use Streamlit's subheader for better reliability
     if role == "reviewer" and is_modified_by_admin:
         st.error(f"🔒 {question_text}")
+    elif role == "meta_reviewer" and is_modified_by_admin:
+        st.warning(f"🎯 {question_text}")  # Different styling for meta-reviewer
     else:
         st.info(f"❓ {question_text}")
     
@@ -1951,21 +2159,29 @@ def _display_clean_sticky_description_question(
     
     # Question content
     if role == "reviewer" and is_modified_by_admin and admin_info:
-        # Show read-only version with admin modification info
-        original_value = admin_info["original_value"]
+        # Show disabled text area with admin override info for reviewers
         current_value = admin_info["current_value"]
         admin_name = admin_info["admin_name"]
         
-        st.warning(f"**Original Answer:** {original_value}")
-        st.error(f"**Admin Override by {admin_name}:** {current_value}")
+        st.warning(f"🔒 **Overridden by {admin_name}**")
+        
+        # Show disabled text area with admin's answer
+        answer = st.text_area(
+            "Admin's answer:",
+            value=current_value,
+            key=f"q_{video_id}_{question_id}_{role}_locked",
+            disabled=True,  # Disabled to show it's locked
+            height=120,
+            label_visibility="collapsed"
+        )
         
         result = current_value
         
-    elif role == "reviewer":
+    elif role in ["reviewer", "meta_reviewer"]:
         # Use a stable key that doesn't change with annotator selection
         text_key = f"q_{video_id}_{question_id}_{role}_stable"
         
-        # Editable version for reviewers
+        # Editable version for reviewers and meta-reviewers
         answer = st.text_area(
             "Enter your answer:",
             value=existing_value,
@@ -1975,9 +2191,18 @@ def _display_clean_sticky_description_question(
             label_visibility="collapsed"
         )
         
-        # Show existing annotator answers as helper text using service layer
-        # This will update when annotator selection changes
-        _display_helper_text_answers(video_id=video_id, project_id=project_id, question_id=question_id, session=session)
+        # NEW: Show existing annotator answers as helper text with copy/paste and approve/reject buttons
+        _display_enhanced_helper_text_answers(
+            video_id=video_id, 
+            project_id=project_id, 
+            question_id=question_id, 
+            question_text=question_text,
+            text_key=text_key,
+            gt_value=existing_value if role == "meta_reviewer" else "",  # For meta-reviewer, show GT value
+            role=role,
+            answer_reviews=answer_reviews,
+            session=session
+        )
         
         result = answer
         
@@ -2013,6 +2238,149 @@ def _display_clean_sticky_description_question(
             """, unsafe_allow_html=True)
     
     return result
+
+def _display_enhanced_helper_text_answers(
+    video_id: int, 
+    project_id: int, 
+    question_id: int, 
+    question_text: str,
+    text_key: str,
+    gt_value: str,
+    role: str,
+    answer_reviews: Optional[Dict],
+    session: Session
+):
+    """Display helper text showing other annotator answers with copy/paste and approve/reject functionality."""
+    
+    selected_annotators = st.session_state.get("selected_annotators", [])
+    
+    try:
+        # Use proper service layer call with format matching
+        annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
+            display_names=selected_annotators, project_id=project_id, session=session
+        )
+        text_answers = GroundTruthService.get_question_text_answers(
+            video_id=video_id, project_id=project_id, question_id=question_id, annotator_user_ids=annotator_user_ids, session=session
+        )
+        
+        # NEW: For meta-reviewer, also show GT version
+        if role == "meta_reviewer" and gt_value:
+            st.caption("📋 Available answers:")
+            
+            # Ground Truth copy button
+            copy_gt_col, gt_text_col = st.columns([1, 4])
+            with copy_gt_col:
+                if st.button("📄 Copy GT", key=f"copy_gt_{text_key}", help="Copy ground truth answer"):
+                    # Update the text area value in session state
+                    st.session_state[text_key] = gt_value
+                    st.rerun(scope="fragment")
+            with gt_text_col:
+                st.caption(f"**🏆 Ground Truth:** {gt_value}")
+        
+        if text_answers:
+            if not (role == "meta_reviewer" and gt_value):  # Only show this header if GT wasn't shown above
+                st.caption("📋 Available answers:")
+            
+            # Remove duplicates by creating a set of unique answer texts
+            unique_answers = []
+            seen_answers = set()
+            
+            for answer in text_answers:
+                answer_key = f"{answer['initials']}:{answer['answer_value']}"
+                if answer_key not in seen_answers:
+                    seen_answers.add(answer_key)
+                    unique_answers.append(answer)
+            
+            if unique_answers:
+                # Display each annotator's answer with copy button and approve/reject buttons
+                for answer_info in unique_answers:
+                    initials = answer_info['initials']
+                    answer_value = answer_info['answer_value']
+                    annotator_name = answer_info['name']
+                    
+                    # Create display name for this annotator
+                    annotator_display = f"{annotator_name} ({initials})"
+                    
+                    # Handle empty answers
+                    if not answer_value or answer_value.strip() == "":
+                        display_text = "📝 (No answer provided)"
+                        copy_disabled = True
+                    else:
+                        display_text = answer_value
+                        copy_disabled = False
+                    
+                    # Create columns for copy button, text, and review buttons
+                    copy_col, text_col, review_col = st.columns([1, 3, 2])
+                    
+                    with copy_col:
+                        copy_button_key = f"copy_{text_key}_{initials}"
+                        if st.button(f"📋 {initials}", key=copy_button_key, disabled=copy_disabled, help=f"Copy {initials}'s answer"):
+                            # Update the text area value in session state
+                            st.session_state[text_key] = answer_value
+                            st.rerun(scope="fragment")
+                    
+                    with text_col:
+                        st.caption(f"**{initials}:** {display_text}")
+                    
+                    with review_col:
+                        # NEW: Approve/Reject/Pending buttons for each annotator
+                        if not copy_disabled:  # Only show review buttons if there's an answer
+                            # Initialize review state for this annotator
+                            if answer_reviews is not None:
+                                if question_text not in answer_reviews:
+                                    answer_reviews[question_text] = {}
+                                
+                                # Get existing review if any
+                                try:
+                                    # Get annotator answer ID to check existing review
+                                    answers_df = AnnotatorService.get_answers(video_id=video_id, project_id=project_id, session=session)
+                                    if not answers_df.empty:
+                                        annotator_user_id = AuthService.get_annotator_user_ids_from_display_names(
+                                            display_names=[annotator_display], project_id=project_id, session=session
+                                        )[0] if AuthService.get_annotator_user_ids_from_display_names(
+                                            display_names=[annotator_display], project_id=project_id, session=session
+                                        ) else None
+                                        
+                                        if annotator_user_id:
+                                            answer_row = answers_df[
+                                                (answers_df["Question ID"] == question_id) & 
+                                                (answers_df["User ID"] == annotator_user_id)
+                                            ]
+                                            
+                                            if not answer_row.empty:
+                                                answer_id = answer_row.iloc[0]["Answer ID"]
+                                                existing_review = GroundTruthService.get_answer_review(answer_id=answer_id, session=session)
+                                                if existing_review:
+                                                    answer_reviews[question_text][annotator_display] = existing_review["status"]
+                                                else:
+                                                    answer_reviews[question_text][annotator_display] = "pending"
+                                            else:
+                                                answer_reviews[question_text][annotator_display] = "pending"
+                                        else:
+                                            answer_reviews[question_text][annotator_display] = "pending"
+                                    else:
+                                        answer_reviews[question_text][annotator_display] = "pending"
+                                except:
+                                    answer_reviews[question_text][annotator_display] = "pending"
+                                
+                                current_status = answer_reviews[question_text].get(annotator_display, "pending")
+                                
+                                # Create review buttons
+                                review_options = ["pending", "approved", "rejected"]
+                                current_index = review_options.index(current_status) if current_status in review_options else 0
+                                
+                                selected_status = st.segmented_control(
+                                    "Review",
+                                    options=review_options,
+                                    default=current_status,
+                                    key=f"review_{text_key}_{initials}",
+                                    label_visibility="collapsed"
+                                )
+                                
+                                # Update the review state
+                                answer_reviews[question_text][annotator_display] = selected_status
+    except Exception:
+        pass  # Silently handle errors in helper text
 
 def _get_enhanced_options_for_reviewer(
     video_id: int,
@@ -2091,47 +2459,15 @@ def _get_enhanced_options_for_reviewer(
     
     return enhanced_options
 
-def _display_helper_text_answers(video_id: int, project_id: int, question_id: int, session: Session):
-    """Display helper text showing other annotator answers for description questions"""
-    
-    selected_annotators = st.session_state.get("selected_annotators", [])
-    
-    try:
-        # Use proper service layer call with format matching
-        annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
-            display_names=selected_annotators, project_id=project_id, session=session
-        )
-        text_answers = GroundTruthService.get_question_text_answers(
-            video_id=video_id, project_id=project_id, question_id=question_id, annotator_user_ids=annotator_user_ids, session=session
-        )
-        
-        if text_answers:
-            # Remove duplicates by creating a set of unique answer texts
-            unique_answers = []
-            seen_answers = set()
-            
-            for answer in text_answers:
-                answer_key = f"{answer['initials']}:{answer['answer_value']}"
-                if answer_key not in seen_answers:
-                    seen_answers.add(answer_key)
-                    # Use shortened format with just initials
-                    unique_answers.append(f"**{answer['initials']}:** {answer['answer_value']}")
-            
-            if unique_answers:
-                # Display each annotator's answer on a new line
-                st.caption("Other answers:")
-                for answer_text in unique_answers:
-                    st.caption(answer_text)
-    except Exception:
-        pass  # Silently handle errors in helper text
-
 def _get_submit_button_config(
     role: str,
     form_disabled: bool,
     all_questions_modified_by_admin: bool,
     has_any_editable_questions: bool,
     is_group_complete: bool,
-    mode: str
+    mode: str,
+    ground_truth_exists: bool = False,
+    has_any_admin_modified_questions: bool = False
 ) -> Tuple[str, bool]:
     """Get the submit button text and disabled state with improved logic"""
     
@@ -2150,9 +2486,21 @@ def _get_submit_button_config(
         else:
             button_text = "Submit Answers"
             button_disabled = False
+    elif role == "meta_reviewer":
+        # NEW: Meta-reviewer logic
+        if not ground_truth_exists:
+            button_text = "🚫 No Ground Truth Yet"
+            button_disabled = True
+        elif is_group_complete:
+            button_text = "🎯 Override Ground Truth"
+            button_disabled = False
+        else:
+            button_text = "🎯 Override Ground Truth"
+            button_disabled = False
     else:  # reviewer
-        if all_questions_modified_by_admin:
-            button_text = "🔒 All Questions Modified by Admin"
+        # NEW: Lock entire group if ANY questions are admin-modified
+        if has_any_admin_modified_questions:
+            button_text = "🔒 Overridden by Admin"  # Fixed typo: "Overrided" → "Overridden"
             button_disabled = True
         elif not has_any_editable_questions:
             button_text = "🔒 No Editable Questions"
@@ -2206,6 +2554,27 @@ def reviewer_portal():
         elif current_view == "project":
             # Display project view
             display_project_view(user_id=user["id"], role="reviewer", session=session)
+
+###############################################################################
+# NEW: META-REVIEWER PORTAL
+###############################################################################
+
+@handle_database_errors
+def meta_reviewer_portal():
+    """NEW: Meta-Reviewer Portal for global admins"""
+    st.title("🎯 Meta-Reviewer Portal")
+    user = st.session_state.user
+    
+    # Check current view state
+    current_view = st.session_state.get("current_view", "dashboard")
+    
+    with get_db_session() as session:
+        if current_view == "dashboard":
+            # Display project dashboard - use "admin" role for backend calls
+            display_project_dashboard(user_id=user["id"], role="meta_reviewer", session=session)
+        elif current_view == "project":
+            # Display project view - use "admin" role for backend calls
+            display_project_view(user_id=user["id"], role="meta_reviewer", session=session)
 
 ###############################################################################
 # ADMIN PORTAL  - OPTIMIZED WITH FRAGMENTS
@@ -3875,24 +4244,6 @@ def main():
             box-shadow: 0 0 0 3px rgba(31, 119, 180, 0.1);
         }
         
-        /* Custom styling for selected annotator badges */
-        .annotator-badge {
-            background: linear-gradient(135deg, #e7f3ff, #cce7ff);
-            border: 2px solid #1f77b4;
-            border-radius: 8px;
-            padding: 8px 12px;
-            text-align: center;
-            margin: 4px 0;
-            font-size: 0.9rem;
-            box-shadow: 0 2px 4px rgba(31, 119, 180, 0.1);
-            transition: all 0.2s ease;
-        }
-        
-        .annotator-badge:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(31, 119, 180, 0.2);
-        }
-        
         /* Remove unwanted borders and margins for cleaner look */
         .element-container > div > div > div > div {
             border: none !important;
@@ -3950,6 +4301,7 @@ def main():
             portal_labels = {
                 "annotator": "👥 Annotator Portal",
                 "reviewer": "🔍 Reviewer Portal", 
+                "meta_reviewer": "🎯 Meta-Reviewer Portal",  # NEW
                 "admin": "⚙️ Admin Portal"
             }
             
@@ -4001,6 +4353,8 @@ def main():
     
     if selected_portal == "admin":
         admin_portal()
+    elif selected_portal == "meta_reviewer":  # NEW
+        meta_reviewer_portal()
     elif selected_portal == "reviewer":
         reviewer_portal()
     elif selected_portal == "annotator":
