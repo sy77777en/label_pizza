@@ -2259,29 +2259,34 @@ def _display_enhanced_helper_text_answers(
         annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
             display_names=selected_annotators, project_id=project_id, session=session
         )
+        
+        # FIXED: Get text answers for description questions
         text_answers = GroundTruthService.get_question_text_answers(
-            video_id=video_id, project_id=project_id, question_id=question_id, annotator_user_ids=annotator_user_ids, session=session
+            video_id=video_id, 
+            project_id=project_id, 
+            question_id=question_id, 
+            annotator_user_ids=annotator_user_ids, 
+            session=session
         )
         
-        # NEW: For meta-reviewer, also show GT version
-        if role == "meta_reviewer" and gt_value:
-            st.caption("📋 Available answers:")
-            
-            # Ground Truth copy button
-            copy_gt_col, gt_text_col = st.columns([1, 4])
-            with copy_gt_col:
-                if st.button("📄 Copy GT", key=f"copy_gt_{text_key}", help="Copy ground truth answer"):
-                    # Update the text area value in session state
-                    st.session_state[text_key] = gt_value
-                    st.rerun(scope="fragment")
-            with gt_text_col:
-                st.caption(f"**🏆 Ground Truth:** {gt_value}")
+        # Collect all answers (GT + annotators)
+        all_answers = []
         
+        # Add Ground Truth for meta-reviewer
+        if role == "meta_reviewer" and gt_value:
+            gt_display = gt_value[:100] + "..." if len(gt_value) > 100 else gt_value
+            all_answers.append({
+                "name": "Ground Truth",
+                "text": gt_display,
+                "full_text": gt_value,
+                "has_answer": bool(gt_value.strip()),
+                "is_gt": True,
+                "display_name": "Ground Truth"
+            })
+        
+        # Add annotator answers
         if text_answers:
-            if not (role == "meta_reviewer" and gt_value):  # Only show this header if GT wasn't shown above
-                st.caption("📋 Available answers:")
-            
-            # Remove duplicates by creating a set of unique answer texts
+            # Remove duplicates
             unique_answers = []
             seen_answers = set()
             
@@ -2291,96 +2296,134 @@ def _display_enhanced_helper_text_answers(
                     seen_answers.add(answer_key)
                     unique_answers.append(answer)
             
-            if unique_answers:
-                # Display each annotator's answer with copy button and approve/reject buttons
-                for answer_info in unique_answers:
-                    initials = answer_info['initials']
-                    answer_value = answer_info['answer_value']
-                    annotator_name = answer_info['name']
+            for answer_info in unique_answers:
+                annotator_name = answer_info['name']
+                answer_value = answer_info['answer_value']
+                initials = answer_info['initials']
+                
+                display_text = answer_value[:100] + "..." if len(answer_value) > 100 else answer_value
+                has_answer = bool(answer_value.strip())
+                
+                all_answers.append({
+                    "name": annotator_name,
+                    "text": display_text if has_answer else "📝 (No answer provided)",
+                    "full_text": answer_value,
+                    "has_answer": has_answer,
+                    "is_gt": False,
+                    "display_name": f"{annotator_name} ({initials})",
+                    "initials": initials
+                })
+        
+        # Show answers if we have any
+        if all_answers:
+            st.caption("📋 Available answers: 📄 = Copy | ✅ = Approve | ⏳ = Pending | ❌ = Reject")
+            
+            # Decide whether to use tabs or inline based on number of answers
+            if len(all_answers) > 4:
+                # Use tabs for many answers
+                tab_names = [answer["name"] for answer in all_answers]
+                tabs = st.tabs(tab_names)
+                
+                for tab, answer in zip(tabs, all_answers):
+                    with tab:
+                        _display_single_answer(answer, text_key, question_text, answer_reviews, video_id, project_id, question_id, session)
+            else:
+                # Use inline for few answers
+                for i, answer in enumerate(all_answers):
+                    _display_single_answer(answer, text_key, question_text, answer_reviews, video_id, project_id, question_id, session)
                     
-                    # Create display name for this annotator
-                    annotator_display = f"{annotator_name} ({initials})"
+                    # Add separator between answers (except last one)
+                    if i < len(all_answers) - 1:
+                        st.caption("---")
+                            
+    except Exception as e:
+        st.caption(f"⚠️ Could not load annotator answers: {str(e)}")
+
+
+def _display_single_answer(answer, text_key, question_text, answer_reviews, video_id, project_id, question_id, session):
+    """Display a single answer with copy and review controls."""
+    
+    # Show answer text in consistent caption style
+    st.caption(f"**{answer['name']}:** {answer['text']}")
+    
+    # Controls row
+    copy_col, review_col = st.columns([1, 3])
+    
+    with copy_col:
+        # Copy control using segmented control (consistent with review buttons)
+        if answer['has_answer']:
+            copy_key = f"copy_{text_key}_{answer['name'].replace(' ', '_')}_{video_id}"
+            copy_action = st.segmented_control(
+                "Copy",
+                options=["📄"],
+                key=copy_key,
+                label_visibility="collapsed"
+            )
+            
+            # Handle copy action
+            if copy_action == "📄":
+                st.session_state[text_key] = answer['full_text']
+                # Reset the segmented control by clearing its state
+                if copy_key in st.session_state:
+                    del st.session_state[copy_key]
+                st.rerun(scope="fragment")
+        else:
+            st.caption("*(no answer)*")
+    
+    with review_col:
+        # Review controls (only for non-GT answers)
+        if not answer['is_gt'] and answer_reviews is not None:
+            # Initialize review state
+            if question_text not in answer_reviews:
+                answer_reviews[question_text] = {}
+            
+            # Get existing review status
+            try:
+                annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
+                    display_names=[answer['display_name']], project_id=project_id, session=session
+                )
+                
+                if annotator_user_ids:
+                    annotator_user_id = annotator_user_ids[0]
+                    answers_df = AnnotatorService.get_answers(video_id=video_id, project_id=project_id, session=session)
                     
-                    # Handle empty answers
-                    if not answer_value or answer_value.strip() == "":
-                        display_text = "📝 (No answer provided)"
-                        copy_disabled = True
+                    if not answers_df.empty:
+                        answer_row = answers_df[
+                            (answers_df["Question ID"] == question_id) & 
+                            (answers_df["User ID"] == annotator_user_id)
+                        ]
+                        
+                        if not answer_row.empty:
+                            answer_id = answer_row.iloc[0]["Answer ID"]
+                            existing_review = GroundTruthService.get_answer_review(answer_id=answer_id, session=session)
+                            if existing_review:
+                                answer_reviews[question_text][answer['display_name']] = existing_review["status"]
+                            else:
+                                answer_reviews[question_text][answer['display_name']] = "pending"
+                        else:
+                            answer_reviews[question_text][answer['display_name']] = "pending"
                     else:
-                        display_text = answer_value
-                        copy_disabled = False
-                    
-                    # Create columns for copy button, text, and review buttons
-                    copy_col, text_col, review_col = st.columns([1, 3, 2])
-                    
-                    with copy_col:
-                        copy_button_key = f"copy_{text_key}_{initials}"
-                        if st.button(f"📋 {initials}", key=copy_button_key, disabled=copy_disabled, help=f"Copy {initials}'s answer"):
-                            # Update the text area value in session state
-                            st.session_state[text_key] = answer_value
-                            st.rerun(scope="fragment")
-                    
-                    with text_col:
-                        st.caption(f"**{initials}:** {display_text}")
-                    
-                    with review_col:
-                        # NEW: Approve/Reject/Pending buttons for each annotator
-                        if not copy_disabled:  # Only show review buttons if there's an answer
-                            # Initialize review state for this annotator
-                            if answer_reviews is not None:
-                                if question_text not in answer_reviews:
-                                    answer_reviews[question_text] = {}
-                                
-                                # Get existing review if any
-                                try:
-                                    # Get annotator answer ID to check existing review
-                                    answers_df = AnnotatorService.get_answers(video_id=video_id, project_id=project_id, session=session)
-                                    if not answers_df.empty:
-                                        annotator_user_id = AuthService.get_annotator_user_ids_from_display_names(
-                                            display_names=[annotator_display], project_id=project_id, session=session
-                                        )[0] if AuthService.get_annotator_user_ids_from_display_names(
-                                            display_names=[annotator_display], project_id=project_id, session=session
-                                        ) else None
-                                        
-                                        if annotator_user_id:
-                                            answer_row = answers_df[
-                                                (answers_df["Question ID"] == question_id) & 
-                                                (answers_df["User ID"] == annotator_user_id)
-                                            ]
-                                            
-                                            if not answer_row.empty:
-                                                answer_id = answer_row.iloc[0]["Answer ID"]
-                                                existing_review = GroundTruthService.get_answer_review(answer_id=answer_id, session=session)
-                                                if existing_review:
-                                                    answer_reviews[question_text][annotator_display] = existing_review["status"]
-                                                else:
-                                                    answer_reviews[question_text][annotator_display] = "pending"
-                                            else:
-                                                answer_reviews[question_text][annotator_display] = "pending"
-                                        else:
-                                            answer_reviews[question_text][annotator_display] = "pending"
-                                    else:
-                                        answer_reviews[question_text][annotator_display] = "pending"
-                                except:
-                                    answer_reviews[question_text][annotator_display] = "pending"
-                                
-                                current_status = answer_reviews[question_text].get(annotator_display, "pending")
-                                
-                                # Create review buttons
-                                review_options = ["pending", "approved", "rejected"]
-                                current_index = review_options.index(current_status) if current_status in review_options else 0
-                                
-                                selected_status = st.segmented_control(
-                                    "Review",
-                                    options=review_options,
-                                    default=current_status,
-                                    key=f"review_{text_key}_{initials}",
-                                    label_visibility="collapsed"
-                                )
-                                
-                                # Update the review state
-                                answer_reviews[question_text][annotator_display] = selected_status
-    except Exception:
-        pass  # Silently handle errors in helper text
+                        answer_reviews[question_text][answer['display_name']] = "pending"
+                else:
+                    answer_reviews[question_text][answer['display_name']] = "pending"
+            except:
+                answer_reviews[question_text][answer['display_name']] = "pending"
+            
+            current_status = answer_reviews[question_text].get(answer['display_name'], "pending")
+            
+            # Review segmented control
+            review_key = f"review_{text_key}_{answer['name'].replace(' ', '_')}_{video_id}"
+            selected_status = st.segmented_control(
+                f"Review {answer['name']}",
+                options=["pending", "approved", "rejected"],
+                format_func=lambda x: {"pending": "⏳", "approved": "✅", "rejected": "❌"}[x],
+                default=current_status,
+                key=review_key,
+                label_visibility="collapsed"
+            )
+            
+            # Update review state
+            answer_reviews[question_text][answer['display_name']] = selected_status
 
 def _get_enhanced_options_for_reviewer(
     video_id: int,
