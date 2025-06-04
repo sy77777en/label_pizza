@@ -1527,6 +1527,159 @@ def check_ground_truth_exists_for_group(
     except:
         return False
 
+
+def _load_existing_answer_reviews(video_id: int, project_id: int, question_id: int, session: Session) -> Dict[str, Dict]:
+    """Load existing answer reviews for a description question from the database."""
+    reviews = {}
+    
+    try:
+        # Get selected annotators
+        selected_annotators = st.session_state.get("selected_annotators", [])
+        
+        # Get annotator user IDs
+        annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
+            display_names=selected_annotators, project_id=project_id, session=session
+        )
+        
+        # For each annotator, get their answer and existing review
+        for user_id in annotator_user_ids:
+            # Get the annotator's answer
+            answers_df = AnnotatorService.get_answers(video_id=video_id, project_id=project_id, session=session)
+            
+            if not answers_df.empty:
+                answer_row = answers_df[
+                    (answers_df["Question ID"] == int(question_id)) & 
+                    (answers_df["User ID"] == int(user_id))
+                ]
+                
+                if not answer_row.empty:
+                    answer_id = int(answer_row.iloc[0]["Answer ID"])
+                    
+                    # Get existing review
+                    existing_review = GroundTruthService.get_answer_review(answer_id=answer_id, session=session)
+                    
+                    # Get user info for display name
+                    user_info = AuthService.get_user_info_by_id(user_id=user_id, session=session)
+                    name_parts = user_info["user_id_str"].split()
+                    if len(name_parts) >= 2:
+                        initials = f"{name_parts[0][0]}{name_parts[-1][0]}".upper()
+                    else:
+                        initials = user_info["user_id_str"][:2].upper()
+                    
+                    display_name = f"{user_info['user_id_str']} ({initials})"
+                    
+                    # Store both status and reviewer info
+                    if existing_review:
+                        reviews[display_name] = {
+                            "status": existing_review["status"],
+                            "reviewer_id": existing_review.get("reviewer_id"),
+                            "reviewer_name": None  # Will be loaded when needed
+                        }
+                        
+                        # Load reviewer name if exists
+                        if existing_review.get("reviewer_id"):
+                            try:
+                                reviewer_info = AuthService.get_user_info_by_id(
+                                    user_id=int(existing_review["reviewer_id"]), 
+                                    session=session
+                                )
+                                reviews[display_name]["reviewer_name"] = reviewer_info["user_id_str"]
+                            except ValueError:
+                                reviews[display_name]["reviewer_name"] = f"User {existing_review['reviewer_id']} (Error loading user info)"
+                    else:
+                        reviews[display_name] = {
+                            "status": "pending",
+                            "reviewer_id": None,
+                            "reviewer_name": None
+                        }
+    except Exception as e:
+        # If there's an error loading reviews, just return empty dict
+        print(f"Error loading answer reviews: {e}")
+        pass
+    
+    return reviews
+
+def _display_single_answer_elegant(answer, text_key, question_text, answer_reviews, video_id, project_id, question_id, session):
+    """Display a single answer with elegant left-right layout and FIXED review functionality."""
+    
+    # Left-right layout: description on left, controls on right - OPTIMIZED RATIO
+    desc_col, controls_col = st.columns([2.6, 1.4])  # Changed to [2.6, 1.4] as requested
+    
+    with desc_col:
+        # Show full description text in a clean text area (read-only) - INCREASED HEIGHT
+        if answer['has_answer']:
+            st.text_area(
+                f"{answer['name']}'s Answer:",
+                value=answer['full_text'],
+                height=200,  # Increased from 120 to 200 to span two rows
+                disabled=True,
+                key=f"display_{video_id}_{question_id}_{answer['name'].replace(' ', '_')}",
+                label_visibility="collapsed"
+            )
+        else:
+            st.info(f"{answer['name']}: No answer provided")
+    
+    with controls_col:
+        st.markdown(f"**{answer['name']}**")
+        
+        # Review controls (only for non-GT answers) - FIXED IMPLEMENTATION
+        if not answer['is_gt'] and answer_reviews is not None:
+            # Initialize review states if not already done
+            if question_text not in answer_reviews:
+                answer_reviews[question_text] = {}
+            
+            # FIXED: Load current review data from the pre-loaded reviews (which came from database)
+            display_name = answer['display_name']
+            current_review_data = answer_reviews[question_text].get(display_name, {
+                "status": "pending",
+                "reviewer_id": None,
+                "reviewer_name": None
+            })
+            
+            # Extract the current status and reviewer info
+            current_status = current_review_data.get("status", "pending") if isinstance(current_review_data, dict) else current_review_data
+            existing_reviewer_name = current_review_data.get("reviewer_name") if isinstance(current_review_data, dict) else None
+            
+            # Show current status with proper messaging
+            status_emoji = {"pending": "⏳", "approved": "✅", "rejected": "❌"}[current_status]
+            
+            # Display current status and reviewer info
+            if current_status != "pending" and existing_reviewer_name:
+                st.caption(f"**Status:** {status_emoji} {current_status.title()}")
+                st.caption(f"**Reviewed by:** {existing_reviewer_name}")
+            else:
+                st.caption(f"**Status:** {status_emoji} {current_status.title()}")
+            
+            # Review segmented control - works properly in forms
+            review_key = f"review_{text_key}_{answer['name'].replace(' ', '_')}_{video_id}"
+            selected_status = st.segmented_control(
+                "Review",
+                options=["pending", "approved", "rejected"],
+                format_func=lambda x: {"pending": "⏳", "approved": "✅", "rejected": "❌"}[x],
+                default=current_status,
+                key=review_key,
+                label_visibility="collapsed"
+            )
+            
+            # FIXED: Update review state in the passed dict properly
+            # Store the new status, preserving existing reviewer info structure
+            answer_reviews[question_text][display_name] = selected_status
+            
+            # Show appropriate reminder messages
+            if selected_status == current_status:
+                if current_status == "pending":
+                    st.caption("💭 Don't forget to submit your review.")
+                elif existing_reviewer_name:
+                    st.caption(f"📝 Click submit to override {existing_reviewer_name}'s review.")
+                else:
+                    st.caption("📝 Click submit to override the previous review.")
+            else:
+                # Status changed from current
+                if existing_reviewer_name:
+                    st.caption(f"📝 Click submit to override {existing_reviewer_name}'s review.")
+                else:
+                    st.caption("📝 Click submit to save your review.")
+
 def display_question_group_in_fixed_container(
     video: Dict,
     project_id: int, 
@@ -1537,7 +1690,7 @@ def display_question_group_in_fixed_container(
     session: Session,
     container_height: int,
 ):
-    """Display question group content with optimized fragment refresh"""
+    """Display question group content with FIXED review loading and submission"""
     
     try:
         # First, get questions to check admin modifications
@@ -1628,6 +1781,22 @@ def display_question_group_in_fixed_container(
             has_any_admin_modified_questions
         )
         
+        # FIXED: Initialize answer review states for description questions
+        answer_reviews = {}
+        if role in ["reviewer", "meta_reviewer"]:
+            # Load existing reviews for ALL description questions in this group
+            for question in questions:
+                if question["type"] == "description":
+                    question_text = question["text"]
+                    # Load the full review data including reviewer info
+                    existing_review_data = _load_existing_answer_reviews(
+                        video_id=video["id"],
+                        project_id=project_id,
+                        question_id=question["id"],
+                        session=session
+                    )
+                    answer_reviews[question_text] = existing_review_data
+        
         # Create form for this question group
         form_key = f"form_{video['id']}_{group_id}_{role}"
         with st.form(form_key):
@@ -1672,7 +1841,7 @@ def display_question_group_in_fixed_container(
                         answers[question_text] = _display_clean_sticky_description_question(
                             question, video["id"], project_id, role, existing_value,
                             is_modified_by_admin, admin_info, form_disabled, session,
-                            gt_value, mode
+                            gt_value, mode, answer_reviews
                         )
             
             # Submit button outside the scrollable content - will be sticky
@@ -1725,6 +1894,10 @@ def display_question_group_in_fixed_container(
                                 session=session
                             )
                             
+                            # FIXED: Submit answer reviews for description questions
+                            if answer_reviews:
+                                _submit_answer_reviews(answer_reviews, video["id"], project_id, user_id, session)
+                            
                             # NO completion check for meta-reviewers
                             st.success("✅ Ground truth overridden!")
                             
@@ -1757,6 +1930,10 @@ def display_question_group_in_fixed_container(
                                 session=session
                             )
                             
+                            # FIXED: Submit answer reviews for description questions
+                            if answer_reviews:
+                                _submit_answer_reviews(answer_reviews, video["id"], project_id, user_id, session)
+                            
                             # Check if project ground truth is complete
                             try:
                                 project_progress = ProjectService.progress(project_id=project_id, session=session)
@@ -1778,6 +1955,53 @@ def display_question_group_in_fixed_container(
                     
     except ValueError as e:
         st.error(f"Error loading question group: {str(e)}")
+
+def _submit_answer_reviews(answer_reviews: Dict, video_id: int, project_id: int, user_id: int, session: Session):
+    """FIXED: Submit answer reviews for annotators using proper service API."""
+    for question_text, reviews in answer_reviews.items():
+        for annotator_display, review_data in reviews.items():
+            # Handle both old string format and new dict format
+            if isinstance(review_data, dict):
+                review_status = review_data.get("status", "pending")
+            else:
+                review_status = review_data  # Old string format
+            
+            if review_status in ["approved", "rejected", "pending"]:
+                try:
+                    # Get annotator user ID from display name
+                    annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
+                        display_names=[annotator_display], project_id=project_id, session=session
+                    )
+                    
+                    if annotator_user_ids:
+                        annotator_user_id = int(annotator_user_ids[0])
+                        
+                        # Get the question ID by text
+                        question = QuestionService.get_question_by_text(text=question_text, session=session)
+                        
+                        # Find the specific answer for this annotator
+                        answers_df = AnnotatorService.get_answers(video_id=video_id, project_id=project_id, session=session)
+                        
+                        if not answers_df.empty:
+                            answer_row = answers_df[
+                                (answers_df["Question ID"] == int(question.id)) & 
+                                (answers_df["User ID"] == int(annotator_user_id))
+                            ]
+                            
+                            if not answer_row.empty:
+                                answer_id = int(answer_row.iloc[0]["Answer ID"])
+                                
+                                # Submit the review using service API
+                                GroundTruthService.submit_answer_review(
+                                    answer_id=answer_id,
+                                    reviewer_id=user_id,
+                                    status=review_status,
+                                    session=session
+                                )
+                except Exception as e:
+                    # Continue with other reviews if one fails
+                    print(f"Error submitting review for {annotator_display}: {e}")
+                    continue
 
 def _get_question_display_data(
     video_id: int, 
@@ -2039,7 +2263,8 @@ def _display_clean_sticky_description_question(
     form_disabled: bool,
     session: Session,
     gt_value: str = "",
-    mode: str = ""
+    mode: str = "",
+    answer_reviews: Optional[Dict] = None
 ) -> str:
     """Display a description question with elegant left-right layout for review interface"""
     
@@ -2145,6 +2370,7 @@ def _display_clean_sticky_description_question(
             text_key=text_key,
             gt_value=existing_value if role == "meta_reviewer" else "",  # For meta-reviewer, show GT value
             role=role,
+            answer_reviews=answer_reviews,
             session=session
         )
         
@@ -2191,6 +2417,7 @@ def _display_enhanced_helper_text_answers(
     text_key: str,
     gt_value: str,
     role: str,
+    answer_reviews: Optional[Dict],
     session: Session
 ):
     """Display helper text showing other annotator answers with elegant tab-based interface."""
@@ -2281,137 +2508,13 @@ def _display_enhanced_helper_text_answers(
             for tab, answer in zip(tabs, all_answers):
                 with tab:
                     _display_single_answer_elegant(
-                        answer, text_key, question_text, 
+                        answer, text_key, question_text, answer_reviews, 
                         video_id, project_id, question_id, session
                     )
                             
     except Exception as e:
         st.caption(f"⚠️ Could not load annotator answers: {str(e)}")
 
-
-def _display_single_answer_elegant(answer, text_key, question_text, video_id, project_id, question_id, session):
-    """Display a single answer with elegant left-right layout."""
-    
-    # Left-right layout: description on left, controls on right - OPTIMIZED RATIO
-    desc_col, controls_col = st.columns([2.6, 1.4])  # Changed to [2.6, 1.4] as requested
-    
-    with desc_col:
-        # Show full description text in a clean text area (read-only) - INCREASED HEIGHT
-        if answer['has_answer']:
-            st.text_area(
-                f"{answer['name']}'s Answer:",
-                value=answer['full_text'],
-                height=200,  # Increased from 120 to 200 to span two rows
-                disabled=True,
-                key=f"display_{video_id}_{question_id}_{answer['name'].replace(' ', '_')}",
-                label_visibility="collapsed"
-            )
-        else:
-            st.info(f"{answer['name']}: No answer provided")
-    
-    with controls_col:
-        st.markdown(f"**{answer['name']}**")
-        
-        # Review controls (only for non-GT answers) - IMMEDIATE DATABASE SAVE
-        if not answer['is_gt']:
-            # Get existing review status from database
-            current_status = "pending"  # default
-            try:
-                annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
-                    display_names=[answer['display_name']], project_id=project_id, session=session
-                )
-                
-                if annotator_user_ids:
-                    annotator_user_id = annotator_user_ids[0]
-                    answers_df = AnnotatorService.get_answers(video_id=video_id, project_id=project_id, session=session)
-                    
-                    if not answers_df.empty:
-                        answer_row = answers_df[
-                            (answers_df["Question ID"] == question_id) & 
-                            (answers_df["User ID"] == annotator_user_id)
-                        ]
-                        
-                        if not answer_row.empty:
-                            answer_id = answer_row.iloc[0]["Answer ID"]
-                            existing_review = GroundTruthService.get_answer_review(answer_id=answer_id, session=session)
-                            if existing_review:
-                                current_status = existing_review["status"]
-            except:
-                current_status = "pending"
-            
-            # Show current status
-            status_emoji = {"pending": "⏳", "approved": "✅", "rejected": "❌"}[current_status]
-            st.caption(f"**Status:** {status_emoji} {current_status.title()}")
-            
-            # Review segmented control with immediate database save
-            review_key = f"review_{text_key}_{answer['name'].replace(' ', '_')}_{video_id}"
-            selected_status = st.segmented_control(
-                "Review",
-                options=["pending", "approved", "rejected"],
-                format_func=lambda x: {"pending": "⏳", "approved": "✅", "rejected": "❌"}[x],
-                default=current_status,
-                key=review_key,
-                label_visibility="collapsed"
-            )
-            
-            # IMMEDIATE DATABASE SAVE when status changes
-            if selected_status != current_status:
-                try:
-                    # Get the answer ID and save review immediately
-                    annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
-                        display_names=[answer['display_name']], project_id=project_id, session=session
-                    )
-                    if annotator_user_ids:
-                        annotator_user_id = annotator_user_ids[0]
-                        answers_df = AnnotatorService.get_answers(video_id=video_id, project_id=project_id, session=session)
-                        
-                        if not answers_df.empty:
-                            answer_row = answers_df[
-                                (answers_df["Question ID"] == question_id) & 
-                                (answers_df["User ID"] == annotator_user_id)
-                            ]
-                            
-                            if not answer_row.empty:
-                                answer_id = answer_row.iloc[0]["Answer ID"]
-                                
-                                # Get current user ID for reviewer_id
-                                current_user = st.session_state.user
-                                reviewer_id = current_user["id"]
-                                
-                                # Save review immediately to database
-                                GroundTruthService.submit_answer_review(
-                                    answer_id=answer_id,
-                                    reviewer_id=reviewer_id,
-                                    status=selected_status,
-                                    session=session
-                                )
-                                
-                                # Show success feedback
-                                st.success(f"✅ Review saved: {selected_status}")
-                                st.rerun(scope="fragment")
-                except Exception as e:
-                    st.error(f"Error saving review: {str(e)}")
-                    st.rerun(scope="fragment")
-            
-        # Copy control below review buttons (for all answers) - FIXED: Form-compatible segmented control
-        if answer['has_answer']:
-            copy_key = f"copy_{text_key}_{answer['name'].replace(' ', '_')}_{video_id}_{question_id}"
-            
-            # Use segmented control that resets after use
-            copy_action = st.segmented_control(
-                "Copy",
-                options=["", "📄 Copy"],
-                default="",
-                key=copy_key,
-                label_visibility="collapsed"
-            )
-            
-            # Handle copy action and auto-reset
-            if copy_action == "📄 Copy":
-                st.session_state[text_key] = answer['full_text']
-                # Clear the segmented control by deleting its state
-                del st.session_state[copy_key] 
-                st.rerun(scope="fragment")
 
 def _get_enhanced_options_for_reviewer(
     video_id: int,

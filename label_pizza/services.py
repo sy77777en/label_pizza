@@ -1394,6 +1394,33 @@ class QuestionService:
 
 class AuthService:
     @staticmethod
+    def get_user_info_by_id(user_id: int, session: Session) -> Dict[str, Any]:
+        """Get user information by numeric ID as a dictionary.
+        
+        Args:
+            user_id: The numeric ID of the user
+            session: Database session
+            
+        Returns:
+            Dictionary containing user info: id, user_id_str, email, user_type, is_archived
+            
+        Raises:
+            ValueError: If user not found
+        """
+        user = session.get(User, user_id)
+        if not user:
+            raise ValueError(f"User with ID {user_id} not found")
+        
+        return {
+            "id": user.id,
+            "user_id_str": user.user_id_str,
+            "email": user.email,
+            "user_type": user.user_type,
+            "is_archived": user.is_archived,
+            "created_at": user.created_at
+        }
+    
+    @staticmethod
     def get_user_by_id(user_id: str, session: Session) -> Optional[User]:
         """Get a user by their ID string.
         
@@ -3294,7 +3321,7 @@ class GroundTruthService(BaseAnswerService):
         """
         review = session.scalar(
             select(AnswerReview)
-            .where(AnswerReview.answer_id == answer_id)
+            .where(AnswerReview.answer_id == int(answer_id))
         )
         
         if not review:
