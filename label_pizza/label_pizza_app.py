@@ -1679,6 +1679,7 @@ def _display_single_answer_elegant(answer, text_key, question_text, answer_revie
                     st.caption(f"📝 Click submit to override {existing_reviewer_name}'s review.")
                 else:
                     st.caption("📝 Click submit to save your review.")
+        
 
 def display_question_group_in_fixed_container(
     video: Dict,
@@ -2942,6 +2943,178 @@ def admin_questions():
                             st.rerun(scope="fragment")
                         except Exception as e:
                             st.error(f"Error: {str(e)}")
+            
+            # NEW: Edit Question Group expander
+            with st.expander("✏️ Edit Question Group"):
+                if not groups_df.empty:
+                    available_groups = groups_df[~groups_df["Archived"]]
+                    if not available_groups.empty:
+                        # Group selection
+                        group_options = {f"{row['Name']} (ID: {row['ID']})": row['ID'] for _, row in available_groups.iterrows()}
+                        selected_group_name = st.selectbox(
+                            "Select Group to Edit",
+                            list(group_options.keys()),
+                            key="admin_edit_group_select"
+                        )
+                        
+                        if selected_group_name:
+                            selected_group_id = group_options[selected_group_name]
+                            
+                            try:
+                                # Get current group details
+                                group_details = QuestionGroupService.get_group_details(
+                                    group_id=selected_group_id, 
+                                    session=session
+                                )
+                                
+                                # Edit fields
+                                new_title = st.text_input(
+                                    "Group Title",
+                                    value=group_details["title"],
+                                    key="admin_edit_group_title"
+                                )
+                                new_description = st.text_area(
+                                    "Description",
+                                    value=group_details["description"] or "",
+                                    key="admin_edit_group_description"
+                                )
+                                new_is_reusable = st.checkbox(
+                                    "Reusable across schemas",
+                                    value=group_details["is_reusable"],
+                                    key="admin_edit_group_reusable"
+                                )
+                                
+                                # Question order management
+                                st.markdown("**Question Order Management:**")
+                                
+                                # Get current question order
+                                current_order = QuestionGroupService.get_question_order(
+                                    group_id=selected_group_id, 
+                                    session=session
+                                )
+                                
+                                if current_order:
+                                    questions_df = QuestionService.get_all_questions(session=session)
+                                    
+                                    # Initialize session state for order if not exists
+                                    order_key = f"edit_group_order_{selected_group_id}"
+                                    if order_key not in st.session_state:
+                                        st.session_state[order_key] = current_order.copy()
+                                    
+                                    working_order = st.session_state[order_key]
+                                    
+                                    st.markdown("**Current Question Order:**")
+                                    st.info("Use the ⬆️ and ⬇️ buttons to reorder questions. Changes will be applied when you click 'Update Group'.")
+                                    
+                                    # Search functionality for large groups
+                                    if len(working_order) > 5:
+                                        search_term = st.text_input(
+                                            "🔍 Search questions (to quickly find questions in large groups)",
+                                            key=f"search_questions_{selected_group_id}",
+                                            placeholder="Type part of a question..."
+                                        )
+                                    else:
+                                        search_term = ""
+                                    
+                                    # Show questions with up/down controls
+                                    for i, q_id in enumerate(working_order):
+                                        question_row = questions_df[questions_df["ID"] == q_id]
+                                        if not question_row.empty:
+                                            q_text = question_row.iloc[0]["Text"]
+                                            
+                                            # Apply search filter
+                                            if search_term and search_term.lower() not in q_text.lower():
+                                                continue
+                                            
+                                            # Create columns for the question display and controls
+                                            col1, col2, col3 = st.columns([0.1, 0.8, 0.1])
+                                            
+                                            with col1:
+                                                # Up button (disabled if first item)
+                                                if st.button("⬆️", key=f"up_{selected_group_id}_{q_id}_{i}", 
+                                                            disabled=(i == 0),
+                                                            help="Move up"):
+                                                    # Swap with previous item
+                                                    st.session_state[order_key][i], st.session_state[order_key][i-1] = \
+                                                        st.session_state[order_key][i-1], st.session_state[order_key][i]
+                                                    st.rerun()
+                                            
+                                            with col2:
+                                                # Question text with position number
+                                                # Highlight search term if searching
+                                                display_text = q_text[:80] + ('...' if len(q_text) > 80 else '')
+                                                if search_term and search_term.lower() in q_text.lower():
+                                                    # Simple highlighting by showing search context
+                                                    st.write(f"**{i+1}.** {display_text} 🔍")
+                                                else:
+                                                    st.write(f"**{i+1}.** {display_text}")
+                                                st.caption(f"ID: {q_id}")
+                                            
+                                            with col3:
+                                                # Down button (disabled if last item)
+                                                if st.button("⬇️", key=f"down_{selected_group_id}_{q_id}_{i}", 
+                                                            disabled=(i == len(working_order) - 1),
+                                                            help="Move down"):
+                                                    # Swap with next item
+                                                    st.session_state[order_key][i], st.session_state[order_key][i+1] = \
+                                                        st.session_state[order_key][i+1], st.session_state[order_key][i]
+                                                    st.rerun()
+                                    
+                                    # Reset button to restore original order
+                                    col_reset, col_status = st.columns(2)
+                                    with col_reset:
+                                        if st.button("🔄 Reset Order", key=f"reset_order_{selected_group_id}"):
+                                            st.session_state[order_key] = current_order.copy()
+                                            st.rerun()
+                                    
+                                    with col_status:
+                                        # Show if order has changed
+                                        if working_order != current_order:
+                                            st.warning("⚠️ Order changed - click 'Update Group' to save")
+                                        else:
+                                            st.success("✅ Order matches saved state")
+                                    
+                                    new_order = working_order
+                                else:
+                                    new_order = current_order
+                                    st.info("No questions in this group.")
+                                
+                                # Update button
+                                if st.button("Update Group", key="admin_update_group_btn"):
+                                    try:
+                                        # Update group details
+                                        QuestionGroupService.edit_group(
+                                            group_id=selected_group_id,
+                                            new_title=new_title,
+                                            new_description=new_description,
+                                            is_reusable=new_is_reusable,
+                                            session=session
+                                        )
+                                        
+                                        # Update question order if changed
+                                        if new_order != current_order:
+                                            QuestionGroupService.update_question_order(
+                                                group_id=selected_group_id,
+                                                question_ids=new_order,
+                                                session=session
+                                            )
+                                        
+                                        # Clear the temporary order state
+                                        order_key = f"edit_group_order_{selected_group_id}"
+                                        if order_key in st.session_state:
+                                            del st.session_state[order_key]
+                                        
+                                        st.success("Question group updated successfully!")
+                                        st.rerun(scope="fragment")
+                                    except Exception as e:
+                                        st.error(f"Error updating group: {str(e)}")
+                                        
+                            except Exception as e:
+                                st.error(f"Error loading group details: {str(e)}")
+                    else:
+                        st.info("No non-archived question groups available to edit.")
+                else:
+                    st.info("No question groups available to edit.")
         
         with q_tab2:
             questions_df = QuestionService.get_all_questions(session=session)
@@ -2980,6 +3153,150 @@ def admin_questions():
                             st.rerun(scope="fragment")
                         except Exception as e:
                             st.error(f"Error: {str(e)}")
+            
+            # NEW: Edit Individual Question expander
+            with st.expander("✏️ Edit Individual Question"):
+                if not questions_df.empty:
+                    available_questions = questions_df[~questions_df["Archived"]]
+                    if not available_questions.empty:
+                        # Question selection
+                        question_options = {f"{row['Text'][:50]}... (ID: {row['ID']})": row['ID'] for _, row in available_questions.iterrows()}
+                        selected_question_name = st.selectbox(
+                            "Select Question to Edit",
+                            list(question_options.keys()),
+                            key="admin_edit_question_select"
+                        )
+                        
+                        if selected_question_name:
+                            selected_question_id = question_options[selected_question_name]
+                            
+                            try:
+                                # Get current question details
+                                current_question = QuestionService.get_question_by_id(
+                                    question_id=selected_question_id, 
+                                    session=session
+                                )
+                                
+                                # Edit fields
+                                new_text = st.text_input(
+                                    "Question Text",
+                                    value=current_question.text,
+                                    key="admin_edit_question_text"
+                                )
+                                
+                                # Show question type (read-only)
+                                st.write(f"**Question Type:** {current_question.type}")
+                                
+                                # Handle options for single-choice questions
+                                new_options = None
+                                new_default = None
+                                new_display_values = None
+                                
+                                if current_question.type == "single":
+                                    st.markdown("**Options Management:**")
+                                    
+                                    # Current options
+                                    current_options = current_question.options or []
+                                    current_display_values = current_question.display_values or current_options
+                                    current_default = current_question.default_option or ""
+                                    
+                                    # Show current state
+                                    st.write("**Current Options:**")
+                                    for i, (opt, disp) in enumerate(zip(current_options, current_display_values)):
+                                        default_indicator = " (DEFAULT)" if opt == current_default else ""
+                                        st.write(f"{i+1}. Value: `{opt}` | Display: `{disp}`{default_indicator}")
+                                    
+                                    st.markdown("**Edit Options:**")
+                                    st.info("Note: You can only add new options, not remove existing ones (to preserve data integrity).")
+                                    
+                                    # Option editing
+                                    num_options = st.number_input(
+                                        "Total number of options", 
+                                        min_value=len(current_options), 
+                                        max_value=10, 
+                                        value=len(current_options),
+                                        key="admin_edit_question_num_options"
+                                    )
+                                    
+                                    new_options = []
+                                    new_display_values = []
+                                    
+                                    for i in range(num_options):
+                                        col1, col2 = st.columns(2)
+                                        
+                                        with col1:
+                                            if i < len(current_options):
+                                                # Existing option - read only
+                                                st.text_input(
+                                                    f"Option {i+1} Value",
+                                                    value=current_options[i],
+                                                    disabled=True,
+                                                    key=f"admin_edit_question_opt_val_{i}"
+                                                )
+                                                new_options.append(current_options[i])
+                                            else:
+                                                # New option
+                                                new_opt = st.text_input(
+                                                    f"Option {i+1} Value (NEW)",
+                                                    key=f"admin_edit_question_opt_val_{i}"
+                                                )
+                                                if new_opt:
+                                                    new_options.append(new_opt)
+                                        
+                                        with col2:
+                                            if i < len(current_display_values):
+                                                # Existing display value - editable
+                                                new_disp = st.text_input(
+                                                    f"Option {i+1} Display",
+                                                    value=current_display_values[i],
+                                                    key=f"admin_edit_question_opt_disp_{i}"
+                                                )
+                                                new_display_values.append(new_disp if new_disp else current_display_values[i])
+                                            else:
+                                                # New display value
+                                                new_disp = st.text_input(
+                                                    f"Option {i+1} Display (NEW)",
+                                                    value=new_options[i] if i < len(new_options) else "",
+                                                    key=f"admin_edit_question_opt_disp_{i}"
+                                                )
+                                                if new_disp:
+                                                    new_display_values.append(new_disp)
+                                                elif i < len(new_options):
+                                                    new_display_values.append(new_options[i])
+                                    
+                                    # Default option
+                                    if new_options:
+                                        new_default = st.selectbox(
+                                            "Default option",
+                                            [""] + new_options,
+                                            index=new_options.index(current_default) + 1 if current_default in new_options else 0,
+                                            key="admin_edit_question_default"
+                                        )
+                                        if new_default == "":
+                                            new_default = None
+                                
+                                # Update button
+                                if st.button("Update Question", key="admin_update_question_btn"):
+                                    try:
+                                        QuestionService.edit_question(
+                                            question_id=selected_question_id,
+                                            new_text=new_text,
+                                            new_opts=new_options,
+                                            new_default=new_default,
+                                            new_display_values=new_display_values,
+                                            session=session
+                                        )
+                                        st.success("Question updated successfully!")
+                                        st.rerun(scope="fragment")
+                                    except Exception as e:
+                                        st.error(f"Error updating question: {str(e)}")
+                                        
+                            except Exception as e:
+                                st.error(f"Error loading question details: {str(e)}")
+                    else:
+                        st.info("No non-archived questions available to edit.")
+                else:
+                    st.info("No questions available to edit.")
 
 @st.fragment
 def admin_users():
