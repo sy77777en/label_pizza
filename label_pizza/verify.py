@@ -10,5 +10,5 @@ def verify_non_empty_description(answers: Dict[str, str]) -> None:
         ValueError: If any description answer is empty
     """
     for question_text, answer in answers.items():
-        if "Describe" in question_text and not answer.strip():
+        if "Provide a brief caption or description of the video content" in question_text and not answer.strip():
             raise ValueError(f"Description answer for '{question_text}' cannot be empty") 

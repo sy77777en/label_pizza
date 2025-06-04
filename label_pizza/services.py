@@ -2172,14 +2172,62 @@ class QuestionGroupService:
         return group
 
     @staticmethod
-    def edit_group(group_id: int, new_title: str, new_description: str, is_reusable: bool, session: Session) -> None:
-        """Edit a question group.
+    def get_available_verification_functions() -> List[str]:
+        """Get all available verification functions from verify.py.
+        
+        Returns:
+            List of function names that can be used for verification
+        """
+        import inspect
+        
+        # Get all functions from verify module
+        functions = []
+        for name, obj in inspect.getmembers(verify):
+            if (inspect.isfunction(obj) and 
+                not name.startswith('_') and  # Exclude private functions
+                name != 'verify'):  # Exclude the module name itself if it exists
+                functions.append(name)
+        
+        return sorted(functions)
+
+    @staticmethod
+    def get_verification_function_info(function_name: str) -> Dict[str, Any]:
+        """Get information about a specific verification function.
+        
+        Args:
+            function_name: Name of the verification function
+            
+        Returns:
+            Dictionary containing function info: name, docstring, signature
+            
+        Raises:
+            ValueError: If function not found
+        """
+        import inspect
+        
+        if not hasattr(verify, function_name):
+            raise ValueError(f"Verification function '{function_name}' not found in verify.py")
+        
+        func = getattr(verify, function_name)
+        
+        return {
+            "name": function_name,
+            "docstring": inspect.getdoc(func) or "No documentation available",
+            "signature": str(inspect.signature(func)),
+            "parameters": list(inspect.signature(func).parameters.keys())
+        }
+
+    @staticmethod
+    def edit_group(group_id: int, new_title: str, new_description: str, is_reusable: bool, 
+                verification_function: Optional[str], session: Session) -> None:
+        """Edit a question group including its verification function.
         
         Args:
             group_id: Group ID
             new_title: New group title
             new_description: New group description
             is_reusable: Whether the group is reusable
+            verification_function: New verification function name (can be None to remove)
             session: Database session
             
         Raises:
@@ -2212,10 +2260,103 @@ class QuestionGroupService:
             if existing:
                 raise ValueError(f"Question group with title '{new_title}' already exists")
         
+        # Validate verification function if provided
+        if verification_function:
+            if not hasattr(verify, verification_function):
+                raise ValueError(f"Verification function '{verification_function}' not found in verify.py")
+        
+        # Update group properties
         group.title = new_title
         group.description = new_description
         group.is_reusable = is_reusable
+        group.verification_function = verification_function  # This can be None to remove verification
         session.commit()
+
+    @staticmethod
+    def test_verification_function(function_name: str, test_answers: Dict[str, str]) -> Dict[str, Any]:
+        """Test a verification function with sample answers.
+        
+        Args:
+            function_name: Name of the verification function
+            test_answers: Dictionary of test answers to validate
+            
+        Returns:
+            Dictionary containing test results: success (bool), error_message (str or None)
+        """
+        if not hasattr(verify, function_name):
+            return {
+                "success": False,
+                "error_message": f"Verification function '{function_name}' not found in verify.py"
+            }
+        
+        try:
+            verify_func = getattr(verify, function_name)
+            verify_func(test_answers)
+            return {
+                "success": True,
+                "error_message": None
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error_message": str(e)
+            }
+
+    @staticmethod
+    def edit_group(group_id: int, new_title: str, new_description: str, is_reusable: bool, 
+                verification_function: Optional[str], session: Session) -> None:
+        """Edit a question group including its verification function.
+        
+        Args:
+            group_id: Group ID
+            new_title: New group title
+            new_description: New group description
+            is_reusable: Whether the group is reusable
+            verification_function: New verification function name (can be None to remove)
+            session: Database session
+            
+        Raises:
+            ValueError: If group not found or validation fails
+        """
+        group = session.get(QuestionGroup, group_id)
+        if not group:
+            raise ValueError(f"Question group with ID {group_id} not found")
+        
+        # If making a group non-reusable, check if it's used in multiple schemas
+        if not is_reusable and group.is_reusable:
+            schemas = session.scalars(
+                select(Schema)
+                .join(SchemaQuestionGroup, Schema.id == SchemaQuestionGroup.schema_id)
+                .where(SchemaQuestionGroup.question_group_id == group_id)
+                .distinct()
+            ).all()
+            
+            if len(schemas) > 1:
+                raise ValueError(
+                    f"Cannot make group non-reusable as it is used in multiple schemas: "
+                    f"{', '.join(s.name for s in schemas)}"
+                )
+        
+        # Check if new title conflicts with existing group
+        if new_title != group.title:
+            existing = session.scalar(
+                select(QuestionGroup).where(QuestionGroup.title == new_title)
+            )
+            if existing:
+                raise ValueError(f"Question group with title '{new_title}' already exists")
+        
+        # Validate verification function if provided
+        if verification_function:
+            if not hasattr(verify, verification_function):
+                raise ValueError(f"Verification function '{verification_function}' not found in verify.py")
+        
+        # Update group properties
+        group.title = new_title
+        group.description = new_description
+        group.is_reusable = is_reusable
+        group.verification_function = verification_function  # This can be None to remove verification
+        session.commit()
+
 
     @staticmethod
     def archive_group(group_id: int, session: Session) -> None:

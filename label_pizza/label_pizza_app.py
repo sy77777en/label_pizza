@@ -2915,6 +2915,61 @@ def admin_questions():
                 description = st.text_area("Description", key="admin_group_description")
                 is_reusable = st.checkbox("Reusable across schemas", key="admin_group_reusable")
                 
+                # Verification function selection
+                st.markdown("**Verification Function (Optional):**")
+                try:
+                    available_functions = QuestionGroupService.get_available_verification_functions()
+                    if available_functions:
+                        verification_function = st.selectbox(
+                            "Select verification function",
+                            ["None"] + available_functions,
+                            key="admin_group_verification",
+                            help="Optional function to validate answers"
+                        )
+                        
+                        # Show function info if selected
+                        if verification_function != "None":
+                            try:
+                                func_info = QuestionGroupService.get_verification_function_info(verification_function)
+                                st.info(f"**Function:** `{func_info['name']}{func_info['signature']}`")
+                                if func_info['docstring']:
+                                    st.markdown(f"**Documentation:** {func_info['docstring']}")
+                                
+                                # Test verification function
+                                with st.expander("🧪 Test Verification Function"):
+                                    st.markdown("Enter test answers to validate the function:")
+                                    test_answers = {}
+                                    for i, param in enumerate(func_info['parameters']):
+                                        if param != 'answers':  # Skip the main answers parameter
+                                            continue
+                                    
+                                    # Simple test interface
+                                    test_question = st.text_input("Test Question", key=f"test_q_{verification_function}")
+                                    test_answer = st.text_input("Test Answer", key=f"test_a_{verification_function}")
+                                    
+                                    if st.button("Test Function", key=f"test_func_{verification_function}"):
+                                        if test_question and test_answer:
+                                            test_result = QuestionGroupService.test_verification_function(
+                                                verification_function, {test_question: test_answer}
+                                            )
+                                            if test_result["success"]:
+                                                st.success("✅ Verification function passed!")
+                                            else:
+                                                st.error(f"❌ Verification failed: {test_result['error_message']}")
+                                        else:
+                                            st.warning("Please enter both test question and answer")
+                                            
+                            except Exception as e:
+                                st.error(f"Error loading function info: {str(e)}")
+                        
+                        verification_function = verification_function if verification_function != "None" else None
+                    else:
+                        st.info("No verification functions found in verify.py")
+                        verification_function = None
+                except Exception as e:
+                    st.error(f"Error loading verification functions: {str(e)}")
+                    verification_function = None
+                
                 questions_df = QuestionService.get_all_questions(session=session)
                 if not questions_df.empty:
                     available_questions = questions_df[~questions_df["Archived"]]
@@ -2936,7 +2991,7 @@ def admin_questions():
                                 description=description, 
                                 is_reusable=is_reusable, 
                                 question_ids=selected_questions, 
-                                verification_function=None, 
+                                verification_function=verification_function, 
                                 session=session
                             )
                             st.success("Question group created!")
@@ -2944,7 +2999,7 @@ def admin_questions():
                         except Exception as e:
                             st.error(f"Error: {str(e)}")
             
-            # NEW: Edit Question Group expander
+            # Enhanced Edit Question Group expander with verification function support
             with st.expander("✏️ Edit Question Group"):
                 if not groups_df.empty:
                     available_groups = groups_df[~groups_df["Archived"]]
@@ -2967,6 +3022,10 @@ def admin_questions():
                                     session=session
                                 )
                                 
+                                # Get current verification function
+                                current_group = session.get(QuestionGroup, selected_group_id)
+                                current_verification = current_group.verification_function if current_group else None
+                                
                                 # Edit fields
                                 new_title = st.text_input(
                                     "Group Title",
@@ -2984,7 +3043,78 @@ def admin_questions():
                                     key="admin_edit_group_reusable"
                                 )
                                 
-                                # Question order management
+                                # Verification function editing
+                                st.markdown("**Verification Function:**")
+                                try:
+                                    available_functions = QuestionGroupService.get_available_verification_functions()
+                                    
+                                    # Create options list with current selection
+                                    verification_options = ["None"] + available_functions
+                                    current_index = 0
+                                    if current_verification and current_verification in available_functions:
+                                        current_index = verification_options.index(current_verification)
+                                    
+                                    new_verification_function = st.selectbox(
+                                        "Select verification function",
+                                        verification_options,
+                                        index=current_index,
+                                        key="admin_edit_group_verification",
+                                        help="Optional function to validate answers"
+                                    )
+                                    
+                                    # Show current and new function info
+                                    col1, col2 = st.columns(2)
+                                    
+                                    with col1:
+                                        st.markdown("**Current Function:**")
+                                        if current_verification:
+                                            try:
+                                                current_func_info = QuestionGroupService.get_verification_function_info(current_verification)
+                                                st.code(f"{current_func_info['name']}{current_func_info['signature']}")
+                                                if current_func_info['docstring']:
+                                                    st.caption(current_func_info['docstring'][:100] + "..." if len(current_func_info['docstring']) > 100 else current_func_info['docstring'])
+                                            except Exception as e:
+                                                st.error(f"Error loading current function: {str(e)}")
+                                        else:
+                                            st.info("No verification function set")
+                                    
+                                    with col2:
+                                        st.markdown("**New Function:**")
+                                        if new_verification_function != "None":
+                                            try:
+                                                new_func_info = QuestionGroupService.get_verification_function_info(new_verification_function)
+                                                st.code(f"{new_func_info['name']}{new_func_info['signature']}")
+                                                if new_func_info['docstring']:
+                                                    st.caption(new_func_info['docstring'][:100] + "..." if len(new_func_info['docstring']) > 100 else new_func_info['docstring'])
+                                                
+                                                # Quick test for new function
+                                                with st.expander("🧪 Quick Test"):
+                                                    test_q = st.text_input("Test Question", key=f"edit_test_q_{selected_group_id}")
+                                                    test_a = st.text_input("Test Answer", key=f"edit_test_a_{selected_group_id}")
+                                                    if st.button("Test", key=f"edit_test_btn_{selected_group_id}"):
+                                                        if test_q and test_a:
+                                                            test_result = QuestionGroupService.test_verification_function(
+                                                                new_verification_function, {test_q: test_a}
+                                                            )
+                                                            if test_result["success"]:
+                                                                st.success("✅ Function works!")
+                                                            else:
+                                                                st.error(f"❌ Error: {test_result['error_message']}")
+                                                        else:
+                                                            st.warning("Enter test data")
+                                            except Exception as e:
+                                                st.error(f"Error loading function info: {str(e)}")
+                                        else:
+                                            st.info("No verification function will be set")
+                                    
+                                    # Convert selection back to proper format
+                                    new_verification_function = new_verification_function if new_verification_function != "None" else None
+                                    
+                                except Exception as e:
+                                    st.error(f"Error loading verification functions: {str(e)}")
+                                    new_verification_function = current_verification
+                                
+                                # Question order management (existing code)
                                 st.markdown("**Question Order Management:**")
                                 
                                 # Get current question order
@@ -3082,12 +3212,13 @@ def admin_questions():
                                 # Update button
                                 if st.button("Update Group", key="admin_update_group_btn"):
                                     try:
-                                        # Update group details
+                                        # Update group details with verification function
                                         QuestionGroupService.edit_group(
                                             group_id=selected_group_id,
                                             new_title=new_title,
                                             new_description=new_description,
                                             is_reusable=new_is_reusable,
+                                            verification_function=new_verification_function,
                                             session=session
                                         )
                                         
@@ -3117,6 +3248,7 @@ def admin_questions():
                     st.info("No question groups available to edit.")
         
         with q_tab2:
+            # Individual questions tab remains the same as in your original code
             questions_df = QuestionService.get_all_questions(session=session)
             st.dataframe(questions_df, use_container_width=True)
             
