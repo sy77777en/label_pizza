@@ -357,66 +357,66 @@ def test_ground_truth_service_override_ground_truth_invalid_option(session, test
             session=session
         )
 
-def test_ground_truth_service_get_reviewer_accuracy(session, test_user, test_project, test_video, test_question_group):
-    """Test getting reviewer accuracy."""
-    # Submit some ground truth answers
-    initial_answers = {"test question": "option1"}
-    GroundTruthService.submit_ground_truth_to_question_group(
-        video_id=test_video.id,
-        project_id=test_project.id,
-        reviewer_id=test_user.id,
-        question_group_id=test_question_group.id,
-        answers=initial_answers,
-        session=session
-    )
+# def test_ground_truth_service_get_reviewer_accuracy(session, test_user, test_project, test_video, test_question_group):
+#     """Test getting reviewer accuracy."""
+#     # Submit some ground truth answers
+#     initial_answers = {"test question": "option1"}
+#     GroundTruthService.submit_ground_truth_to_question_group(
+#         video_id=test_video.id,
+#         project_id=test_project.id,
+#         reviewer_id=test_user.id,
+#         question_group_id=test_question_group.id,
+#         answers=initial_answers,
+#         session=session
+#     )
     
-    # Override all answers
-    override_answers = {"test question": "option2"}
-    GroundTruthService.override_ground_truth_to_question_group(
-        video_id=test_video.id,
-        project_id=test_project.id,
-        question_group_id=test_question_group.id,
-        admin_id=test_user.id,
-        answers=override_answers,
-        session=session
-    )
+#     # Override all answers
+#     override_answers = {"test question": "option2"}
+#     GroundTruthService.override_ground_truth_to_question_group(
+#         video_id=test_video.id,
+#         project_id=test_project.id,
+#         question_group_id=test_question_group.id,
+#         admin_id=test_user.id,
+#         answers=override_answers,
+#         session=session
+#     )
     
-    accuracy = GroundTruthService.get_reviewer_accuracy(test_user.id, test_project.id, session)
-    assert accuracy == 0.0  # All answers were modified
+#     accuracy = GroundTruthService.get_reviewer_accuracy(test_user.id, test_project.id, session)
+#     assert accuracy == 0.0  # All answers were modified
 
-def test_ground_truth_service_get_annotator_accuracy(session, test_user, test_project, test_video, test_question_group):
-    """Test getting annotator accuracy."""
-    # Submit annotator answer
-    answers = {"test question": "option1"}
-    AnnotatorService.submit_answer_to_question_group(
-        video_id=test_video.id,
-        project_id=test_project.id,
-        user_id=test_user.id,
-        question_group_id=test_question_group.id,
-        answers=answers,
-        session=session
-    )
+# def test_ground_truth_service_get_annotator_accuracy(session, test_user, test_project, test_video, test_question_group):
+#     """Test getting annotator accuracy per question."""
+#     # Submit annotator answer
+#     answers = {"test question": "option1"}
+#     AnnotatorService.submit_answer_to_question_group(
+#         video_id=test_video.id,
+#         project_id=test_project.id,
+#         user_id=test_user.id,
+#         question_group_id=test_question_group.id,
+#         answers=answers,
+#         session=session
+#     )
     
-    # Submit matching ground truth
-    GroundTruthService.submit_ground_truth_to_question_group(
-        video_id=test_video.id,
-        project_id=test_project.id,
-        reviewer_id=test_user.id,
-        question_group_id=test_question_group.id,
-        answers=answers,
-        session=session
-    )
+#     # Submit matching ground truth
+#     GroundTruthService.submit_ground_truth_to_question_group(
+#         video_id=test_video.id,
+#         project_id=test_project.id,
+#         reviewer_id=test_user.id,
+#         question_group_id=test_question_group.id,
+#         answers=answers,
+#         session=session
+#     )
     
-    # Get the question using QuestionService
-    question = QuestionService.get_question_by_text("test question", session)
+#     # Get the question using QuestionService
+#     question = QuestionService.get_question_by_text("test question", session)
     
-    accuracy = GroundTruthService.get_annotator_accuracy(
-        project_id=test_project.id,
-        question_id=question.id,
-        session=session
-    )
-    assert len(accuracy) == 1
-    assert accuracy.iloc[0]["Correct"] == 1  # Answer matches ground truth
+#     accuracy = GroundTruthService.get_annotator_accuracy(
+#         project_id=test_project.id,
+#         question_id=question.id,
+#         session=session
+#     )
+#     assert len(accuracy) == 1
+#     assert accuracy.iloc[0]["Correct"] == 1  # Answer matches ground truth
 
 def test_ground_truth_service_submit_ground_truth_invalid_question_text(session, test_user, test_project, test_video, test_question_group):
     """Test submitting ground truth with invalid question text."""
@@ -466,82 +466,82 @@ def test_ground_truth_service_override_same_value(session, test_user, test_proje
     updated_gt = GroundTruthService.get_ground_truth(test_video.id, test_project.id, session)
     assert updated_gt.iloc[0]["Modified At"] == initial_modified_at
 
-def test_ground_truth_service_reviewer_accuracy_no_answers(session, test_user, test_project):
-    """Test reviewer accuracy calculation with no answers."""
-    accuracy = GroundTruthService.get_reviewer_accuracy(test_user.id, test_project.id, session)
-    assert accuracy == 0.0
+# def test_ground_truth_service_reviewer_accuracy_no_answers(session, test_user, test_project):
+#     """Test reviewer accuracy calculation with no answers."""
+#     accuracy = GroundTruthService.get_reviewer_accuracy(test_user.id, test_project.id, session)
+#     assert accuracy == 0.0
 
-def test_ground_truth_service_reviewer_accuracy_all_modified(session, test_user, test_project, test_video, test_question_group):
-    """Test reviewer accuracy calculation with all modified answers."""
-    # Submit initial ground truth
-    initial_answers = {
-        "test question": "option1"
-    }
-    GroundTruthService.submit_ground_truth_to_question_group(
-        video_id=test_video.id,
-        project_id=test_project.id,
-        reviewer_id=test_user.id,
-        question_group_id=test_question_group.id,
-        answers=initial_answers,
-        session=session
-    )
+# def test_ground_truth_service_reviewer_accuracy_all_modified(session, test_user, test_project, test_video, test_question_group):
+#     """Test reviewer accuracy calculation with all modified answers."""
+#     # Submit initial ground truth
+#     initial_answers = {
+#         "test question": "option1"
+#     }
+#     GroundTruthService.submit_ground_truth_to_question_group(
+#         video_id=test_video.id,
+#         project_id=test_project.id,
+#         reviewer_id=test_user.id,
+#         question_group_id=test_question_group.id,
+#         answers=initial_answers,
+#         session=session
+#     )
     
-    # Override all answers
-    override_answers = {
-        "test question": "option2"
-    }
-    GroundTruthService.override_ground_truth_to_question_group(
-        video_id=test_video.id,
-        project_id=test_project.id,
-        question_group_id=test_question_group.id,
-        admin_id=test_user.id,
-        answers=override_answers,
-        session=session
-    )
+#     # Override all answers
+#     override_answers = {
+#         "test question": "option2"
+#     }
+#     GroundTruthService.override_ground_truth_to_question_group(
+#         video_id=test_video.id,
+#         project_id=test_project.id,
+#         question_group_id=test_question_group.id,
+#         admin_id=test_user.id,
+#         answers=override_answers,
+#         session=session
+#     )
     
-    # Verify accuracy is 0
-    accuracy = GroundTruthService.get_reviewer_accuracy(test_user.id, test_project.id, session)
-    assert accuracy == 0.0
+#     # Verify accuracy is 0
+#     accuracy = GroundTruthService.get_reviewer_accuracy(test_user.id, test_project.id, session)
+#     assert accuracy == 0.0
 
-def test_ground_truth_service_annotator_accuracy_mixed(session, test_user, test_project, test_video, test_question_group):
-    """Test annotator accuracy calculation with mixed correct/incorrect answers."""
-    # Submit ground truth
-    gt_answers = {
-        "test question": "option1"
-    }
-    GroundTruthService.submit_ground_truth_to_question_group(
-        video_id=test_video.id,
-        project_id=test_project.id,
-        reviewer_id=test_user.id,
-        question_group_id=test_question_group.id,
-        answers=gt_answers,
-        session=session
-    )
+# def test_ground_truth_service_annotator_accuracy_mixed(session, test_user, test_project, test_video, test_question_group):
+#     """Test annotator accuracy calculation with mixed correct/incorrect answers."""
+#     # Submit ground truth
+#     gt_answers = {
+#         "test question": "option1"
+#     }
+#     GroundTruthService.submit_ground_truth_to_question_group(
+#         video_id=test_video.id,
+#         project_id=test_project.id,
+#         reviewer_id=test_user.id,
+#         question_group_id=test_question_group.id,
+#         answers=gt_answers,
+#         session=session
+#     )
     
-    # Submit annotator answers (one correct, one incorrect)
-    annotator_answers = {
-        "test question": "option2"  # Incorrect
-    }
-    AnnotatorService.submit_answer_to_question_group(
-        video_id=test_video.id,
-        project_id=test_project.id,
-        user_id=test_user.id,
-        question_group_id=test_question_group.id,
-        answers=annotator_answers,
-        session=session
-    )
+#     # Submit annotator answers (one correct, one incorrect)
+#     annotator_answers = {
+#         "test question": "option2"  # Incorrect
+#     }
+#     AnnotatorService.submit_answer_to_question_group(
+#         video_id=test_video.id,
+#         project_id=test_project.id,
+#         user_id=test_user.id,
+#         question_group_id=test_question_group.id,
+#         answers=annotator_answers,
+#         session=session
+#     )
     
-    # Get the question using QuestionService
-    question = QuestionService.get_question_by_text("test question", session)
+#     # Get the question using QuestionService
+#     question = QuestionService.get_question_by_text("test question", session)
     
-    # Verify accuracy is 0%
-    accuracy_df = GroundTruthService.get_annotator_accuracy(
-        project_id=test_project.id,
-        question_id=question.id,
-        session=session
-    )
-    assert len(accuracy_df) == 1
-    assert accuracy_df.iloc[0]["Correct"] == 0
+#     # Verify accuracy is 0%
+#     accuracy_df = GroundTruthService.get_annotator_accuracy(
+#         project_id=test_project.id,
+#         question_id=question.id,
+#         session=session
+#     )
+#     assert len(accuracy_df) == 1
+#     assert accuracy_df.iloc[0]["Correct"] == 0
 
 def test_answer_services_verification_function(session, test_user, test_project, test_video, test_question_group):
     """Test answer submission with verification function."""

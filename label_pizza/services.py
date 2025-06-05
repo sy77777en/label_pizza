@@ -444,6 +444,81 @@ class ProjectService:
         session.commit()
 
     @staticmethod
+    def get_project_reviewers(project_id: int, session: Session) -> List[Dict[str, Any]]:
+        """Get all reviewers who have submitted ground truth in a project.
+        
+        Args:
+            project_id: The ID of the project
+            session: Database session
+            
+        Returns:
+            List of reviewer dictionaries containing: id, name, email
+            
+        Raises:
+            ValueError: If project not found
+        """
+        # Validate project exists
+        project = session.get(Project, project_id)
+        if not project:
+            raise ValueError(f"Project with ID {project_id} not found")
+        
+        # Get all users who have submitted ground truth in this project
+        reviewer_ids = session.scalars(
+            select(ReviewerGroundTruth.reviewer_id)
+            .where(ReviewerGroundTruth.project_id == project_id)
+            .distinct()
+        ).all()
+        
+        reviewers = []
+        for reviewer_id in reviewer_ids:
+            user = session.get(User, reviewer_id)
+            if user and not user.is_archived:
+                reviewers.append({
+                    'id': reviewer_id,
+                    'name': user.user_id_str,
+                    'email': user.email
+                })
+        
+        return reviewers
+
+    @staticmethod
+    def get_project_questions(project_id: int, session: Session) -> List[Dict[str, Any]]:
+        """Get all questions in a project's schema.
+        
+        Args:
+            project_id: The ID of the project
+            session: Database session
+            
+        Returns:
+            List of question dictionaries containing: id, text, type
+            
+        Raises:
+            ValueError: If project not found
+        """
+        # Validate project exists
+        project = session.get(Project, project_id)
+        if not project:
+            raise ValueError(f"Project with ID {project_id} not found")
+        
+        # Get all questions in the project's schema
+        questions = session.scalars(
+            select(Question)
+            .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
+            .join(SchemaQuestionGroup, QuestionGroupQuestion.question_group_id == SchemaQuestionGroup.question_group_id)
+            .where(
+                SchemaQuestionGroup.schema_id == project.schema_id,
+                Question.is_archived == False
+            )
+        ).all()
+        
+        return [{
+            'id': q.id,
+            'text': q.text,
+            'type': q.type
+        } for q in questions]
+
+
+    @staticmethod
     def progress(project_id: int, session: Session) -> dict:
         """Get project progress statistics.
         
@@ -3275,127 +3350,161 @@ class GroundTruthService(BaseAnswerService):
         ])
 
     @staticmethod
-    def get_reviewer_accuracy(reviewer_id: int, project_id: int, session: Session) -> float:
-        """Calculate reviewer accuracy based on admin modifications.
+    def get_reviewer_accuracy(project_id: int, session: Session) -> Dict[int, Dict[int, Dict[str, int]]]:
+        """Get accuracy data for all reviewers in a project.
         
         Args:
-            reviewer_id: The ID of the reviewer
             project_id: The ID of the project
             session: Database session
             
         Returns:
-            Accuracy percentage (0-100)
-        """
-        # Get all ground truth answers by this reviewer
-        gts = session.scalars(
-            select(ReviewerGroundTruth)
-            .where(
-                ReviewerGroundTruth.reviewer_id == reviewer_id,
-                ReviewerGroundTruth.project_id == project_id
-            )
-        ).all()
-        
-        if not gts:
-            return 0.0
-            
-        # Count answers that were modified by admin
-        modified = sum(1 for gt in gts if gt.modified_by_admin_id is not None)
-        total = len(gts)
-        
-        return ((total - modified) / total * 100) if total > 0 else 0.0
-
-    @staticmethod
-    def get_annotator_accuracy(project_id: int, question_id: int, session: Session) -> pd.DataFrame:
-        """Calculate annotator accuracy for a specific question in a project.
-        
-        Args:
-            project_id: The ID of the project
-            question_id: The ID of the question
-            session: Database session
-            
-        Returns:
-            DataFrame with columns:
-            - Video ID: The video ID
-            - User ID: The annotator's user ID
-            - Correct: 1 if answer matches ground truth or is approved, 0 otherwise
+            Dictionary: {reviewer_id: {question_id: {"total": int, "correct": int}}}
+            A question is correct if it was NOT modified by admin.
+            If no ground truth exists for a question, both total and correct are 0.
             
         Raises:
-            ValueError: If not all videos have ground truth or if description answers are not all reviewed
+            ValueError: If project not found
         """
-        # Get question type
-        question = session.get(Question, question_id)
-        if not question:
-            raise ValueError(f"Question with ID {question_id} not found")
+        # Validate project exists
+        project = session.get(Project, project_id)
+        if not project:
+            raise ValueError(f"Project with ID {project_id} not found")
+        
+        # Get all reviewers and questions
+        reviewers = ProjectService.get_project_reviewers(project_id, session)
+        questions = ProjectService.get_project_questions(project_id, session)
+        
+        # Initialize result structure
+        accuracy_data = {}
+        for reviewer in reviewers:
+            reviewer_id = reviewer['id']
+            accuracy_data[reviewer_id] = {}
+            for question in questions:
+                question_id = question['id']
+                accuracy_data[reviewer_id][question_id] = {"total": 0, "correct": 0}
+        
+        # Get all ground truth answers in the project
+        ground_truths = session.scalars(
+            select(ReviewerGroundTruth)
+            .where(ReviewerGroundTruth.project_id == project_id)
+        ).all()
+        
+        # Process each ground truth answer
+        for gt in ground_truths:
+            reviewer_id = gt.reviewer_id
+            question_id = gt.question_id
             
+            # Skip if reviewer or question not in our tracking
+            if reviewer_id not in accuracy_data or question_id not in accuracy_data[reviewer_id]:
+                continue
+                
+            # Count total
+            accuracy_data[reviewer_id][question_id]["total"] += 1
+            
+            # Count correct (not modified by admin)
+            if gt.modified_by_admin_id is None:
+                accuracy_data[reviewer_id][question_id]["correct"] += 1
+        
+        return accuracy_data
+
+    @staticmethod
+    def get_annotator_accuracy(project_id: int, session: Session) -> Dict[int, Dict[int, Dict[str, int]]]:
+        """Get accuracy data for all annotators in a project.
+        
+        Args:
+            project_id: The ID of the project
+            session: Database session
+            
+        Returns:
+            Dictionary: {annotator_id: {question_id: {"total": int, "correct": int}}}
+            For single choice: correct if answer matches ground truth
+            For description: only count if reviewed (not pending), correct if approved
+            
+        Raises:
+            ValueError: If project not found, no videos, no answers, or incomplete ground truth
+        """
+        # Validate project exists
+        project = session.get(Project, project_id)
+        if not project:
+            raise ValueError(f"Project with ID {project_id} not found")
+        
+        # Check if project has complete ground truth
+        if not ProjectService.check_project_has_full_ground_truth(project_id, session):
+            raise ValueError(f"Project {project_id} does not have complete ground truth")
+        
         # Get all videos in project
-        project_videos = session.scalars(
+        videos = session.scalars(
             select(ProjectVideo.video_id)
-            .where(ProjectVideo.project_id == project_id)
+            .join(Video, ProjectVideo.video_id == Video.id)
+            .where(
+                ProjectVideo.project_id == project_id,
+                Video.is_archived == False
+            )
         ).all()
         
-        if not project_videos:
+        if not videos:
             raise ValueError(f"No videos found in project {project_id}")
-            
-        # Check if all videos have ground truth
-        missing_gt = session.scalars(
-            select(ReviewerGroundTruth.video_id)
-            .where(
-                ReviewerGroundTruth.project_id == project_id,
-                ReviewerGroundTruth.question_id == question_id,
-                ReviewerGroundTruth.video_id.in_(project_videos)
-            )
-        ).all()
         
-        if len(missing_gt) != len(project_videos):
-            raise ValueError(f"Not all videos have ground truth answers for question {question_id}")
-            
-        # Get all annotator answers for this question
-        answers = session.scalars(
+        # Get all annotator answers
+        annotator_answers = session.scalars(
             select(AnnotatorAnswer)
-            .where(
-                AnnotatorAnswer.project_id == project_id,
-                AnnotatorAnswer.question_id == question_id
-            )
+            .where(AnnotatorAnswer.project_id == project_id)
         ).all()
         
-        if not answers:
-            raise ValueError(f"No annotator answers found for question {question_id}")
+        if not annotator_answers:
+            raise ValueError(f"No annotator answers found in project {project_id}")
+        
+        # Get annotators and questions
+        annotators = ProjectService.get_project_annotators(project_id, session)
+        questions = ProjectService.get_project_questions(project_id, session)
+        
+        # Initialize result structure
+        accuracy_data = {}
+        for display_name, annotator_info in annotators.items():
+            annotator_id = annotator_info['id']
+            accuracy_data[annotator_id] = {}
+            for question in questions:
+                question_id = question['id']
+                accuracy_data[annotator_id][question_id] = {"total": 0, "correct": 0}
+        
+        # Process each annotator answer
+        for answer in annotator_answers:
+            annotator_id = answer.user_id
+            question_id = answer.question_id
+            video_id = answer.video_id
             
-        # For single-choice questions, compare directly with ground truth
-        if question.type == "single":
-            results = []
-            for answer in answers:
-                gt = session.get(ReviewerGroundTruth, (answer.video_id, question_id, project_id))
-                correct = 1 if answer.answer_value == gt.answer_value else 0
-                results.append({
-                    "Video ID": answer.video_id,
-                    "User ID": answer.user_id,
-                    "Correct": correct
-                })
-            return pd.DataFrame(results)
+            # Skip if annotator or question not in our tracking
+            if annotator_id not in accuracy_data or question_id not in accuracy_data[annotator_id]:
+                continue
             
-        # For description questions, check reviews
-        else:
-            results = []
-            for answer in answers:
+            # Get question details
+            question = session.get(Question, question_id)
+            if not question:
+                continue
+                
+            if question.type == "single":
+                # For single choice questions
+                # Get ground truth
+                gt = session.get(ReviewerGroundTruth, (video_id, question_id, project_id))
+                if gt:
+                    accuracy_data[annotator_id][question_id]["total"] += 1
+                    if answer.answer_value == gt.answer_value:
+                        accuracy_data[annotator_id][question_id]["correct"] += 1
+                        
+            elif question.type == "description":
+                # For description questions, check review status
                 review = session.scalar(
                     select(AnswerReview)
-                    .where(
-                        AnswerReview.answer_id == answer.id,
-                        AnswerReview.status != "pending"
-                    )
+                    .where(AnswerReview.answer_id == answer.id)
                 )
                 
-                if not review:
-                    raise ValueError(f"Answer {answer.id} has not been reviewed")
-                    
-                correct = 1 if review.status == "approved" else 0
-                results.append({
-                    "Video ID": answer.video_id,
-                    "User ID": answer.user_id,
-                    "Correct": correct
-                })
-            return pd.DataFrame(results)
+                # Only count if reviewed (not pending or missing)
+                if review and review.status != "pending":
+                    accuracy_data[annotator_id][question_id]["total"] += 1
+                    if review.status == "approved":
+                        accuracy_data[annotator_id][question_id]["correct"] += 1
+        
+        return accuracy_data
 
     @staticmethod
     def override_ground_truth_to_question_group(

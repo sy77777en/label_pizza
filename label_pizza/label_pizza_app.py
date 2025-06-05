@@ -1,7 +1,8 @@
 """
 Label Pizza - Modern Streamlit App
 ==================================
-Updated with Meta-Reviewer Portal, copy/paste functionality, approve/reject buttons, and improved dashboard.
+Updated with Meta-Reviewer Portal, copy/paste functionality, approve/reject buttons, improved dashboard,
+and NEW ACCURACY FEATURES for training mode projects.
 
 NEW FEATURES:
 1. Meta-Reviewer Portal for global admins
@@ -10,6 +11,9 @@ NEW FEATURES:
 4. Fixed height project dashboard with scrolling and sorting
 5. Override Ground Truth functionality for meta-reviewers
 6. Improved description question review interface with elegant left-right layout
+7. **NEW**: Annotator accuracy display in training mode
+8. **NEW**: Detailed accuracy analytics for reviewers/meta-reviewers
+9. **NEW**: Accuracy information in assignment management
 """
 
 import streamlit as st
@@ -560,6 +564,526 @@ def handle_database_errors(func):
             return None
     return wrapper
 
+def calculate_overall_accuracy(accuracy_data: Dict[int, Dict[int, Dict[str, int]]]) -> Dict[int, Optional[float]]:
+    """Calculate overall accuracy for each user from accuracy data.
+    
+    Args:
+        accuracy_data: Output from get_reviewer_accuracy or get_annotator_accuracy
+        
+    Returns:
+        Dictionary mapping user_id to overall accuracy percentage (0-100) or None if no data
+        Skips questions where total is 0
+    """
+    overall_accuracy = {}
+    
+    for user_id, question_data in accuracy_data.items():
+        total_questions = 0
+        total_correct = 0
+        
+        for question_id, stats in question_data.items():
+            if stats["total"] > 0:  # Skip questions with no data
+                total_questions += stats["total"]
+                total_correct += stats["correct"]
+        
+        if total_questions > 0:
+            overall_accuracy[user_id] = (total_correct / total_questions) * 100
+        else:
+            overall_accuracy[user_id] = None
+    
+    return overall_accuracy
+
+def calculate_per_question_accuracy(accuracy_data: Dict[int, Dict[int, Dict[str, int]]]) -> Dict[int, Dict[int, Optional[float]]]:
+    """Calculate per-question accuracy for each user from accuracy data.
+    
+    Args:
+        accuracy_data: Output from get_reviewer_accuracy or get_annotator_accuracy
+        
+    Returns:
+        Dictionary: {user_id: {question_id: accuracy_percentage or None}}
+        Returns None for questions where total is 0
+    """
+    per_question_accuracy = {}
+    
+    for user_id, question_data in accuracy_data.items():
+        per_question_accuracy[user_id] = {}
+        
+        for question_id, stats in question_data.items():
+            if stats["total"] > 0:
+                accuracy = (stats["correct"] / stats["total"]) * 100
+                per_question_accuracy[user_id][question_id] = accuracy
+            else:
+                per_question_accuracy[user_id][question_id] = None
+    
+    return per_question_accuracy
+
+###############################################################################
+# NEW: ACCURACY DISPLAY FUNCTIONS
+###############################################################################
+
+def get_accuracy_color(accuracy: float) -> str:
+    """Get color based on accuracy percentage"""
+    if accuracy >= 90:
+        return "#28a745"  # Green
+    elif accuracy >= 80:
+        return "#ffc107"  # Yellow
+    elif accuracy >= 70:
+        return "#fd7e14"  # Orange
+    else:
+        return "#dc3545"  # Red
+
+def format_accuracy_badge(accuracy: Optional[float], total_questions: int = 0) -> str:
+    """Format accuracy as a colored badge"""
+    if accuracy is None:
+        return "📊 No data"
+    
+    color = get_accuracy_color(accuracy)
+    if total_questions > 0:
+        return f'<span style="background: {color}; color: white; padding: 4px 8px; border-radius: 12px; font-weight: bold; font-size: 0.85rem;">📊 {accuracy:.1f}% ({total_questions} answers)</span>'
+    else:
+        return f'<span style="background: {color}; color: white; padding: 4px 8px; border-radius: 12px; font-weight: bold; font-size: 0.85rem;">📊 {accuracy:.1f}%</span>'
+
+def display_user_accuracy_simple(user_id: int, project_id: int, role: str, session: Session) -> bool:
+    """Display simple accuracy for a single user if project is in training mode
+    
+    Returns:
+        True if accuracy was displayed, False otherwise
+    """
+    # Check if project has full ground truth (training mode)
+    if not check_project_has_full_ground_truth(project_id=project_id, session=session):
+        return False
+    
+    try:
+        if role == "annotator":
+            # Check if user has completed the project
+            overall_progress = calculate_user_overall_progress(user_id=user_id, project_id=project_id, session=session)
+            if overall_progress < 100:
+                return False
+            
+            # Get annotator accuracy
+            accuracy_data = GroundTruthService.get_annotator_accuracy(project_id=project_id, session=session)
+            if user_id not in accuracy_data:
+                return False
+            
+            overall_accuracy_dict = calculate_overall_accuracy(accuracy_data)
+            accuracy = overall_accuracy_dict.get(user_id)
+            
+            if accuracy is not None:
+                # Count total questions answered
+                total_answered = sum(stats["total"] for stats in accuracy_data[user_id].values())
+                
+                accuracy_badge = format_accuracy_badge(accuracy, total_answered)
+                st.markdown(f"**Your Training Accuracy:** {accuracy_badge}", unsafe_allow_html=True)
+                return True
+        
+        elif role in ["reviewer", "meta_reviewer"]:
+            # Get reviewer accuracy
+            accuracy_data = GroundTruthService.get_reviewer_accuracy(project_id=project_id, session=session)
+            if user_id not in accuracy_data:
+                return False
+            
+            overall_accuracy_dict = calculate_overall_accuracy(accuracy_data)
+            accuracy = overall_accuracy_dict.get(user_id)
+            
+            if accuracy is not None:
+                # Count total questions reviewed
+                total_reviewed = sum(stats["total"] for stats in accuracy_data[user_id].values())
+                
+                accuracy_badge = format_accuracy_badge(accuracy, total_reviewed)
+                role_name = "Meta-Reviewer" if role == "meta_reviewer" else "Reviewer"
+                st.markdown(f"**Your {role_name} Accuracy:** {accuracy_badge}", unsafe_allow_html=True)
+                return True
+    
+    except Exception as e:
+        # Don't show errors for accuracy - it's an additional feature
+        pass
+    
+    return False
+
+@st.dialog("📊 Detailed Accuracy Analytics", width="large")
+def show_annotator_accuracy_detailed(project_id: int, session: Session):
+    """Show detailed annotator accuracy analytics in a modal dialog"""
+    
+    try:
+        # Get accuracy data
+        accuracy_data = GroundTruthService.get_annotator_accuracy(project_id=project_id, session=session)
+        if not accuracy_data:
+            st.warning("No annotator accuracy data available for this project.")
+            return
+        
+        overall_accuracy = calculate_overall_accuracy(accuracy_data)
+        per_question_accuracy = calculate_per_question_accuracy(accuracy_data)
+        
+        # Get user and question information
+        users_df = AuthService.get_all_users(session=session)
+        questions = ProjectService.get_project_questions(project_id=project_id, session=session)
+        
+        # Create user lookup
+        user_lookup = {row["ID"]: row["User ID"] for _, row in users_df.iterrows()}
+        question_lookup = {q["id"]: q["text"] for q in questions}
+        
+        # Tabs for different views
+        overview_tab, detailed_tab, comparison_tab = st.tabs(["📈 Overview", "🔍 Per Question", "⚖️ Compare"])
+        
+        with overview_tab:
+            st.markdown("### 📊 Overall Accuracy Rankings")
+            
+            # Prepare data for overview
+            overview_data = []
+            for user_id, accuracy in overall_accuracy.items():
+                if accuracy is not None:
+                    user_name = user_lookup.get(user_id, f"User {user_id}")
+                    total_answered = sum(stats["total"] for stats in accuracy_data[user_id].values())
+                    overview_data.append({
+                        "Annotator": user_name,
+                        "Overall Accuracy": accuracy,
+                        "Total Answers": total_answered,
+                        "User ID": user_id
+                    })
+            
+            if overview_data:
+                # Sort by accuracy descending
+                overview_data.sort(key=lambda x: x["Overall Accuracy"], reverse=True)
+                
+                # Display rankings with colors
+                for i, data in enumerate(overview_data):
+                    rank = i + 1
+                    accuracy = data["Overall Accuracy"]
+                    color = get_accuracy_color(accuracy)
+                    
+                    rank_emoji = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"#{rank}"
+                    
+                    st.markdown(f"""
+                    <div style="
+                        background: linear-gradient(135deg, {color}20, {color}10);
+                        border: 2px solid {color};
+                        border-radius: 10px;
+                        padding: 12px;
+                        margin: 8px 0;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                    ">
+                        <div>
+                            <strong>{rank_emoji} {data['Annotator']}</strong>
+                            <br><small>{data['Total Answers']} total answers</small>
+                        </div>
+                        <div style="
+                            background: {color};
+                            color: white;
+                            padding: 8px 16px;
+                            border-radius: 20px;
+                            font-weight: bold;
+                            font-size: 1.1rem;
+                        ">
+                            {accuracy:.1f}%
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # Summary statistics
+                st.markdown("---")
+                st.markdown("### 📈 Summary Statistics")
+                accuracies = [data["Overall Accuracy"] for data in overview_data]
+                
+                # Use 2 rows of 2 columns each for better spacing
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Average Accuracy", f"{sum(accuracies)/len(accuracies):.1f}%")
+                    st.metric("Highest Accuracy", f"{max(accuracies):.1f}%")
+                with col2:
+                    st.metric("Lowest Accuracy", f"{min(accuracies):.1f}%")
+                    st.metric("Total Annotators", len(overview_data))
+            else:
+                st.info("No accuracy data available to display.")
+        
+        with detailed_tab:
+            st.markdown("### 🔍 Per-Question Accuracy Analysis")
+            
+            # User selection for detailed view
+            user_options = {user_lookup.get(uid, f"User {uid}"): uid for uid in accuracy_data.keys()}
+            if user_options:
+                selected_users = st.multiselect(
+                    "Select annotators to analyze:",
+                    list(user_options.keys()),
+                    default=list(user_options.keys())[:5] if len(user_options) > 5 else list(user_options.keys())
+                )
+                
+                if selected_users:
+                    selected_user_ids = [user_options[name] for name in selected_users]
+                    
+                    # Create detailed table
+                    detailed_data = []
+                    for question_id, question_text in question_lookup.items():
+                        row = {"Question": question_text[:60] + ("..." if len(question_text) > 60 else "")}
+                        
+                        for user_name in selected_users:
+                            user_id = user_options[user_name]
+                            accuracy = per_question_accuracy.get(user_id, {}).get(question_id)
+                            if accuracy is not None:
+                                row[f"{user_name}"] = f"{accuracy:.1f}%"
+                            else:
+                                row[f"{user_name}"] = "No data"
+                        
+                        detailed_data.append(row)
+                    
+                    if detailed_data:
+                        df = pd.DataFrame(detailed_data)
+                        st.dataframe(df, use_container_width=True)
+                        
+                        # Download option
+                        csv = df.to_csv(index=False)
+                        st.download_button(
+                            label="📥 Download detailed accuracy data",
+                            data=csv,
+                            file_name=f"annotator_accuracy_project_{project_id}.csv",
+                            mime="text/csv"
+                        )
+            else:
+                st.info("No annotators found with accuracy data.")
+        
+        with comparison_tab:
+            st.markdown("### ⚖️ Compare Selected Annotators")
+            
+            # Multi-select for comparison
+            user_options = {user_lookup.get(uid, f"User {uid}"): uid for uid in accuracy_data.keys()}
+            if user_options:
+                compare_users = st.multiselect(
+                    "Select annotators to compare (max 5):",
+                    list(user_options.keys()),
+                    max_selections=5
+                )
+                
+                if len(compare_users) >= 2:
+                    compare_user_ids = [user_options[name] for name in compare_users]
+                    
+                    # Calculate average accuracy for selected users
+                    selected_accuracies = [overall_accuracy.get(uid) for uid in compare_user_ids if overall_accuracy.get(uid) is not None]
+                    
+                    if selected_accuracies:
+                        avg_accuracy = sum(selected_accuracies) / len(selected_accuracies)
+                        
+                        st.metric("Average Accuracy of Selected Annotators", f"{avg_accuracy:.1f}%")
+                        
+                        # Show individual comparisons
+                        st.markdown("#### Individual Performance:")
+                        for user_name in compare_users:
+                            user_id = user_options[user_name]
+                            accuracy = overall_accuracy.get(user_id)
+                            if accuracy is not None:
+                                diff_from_avg = accuracy - avg_accuracy
+                                color = get_accuracy_color(accuracy)
+                                
+                                diff_icon = "📈" if diff_from_avg > 0 else "📉" if diff_from_avg < 0 else "➡️"
+                                diff_text = f"({diff_from_avg:+.1f}% vs group avg)"
+                                
+                                st.markdown(f"""
+                                <div style="
+                                    background: linear-gradient(135deg, {color}15, {color}05);
+                                    border-left: 4px solid {color};
+                                    padding: 10px 15px;
+                                    margin: 5px 0;
+                                    border-radius: 5px;
+                                ">
+                                    <strong>{user_name}</strong>: 
+                                    <span style="color: {color}; font-weight: bold;">{accuracy:.1f}%</span>
+                                    <small style="color: #666; margin-left: 10px;">{diff_icon} {diff_text}</small>
+                                </div>
+                                """, unsafe_allow_html=True)
+                else:
+                    st.info("Select at least 2 annotators to compare.")
+            else:
+                st.info("No annotators available for comparison.")
+    
+    except Exception as e:
+        st.error(f"Error loading accuracy data: {str(e)}")
+
+@st.dialog("📊 Reviewer Accuracy Analytics", width="large")
+def show_reviewer_accuracy_detailed(project_id: int, session: Session):
+    """Show detailed reviewer accuracy analytics in a modal dialog"""
+    
+    try:
+        # Get accuracy data
+        accuracy_data = GroundTruthService.get_reviewer_accuracy(project_id=project_id, session=session)
+        if not accuracy_data:
+            st.warning("No reviewer accuracy data available for this project.")
+            return
+        
+        overall_accuracy = calculate_overall_accuracy(accuracy_data)
+        per_question_accuracy = calculate_per_question_accuracy(accuracy_data)
+        
+        # Get user and question information
+        users_df = AuthService.get_all_users(session=session)
+        questions = ProjectService.get_project_questions(project_id=project_id, session=session)
+        
+        # Create user lookup
+        user_lookup = {row["ID"]: row["User ID"] for _, row in users_df.iterrows()}
+        question_lookup = {q["id"]: q["text"] for q in questions}
+        
+        # Tabs for different views
+        overview_tab, detailed_tab = st.tabs(["📈 Overview", "🔍 Per Question"])
+        
+        with overview_tab:
+            st.markdown("### 📊 Reviewer Accuracy (Questions Not Overridden by Admin)")
+            st.caption("Accuracy is measured by how many of a reviewer's ground truth answers were NOT overridden by admin")
+            
+            # Prepare data for overview
+            overview_data = []
+            for user_id, accuracy in overall_accuracy.items():
+                if accuracy is not None:
+                    user_name = user_lookup.get(user_id, f"User {user_id}")
+                    total_reviewed = sum(stats["total"] for stats in accuracy_data[user_id].values())
+                    correct_count = sum(stats["correct"] for stats in accuracy_data[user_id].values())
+                    overview_data.append({
+                        "Reviewer": user_name,
+                        "Accuracy": accuracy,
+                        "Correct Answers": correct_count,
+                        "Total Reviews": total_reviewed,
+                        "User ID": user_id
+                    })
+            
+            if overview_data:
+                # Sort by accuracy descending
+                overview_data.sort(key=lambda x: x["Accuracy"], reverse=True)
+                
+                # Display rankings with colors
+                for i, data in enumerate(overview_data):
+                    rank = i + 1
+                    accuracy = data["Accuracy"]
+                    color = get_accuracy_color(accuracy)
+                    
+                    rank_emoji = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"#{rank}"
+                    
+                    st.markdown(f"""
+                    <div style="
+                        background: linear-gradient(135deg, {color}20, {color}10);
+                        border: 2px solid {color};
+                        border-radius: 10px;
+                        padding: 12px;
+                        margin: 8px 0;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                    ">
+                        <div>
+                            <strong>{rank_emoji} {data['Reviewer']}</strong>
+                            <br><small>{data['Correct Answers']}/{data['Total Reviews']} not overridden</small>
+                        </div>
+                        <div style="
+                            background: {color};
+                            color: white;
+                            padding: 8px 16px;
+                            border-radius: 20px;
+                            font-weight: bold;
+                            font-size: 1.1rem;
+                        ">
+                            {accuracy:.1f}%
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # Summary statistics
+                st.markdown("---")
+                st.markdown("### 📈 Summary Statistics")
+                accuracies = [data["Accuracy"] for data in overview_data]
+                
+                # Use 2 rows of 2 columns each for better spacing
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Average Accuracy", f"{sum(accuracies)/len(accuracies):.1f}%")
+                    st.metric("Highest Accuracy", f"{max(accuracies):.1f}%")
+                with col2:
+                    st.metric("Lowest Accuracy", f"{min(accuracies):.1f}%")
+                    st.metric("Total Reviewers", len(overview_data))
+            else:
+                st.info("No reviewer accuracy data available to display.")
+        
+        with detailed_tab:
+            st.markdown("### 🔍 Per-Question Reviewer Analysis")
+            
+            # User selection for detailed view
+            user_options = {user_lookup.get(uid, f"User {uid}"): uid for uid in accuracy_data.keys()}
+            if user_options:
+                selected_users = st.multiselect(
+                    "Select reviewers to analyze:",
+                    list(user_options.keys()),
+                    default=list(user_options.keys())
+                )
+                
+                if selected_users:
+                    selected_user_ids = [user_options[name] for name in selected_users]
+                    
+                    # Create detailed table
+                    detailed_data = []
+                    for question_id, question_text in question_lookup.items():
+                        row = {"Question": question_text[:60] + ("..." if len(question_text) > 60 else "")}
+                        
+                        for user_name in selected_users:
+                            user_id = user_options[user_name]
+                            accuracy = per_question_accuracy.get(user_id, {}).get(question_id)
+                            if accuracy is not None:
+                                row[f"{user_name}"] = f"{accuracy:.1f}%"
+                            else:
+                                row[f"{user_name}"] = "No data"
+                        
+                        detailed_data.append(row)
+                    
+                    if detailed_data:
+                        df = pd.DataFrame(detailed_data)
+                        st.dataframe(df, use_container_width=True)
+                        
+                        # Download option
+                        csv = df.to_csv(index=False)
+                        st.download_button(
+                            label="📥 Download detailed reviewer accuracy data",
+                            data=csv,
+                            file_name=f"reviewer_accuracy_project_{project_id}.csv",
+                            mime="text/csv"
+                        )
+            else:
+                st.info("No reviewers found with accuracy data.")
+    
+    except Exception as e:
+        st.error(f"Error loading reviewer accuracy data: {str(e)}")
+
+def display_accuracy_button_for_project(project_id: int, role: str, session: Session):
+    """Display an elegant accuracy analytics button for training mode projects"""
+    
+    # Check if project has full ground truth (training mode)
+    if not check_project_has_full_ground_truth(project_id=project_id, session=session):
+        return False
+    
+    try:
+        if role in ["reviewer", "meta_reviewer"]:
+            # Show annotator accuracy button
+            accuracy_data = GroundTruthService.get_annotator_accuracy(project_id=project_id, session=session)
+            if accuracy_data:
+                annotator_count = len(accuracy_data)
+                
+                # Create a more elegant, compact button
+                if st.button(f"📊 Annotator Analytics ({annotator_count})", 
+                           key=f"accuracy_btn_{project_id}_{role}",
+                           help=f"View detailed accuracy analytics for {annotator_count} annotators",
+                           use_container_width=True):
+                    show_annotator_accuracy_detailed(project_id=project_id, session=session)
+                return True
+            
+            # Also show reviewer accuracy if available
+            reviewer_accuracy_data = GroundTruthService.get_reviewer_accuracy(project_id=project_id, session=session)
+            if reviewer_accuracy_data:
+                reviewer_count = len(reviewer_accuracy_data)
+                if st.button(f"📊 Reviewer Analytics ({reviewer_count})", 
+                           key=f"reviewer_accuracy_btn_{project_id}_{role}",
+                           help=f"View detailed accuracy analytics for {reviewer_count} reviewers",
+                           use_container_width=True):
+                    show_reviewer_accuracy_detailed(project_id=project_id, session=session)
+                return True
+    
+    except Exception as e:
+        # Don't show errors for accuracy - it's an additional feature
+        pass
+    
+    return False
+
 ###############################################################################
 # AUTHENTICATION & ROUTING
 ###############################################################################
@@ -1016,6 +1540,10 @@ def display_project_progress(user_id: int, project_id: int, role: str, session: 
         )
         st.progress(overall_progress / 100)
         st.markdown(f"**Your Overall Progress:** {overall_progress:.1f}%")
+        
+        # NEW: Show accuracy if in training mode and user completed the project
+        display_user_accuracy_simple(user_id=user_id, project_id=project_id, role=role, session=session)
+        
     elif role == "meta_reviewer":
         # For meta-reviewers, show ground truth progress like reviewers but no completion check
         try:
@@ -1025,6 +1553,9 @@ def display_project_progress(user_id: int, project_id: int, role: str, session: 
             )
             st.progress(project_progress['completion_percentage'] / 100)
             st.markdown(f"**Ground Truth Progress:** {project_progress['completion_percentage']:.1f}%")
+            
+            # NEW: Show accuracy if available
+            display_user_accuracy_simple(user_id=user_id, project_id=project_id, role=role, session=session)
         except ValueError as e:
             st.error(f"Error loading project progress: {str(e)}")
     else:
@@ -1035,6 +1566,9 @@ def display_project_progress(user_id: int, project_id: int, role: str, session: 
             )
             st.progress(project_progress['completion_percentage'] / 100)
             st.markdown(f"**Ground Truth Progress:** {project_progress['completion_percentage']:.1f}%")
+            
+            # NEW: Show accuracy if available
+            display_user_accuracy_simple(user_id=user_id, project_id=project_id, role=role, session=session)
         except ValueError as e:
             st.error(f"Error loading project progress: {str(e)}")
 
@@ -1082,6 +1616,15 @@ def display_project_view(user_id: int, role: str, session: Session):
     
     # Show overall progress
     display_project_progress(user_id=user_id, project_id=project_id, role=role, session=session)
+    
+    # NEW: Show accuracy analytics button for training mode projects (reviewer/meta-reviewer only)
+    if role in ["reviewer", "meta_reviewer"] and mode == "Training":
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            display_accuracy_button_for_project(project_id=project_id, role=role, session=session)
+        with col2:
+            # Reserve space or add other controls if needed
+            pass
     
     # Enhanced annotator selection for reviewers and meta-reviewers
     if role in ["reviewer", "meta_reviewer"]:
@@ -4027,6 +4570,7 @@ def admin_assignments():
                 if not assignment.get("Archived", False):
                     user_assignments[user_id]["is_archived"] = False
             
+            # NEW: Enhanced assignment display with accuracy information
             # Search and filter controls
             st.markdown("### 🔍 Search & Filter")
             col1, col2, col3, col4 = st.columns(4)
@@ -4083,7 +4627,7 @@ def admin_assignments():
             if filtered_assignments:
                 st.markdown("### 📋 Assignment Overview")
                 
-                # Prepare data for display with role-specific dates
+                # Prepare data for display with role-specific dates and accuracy info
                 display_data = []
                 for user_id, user_data in filtered_assignments.items():
                     # Group projects by project group
@@ -4107,6 +4651,34 @@ def admin_assignments():
                             # Add completion emoji for non-admin completed roles
                             completion_emoji = "✅ " if is_completed else ""
                             
+                            # NEW: Add accuracy information for training mode projects
+                            accuracy_info = ""
+                            if is_completed:
+                                try:
+                                    # Check if project is in training mode
+                                    if check_project_has_full_ground_truth(project_id=project_id, session=session):
+                                        if role == "annotator":
+                                            # Get annotator accuracy
+                                            accuracy_data = GroundTruthService.get_annotator_accuracy(project_id=project_id, session=session)
+                                            if user_id in accuracy_data:
+                                                overall_accuracy = calculate_overall_accuracy(accuracy_data)
+                                                accuracy = overall_accuracy.get(user_id)
+                                                if accuracy is not None:
+                                                    color = get_accuracy_color(accuracy)
+                                                    accuracy_info = f" <span style='color: {color}; font-weight: bold;'>[{accuracy:.1f}%]</span>"
+                                        elif role == "reviewer":
+                                            # Get reviewer accuracy
+                                            accuracy_data = GroundTruthService.get_reviewer_accuracy(project_id=project_id, session=session)
+                                            if user_id in accuracy_data:
+                                                overall_accuracy = calculate_overall_accuracy(accuracy_data)
+                                                accuracy = overall_accuracy.get(user_id)
+                                                if accuracy is not None:
+                                                    color = get_accuracy_color(accuracy)
+                                                    accuracy_info = f" <span style='color: {color}; font-weight: bold;'>[{accuracy:.1f}%]</span>"
+                                except Exception:
+                                    # Don't break display if accuracy calculation fails
+                                    pass
+                            
                             # Build date info for this role
                             if role == "admin":
                                 # Admin: just assignment date
@@ -4127,7 +4699,7 @@ def admin_assignments():
                             # Add archived indicator if needed
                             archived_indicator = " 🗄️" if role_data["archived"] else ""
                             
-                            role_parts.append(f"{completion_emoji}{role.title()}{date_part}{archived_indicator}")
+                            role_parts.append(f"{completion_emoji}{role.title()}{date_part}{accuracy_info}{archived_indicator}")
                         
                         # Create clean project display
                         roles_text = ", ".join(role_parts)
@@ -4289,7 +4861,7 @@ def admin_assignments():
                                             display_groups[group] = []
                                         display_groups[group].append(project["display"])
                                     
-                                    # Display grouped projects
+                                    # Display grouped projects with accuracy info preserved
                                     for group_name in sorted(display_groups.keys()):
                                         if group_name != "Ungrouped":
                                             st.markdown(f"### 📁 {group_name}")
@@ -4297,7 +4869,8 @@ def admin_assignments():
                                             st.markdown(f"### 📄 Individual Projects")
                                         
                                         for project_display in display_groups[group_name]:
-                                            st.markdown(project_display)
+                                            # Display with HTML to preserve accuracy formatting
+                                            st.markdown(project_display, unsafe_allow_html=True)
                                         
                                         if len(display_groups) > 1:  # Add separator between groups
                                             st.markdown("---")

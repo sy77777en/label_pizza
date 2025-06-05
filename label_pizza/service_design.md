@@ -218,8 +218,8 @@ Service-Layer API Spec
 | `submit_ground_truth_to_question_group(video_id, project_id, reviewer_id, question_group_id, answers, session, confidence_scores, notes)` | ✔︎ | — | `None` | • Reviewer role required 🛡️<br>• Type & option validation 🛡️ |
 | `get_ground_truth(video_id, project_id, session)`                                                                         | ✔︎     | —          | `DataFrame` | — |
 | `override_ground_truth_to_question_group(video_id, project_id, question_group_id, admin_id, answers, session)`           | ✔︎     | —          | `None` | • Admin role required 🛡️<br>• Tracks modifications 🛡️ |
-| `get_reviewer_accuracy(reviewer_id, project_id, session)`                                                                 | ✔︎     | —          | `float` | — |
-| `get_annotator_accuracy(project_id, question_id, session)`                                                                | ✔︎     | —          | `DataFrame` | — |
+| `get_reviewer_accuracy(project_id, session)`                                                                 | ✔︎     | —          | `Dict[int, Dict[int, Dict[str, int]]]` | — |
+| `get_annotator_accuracy(project_id, session)`                                                                | ✔︎     | —          | `Dict[int, Dict[int, Dict[str, int]]]` | — |
 | `submit_answer_review(answer_id, reviewer_id, status, session, comment)`                                                  | ✔︎     | —          | `None` | • Valid status 🛡️ |
 | `get_answer_review(answer_id, session)`                                                                                   | ✔︎     | —          | `Optional[dict]` | — |
 
