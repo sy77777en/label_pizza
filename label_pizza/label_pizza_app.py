@@ -1622,7 +1622,7 @@ def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: i
     """Clean annotator selection with responsive checkboxes for many users"""
     
     if not annotators:
-        st.info("No annotators have submitted answers for this project yet.")
+        st.warning("No annotators have submitted answers for this project yet.")
         return []
     
     # Initialize session state for selected annotators
@@ -1632,90 +1632,103 @@ def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: i
     
     annotator_options = list(annotators.keys())
     
-    # Simple header  
-    st.markdown("### 👥 Select Annotators to Review")
-    
-    # Quick action buttons in a compact row with clearer text
-    col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
-    with col1:
-        if st.button("Select All Annotators", key=f"select_all_{project_id}", help="Select all annotators"):
-            st.session_state.selected_annotators = annotator_options.copy()
-            st.rerun()
-    
-    with col2:
-        if st.button("Deselect All Annotators", key=f"clear_all_{project_id}", help="Deselect all annotators"):
-            st.session_state.selected_annotators = []
-            st.rerun()
-    
-    with col3:
-        selected_count = len(st.session_state.selected_annotators)
-        total_count = len(annotator_options)
-        st.metric("Selected", f"{selected_count}/{total_count}", label_visibility="visible")
-    
-    # Responsive checkbox layout that handles many annotators
-    st.markdown("**Choose annotators to include:**")
-    
-    # Calculate optimal number of columns based on annotator count
-    num_annotators = len(annotator_options)
-    if num_annotators <= 4:
-        num_cols = num_annotators
-    elif num_annotators <= 12:
-        num_cols = 3
-    elif num_annotators <= 20:
-        num_cols = 4
-    else:
-        num_cols = 5  # For 30+ annotators, use 5 columns
-    
-    # Track changes
-    updated_selection = []
-    
-    # Create rows of checkboxes
-    for row_start in range(0, num_annotators, num_cols):
-        cols = st.columns(num_cols)
-        row_annotators = annotator_options[row_start:row_start + num_cols]
+    # Organized control section with better spacing
+    control_container = st.container()
+    with control_container:
+        # Quick action buttons in a clean, centered layout
+        st.markdown("**Quick Actions:**")
         
-        for i, annotator_display in enumerate(row_annotators):
-            with cols[i]:
-                # Extract clean info from display name "Name (XX)"
-                if " (" in annotator_display and annotator_display.endswith(")"):
-                    full_name = annotator_display.split(" (")[0]
-                    initials = annotator_display.split(" (")[1][:-1]
-                else:
-                    full_name = annotator_display
-                    initials = annotator_display[:2].upper()
-                
-                # Get additional info for tooltip
-                annotator_info = annotators.get(annotator_display, {})
-                email = annotator_info.get('email', '')
-                user_id = annotator_info.get('id', '')
-                
-                # Create clean label (just name and initials)
-                label = f"**{full_name}** ({initials})"
-                
-                # Create informative tooltip
-                if email and email != f"user_{user_id}@example.com":
-                    tooltip = f"{full_name}\nEmail: {email}\nID: {user_id}"
-                else:
-                    tooltip = f"{full_name}\nUser ID: {user_id}"
-                
-                # Checkbox for this annotator
-                checkbox_key = f"annotator_cb_{project_id}_{row_start + i}"
-                is_selected = st.checkbox(
-                    label,
-                    value=annotator_display in st.session_state.selected_annotators,
-                    key=checkbox_key,
-                    help=tooltip  # Email and details shown only on hover
-                )
-                
-                if is_selected:
-                    updated_selection.append(annotator_display)
+        # Better organized button layout
+        btn_col1, btn_col2, btn_col3 = st.columns([1, 1, 1])
+        with btn_col1:
+            if st.button("✅ Select All", key=f"select_all_{project_id}", 
+                        help="Select all annotators", use_container_width=True):
+                st.session_state.selected_annotators = annotator_options.copy()
+                st.rerun()
+        
+        with btn_col2:
+            if st.button("❌ Clear All", key=f"clear_all_{project_id}", 
+                        help="Deselect all annotators", use_container_width=True):
+                st.session_state.selected_annotators = []
+                st.rerun()
+        
+        with btn_col3:
+            # Selection counter with better styling
+            selected_count = len(st.session_state.selected_annotators)
+            total_count = len(annotator_options)
+            st.metric("Selected", f"{selected_count}/{total_count}", 
+                     delta=f"{selected_count} active", label_visibility="visible")
     
-    # Update session state if selection changed
-    if set(updated_selection) != set(st.session_state.selected_annotators):
-        st.session_state.selected_annotators = updated_selection
-        st.rerun()
+    # Clean separator
+    st.markdown("---")
     
-    # Show compact summary if any selected
+    # Annotator selection section with better organization
+    selection_container = st.container()
+    with selection_container:
+        st.markdown("**Choose Annotators:**")
+        st.caption("Select annotators whose responses you want to see during review")
+        
+        # Calculate optimal number of columns based on annotator count
+        num_annotators = len(annotator_options)
+        if num_annotators <= 4:
+            num_cols = num_annotators
+        elif num_annotators <= 12:
+            num_cols = 3
+        elif num_annotators <= 20:
+            num_cols = 4
+        else:
+            num_cols = 5  # For 30+ annotators, use 5 columns
+        
+        # Track changes
+        updated_selection = []
+        
+        # Create rows of checkboxes with better spacing
+        for row_start in range(0, num_annotators, num_cols):
+            cols = st.columns(num_cols)
+            row_annotators = annotator_options[row_start:row_start + num_cols]
+            
+            for i, annotator_display in enumerate(row_annotators):
+                with cols[i]:
+                    # Extract clean info from display name "Name (XX)"
+                    if " (" in annotator_display and annotator_display.endswith(")"):
+                        full_name = annotator_display.split(" (")[0]
+                        initials = annotator_display.split(" (")[1][:-1]
+                    else:
+                        full_name = annotator_display
+                        initials = annotator_display[:2].upper()
+                    
+                    # Get additional info for tooltip
+                    annotator_info = annotators.get(annotator_display, {})
+                    email = annotator_info.get('email', '')
+                    user_id = annotator_info.get('id', '')
+                    
+                    # Create clean label (just name and initials)
+                    label = f"**{full_name}** ({initials})"
+                    
+                    # Create informative tooltip
+                    if email and email != f"user_{user_id}@example.com":
+                        tooltip = f"{full_name}\nEmail: {email}\nID: {user_id}"
+                    else:
+                        tooltip = f"{full_name}\nUser ID: {user_id}"
+                    
+                    # Checkbox for this annotator
+                    checkbox_key = f"annotator_cb_{project_id}_{row_start + i}"
+                    is_selected = st.checkbox(
+                        label,
+                        value=annotator_display in st.session_state.selected_annotators,
+                        key=checkbox_key,
+                        help=tooltip  # Email and details shown only on hover
+                    )
+                    
+                    if is_selected:
+                        updated_selection.append(annotator_display)
+        
+        # Update session state if selection changed
+        if set(updated_selection) != set(st.session_state.selected_annotators):
+            st.session_state.selected_annotators = updated_selection
+            st.rerun()
+    
+    # Elegant selection summary
     if st.session_state.selected_annotators:
         # Create a compact summary with just initials
         initials_list = []
@@ -1735,9 +1748,12 @@ def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: i
             remaining = len(initials_list) - 8
             initials_text = f"{', '.join(shown)} + {remaining} more"
         
-        st.success(f"✅ Selected: {initials_text}")
+        # Better styled summary
+        st.markdown("---")
+        st.success(f"✅ **Currently Selected:** {initials_text}")
     else:
-        st.warning("⚠️ No annotators selected - results will only show ground truth")
+        st.markdown("---")
+        st.warning("⚠️ **No annotators selected** - results will only show ground truth")
     
     return st.session_state.selected_annotators
 
@@ -1846,20 +1862,30 @@ def display_project_view(user_id: int, role: str, session: Session):
         # Create organized sections using tabs for better UX
         if mode == "Training":
             # For training mode: show analytics prominently
-            analytics_tab, controls_tab = st.tabs(["📊 Analytics & Settings", "🎛️ Review Controls"])
+            analytics_tab, annotator_tab = st.tabs(["📊 Accuracy Analytics", "👥 Annotator Selection"])
             
             with analytics_tab:
-                st.markdown("### 📊 Accuracy Analytics")
-                analytics_col1, analytics_col2 = st.columns([1, 1])
+                # Organized analytics section with better visual hierarchy
+                st.markdown("#### 🎯 Performance Insights")
+                st.markdown("Access detailed accuracy analytics for all participants in this training project.")
                 
-                with analytics_col1:
-                    display_accuracy_button_for_project(project_id=project_id, role=role, session=session)
+                # Create a centered, well-spaced layout
+                analytics_container = st.container()
+                with analytics_container:
+                    # Center the analytics button with proper spacing
+                    col1, col2, col3 = st.columns([1, 2, 1])
+                    with col2:
+                        display_accuracy_button_for_project(project_id=project_id, role=role, session=session)
                 
-                with analytics_col2:
-                    # Reserve for future analytics or leave for balance
-                    st.empty()
+                # Add some helpful information
+                st.markdown("---")
+                st.info("💡 **Tip:** Use analytics to identify patterns in annotator performance and areas for improvement.")
             
-            with controls_tab:
+            with annotator_tab:
+                # Organized annotator selection with better visual hierarchy
+                st.markdown("#### 👥 Annotator Management")
+                st.markdown("Select which annotators' responses to display during your review process.")
+                
                 # Enhanced annotator selection for reviewers and meta-reviewers
                 try:
                     annotators = get_all_project_annotators(
@@ -1873,23 +1899,36 @@ def display_project_view(user_id: int, role: str, session: Session):
                 except Exception as e:
                     st.error(f"Error loading annotators: {str(e)}")
                     st.session_state.selected_annotators = []
+                
+                # Add helpful information
+                st.markdown("---")
+                st.info("💡 **Tip:** Select annotators whose responses you want to see alongside your review interface.")
         else:
             # For annotation mode: simpler layout, focus on controls
-            st.markdown("### 🎛️ Review Controls")
+            annotator_tab, = st.tabs(["👥 Annotator Selection"])
             
-            # Enhanced annotator selection for reviewers and meta-reviewers
-            try:
-                annotators = get_all_project_annotators(
-                    project_id=project_id, 
-                    session=session
-                )
-                display_smart_annotator_selection(
-                    annotators=annotators, 
-                    project_id=project_id
-                )
-            except Exception as e:
-                st.error(f"Error loading annotators: {str(e)}")
-                st.session_state.selected_annotators = []
+            with annotator_tab:
+                # Organized annotator selection for annotation mode
+                st.markdown("#### 👥 Annotator Management")
+                st.markdown("Select which annotators' responses to display during your review process.")
+                
+                # Enhanced annotator selection for reviewers and meta-reviewers
+                try:
+                    annotators = get_all_project_annotators(
+                        project_id=project_id, 
+                        session=session
+                    )
+                    display_smart_annotator_selection(
+                        annotators=annotators, 
+                        project_id=project_id
+                    )
+                except Exception as e:
+                    st.error(f"Error loading annotators: {str(e)}")
+                    st.session_state.selected_annotators = []
+                
+                # Add helpful information
+                st.markdown("---")
+                st.info("💡 **Tip:** Select annotators whose responses you want to see alongside your review interface.")
         
         # Video Layout Controls - moved to expandable section for cleaner look
         with st.expander("🎛️ Video Layout Settings", expanded=False):
