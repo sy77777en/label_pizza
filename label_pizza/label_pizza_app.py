@@ -14,6 +14,8 @@ NEW FEATURES:
 7. **NEW**: Annotator accuracy display in training mode
 8. **NEW**: Detailed accuracy analytics for reviewers/meta-reviewers
 9. **NEW**: Accuracy information in assignment management
+10. **IMPROVED**: Better layout for reviewer/meta-reviewer portal with integrated controls
+11. **IMPROVED**: Paginated project dashboard with assignment dates and better performance
 """
 
 import streamlit as st
@@ -1502,8 +1504,42 @@ def get_project_groups_with_projects(user_id: int, role: str, session: Session) 
         st.error(f"Error getting grouped projects: {str(e)}")
         return {}
 
+def get_user_assignment_dates(user_id: int, session: Session) -> Dict[int, Dict[str, str]]:
+    """Get assignment dates for all projects for a specific user"""
+    try:
+        # Get all assignments for this user
+        assignments_df = AuthService.get_project_assignments(session=session)
+        
+        user_assignments = {}
+        for _, assignment in assignments_df.iterrows():
+            if assignment["User ID"] == user_id:
+                project_id = assignment["Project ID"]
+                role = assignment["Role"]
+                
+                if project_id not in user_assignments:
+                    user_assignments[project_id] = {}
+                
+                # Store assignment date for this role
+                assigned_at = assignment.get("Assigned At")
+                if assigned_at:
+                    try:
+                        if hasattr(assigned_at, 'strftime'):
+                            date_str = assigned_at.strftime("%Y-%m-%d")
+                        else:
+                            date_str = str(assigned_at)[:10]
+                        user_assignments[project_id][role] = date_str
+                    except:
+                        user_assignments[project_id][role] = "Unknown"
+                else:
+                    user_assignments[project_id][role] = "Not set"
+        
+        return user_assignments
+    except Exception as e:
+        st.error(f"Error getting assignment dates: {str(e)}")
+        return {}
+
 def display_project_dashboard(user_id: int, role: str, session: Session) -> Optional[int]:
-    """Display project group dashboard with fixed heights and scrollable containers"""
+    """Display project group dashboard with pagination and assignment dates"""
     
     st.markdown("## 📂 Project Dashboard")
     
@@ -1517,23 +1553,24 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
         st.warning(f"No projects assigned to you as {role}.")
         return None
     
-    # Search and sort controls
+    # Get assignment dates for this user
+    assignment_dates = get_user_assignment_dates(user_id=user_id, session=session)
+    
+    # Global search and sort controls
     col1, col2, col3 = st.columns(3)
     with col1:
         search_term = st.text_input("🔍 Search projects", placeholder="Enter project name...")
     with col2:
-        sort_by = st.selectbox("Sort by", ["Completion Rate", "Name", "Created Time"])
+        sort_by = st.selectbox("Sort by", ["Completion Rate", "Name", "Assignment Date"])
     with col3:
         sort_order = st.selectbox("Order", ["Ascending", "Descending"])
     
-    # Display each group with fixed height scrollable container
+    # Display each group with pagination
     selected_project_id = None
     
     for group_name, projects in grouped_projects.items():
         if not projects:
             continue
-            
-        st.markdown(f"### 📁 {group_name}")
         
         # Filter projects by search
         filtered_projects = projects
@@ -1541,10 +1578,9 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
             filtered_projects = [p for p in projects if search_term.lower() in p["name"].lower()]
         
         if not filtered_projects:
-            st.info(f"No projects match your search in {group_name}")
             continue
         
-        # Calculate completion rates for sorting
+        # Calculate completion rates and assignment dates for sorting
         for project in filtered_projects:
             try:
                 if role == "annotator":
@@ -1559,36 +1595,130 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
                         session=session
                     )
                     project["completion_rate"] = project_progress['completion_percentage']
+                
+                # Get assignment date for sorting
+                project_assignments = assignment_dates.get(project["id"], {})
+                project_assignment_date = project_assignments.get(backend_role, "Not set")
+                project["assignment_date"] = project_assignment_date
+                
+                # Convert date string to datetime for sorting
+                if project_assignment_date and project_assignment_date != "Not set" and project_assignment_date != "Unknown":
+                    try:
+                        project["assignment_datetime"] = datetime.strptime(project_assignment_date, "%Y-%m-%d")
+                    except:
+                        project["assignment_datetime"] = datetime.min
+                else:
+                    project["assignment_datetime"] = datetime.min
+                    
             except:
                 project["completion_rate"] = 0.0
+                project["assignment_date"] = "Unknown"
+                project["assignment_datetime"] = datetime.min
         
-        # Sort projects - DEFAULT: Completion Rate Ascending
+        # Sort projects
         if sort_by == "Completion Rate":
             filtered_projects = sorted(filtered_projects, key=lambda x: x["completion_rate"], reverse=(sort_order == "Descending"))
         elif sort_by == "Name":
             filtered_projects = sorted(filtered_projects, key=lambda x: x["name"], reverse=(sort_order == "Descending"))
-        elif sort_by == "Created Time":
-            filtered_projects = sorted(filtered_projects, key=lambda x: x["created_at"] or datetime.min, reverse=(sort_order == "Descending"))
+        elif sort_by == "Assignment Date":
+            filtered_projects = sorted(filtered_projects, key=lambda x: x["assignment_datetime"], reverse=(sort_order == "Descending"))
         else:
             # Default sort by completion rate ascending
             filtered_projects = sorted(filtered_projects, key=lambda x: x["completion_rate"])
         
-        # NEW: Fixed height container with scrollable content
-        with st.container(height=400, border=True):  # Fixed height of 400px
-            # Use grid layout for projects
-            cols = st.columns(min(3, len(filtered_projects)))
+        # Group header with pagination info
+        total_projects = len(filtered_projects)
+        projects_per_page = 6  # Show 6 projects per page
+        total_pages = (total_projects - 1) // projects_per_page + 1 if total_projects > 0 else 1
+        
+        # Initialize page state
+        page_key = f"group_page_{group_name}_{user_id}_{role}"
+        if page_key not in st.session_state:
+            st.session_state[page_key] = 0
+        
+        current_page = st.session_state[page_key]
+        
+        # Group header with improved styling
+        st.markdown(f"""
+        <div style="
+            background: linear-gradient(135deg, #e8f4f8, #d5e8f0);
+            border: 2px solid #3498db;
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin: 20px 0 15px 0;
+            box-shadow: 0 4px 8px rgba(52, 152, 219, 0.15);
+        ">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3 style="margin: 0; color: #2980b9;">📁 {group_name}</h3>
+                    <p style="margin: 5px 0 0 0; color: #34495e; font-size: 0.9rem;">
+                        {total_projects} projects total {f"• Page {current_page + 1} of {total_pages}" if total_pages > 1 else ""}
+                    </p>
+                </div>
+                <div style="text-align: right;">
+                    <span style="
+                        background: #3498db;
+                        color: white;
+                        padding: 6px 12px;
+                        border-radius: 15px;
+                        font-weight: bold;
+                        font-size: 0.9rem;
+                    ">{total_projects} Projects</span>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Pagination controls for this group (if needed)
+        if total_pages > 1:
+            page_col1, page_col2, page_col3 = st.columns([1, 2, 1])
             
-            for i, project in enumerate(filtered_projects):
+            with page_col1:
+                if st.button("◀ Previous", disabled=(current_page == 0), key=f"prev_{page_key}"):
+                    st.session_state[page_key] = max(0, current_page - 1)
+                    st.rerun()
+            
+            with page_col2:
+                page_options = [f"Page {i+1}" for i in range(total_pages)]
+                selected_page_name = st.selectbox(
+                    f"Page for {group_name}",
+                    page_options,
+                    index=current_page,
+                    key=f"page_select_{page_key}",
+                    label_visibility="collapsed"
+                )
+                new_page = page_options.index(selected_page_name)
+                if new_page != current_page:
+                    st.session_state[page_key] = new_page
+                    st.rerun()
+            
+            with page_col3:
+                if st.button("Next ▶", disabled=(current_page == total_pages - 1), key=f"next_{page_key}"):
+                    st.session_state[page_key] = min(total_pages - 1, current_page + 1)
+                    st.rerun()
+        
+        # Calculate which projects to show on current page
+        start_idx = current_page * projects_per_page
+        end_idx = min(start_idx + projects_per_page, total_projects)
+        page_projects = filtered_projects[start_idx:end_idx]
+        
+        # Display projects in grid
+        if page_projects:
+            # Use 3 columns for better layout
+            cols = st.columns(3)
+            
+            for i, project in enumerate(page_projects):
                 with cols[i % 3]:
                     # Check if this project has full ground truth
                     has_full_gt = check_project_has_full_ground_truth(project_id=project["id"], session=session)
                     mode = "🎓 Training" if has_full_gt else "📝 Annotation"
                     
-                    # Get completion rate (already calculated)
+                    # Get completion rate and assignment date
                     completion_rate = project.get("completion_rate", 0.0)
+                    assignment_date = project.get("assignment_date", "Unknown")
                     progress_text = f"{completion_rate:.1f}% Complete"
                     
-                    # Project card with completion rate
+                    # Enhanced project card with assignment date
                     with st.container():
                         st.markdown(f"""
                         <div style="
@@ -1598,20 +1728,30 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
                             margin: 0.5rem 0;
                             background: white;
                             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                            min-height: 180px;
                         ">
-                            <h4 style="margin: 0 0 0.5rem 0;">{project["name"]}</h4>
-                            <p style="margin: 0.5rem 0; color: #666; font-size: 0.9rem;">{project["description"] or 'No description'}</p>
-                            <p style="margin: 0.5rem 0;"><strong>Mode:</strong> {mode}</p>
-                            <p style="margin: 0.5rem 0;"><strong>Progress:</strong> {progress_text}</p>
+                            <h4 style="margin: 0 0 0.5rem 0; color: #1f77b4;">{project["name"]}</h4>
+                            <p style="margin: 0.5rem 0; color: #666; font-size: 0.9rem; min-height: 40px;">
+                                {project["description"] or 'No description'}
+                            </p>
+                            <div style="margin: 0.8rem 0;">
+                                <p style="margin: 0.3rem 0;"><strong>Mode:</strong> {mode}</p>
+                                <p style="margin: 0.3rem 0;"><strong>Progress:</strong> {progress_text}</p>
+                                <p style="margin: 0.3rem 0; color: #666; font-size: 0.85rem;">
+                                    <strong>Assigned:</strong> {assignment_date}
+                                </p>
+                            </div>
                         </div>
                         """, unsafe_allow_html=True)
                         
                         # Select button
-                        if st.button(f"Select {project['name']}", key=f"select_project_{project['id']}"):
+                        if st.button(f"Select {project['name']}", key=f"select_project_{project['id']}", use_container_width=True):
                             selected_project_id = project["id"]
                             st.session_state.selected_project_id = project["id"]
                             st.session_state.current_view = "project"
                             st.rerun()
+        else:
+            st.info(f"No projects match your search in {group_name}")
         
         if selected_project_id:
             break
@@ -1801,7 +1941,7 @@ def display_project_progress(user_id: int, project_id: int, role: str, session: 
             st.error(f"Error loading project progress: {str(e)}")
 
 def display_project_view(user_id: int, role: str, session: Session):
-    """Display the selected project with videos in side-by-side layout"""
+    """Display the selected project with improved layout for reviewer/meta-reviewer"""
     project_id = st.session_state.selected_project_id
     
     # Back button
@@ -1855,38 +1995,31 @@ def display_project_view(user_id: int, role: str, session: Session):
         st.error("No videos found in this project.")
         return
     
-    # Role-specific control panels
+    # IMPROVED: Role-specific control panels with integrated layout controls
     if role in ["reviewer", "meta_reviewer"]:
         st.markdown("---")
         
-        # Create organized sections using tabs for better UX
+        # IMPROVED: Better integrated tabs with video layout controls
         if mode == "Training":
-            # For training mode: show analytics prominently
-            analytics_tab, annotator_tab = st.tabs(["📊 Accuracy Analytics", "👥 Annotator Selection"])
+            # For training mode: analytics, annotator selection, and layout controls
+            analytics_tab, annotator_tab, layout_tab = st.tabs(["📊 Accuracy Analytics", "👥 Annotator Selection", "🎛️ Video Layout"])
             
             with analytics_tab:
-                # Organized analytics section with better visual hierarchy
                 st.markdown("#### 🎯 Performance Insights")
                 st.markdown("Access detailed accuracy analytics for all participants in this training project.")
                 
-                # Create a centered, well-spaced layout
-                analytics_container = st.container()
-                with analytics_container:
-                    # Center the analytics button with proper spacing
-                    col1, col2, col3 = st.columns([1, 2, 1])
-                    with col2:
-                        display_accuracy_button_for_project(project_id=project_id, role=role, session=session)
+                # Center the analytics button
+                col1, col2, col3 = st.columns([1, 2, 1])
+                with col2:
+                    display_accuracy_button_for_project(project_id=project_id, role=role, session=session)
                 
-                # Add some helpful information
                 st.markdown("---")
                 st.info("💡 **Tip:** Use analytics to identify patterns in annotator performance and areas for improvement.")
             
             with annotator_tab:
-                # Organized annotator selection with better visual hierarchy
                 st.markdown("#### 👥 Annotator Management")
                 st.markdown("Select which annotators' responses to display during your review process.")
                 
-                # Enhanced annotator selection for reviewers and meta-reviewers
                 try:
                     annotators = get_all_project_annotators(
                         project_id=project_id, 
@@ -1900,19 +2033,23 @@ def display_project_view(user_id: int, role: str, session: Session):
                     st.error(f"Error loading annotators: {str(e)}")
                     st.session_state.selected_annotators = []
                 
-                # Add helpful information
                 st.markdown("---")
                 st.info("💡 **Tip:** Select annotators whose responses you want to see alongside your review interface.")
+            
+            with layout_tab:
+                st.markdown("#### 🎛️ Video Layout Settings")
+                _display_video_layout_controls(videos, role)
+                
+                st.markdown("---")
+                st.info("💡 **Tip:** Adjust layout to optimize your review workflow.")
         else:
-            # For annotation mode: simpler layout, focus on controls
-            annotator_tab, = st.tabs(["👥 Annotator Selection"])
+            # For annotation mode: annotator selection and layout controls
+            annotator_tab, layout_tab = st.tabs(["👥 Annotator Selection", "🎛️ Video Layout"])
             
             with annotator_tab:
-                # Organized annotator selection for annotation mode
                 st.markdown("#### 👥 Annotator Management")
                 st.markdown("Select which annotators' responses to display during your review process.")
                 
-                # Enhanced annotator selection for reviewers and meta-reviewers
                 try:
                     annotators = get_all_project_annotators(
                         project_id=project_id, 
@@ -1926,64 +2063,31 @@ def display_project_view(user_id: int, role: str, session: Session):
                     st.error(f"Error loading annotators: {str(e)}")
                     st.session_state.selected_annotators = []
                 
-                # Add helpful information
                 st.markdown("---")
                 st.info("💡 **Tip:** Select annotators whose responses you want to see alongside your review interface.")
-        
-        # Video Layout Controls - moved to expandable section for cleaner look
-        with st.expander("🎛️ Video Layout Settings", expanded=False):
-            col1, col2 = st.columns(2)
-            with col1:
-                video_pairs_per_row = st.slider("Video-Answer pairs per row", 1, 2, 1, key=f"{role}_pairs_per_row")
-            with col2:
-                # Handle edge cases for projects with very few videos
-                min_videos_per_page = video_pairs_per_row
-                max_videos_per_page = max(min(10, len(videos)), video_pairs_per_row + 1)  # Ensure max > min
-                default_videos_per_page = min(min(4, len(videos)), max_videos_per_page)
+            
+            with layout_tab:
+                st.markdown("#### 🎛️ Video Layout Settings")
+                _display_video_layout_controls(videos, role)
                 
-                if len(videos) == 1:
-                    # Special case: only 1 video, no need for slider
-                    st.write("Videos per page: 1 (only 1 video in project)")
-                    videos_per_page = 1
-                elif max_videos_per_page > min_videos_per_page:
-                    videos_per_page = st.slider(
-                        "Videos per page", 
-                        min_videos_per_page, 
-                        max_videos_per_page, 
-                        default_videos_per_page, 
-                        key=f"{role}_per_page"
-                    )
-                else:
-                    # Fallback: show all videos if slider would be invalid
-                    st.write(f"Videos per page: {len(videos)} (showing all)")
-                    videos_per_page = len(videos)
+                st.markdown("---")
+                st.info("💡 **Tip:** Adjust layout to optimize your review workflow.")
     
-    else:  # Annotator role - simpler layout
-        # Simple video layout controls for annotators
-        with st.expander("🎛️ Video Layout Settings", expanded=False):
-            col1, col2 = st.columns(2)
-            with col1:
-                video_pairs_per_row = st.slider("Video-Answer pairs per row", 1, 2, 1, key=f"{role}_pairs_per_row")
-            with col2:
-                # Handle edge cases for projects with very few videos
-                min_videos_per_page = video_pairs_per_row
-                max_videos_per_page = max(min(10, len(videos)), video_pairs_per_row + 1)
-                default_videos_per_page = min(min(4, len(videos)), max_videos_per_page)
-                
-                if len(videos) == 1:
-                    st.write("Videos per page: 1 (only 1 video in project)")
-                    videos_per_page = 1
-                elif max_videos_per_page > min_videos_per_page:
-                    videos_per_page = st.slider(
-                        "Videos per page", 
-                        min_videos_per_page, 
-                        max_videos_per_page, 
-                        default_videos_per_page, 
-                        key=f"{role}_per_page"
-                    )
-                else:
-                    st.write(f"Videos per page: {len(videos)} (showing all)")
-                    videos_per_page = len(videos)
+    else:  # Annotator role - simpler single tab
+        st.markdown("---")
+        
+        layout_tab, = st.tabs(["🎛️ Video Layout Settings"])
+        
+        with layout_tab:
+            st.markdown("#### 🎛️ Video Layout Settings")
+            _display_video_layout_controls(videos, role)
+            
+            st.markdown("---")
+            st.info("💡 **Tip:** Adjust layout to optimize your annotation workflow.")
+    
+    # Get layout settings from session state (automatically managed by Streamlit widgets)
+    video_pairs_per_row = st.session_state.get(f"{role}_pairs_per_row", 1)
+    videos_per_page = st.session_state.get(f"{role}_per_page", min(4, len(videos)))
     
     # Separator before videos
     st.markdown("---")
@@ -2028,9 +2132,6 @@ def display_project_view(user_id: int, role: str, session: Session):
     
     # PAGINATION CONTROLS MOVED TO BOTTOM
     if total_pages > 1:
-        # st.markdown("---")  # Separator line before pagination
-        # st.markdown("### 📄 Page Navigation")
-        
         # Create smart pagination options
         def get_pagination_options(current, total):
             """Create smart pagination with ellipsis for many pages"""
@@ -2125,6 +2226,41 @@ def display_project_view(user_id: int, role: str, session: Session):
         
         # Show current page info at the bottom
         st.markdown(f"<div style='text-align: center; color: #6c757d; margin-top: 1rem;'>Page {current_page + 1} of {total_pages}</div>", unsafe_allow_html=True)
+
+def _display_video_layout_controls(videos: List[Dict], role: str):
+    """Display video layout controls - Streamlit automatically handles session state for widgets"""
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        video_pairs_per_row = st.slider(
+            "Video-Answer pairs per row", 
+            1, 2, 
+            st.session_state.get(f"{role}_pairs_per_row", 1), 
+            key=f"{role}_pairs_per_row"
+        )
+        # Note: Don't manually set session state - Streamlit handles this automatically for widgets
+    
+    with col2:
+        # Handle edge cases for projects with very few videos
+        min_videos_per_page = video_pairs_per_row
+        max_videos_per_page = max(min(10, len(videos)), video_pairs_per_row + 1)
+        default_videos_per_page = min(min(4, len(videos)), max_videos_per_page)
+        
+        if len(videos) == 1:
+            st.write("Videos per page: 1 (only 1 video in project)")
+            # For single video, we don't need to store anything special
+        elif max_videos_per_page > min_videos_per_page:
+            videos_per_page = st.slider(
+                "Videos per page", 
+                min_videos_per_page, 
+                max_videos_per_page, 
+                st.session_state.get(f"{role}_per_page", default_videos_per_page),
+                key=f"{role}_per_page"
+            )
+            # Note: Don't manually set session state - Streamlit handles this automatically for widgets
+        else:
+            st.write(f"Videos per page: {len(videos)} (showing all)")
+            # For edge cases, we don't need to store anything special
 
 @st.fragment
 def display_video_answer_pair(
