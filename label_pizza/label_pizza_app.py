@@ -642,8 +642,199 @@ def format_accuracy_badge(accuracy: Optional[float], total_questions: int = 0) -
     else:
         return f'<span style="background: {color}; color: white; padding: 4px 8px; border-radius: 12px; font-weight: bold; font-size: 0.85rem;">📊 {accuracy:.1f}%</span>'
 
+@st.dialog("📊 Your Personal Accuracy Report", width="large")
+def show_personal_annotator_accuracy(user_id: int, project_id: int, session: Session):
+    """Show detailed personal accuracy report for a single annotator"""
+    
+    try:
+        # Get accuracy data
+        accuracy_data = GroundTruthService.get_annotator_accuracy(project_id=project_id, session=session)
+        if user_id not in accuracy_data:
+            st.warning("No accuracy data available for your account.")
+            return
+        
+        overall_accuracy = calculate_overall_accuracy(accuracy_data)
+        per_question_accuracy = calculate_per_question_accuracy(accuracy_data)
+        
+        # Get user and question information
+        user_info = AuthService.get_user_info_by_id(user_id=user_id, session=session)
+        questions = ProjectService.get_project_questions(project_id=project_id, session=session)
+        
+        # Create question lookup
+        question_lookup = {q["id"]: q["text"] for q in questions}
+        
+        user_name = user_info["user_id_str"]
+        accuracy = overall_accuracy.get(user_id)
+        
+        if accuracy is None:
+            st.warning("No accuracy data available.")
+            return
+        
+        # Personal overview
+        st.markdown(f"### 🎯 {user_name}'s Performance Report")
+        
+        # Overall score with color coding
+        color = get_accuracy_color(accuracy)
+        st.markdown(f"""
+        <div style="
+            background: linear-gradient(135deg, {color}20, {color}10);
+            border: 3px solid {color};
+            border-radius: 15px;
+            padding: 20px;
+            margin: 15px 0;
+            text-align: center;
+        ">
+            <h2 style="color: {color}; margin: 0;">🏆 Overall Accuracy: {accuracy:.1f}%</h2>
+            <p style="margin: 10px 0 0 0; font-size: 1.1rem;">
+                You answered {sum(stats["correct"] for stats in accuracy_data[user_id].values())} out of 
+                {sum(stats["total"] for stats in accuracy_data[user_id].values())} questions correctly
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Performance level
+        if accuracy >= 90:
+            st.success("🌟 **Excellent Performance!** You're doing great!")
+        elif accuracy >= 80:
+            st.info("👍 **Good Performance!** Keep up the good work!")
+        elif accuracy >= 70:
+            st.warning("📈 **Room for Improvement** - You're getting there!")
+        else:
+            st.error("📚 **Keep Learning** - Practice makes perfect!")
+        
+        # Detailed breakdown
+        st.markdown("---")
+        st.markdown("### 📋 Question-by-Question Breakdown")
+        
+        question_details = []
+        for question_id, question_text in question_lookup.items():
+            user_accuracy = per_question_accuracy.get(user_id, {}).get(question_id)
+            stats = accuracy_data[user_id].get(question_id, {"total": 0, "correct": 0})
+            
+            if stats["total"] > 0:
+                status = "✅ Correct" if user_accuracy == 100 else "❌ Incorrect" if user_accuracy == 0 else f"⭐ {user_accuracy:.1f}%"
+                question_details.append({
+                    "Question": question_text[:80] + ("..." if len(question_text) > 80 else ""),
+                    "Your Performance": status,
+                    "Score": f"{stats['correct']}/{stats['total']}"
+                })
+        
+        if question_details:
+            df = pd.DataFrame(question_details)
+            st.dataframe(df, use_container_width=True)
+            
+            # Download option
+            csv = df.to_csv(index=False)
+            st.download_button(
+                label="📥 Download your accuracy report",
+                data=csv,
+                file_name=f"my_accuracy_report_project_{project_id}.csv",
+                mime="text/csv"
+            )
+        else:
+            st.info("No detailed question data available.")
+    
+    except Exception as e:
+        st.error(f"Error loading your accuracy data: {str(e)}")
+
+@st.dialog("📊 Your Reviewer Accuracy Report", width="large")  
+def show_personal_reviewer_accuracy(user_id: int, project_id: int, session: Session):
+    """Show detailed personal accuracy report for a single reviewer"""
+    
+    try:
+        # Get accuracy data
+        accuracy_data = GroundTruthService.get_reviewer_accuracy(project_id=project_id, session=session)
+        if user_id not in accuracy_data:
+            st.warning("No reviewer accuracy data available for your account.")
+            return
+        
+        overall_accuracy = calculate_overall_accuracy(accuracy_data)
+        per_question_accuracy = calculate_per_question_accuracy(accuracy_data)
+        
+        # Get user and question information
+        user_info = AuthService.get_user_info_by_id(user_id=user_id, session=session)
+        questions = ProjectService.get_project_questions(project_id=project_id, session=session)
+        
+        # Create question lookup
+        question_lookup = {q["id"]: q["text"] for q in questions}
+        
+        user_name = user_info["user_id_str"]
+        accuracy = overall_accuracy.get(user_id)
+        
+        if accuracy is None:
+            st.warning("No accuracy data available.")
+            return
+        
+        # Personal overview
+        st.markdown(f"### 🎯 {user_name}'s Reviewer Performance Report")
+        st.caption("Accuracy is measured by how many of your ground truth answers were NOT overridden by admin")
+        
+        # Overall score with color coding
+        color = get_accuracy_color(accuracy)
+        st.markdown(f"""
+        <div style="
+            background: linear-gradient(135deg, {color}20, {color}10);
+            border: 3px solid {color};
+            border-radius: 15px;
+            padding: 20px;
+            margin: 15px 0;
+            text-align: center;
+        ">
+            <h2 style="color: {color}; margin: 0;">🏆 Reviewer Accuracy: {accuracy:.1f}%</h2>
+            <p style="margin: 10px 0 0 0; font-size: 1.1rem;">
+                {sum(stats["correct"] for stats in accuracy_data[user_id].values())} out of 
+                {sum(stats["total"] for stats in accuracy_data[user_id].values())} reviews were not overridden
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Performance level
+        if accuracy >= 90:
+            st.success("🌟 **Excellent Reviewing!** Your ground truth selections are very reliable!")
+        elif accuracy >= 80:
+            st.info("👍 **Good Reviewing!** Most of your decisions align with final ground truth!")
+        elif accuracy >= 70:
+            st.warning("📈 **Room for Improvement** - Some of your reviews were adjusted by admin.")
+        else:
+            st.error("📚 **Review Carefully** - Consider the guidelines more carefully.")
+        
+        # Detailed breakdown
+        st.markdown("---")
+        st.markdown("### 📋 Question-by-Question Review Performance")
+        
+        question_details = []
+        for question_id, question_text in question_lookup.items():
+            user_accuracy = per_question_accuracy.get(user_id, {}).get(question_id)
+            stats = accuracy_data[user_id].get(question_id, {"total": 0, "correct": 0})
+            
+            if stats["total"] > 0:
+                status = "✅ Not Overridden" if user_accuracy == 100 else "❌ Overridden by Admin" if user_accuracy == 0 else f"⭐ {user_accuracy:.1f}%"
+                question_details.append({
+                    "Question": question_text[:80] + ("..." if len(question_text) > 80 else ""),
+                    "Admin Override Status": status,
+                    "Reviews": f"{stats['correct']}/{stats['total']} kept"
+                })
+        
+        if question_details:
+            df = pd.DataFrame(question_details)
+            st.dataframe(df, use_container_width=True)
+            
+            # Download option
+            csv = df.to_csv(index=False)
+            st.download_button(
+                label="📥 Download your reviewer report",
+                data=csv,
+                file_name=f"my_reviewer_report_project_{project_id}.csv",
+                mime="text/csv"
+            )
+        else:
+            st.info("No detailed review data available.")
+    
+    except Exception as e:
+        st.error(f"Error loading your reviewer accuracy data: {str(e)}")
+
 def display_user_accuracy_simple(user_id: int, project_id: int, role: str, session: Session) -> bool:
-    """Display simple accuracy for a single user if project is in training mode
+    """Display simple accuracy for a single user if project is in training mode with personal report button
     
     Returns:
         True if accuracy was displayed, False otherwise
@@ -672,10 +863,19 @@ def display_user_accuracy_simple(user_id: int, project_id: int, role: str, sessi
                 total_answered = sum(stats["total"] for stats in accuracy_data[user_id].values())
                 
                 accuracy_badge = format_accuracy_badge(accuracy, total_answered)
-                st.markdown(f"**Your Training Accuracy:** {accuracy_badge}", unsafe_allow_html=True)
+                
+                # Create columns for accuracy display and detail button
+                acc_col1, acc_col2 = st.columns([2, 1])
+                with acc_col1:
+                    st.markdown(f"**Your Training Accuracy:** {accuracy_badge}", unsafe_allow_html=True)
+                with acc_col2:
+                    if st.button("📋 View Details", key=f"personal_acc_{user_id}_{project_id}", 
+                                help="View detailed accuracy breakdown"):
+                        show_personal_annotator_accuracy(user_id=user_id, project_id=project_id, session=session)
+                
                 return True
         
-        elif role in ["reviewer", "meta_reviewer"]:
+        elif role == "reviewer":  # Note: NOT meta_reviewer
             # Get reviewer accuracy
             accuracy_data = GroundTruthService.get_reviewer_accuracy(project_id=project_id, session=session)
             if user_id not in accuracy_data:
@@ -689,9 +889,21 @@ def display_user_accuracy_simple(user_id: int, project_id: int, role: str, sessi
                 total_reviewed = sum(stats["total"] for stats in accuracy_data[user_id].values())
                 
                 accuracy_badge = format_accuracy_badge(accuracy, total_reviewed)
-                role_name = "Meta-Reviewer" if role == "meta_reviewer" else "Reviewer"
-                st.markdown(f"**Your {role_name} Accuracy:** {accuracy_badge}", unsafe_allow_html=True)
+                
+                # Create columns for accuracy display and detail button
+                acc_col1, acc_col2 = st.columns([2, 1])
+                with acc_col1:
+                    st.markdown(f"**Your Reviewer Accuracy:** {accuracy_badge}", unsafe_allow_html=True)
+                with acc_col2:
+                    if st.button("📋 View Details", key=f"personal_rev_acc_{user_id}_{project_id}", 
+                                help="View detailed reviewer accuracy breakdown"):
+                        show_personal_reviewer_accuracy(user_id=user_id, project_id=project_id, session=session)
+                
                 return True
+        
+        elif role == "meta_reviewer":
+            # Meta-reviewers get the group analytics only, no personal report
+            return False
     
     except Exception as e:
         # Don't show errors for accuracy - it's an additional feature
@@ -1617,30 +1829,6 @@ def display_project_view(user_id: int, role: str, session: Session):
     # Show overall progress
     display_project_progress(user_id=user_id, project_id=project_id, role=role, session=session)
     
-    # NEW: Show accuracy analytics button for training mode projects (reviewer/meta-reviewer only)
-    if role in ["reviewer", "meta_reviewer"] and mode == "Training":
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            display_accuracy_button_for_project(project_id=project_id, role=role, session=session)
-        with col2:
-            # Reserve space or add other controls if needed
-            pass
-    
-    # Enhanced annotator selection for reviewers and meta-reviewers
-    if role in ["reviewer", "meta_reviewer"]:
-        try:
-            annotators = get_all_project_annotators(
-                project_id=project_id, 
-                session=session
-            )
-            display_smart_annotator_selection(
-                annotators=annotators, 
-                project_id=project_id
-            )
-        except Exception as e:
-            st.error(f"Error loading annotators: {str(e)}")
-            st.session_state.selected_annotators = []
-    
     # Get videos using service layer
     videos = get_project_videos(
         project_id=project_id, 
@@ -1651,35 +1839,117 @@ def display_project_view(user_id: int, role: str, session: Session):
         st.error("No videos found in this project.")
         return
     
-    # Video grid controls
-    st.markdown("### 🎛️ Video Layout Settings")
-    col1, col2 = st.columns(2)
-    with col1:
-        video_pairs_per_row = st.slider("Video-Answer pairs per row", 1, 2, 1, key=f"{role}_pairs_per_row")
-    with col2:
-        # Handle edge cases for projects with very few videos
-        min_videos_per_page = video_pairs_per_row
-        max_videos_per_page = max(min(10, len(videos)), video_pairs_per_row + 1)  # Ensure max > min
-        default_videos_per_page = min(min(4, len(videos)), max_videos_per_page)
+    # Role-specific control panels
+    if role in ["reviewer", "meta_reviewer"]:
+        st.markdown("---")
         
-        if len(videos) == 1:
-            # Special case: only 1 video, no need for slider
-            st.write("Videos per page: 1 (only 1 video in project)")
-            videos_per_page = 1
-        elif max_videos_per_page > min_videos_per_page:
-            videos_per_page = st.slider(
-                "Videos per page", 
-                min_videos_per_page, 
-                max_videos_per_page, 
-                default_videos_per_page, 
-                key=f"{role}_per_page"
-            )
+        # Create organized sections using tabs for better UX
+        if mode == "Training":
+            # For training mode: show analytics prominently
+            analytics_tab, controls_tab = st.tabs(["📊 Analytics & Settings", "🎛️ Review Controls"])
+            
+            with analytics_tab:
+                st.markdown("### 📊 Accuracy Analytics")
+                analytics_col1, analytics_col2 = st.columns([1, 1])
+                
+                with analytics_col1:
+                    display_accuracy_button_for_project(project_id=project_id, role=role, session=session)
+                
+                with analytics_col2:
+                    # Reserve for future analytics or leave for balance
+                    st.empty()
+            
+            with controls_tab:
+                # Enhanced annotator selection for reviewers and meta-reviewers
+                try:
+                    annotators = get_all_project_annotators(
+                        project_id=project_id, 
+                        session=session
+                    )
+                    display_smart_annotator_selection(
+                        annotators=annotators, 
+                        project_id=project_id
+                    )
+                except Exception as e:
+                    st.error(f"Error loading annotators: {str(e)}")
+                    st.session_state.selected_annotators = []
         else:
-            # Fallback: show all videos if slider would be invalid
-            st.write(f"Videos per page: {len(videos)} (showing all)")
-            videos_per_page = len(videos)
+            # For annotation mode: simpler layout, focus on controls
+            st.markdown("### 🎛️ Review Controls")
+            
+            # Enhanced annotator selection for reviewers and meta-reviewers
+            try:
+                annotators = get_all_project_annotators(
+                    project_id=project_id, 
+                    session=session
+                )
+                display_smart_annotator_selection(
+                    annotators=annotators, 
+                    project_id=project_id
+                )
+            except Exception as e:
+                st.error(f"Error loading annotators: {str(e)}")
+                st.session_state.selected_annotators = []
+        
+        # Video Layout Controls - moved to expandable section for cleaner look
+        with st.expander("🎛️ Video Layout Settings", expanded=False):
+            col1, col2 = st.columns(2)
+            with col1:
+                video_pairs_per_row = st.slider("Video-Answer pairs per row", 1, 2, 1, key=f"{role}_pairs_per_row")
+            with col2:
+                # Handle edge cases for projects with very few videos
+                min_videos_per_page = video_pairs_per_row
+                max_videos_per_page = max(min(10, len(videos)), video_pairs_per_row + 1)  # Ensure max > min
+                default_videos_per_page = min(min(4, len(videos)), max_videos_per_page)
+                
+                if len(videos) == 1:
+                    # Special case: only 1 video, no need for slider
+                    st.write("Videos per page: 1 (only 1 video in project)")
+                    videos_per_page = 1
+                elif max_videos_per_page > min_videos_per_page:
+                    videos_per_page = st.slider(
+                        "Videos per page", 
+                        min_videos_per_page, 
+                        max_videos_per_page, 
+                        default_videos_per_page, 
+                        key=f"{role}_per_page"
+                    )
+                else:
+                    # Fallback: show all videos if slider would be invalid
+                    st.write(f"Videos per page: {len(videos)} (showing all)")
+                    videos_per_page = len(videos)
     
-    # Calculate pagination parameters (but don't show UI controls yet)
+    else:  # Annotator role - simpler layout
+        # Simple video layout controls for annotators
+        with st.expander("🎛️ Video Layout Settings", expanded=False):
+            col1, col2 = st.columns(2)
+            with col1:
+                video_pairs_per_row = st.slider("Video-Answer pairs per row", 1, 2, 1, key=f"{role}_pairs_per_row")
+            with col2:
+                # Handle edge cases for projects with very few videos
+                min_videos_per_page = video_pairs_per_row
+                max_videos_per_page = max(min(10, len(videos)), video_pairs_per_row + 1)
+                default_videos_per_page = min(min(4, len(videos)), max_videos_per_page)
+                
+                if len(videos) == 1:
+                    st.write("Videos per page: 1 (only 1 video in project)")
+                    videos_per_page = 1
+                elif max_videos_per_page > min_videos_per_page:
+                    videos_per_page = st.slider(
+                        "Videos per page", 
+                        min_videos_per_page, 
+                        max_videos_per_page, 
+                        default_videos_per_page, 
+                        key=f"{role}_per_page"
+                    )
+                else:
+                    st.write(f"Videos per page: {len(videos)} (showing all)")
+                    videos_per_page = len(videos)
+    
+    # Separator before videos
+    st.markdown("---")
+    
+    # Calculate pagination parameters
     total_pages = (len(videos) - 1) // videos_per_page + 1
     
     # Initialize page state with a unique key per project
