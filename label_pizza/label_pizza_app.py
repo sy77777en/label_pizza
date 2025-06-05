@@ -16,6 +16,7 @@ NEW FEATURES:
 9. **NEW**: Accuracy information in assignment management
 10. **IMPROVED**: Better layout for reviewer/meta-reviewer portal with integrated controls
 11. **IMPROVED**: Paginated project dashboard with assignment dates and better performance
+12. **ENHANCED**: Clearer project group visualization and compact tab layouts
 """
 
 import streamlit as st
@@ -1539,7 +1540,7 @@ def get_user_assignment_dates(user_id: int, session: Session) -> Dict[int, Dict[
         return {}
 
 def display_project_dashboard(user_id: int, role: str, session: Session) -> Optional[int]:
-    """Display project group dashboard with pagination and assignment dates"""
+    """Display project group dashboard with enhanced clarity and pagination"""
     
     st.markdown("## 📂 Project Dashboard")
     
@@ -1556,7 +1557,8 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
     # Get assignment dates for this user
     assignment_dates = get_user_assignment_dates(user_id=user_id, session=session)
     
-    # Global search and sort controls
+    # Global search and sort controls with enhanced styling
+    st.markdown("### 🔍 Search & Filter")
     col1, col2, col3 = st.columns(3)
     with col1:
         search_term = st.text_input("🔍 Search projects", placeholder="Enter project name...")
@@ -1565,10 +1567,12 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
     with col3:
         sort_order = st.selectbox("Order", ["Ascending", "Descending"])
     
-    # Display each group with pagination
+    st.markdown("---")
+    
+    # Display each group with enhanced visual separation
     selected_project_id = None
     
-    for group_name, projects in grouped_projects.items():
+    for group_index, (group_name, projects) in enumerate(grouped_projects.items()):
         if not projects:
             continue
         
@@ -1626,7 +1630,7 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
             # Default sort by completion rate ascending
             filtered_projects = sorted(filtered_projects, key=lambda x: x["completion_rate"])
         
-        # Group header with pagination info
+        # Group header with enhanced styling and clearer identification
         total_projects = len(filtered_projects)
         projects_per_page = 6  # Show 6 projects per page
         total_pages = (total_projects - 1) // projects_per_page + 1 if total_projects > 0 else 1
@@ -1638,43 +1642,61 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
         
         current_page = st.session_state[page_key]
         
-        # Group header with improved styling
+        # ENHANCED: Much clearer group header with distinct styling
+        group_color = ["#3498db", "#e74c3c", "#2ecc71", "#f39c12", "#9b59b6", "#1abc9c"][group_index % 6]
         st.markdown(f"""
         <div style="
-            background: linear-gradient(135deg, #e8f4f8, #d5e8f0);
-            border: 2px solid #3498db;
-            border-radius: 12px;
-            padding: 16px 20px;
-            margin: 20px 0 15px 0;
-            box-shadow: 0 4px 8px rgba(52, 152, 219, 0.15);
+            background: linear-gradient(135deg, {group_color}15, {group_color}08);
+            border: 3px solid {group_color};
+            border-radius: 15px;
+            padding: 20px 25px;
+            margin: 25px 0 20px 0;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+            position: relative;
         ">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="
+                position: absolute;
+                top: -8px;
+                left: 20px;
+                background: {group_color};
+                color: white;
+                padding: 4px 12px;
+                border-radius: 10px;
+                font-size: 0.8rem;
+                font-weight: bold;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            ">
+                PROJECT GROUP
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
                 <div>
-                    <h3 style="margin: 0; color: #2980b9;">📁 {group_name}</h3>
-                    <p style="margin: 5px 0 0 0; color: #34495e; font-size: 0.9rem;">
-                        {total_projects} projects total {f"• Page {current_page + 1} of {total_pages}" if total_pages > 1 else ""}
+                    <h2 style="margin: 0; color: {group_color}; font-size: 1.8rem;">📁 {group_name}</h2>
+                    <p style="margin: 8px 0 0 0; color: #34495e; font-size: 1.1rem; font-weight: 500;">
+                        {total_projects} projects in this group {f"• Page {current_page + 1} of {total_pages}" if total_pages > 1 else ""}
                     </p>
                 </div>
                 <div style="text-align: right;">
                     <span style="
-                        background: #3498db;
+                        background: {group_color};
                         color: white;
-                        padding: 6px 12px;
-                        border-radius: 15px;
+                        padding: 10px 18px;
+                        border-radius: 20px;
                         font-weight: bold;
-                        font-size: 0.9rem;
+                        font-size: 1.1rem;
+                        box-shadow: 0 3px 6px rgba(0,0,0,0.2);
                     ">{total_projects} Projects</span>
                 </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
         
-        # Pagination controls for this group (if needed)
+        # Pagination controls for this group (if needed) with better button alignment
         if total_pages > 1:
+            # FIXED: Better column ratios and full-width next button
             page_col1, page_col2, page_col3 = st.columns([1, 2, 1])
             
             with page_col1:
-                if st.button("◀ Previous", disabled=(current_page == 0), key=f"prev_{page_key}"):
+                if st.button("◀ Previous", disabled=(current_page == 0), key=f"prev_{page_key}", use_container_width=True):
                     st.session_state[page_key] = max(0, current_page - 1)
                     st.rerun()
             
@@ -1693,7 +1715,8 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
                     st.rerun()
             
             with page_col3:
-                if st.button("Next ▶", disabled=(current_page == total_pages - 1), key=f"next_{page_key}"):
+                # FIXED: Use use_container_width=True to span entire right column
+                if st.button("Next ▶", disabled=(current_page == total_pages - 1), key=f"next_{page_key}", use_container_width=True):
                     st.session_state[page_key] = min(total_pages - 1, current_page + 1)
                     st.rerun()
         
@@ -1702,7 +1725,7 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
         end_idx = min(start_idx + projects_per_page, total_projects)
         page_projects = filtered_projects[start_idx:end_idx]
         
-        # Display projects in grid
+        # Display projects in grid with enhanced clarity
         if page_projects:
             # Use 3 columns for better layout
             cols = st.columns(3)
@@ -1718,40 +1741,67 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
                     assignment_date = project.get("assignment_date", "Unknown")
                     progress_text = f"{completion_rate:.1f}% Complete"
                     
-                    # Enhanced project card with assignment date
+                    # Enhanced project card with better group context
                     with st.container():
                         st.markdown(f"""
                         <div style="
-                            border: 1px solid #ddd;
-                            border-radius: 10px;
-                            padding: 1rem;
-                            margin: 0.5rem 0;
-                            background: white;
-                            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                            min-height: 180px;
+                            border: 2px solid {group_color};
+                            border-radius: 12px;
+                            padding: 18px;
+                            margin: 8px 0;
+                            background: linear-gradient(135deg, white, {group_color}05);
+                            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                            min-height: 200px;
+                            position: relative;
                         ">
-                            <h4 style="margin: 0 0 0.5rem 0; color: #1f77b4;">{project["name"]}</h4>
-                            <p style="margin: 0.5rem 0; color: #666; font-size: 0.9rem; min-height: 40px;">
+                            <div style="
+                                position: absolute;
+                                top: -6px;
+                                right: 10px;
+                                background: {group_color};
+                                color: white;
+                                padding: 2px 6px;
+                                border-radius: 6px;
+                                font-size: 0.7rem;
+                                font-weight: bold;
+                            ">
+                                {group_name[:15]}{"..." if len(group_name) > 15 else ""}
+                            </div>
+                            <h4 style="margin: 10px 0 8px 0; color: #1f77b4; font-size: 1.1rem;">{project["name"]}</h4>
+                            <p style="margin: 8px 0; color: #666; font-size: 0.9rem; min-height: 50px;">
                                 {project["description"] or 'No description'}
                             </p>
-                            <div style="margin: 0.8rem 0;">
-                                <p style="margin: 0.3rem 0;"><strong>Mode:</strong> {mode}</p>
-                                <p style="margin: 0.3rem 0;"><strong>Progress:</strong> {progress_text}</p>
-                                <p style="margin: 0.3rem 0; color: #666; font-size: 0.85rem;">
+                            <div style="margin: 12px 0;">
+                                <p style="margin: 4px 0;"><strong>Mode:</strong> {mode}</p>
+                                <p style="margin: 4px 0;"><strong>Progress:</strong> {progress_text}</p>
+                                <p style="margin: 4px 0; color: #666; font-size: 0.85rem;">
                                     <strong>Assigned:</strong> {assignment_date}
                                 </p>
                             </div>
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        # Select button
-                        if st.button(f"Select {project['name']}", key=f"select_project_{project['id']}", use_container_width=True):
+                        # Select button with group-aware styling
+                        if st.button(f"Select {project['name']}", 
+                                   key=f"select_project_{project['id']}", 
+                                   use_container_width=True,
+                                   help=f"Open project from {group_name} group"):
                             selected_project_id = project["id"]
                             st.session_state.selected_project_id = project["id"]
                             st.session_state.current_view = "project"
                             st.rerun()
         else:
             st.info(f"No projects match your search in {group_name}")
+        
+        # Add visual separator between groups (except for last group)
+        if group_index < len(grouped_projects) - 1:
+            st.markdown("""
+                <div style="
+                    height: 2px;
+                    background: linear-gradient(90deg, transparent, #ddd, transparent);
+                    margin: 30px 0;
+                "></div>
+            """, unsafe_allow_html=True)
         
         if selected_project_id:
             break
@@ -1798,9 +1848,6 @@ def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: i
             total_count = len(annotator_options)
             st.metric("Selected", f"{selected_count}/{total_count}", 
                      delta=f"{selected_count} active", label_visibility="visible")
-    
-    # Clean separator
-    st.markdown("---")
     
     # Annotator selection section with better organization
     selection_container = st.container()
@@ -1889,10 +1936,8 @@ def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: i
             initials_text = f"{', '.join(shown)} + {remaining} more"
         
         # Better styled summary
-        st.markdown("---")
         st.success(f"✅ **Currently Selected:** {initials_text}")
     else:
-        st.markdown("---")
         st.warning("⚠️ **No annotators selected** - results will only show ground truth")
     
     return st.session_state.selected_annotators
@@ -1995,14 +2040,14 @@ def display_project_view(user_id: int, role: str, session: Session):
         st.error("No videos found in this project.")
         return
     
-    # IMPROVED: Role-specific control panels with integrated layout controls
+    # IMPROVED: Role-specific control panels with more compact tab layouts
     if role in ["reviewer", "meta_reviewer"]:
         st.markdown("---")
         
-        # IMPROVED: Better integrated tabs with video layout controls
+        # ENHANCED: More compact tabs with better layout
         if mode == "Training":
             # For training mode: analytics, annotator selection, and layout controls
-            analytics_tab, annotator_tab, layout_tab = st.tabs(["📊 Accuracy Analytics", "👥 Annotator Selection", "🎛️ Video Layout"])
+            analytics_tab, annotator_tab, layout_tab = st.tabs(["📊 Analytics", "👥 Annotators", "🎛️ Layout"])
             
             with analytics_tab:
                 st.markdown("#### 🎯 Performance Insights")
@@ -2013,7 +2058,7 @@ def display_project_view(user_id: int, role: str, session: Session):
                 with col2:
                     display_accuracy_button_for_project(project_id=project_id, role=role, session=session)
                 
-                st.markdown("---")
+                # REMOVED: st.markdown("---") for more compact layout
                 st.info("💡 **Tip:** Use analytics to identify patterns in annotator performance and areas for improvement.")
             
             with annotator_tab:
@@ -2033,18 +2078,18 @@ def display_project_view(user_id: int, role: str, session: Session):
                     st.error(f"Error loading annotators: {str(e)}")
                     st.session_state.selected_annotators = []
                 
-                st.markdown("---")
+                # REMOVED: st.markdown("---") for more compact layout
                 st.info("💡 **Tip:** Select annotators whose responses you want to see alongside your review interface.")
             
             with layout_tab:
                 st.markdown("#### 🎛️ Video Layout Settings")
                 _display_video_layout_controls(videos, role)
                 
-                st.markdown("---")
+                # REMOVED: st.markdown("---") for more compact layout
                 st.info("💡 **Tip:** Adjust layout to optimize your review workflow.")
         else:
             # For annotation mode: annotator selection and layout controls
-            annotator_tab, layout_tab = st.tabs(["👥 Annotator Selection", "🎛️ Video Layout"])
+            annotator_tab, layout_tab = st.tabs(["👥 Annotators", "🎛️ Layout"])
             
             with annotator_tab:
                 st.markdown("#### 👥 Annotator Management")
@@ -2063,26 +2108,26 @@ def display_project_view(user_id: int, role: str, session: Session):
                     st.error(f"Error loading annotators: {str(e)}")
                     st.session_state.selected_annotators = []
                 
-                st.markdown("---")
+                # REMOVED: st.markdown("---") for more compact layout
                 st.info("💡 **Tip:** Select annotators whose responses you want to see alongside your review interface.")
             
             with layout_tab:
                 st.markdown("#### 🎛️ Video Layout Settings")
                 _display_video_layout_controls(videos, role)
                 
-                st.markdown("---")
+                # REMOVED: st.markdown("---") for more compact layout
                 st.info("💡 **Tip:** Adjust layout to optimize your review workflow.")
     
-    else:  # Annotator role - simpler single tab
+    else:  # Annotator role - simpler single tab with compact layout
         st.markdown("---")
         
-        layout_tab, = st.tabs(["🎛️ Video Layout Settings"])
+        layout_tab, = st.tabs(["🎛️ Layout Settings"])
         
         with layout_tab:
             st.markdown("#### 🎛️ Video Layout Settings")
             _display_video_layout_controls(videos, role)
             
-            st.markdown("---")
+            # REMOVED: st.markdown("---") for more compact layout
             st.info("💡 **Tip:** Adjust layout to optimize your annotation workflow.")
     
     # Get layout settings from session state (automatically managed by Streamlit widgets)
@@ -2220,6 +2265,7 @@ def display_project_view(user_id: int, role: str, session: Session):
                     pass
         
         with nav_col3:
+            # ENHANCED: Use use_container_width=True for better alignment
             if st.button("Next Page ▶", disabled=(current_page == total_pages - 1), key=f"{role}_next_{project_id}", use_container_width=True):
                 st.session_state[page_key] = min(total_pages - 1, current_page + 1)
                 st.rerun()
