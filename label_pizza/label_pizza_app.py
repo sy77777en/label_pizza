@@ -1986,7 +1986,7 @@ def display_project_progress(user_id: int, project_id: int, role: str, session: 
             st.error(f"Error loading project progress: {str(e)}")
 
 def display_project_view(user_id: int, role: str, session: Session):
-    """Display the selected project with improved layout for reviewer/meta-reviewer"""
+    """Display the selected project with improved modern UI for reviewer/meta-reviewer tabs"""
     project_id = st.session_state.selected_project_id
     
     # Back button
@@ -2040,60 +2040,151 @@ def display_project_view(user_id: int, role: str, session: Session):
         st.error("No videos found in this project.")
         return
     
-    # IMPROVED: Role-specific control panels with more compact tab layouts
+    # IMPROVED: Modern, compact control panels with elegant card-style layouts
     if role in ["reviewer", "meta_reviewer"]:
         st.markdown("---")
         
-        # ENHANCED: More compact tabs with better layout
+        # Enhanced compact tabs with modern styling
         if mode == "Training":
             # For training mode: analytics, annotator selection, and layout controls
             analytics_tab, annotator_tab, layout_tab = st.tabs(["📊 Analytics", "👥 Annotators", "🎛️ Layout"])
             
             with analytics_tab:
-                st.markdown("#### 🎯 Performance Insights")
-                st.markdown("Access detailed accuracy analytics for all participants in this training project.")
+                # Modern card layout for analytics
+                st.markdown("""
+                <div style="
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    border-radius: 12px;
+                    padding: 20px;
+                    margin: 10px 0;
+                    box-shadow: 0 8px 32px rgba(102, 126, 234, 0.2);
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                ">
+                    <div style="color: white; margin-bottom: 15px;">
+                        <h4 style="margin: 0; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 1.2em;">🎯</span>
+                            Performance Analytics
+                        </h4>
+                        <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 0.9rem;">
+                            Detailed accuracy insights for all training participants
+                        </p>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
                 
-                # Center the analytics button
+                # Centered analytics button with modern styling
                 col1, col2, col3 = st.columns([1, 2, 1])
                 with col2:
-                    display_accuracy_button_for_project(project_id=project_id, role=role, session=session)
-                
-                # REMOVED: st.markdown("---") for more compact layout
-                st.info("💡 **Tip:** Use analytics to identify patterns in annotator performance and areas for improvement.")
+                    # Custom button styling
+                    analytics_available = display_accuracy_button_for_project(project_id=project_id, role=role, session=session)
+                    if not analytics_available:
+                        st.info("🔄 Analytics will be available once participants complete the training")
             
             with annotator_tab:
-                st.markdown("#### 👥 Annotator Management")
-                st.markdown("Select which annotators' responses to display during your review process.")
+                # Modern card layout for annotator selection
+                st.markdown("""
+                <div style="
+                    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                    border-radius: 12px;
+                    padding: 20px;
+                    margin: 10px 0;
+                    box-shadow: 0 8px 32px rgba(240, 147, 251, 0.2);
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                ">
+                    <div style="color: white; margin-bottom: 15px;">
+                        <h4 style="margin: 0; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 1.2em;">👥</span>
+                            Annotator Selection
+                        </h4>
+                        <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 0.9rem;">
+                            Choose which annotators' responses to display during review
+                        </p>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
                 
+                # Compact annotator selection with improved error handling
                 try:
                     annotators = get_all_project_annotators(
                         project_id=project_id, 
                         session=session
                     )
-                    display_smart_annotator_selection(
-                        annotators=annotators, 
-                        project_id=project_id
-                    )
+                    if annotators:
+                        # Compact selection interface
+                        st.markdown("##### 🎯 **Quick Selection**")
+                        display_smart_annotator_selection(
+                            annotators=annotators, 
+                            project_id=project_id
+                        )
+                    else:
+                        st.markdown("""
+                        <div style="
+                            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+                            border-radius: 8px;
+                            padding: 16px;
+                            text-align: center;
+                            border: 1px solid rgba(252, 182, 159, 0.3);
+                        ">
+                            <p style="margin: 0; color: #8b4513; font-weight: 500;">
+                                📝 No annotator responses yet. Responses will appear here as participants submit answers.
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
                 except Exception as e:
                     st.error(f"Error loading annotators: {str(e)}")
                     st.session_state.selected_annotators = []
-                
-                # REMOVED: st.markdown("---") for more compact layout
-                st.info("💡 **Tip:** Select annotators whose responses you want to see alongside your review interface.")
             
             with layout_tab:
-                st.markdown("#### 🎛️ Video Layout Settings")
-                _display_video_layout_controls(videos, role)
+                # Modern card layout for layout controls
+                st.markdown("""
+                <div style="
+                    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+                    border-radius: 12px;
+                    padding: 20px;
+                    margin: 10px 0;
+                    box-shadow: 0 8px 32px rgba(79, 172, 254, 0.2);
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                ">
+                    <div style="color: white; margin-bottom: 15px;">
+                        <h4 style="margin: 0; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 1.2em;">🎛️</span>
+                            Display Settings
+                        </h4>
+                        <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 0.9rem;">
+                            Customize your review interface layout
+                        </p>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
                 
-                # REMOVED: st.markdown("---") for more compact layout
-                st.info("💡 **Tip:** Adjust layout to optimize your review workflow.")
+                # Compact layout controls
+                _display_compact_video_layout_controls(videos, role)
         else:
             # For annotation mode: annotator selection and layout controls
             annotator_tab, layout_tab = st.tabs(["👥 Annotators", "🎛️ Layout"])
             
             with annotator_tab:
-                st.markdown("#### 👥 Annotator Management")
-                st.markdown("Select which annotators' responses to display during your review process.")
+                # Annotation mode styling
+                st.markdown("""
+                <div style="
+                    background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+                    border-radius: 12px;
+                    padding: 20px;
+                    margin: 10px 0;
+                    box-shadow: 0 8px 32px rgba(168, 237, 234, 0.2);
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                ">
+                    <div style="color: #2c3e50; margin-bottom: 15px;">
+                        <h4 style="margin: 0; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 1.2em;">👥</span>
+                            Review Participants
+                        </h4>
+                        <p style="margin: 8px 0 0 0; opacity: 0.8; font-size: 0.9rem;">
+                            Select annotators to review during annotation mode
+                        </p>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
                 
                 try:
                     annotators = get_all_project_annotators(
@@ -2107,28 +2198,59 @@ def display_project_view(user_id: int, role: str, session: Session):
                 except Exception as e:
                     st.error(f"Error loading annotators: {str(e)}")
                     st.session_state.selected_annotators = []
-                
-                # REMOVED: st.markdown("---") for more compact layout
-                st.info("💡 **Tip:** Select annotators whose responses you want to see alongside your review interface.")
             
             with layout_tab:
-                st.markdown("#### 🎛️ Video Layout Settings")
-                _display_video_layout_controls(videos, role)
+                st.markdown("""
+                <div style="
+                    background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+                    border-radius: 12px;
+                    padding: 20px;
+                    margin: 10px 0;
+                    box-shadow: 0 8px 32px rgba(255, 236, 210, 0.2);
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                ">
+                    <div style="color: #8b4513; margin-bottom: 15px;">
+                        <h4 style="margin: 0; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 1.2em;">🎛️</span>
+                            Interface Layout
+                        </h4>
+                        <p style="margin: 8px 0 0 0; opacity: 0.8; font-size: 0.9rem;">
+                            Optimize your annotation workflow
+                        </p>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
                 
-                # REMOVED: st.markdown("---") for more compact layout
-                st.info("💡 **Tip:** Adjust layout to optimize your review workflow.")
+                _display_compact_video_layout_controls(videos, role)
     
-    else:  # Annotator role - simpler single tab with compact layout
+    else:  # Annotator role - simple, elegant single tab
         st.markdown("---")
         
-        layout_tab, = st.tabs(["🎛️ Layout Settings"])
+        layout_tab, = st.tabs(["🎛️ Settings"])
         
         with layout_tab:
-            st.markdown("#### 🎛️ Video Layout Settings")
-            _display_video_layout_controls(videos, role)
+            st.markdown("""
+            <div style="
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border-radius: 12px;
+                padding: 20px;
+                margin: 10px 0;
+                box-shadow: 0 8px 32px rgba(102, 126, 234, 0.2);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+            ">
+                <div style="color: white; margin-bottom: 15px;">
+                    <h4 style="margin: 0; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 1.2em;">⚙️</span>
+                        Annotation Settings
+                    </h4>
+                    <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 0.9rem;">
+                        Customize your annotation interface
+                    </p>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
             
-            # REMOVED: st.markdown("---") for more compact layout
-            st.info("💡 **Tip:** Adjust layout to optimize your annotation workflow.")
+            _display_compact_video_layout_controls(videos, role)
     
     # Get layout settings from session state (automatically managed by Streamlit widgets)
     video_pairs_per_row = st.session_state.get(f"{role}_pairs_per_row", 1)
@@ -2175,7 +2297,7 @@ def display_project_view(user_id: int, role: str, session: Session):
         # Add some spacing between rows
         st.markdown("---")
     
-    # PAGINATION CONTROLS MOVED TO BOTTOM
+    # PAGINATION CONTROLS MOVED TO BOTTOM (unchanged from original)
     if total_pages > 1:
         # Create smart pagination options
         def get_pagination_options(current, total):
@@ -2265,7 +2387,6 @@ def display_project_view(user_id: int, role: str, session: Session):
                     pass
         
         with nav_col3:
-            # ENHANCED: Use use_container_width=True for better alignment
             if st.button("Next Page ▶", disabled=(current_page == total_pages - 1), key=f"{role}_next_{project_id}", use_container_width=True):
                 st.session_state[page_key] = min(total_pages - 1, current_page + 1)
                 st.rerun()
@@ -2273,18 +2394,35 @@ def display_project_view(user_id: int, role: str, session: Session):
         # Show current page info at the bottom
         st.markdown(f"<div style='text-align: center; color: #6c757d; margin-top: 1rem;'>Page {current_page + 1} of {total_pages}</div>", unsafe_allow_html=True)
 
-def _display_video_layout_controls(videos: List[Dict], role: str):
-    """Display video layout controls - Streamlit automatically handles session state for widgets"""
+
+def _display_compact_video_layout_controls(videos: List[Dict], role: str):
+    """Compact, modern layout controls with elegant styling"""
+    
+    # Modern control panel styling
+    st.markdown("""
+    <div style="
+        background: rgba(255, 255, 255, 0.8);
+        border-radius: 8px;
+        padding: 16px;
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+        backdrop-filter: blur(10px);
+    ">
+    """, unsafe_allow_html=True)
+    
+    # Compact two-column layout
     col1, col2 = st.columns(2)
     
     with col1:
+        # Modern slider with custom styling
+        st.markdown("**🔄 Layout**")
         video_pairs_per_row = st.slider(
-            "Video-Answer pairs per row", 
+            "Pairs per row", 
             1, 2, 
             st.session_state.get(f"{role}_pairs_per_row", 1), 
-            key=f"{role}_pairs_per_row"
+            key=f"{role}_pairs_per_row",
+            help="Choose how many video-answer pairs to show side by side"
         )
-        # Note: Don't manually set session state - Streamlit handles this automatically for widgets
     
     with col2:
         # Handle edge cases for projects with very few videos
@@ -2293,20 +2431,38 @@ def _display_video_layout_controls(videos: List[Dict], role: str):
         default_videos_per_page = min(min(4, len(videos)), max_videos_per_page)
         
         if len(videos) == 1:
-            st.write("Videos per page: 1 (only 1 video in project)")
-            # For single video, we don't need to store anything special
+            st.markdown("**📄 Pagination**")
+            st.info("1 video (showing all)")
         elif max_videos_per_page > min_videos_per_page:
+            st.markdown("**📄 Pagination**")
             videos_per_page = st.slider(
                 "Videos per page", 
                 min_videos_per_page, 
                 max_videos_per_page, 
                 st.session_state.get(f"{role}_per_page", default_videos_per_page),
-                key=f"{role}_per_page"
+                key=f"{role}_per_page",
+                help="Choose how many videos to show per page"
             )
-            # Note: Don't manually set session state - Streamlit handles this automatically for widgets
         else:
-            st.write(f"Videos per page: {len(videos)} (showing all)")
-            # For edge cases, we don't need to store anything special
+            st.markdown("**📄 Pagination**")
+            st.info(f"{len(videos)} videos (showing all)")
+    
+    st.markdown("</div>", unsafe_allow_html=True)
+    
+    # Quick tips in a subtle, modern format
+    st.markdown("""
+    <div style="
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+        border-radius: 6px;
+        padding: 12px;
+        margin-top: 12px;
+        border-left: 3px solid #007bff;
+    ">
+        <p style="margin: 0; font-size: 0.85rem; color: #495057;">
+            <strong>💡 Pro Tips:</strong> Use 2 pairs per row for quick comparisons • Adjust videos per page based on your screen size
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
 @st.fragment
 def display_video_answer_pair(
