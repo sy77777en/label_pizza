@@ -87,7 +87,8 @@ Archiving supports takedowns.
 | column | type | notes |
 | ------ | ---- | ----- |
 | `id`                 | INT PK |
-| `text`               | TEXT UNIQUE |
+| `text`               | TEXT UNIQUE, immutable after creation |
+| `display_text`       | TEXT, editable, for UI |
 | `type`               | ENUM (single / description) |
 | `options`            | JSONB array nullable (single-choice) |
 | `display_values`     | JSONB array nullable (single-choice) |
@@ -96,7 +97,7 @@ Archiving supports takedowns.
 | `created_at`         | TIMESTAMPTZ |
 
 **Rationale** – Supports both radio and free-text; single-choice values indexed, descriptions not.  
-Question text must be unique to prevent confusion and ensure consistent labeling.
+Question text must be unique and is immutable after creation (use display_text for UI changes).  
 For single-choice questions:
 - `options` stores the actual values used in answers
 - `display_values` stores the UI-friendly text for each option

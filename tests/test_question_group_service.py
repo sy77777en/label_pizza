@@ -10,7 +10,8 @@ def test_question_group_service_create_group(session):
         qtype="single",
         options=["option1", "option2"],
         default="option1",
-        session=session
+        session=session,
+        display_text="Test Question"
     )
     question = QuestionService.get_question_by_text("test question", session)
     
@@ -36,7 +37,8 @@ def test_question_group_service_create_group_duplicate(session, test_question_gr
         qtype="single",
         options=["option1", "option2"],
         default="option1",
-        session=session
+        session=session,
+        display_text="Test Question"
     )
     new_question = QuestionService.get_question_by_text("test question", session)
     with pytest.raises(ValueError, match="Question group with title 'test_group' already exists"):
@@ -63,6 +65,8 @@ def test_question_group_service_create_group_with_questions(session, test_questi
     questions = QuestionGroupService.get_group_questions(group.id, session)
     assert len(questions) == 1
     assert questions.iloc[0]["ID"] == test_question.id
+    assert questions.iloc[0]["Text"] == "test question"
+    assert questions.iloc[0]["Display Text"] == "Test Question"
 
 def test_question_group_service_create_group_with_invalid_question(session):
     """Test creating a group with invalid question ID."""
@@ -120,6 +124,7 @@ def test_question_group_service_get_group_questions(session, test_question_group
     assert isinstance(questions, pd.DataFrame)
     assert len(questions) == 1
     assert questions.iloc[0]["Text"] == "test question"
+    assert questions.iloc[0]["Display Text"] == "Test Question"
     assert questions.iloc[0]["Type"] == "single"
     assert questions.iloc[0]["Options"] == "option1, option2"
     assert questions.iloc[0]["Default"] == "option1"
@@ -158,7 +163,8 @@ def test_question_group_service_update_question_order(session, test_question_gro
         qtype="single",
         options=["option1", "option2"],
         default="option1",
-        session=session
+        session=session,
+        display_text="Test Question 2"
     )
     question2 = QuestionService.get_question_by_text("test question 2", session)
     

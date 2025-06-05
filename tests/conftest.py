@@ -76,7 +76,8 @@ def test_schema(session):
         options=["option1", "option2"],
         default="option1",
         session=session,
-        display_values=["Option 1", "Option 2"]
+        display_values=["Option 1", "Option 2"],
+        display_text="Test Question for Schema"
     )
     question = QuestionService.get_question_by_text("test question for schema", session)
     
@@ -104,7 +105,8 @@ def test_question_group(session):
         options=["option1", "option2"],
         default="option1",
         session=session,
-        display_values=["Option 1", "Option 2"]
+        display_values=["Option 1", "Option 2"],
+        display_text="Test Question"
     )
     question = QuestionService.get_question_by_text("test question", session)
     
@@ -128,7 +130,8 @@ def test_question(session):
         options=["option1", "option2"],
         default="option1",
         session=session,
-        display_values=["Option 1", "Option 2"]
+        display_values=["Option 1", "Option 2"],
+        display_text="Test Question"
     )
     return QuestionService.get_question_by_text("test question", session)
 

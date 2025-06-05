@@ -144,15 +144,15 @@ Service-Layer API Spec
 | Function                                                 | Status | Parameters | Returns | Rules enforced |
 | -------------------------------------------------------- | ------ | ---------- | ------- | -------------- |
 | `get_all_questions(session)`                             | ✔︎     | —          | `DataFrame` | — |
-| `add_question(text, qtype, options, default, session, display_values)` | ✔︎ | — | `Question` | • Default in options 🛡️<br>• Unique text 🛡️ |
+| `add_question(text, qtype, options, default, session, display_values, display_text)` | ✔︎ | — | `Question` | • Default in options 🛡️<br>• Unique text 🛡️<br>• display_text is UI-only, text is immutable after creation 🛡️ |
 | `get_question_by_text(text, session)`                    | ✔︎     | —          | `Question` | — |
 | `get_question_by_id(question_id, session)`               | ✔︎     | —          | `Question` | — |
-| `edit_question(question_id, new_text, new_opts, new_default, session, new_display_values)` | ✔︎ | — | `None` | • Cannot change type 🛡️<br>• Default in options 🛡️ |
+| `edit_question(question_id, new_display_text, new_opts, new_default, session, new_display_values)` | ✔︎ | — | `None` | • Cannot change type 🛡️<br>• Cannot change text 🛡️<br>• Default in options 🛡️ |
 | `archive_question(question_id, session)`                 | ✔︎     | —          | `None` | — |
 | `unarchive_question(question_id, session)`               | ✔︎     | —          | `None` | — |
 
 **Rules:**
-- Question text must be unique
+- Question text must be unique and is immutable after creation (use display_text for UI changes)
 - Question type cannot be changed
 - Cannot remove options after created
 - Can add new options after created

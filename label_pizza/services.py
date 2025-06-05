@@ -1138,11 +1138,12 @@ class QuestionService:
         
         Args:
             session: Database session
-            
+        
         Returns:
             DataFrame containing questions with columns:
             - ID: Question ID
-            - Text: Question text
+            - Text: Question text (immutable, unique)
+            - Display Text: UI display text
             - Type: Question type
             - Group: Question group name
             - Options: Available options for single-choice questions
@@ -1154,6 +1155,7 @@ class QuestionService:
             {
                 "ID": q.id, 
                 "Text": q.text, 
+                "Display Text": q.display_text,
                 "Type": q.type,
                 "Group": session.scalar(
                     select(QuestionGroup.title)
@@ -1168,20 +1170,21 @@ class QuestionService:
 
     @staticmethod
     def add_question(text: str, qtype: str, options: Optional[List[str]], default: Optional[str], 
-                    session: Session, display_values: Optional[List[str]] = None) -> Question:
+                    session: Session, display_values: Optional[List[str]] = None, display_text: Optional[str] = None) -> Question:
         """Add a new question.
         
         Args:
-            text: Question text
+            text: Question text (immutable, unique)
             qtype: Question type ('single' or 'description')
             options: List of options for single-choice questions
             default: Default option for single-choice questions
             session: Database session
             display_values: Optional list of display text for options. For single-type questions, if not provided, uses options as display values.
-            
+            display_text: Optional display text for UI. If not provided, uses text.
+        
         Returns:
             Created question
-            
+        
         Raises:
             ValueError: If question text already exists or validation fails
         """
@@ -1189,7 +1192,7 @@ class QuestionService:
         existing = session.scalar(select(Question).where(Question.text == text))
         if existing:
             raise ValueError(f"Question with text '{text}' already exists")
-            
+        
         # Validate default option for single-choice questions
         if qtype == "single":
             if not options:
@@ -1206,10 +1209,15 @@ class QuestionService:
         else:
             # For description-type questions, display_values should be None
             display_values = None
-
+        
+        # Set display_text
+        if not display_text:
+            display_text = text
+        
         # Create question
         q = Question(
             text=text, 
+            display_text=display_text,
             type=qtype, 
             options=options, 
             display_values=display_values,
@@ -1239,18 +1247,18 @@ class QuestionService:
         return question
 
     @staticmethod
-    def edit_question(question_id: int, new_text: str, new_opts: Optional[List[str]], new_default: Optional[str],
+    def edit_question(question_id: int, new_display_text: str, new_opts: Optional[List[str]], new_default: Optional[str],
                      session: Session, new_display_values: Optional[List[str]] = None) -> None:
-        """Edit an existing question.
+        """Edit an existing question (only display_text and options, not text).
         
         Args:
             question_id: Current question ID
-            new_text: New question text
+            new_display_text: New display text for UI.
             new_opts: New options for single-choice questions. Must include all existing options.
             new_default: New default option for single-choice questions
             session: Database session
             new_display_values: Optional new display values for options. For single-type questions, if not provided, maintains existing display values or uses options.
-            
+        
         Raises:
             ValueError: If question not found or validation fails
         """
@@ -1260,12 +1268,6 @@ class QuestionService:
         # Check if question is archived
         if q.is_archived:
             raise ValueError(f"Question with ID {question_id} is archived")
-        
-        # Check if new text would conflict
-        if new_text != q.text:
-            existing = session.scalar(select(Question).where(Question.text == new_text))
-            if existing:
-                raise ValueError(f"Question with text '{new_text}' already exists")
         
         # For single-choice questions, validate options and display values
         if q.type == "single":
@@ -1295,11 +1297,15 @@ class QuestionService:
         else:  # description type
             if new_opts is not None or new_default is not None or new_display_values is not None:
                 raise ValueError("Cannot change question type")
-                
-        # Update question
-        q.text = new_text
+        
+        # Update only display_text, options, display_values, default_option
+        
+        q.display_text = new_display_text
+        
         q.options = new_opts
+    
         q.display_values = new_display_values
+    
         q.default_option = new_default
         session.commit()
 
@@ -1363,10 +1369,10 @@ class QuestionService:
         Args:
             group_id: The ID of the question group
             session: Database session
-            
+        
         Returns:
-            List of question dictionaries containing: id, text, type, options, display_values, default_option
-            
+            List of question dictionaries containing: id, text, display_text, type, options, display_values, default_option
+        
         Raises:
             ValueError: If group not found
         """
@@ -1385,6 +1391,7 @@ class QuestionService:
         return [{
             "id": q.id,
             "text": q.text,
+            "display_text": q.display_text,
             "type": q.type,
             "options": q.options,
             "display_values": q.display_values,
@@ -1937,6 +1944,50 @@ class AuthService:
 
 class QuestionGroupService:
     @staticmethod
+    def get_group_verification_function(group_id: int, session: Session) -> Optional[str]:
+        """Get the verification function for a question group.
+        
+        Args:
+            group_id: Group ID
+            session: Database session
+            
+        Returns:
+            Verification function name or None if not set
+            
+        Raises:
+            ValueError: If group not found
+        """
+        group = session.get(QuestionGroup, group_id)
+        if not group:
+            raise ValueError(f"Question group with ID {group_id} not found")
+        return group.verification_function
+
+    @staticmethod
+    def get_group_details_with_verification(group_id: int, session: Session) -> dict:
+        """Get complete details of a question group including verification function.
+        
+        Args:
+            group_id: Group ID
+            session: Database session
+            
+        Returns:
+            Dictionary containing all group details including verification_function
+            
+        Raises:
+            ValueError: If group not found
+        """
+        group = session.get(QuestionGroup, group_id)
+        if not group:
+            raise ValueError(f"Question group with ID {group_id} not found")
+        return {
+            "title": group.title,
+            "description": group.description,
+            "is_reusable": group.is_reusable,
+            "is_archived": group.is_archived,
+            "verification_function": group.verification_function
+        }
+    
+    @staticmethod
     def get_all_groups(session: Session) -> pd.DataFrame:
         """Get all question groups with their questions and schema usage.
         
@@ -2060,8 +2111,33 @@ class QuestionGroupService:
             "title": group.title,
             "description": group.description,
             "is_reusable": group.is_reusable,
-            "is_archived": group.is_archived
+            "is_archived": group.is_archived,
+            "verification_function": group.verification_function
         }
+
+    @staticmethod
+    def set_group_verification_function(group_id: int, verification_function: Optional[str], session: Session) -> None:
+        """Set the verification function for a question group.
+        
+        Args:
+            group_id: Group ID
+            verification_function: Function name or None to remove
+            session: Database session
+            
+        Raises:
+            ValueError: If group not found or function invalid
+        """
+        group = session.get(QuestionGroup, group_id)
+        if not group:
+            raise ValueError(f"Question group with ID {group_id} not found")
+        
+        # Validate verification function if provided
+        if verification_function:
+            if not hasattr(verify, verification_function):
+                raise ValueError(f"Verification function '{verification_function}' not found in verify.py")
+        
+        group.verification_function = verification_function
+        session.commit()
 
     @staticmethod
     def create_group(

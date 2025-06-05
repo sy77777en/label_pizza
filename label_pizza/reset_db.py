@@ -161,6 +161,7 @@ def seed_sample_data():
                 try:
                     question = QuestionService.add_question(
                         text=q["text"],
+                        display_text=q["text"],
                         qtype=q["type"],
                         options=q["options"],
                         default=q["options"][0] if q["options"] else None,

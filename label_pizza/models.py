@@ -74,6 +74,7 @@ class Question(Base):
     __tablename__ = "questions"
     id = Column(Integer, primary_key=True)
     text = Column(Text, unique=True)
+    display_text = Column(Text, nullable=False)  # UI display text, editable
     type = Column(Enum("single", "description", name="question_type"))
     options = Column(JSONB, nullable=True)  # Actual option values used in answers
     display_values = Column(JSONB, nullable=True)  # Display text for options in UI

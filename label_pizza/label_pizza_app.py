@@ -2075,7 +2075,7 @@ def _display_clean_sticky_single_choice_question(
     """Display a single choice question with sticky header using Streamlit native components"""
     
     question_id = question["id"]
-    question_text = question["text"]
+    question_text = question["display_text"]  # Use display_text for UI
     options = question["options"]
     display_values = question.get("display_values", options)
     
@@ -2270,7 +2270,7 @@ def _display_clean_sticky_description_question(
     """Display a description question with elegant left-right layout for review interface"""
     
     question_id = question["id"]
-    question_text = question["text"]
+    question_text = question["display_text"]  # Use display_text for UI
     
     # Use Streamlit's subheader for better reliability
     if role == "reviewer" and is_modified_by_admin:
@@ -2934,31 +2934,6 @@ def admin_questions():
                                 st.info(f"**Function:** `{func_info['name']}{func_info['signature']}`")
                                 if func_info['docstring']:
                                     st.markdown(f"**Documentation:** {func_info['docstring']}")
-                                
-                                # Test verification function
-                                with st.expander("🧪 Test Verification Function"):
-                                    st.markdown("Enter test answers to validate the function:")
-                                    test_answers = {}
-                                    for i, param in enumerate(func_info['parameters']):
-                                        if param != 'answers':  # Skip the main answers parameter
-                                            continue
-                                    
-                                    # Simple test interface
-                                    test_question = st.text_input("Test Question", key=f"test_q_{verification_function}")
-                                    test_answer = st.text_input("Test Answer", key=f"test_a_{verification_function}")
-                                    
-                                    if st.button("Test Function", key=f"test_func_{verification_function}"):
-                                        if test_question and test_answer:
-                                            test_result = QuestionGroupService.test_verification_function(
-                                                verification_function, {test_question: test_answer}
-                                            )
-                                            if test_result["success"]:
-                                                st.success("✅ Verification function passed!")
-                                            else:
-                                                st.error(f"❌ Verification failed: {test_result['error_message']}")
-                                        else:
-                                            st.warning("Please enter both test question and answer")
-                                            
                             except Exception as e:
                                 st.error(f"Error loading function info: {str(e)}")
                         
@@ -3016,15 +2991,14 @@ def admin_questions():
                             selected_group_id = group_options[selected_group_name]
                             
                             try:
-                                # Get current group details
-                                group_details = QuestionGroupService.get_group_details(
+                                # FIXED: Use service layer instead of direct model access
+                                group_details = QuestionGroupService.get_group_details_with_verification(
                                     group_id=selected_group_id, 
                                     session=session
                                 )
                                 
-                                # Get current verification function
-                                current_group = session.get(QuestionGroup, selected_group_id)
-                                current_verification = current_group.verification_function if current_group else None
+                                # Get current verification function using service
+                                current_verification = group_details.get("verification_function")
                                 
                                 # Edit fields
                                 new_title = st.text_input(
@@ -3072,7 +3046,7 @@ def admin_questions():
                                                 current_func_info = QuestionGroupService.get_verification_function_info(current_verification)
                                                 st.code(f"{current_func_info['name']}{current_func_info['signature']}")
                                                 if current_func_info['docstring']:
-                                                    st.caption(current_func_info['docstring'][:100] + "..." if len(current_func_info['docstring']) > 100 else current_func_info['docstring'])
+                                                    st.markdown(f"**Doc:** {current_func_info['docstring']}")
                                             except Exception as e:
                                                 st.error(f"Error loading current function: {str(e)}")
                                         else:
@@ -3085,23 +3059,7 @@ def admin_questions():
                                                 new_func_info = QuestionGroupService.get_verification_function_info(new_verification_function)
                                                 st.code(f"{new_func_info['name']}{new_func_info['signature']}")
                                                 if new_func_info['docstring']:
-                                                    st.caption(new_func_info['docstring'][:100] + "..." if len(new_func_info['docstring']) > 100 else new_func_info['docstring'])
-                                                
-                                                # Quick test for new function
-                                                with st.expander("🧪 Quick Test"):
-                                                    test_q = st.text_input("Test Question", key=f"edit_test_q_{selected_group_id}")
-                                                    test_a = st.text_input("Test Answer", key=f"edit_test_a_{selected_group_id}")
-                                                    if st.button("Test", key=f"edit_test_btn_{selected_group_id}"):
-                                                        if test_q and test_a:
-                                                            test_result = QuestionGroupService.test_verification_function(
-                                                                new_verification_function, {test_q: test_a}
-                                                            )
-                                                            if test_result["success"]:
-                                                                st.success("✅ Function works!")
-                                                            else:
-                                                                st.error(f"❌ Error: {test_result['error_message']}")
-                                                        else:
-                                                            st.warning("Enter test data")
+                                                    st.markdown(f"**Doc:** {new_func_info['docstring']}")
                                             except Exception as e:
                                                 st.error(f"Error loading function info: {str(e)}")
                                         else:
@@ -3114,10 +3072,10 @@ def admin_questions():
                                     st.error(f"Error loading verification functions: {str(e)}")
                                     new_verification_function = current_verification
                                 
-                                # Question order management (existing code)
+                                # Question order management (using service layer)
                                 st.markdown("**Question Order Management:**")
                                 
-                                # Get current question order
+                                # Get current question order using service
                                 current_order = QuestionGroupService.get_question_order(
                                     group_id=selected_group_id, 
                                     session=session
@@ -3212,7 +3170,7 @@ def admin_questions():
                                 # Update button
                                 if st.button("Update Group", key="admin_update_group_btn"):
                                     try:
-                                        # Update group details with verification function
+                                        # Update group details with verification function using service
                                         QuestionGroupService.edit_group(
                                             group_id=selected_group_id,
                                             new_title=new_title,
@@ -3222,7 +3180,7 @@ def admin_questions():
                                             session=session
                                         )
                                         
-                                        # Update question order if changed
+                                        # Update question order if changed using service
                                         if new_order != current_order:
                                             QuestionGroupService.update_question_order(
                                                 group_id=selected_group_id,
@@ -3271,6 +3229,12 @@ def admin_questions():
                     if options:
                         default = st.selectbox("Default option", [""] + options, key="admin_question_default")
                 
+                use_text_as_display = st.checkbox("Use question text as display text", value=True, key="admin_question_use_text_as_display")
+                if not use_text_as_display:
+                    display_text = st.text_input("Question to display to user", key="admin_question_display_text", value=text)
+                else:
+                    display_text = None
+                
                 if st.button("Create Question", key="admin_create_question_btn"):
                     if text:
                         try:
@@ -3279,14 +3243,15 @@ def admin_questions():
                                 qtype=q_type, 
                                 options=options if q_type == "single" else None,
                                 default=default if q_type == "single" else None,
-                                session=session
+                                session=session,
+                                display_text=display_text
                             )
                             st.success("Question created!")
                             st.rerun(scope="fragment")
                         except Exception as e:
                             st.error(f"Error: {str(e)}")
             
-            # NEW: Edit Individual Question expander
+            # Edit Individual Question expander (same as original, using service layer)
             with st.expander("✏️ Edit Individual Question"):
                 if not questions_df.empty:
                     available_questions = questions_df[~questions_df["Archived"]]
@@ -3303,19 +3268,25 @@ def admin_questions():
                             selected_question_id = question_options[selected_question_name]
                             
                             try:
-                                # Get current question details
+                                # FIXED: Use service layer instead of direct model access
                                 current_question = QuestionService.get_question_by_id(
                                     question_id=selected_question_id, 
                                     session=session
                                 )
                                 
-                                # Edit fields
-                                new_text = st.text_input(
-                                    "Question Text",
+                                # Show immutable question text
+                                st.text_input(
+                                    "Question Text (immutable)",
                                     value=current_question.text,
-                                    key="admin_edit_question_text"
+                                    key="admin_edit_question_text",
+                                    disabled=True
                                 )
-                                
+                                # Add editable display text input
+                                new_display_text = st.text_input(
+                                    "Question to display to user",
+                                    value=current_question.display_text,
+                                    key="admin_edit_question_display_text"
+                                )
                                 # Show question type (read-only)
                                 st.write(f"**Question Type:** {current_question.type}")
                                 
@@ -3412,7 +3383,7 @@ def admin_questions():
                                     try:
                                         QuestionService.edit_question(
                                             question_id=selected_question_id,
-                                            new_text=new_text,
+                                            new_display_text=new_display_text,
                                             new_opts=new_options,
                                             new_default=new_default,
                                             new_display_values=new_display_values,
