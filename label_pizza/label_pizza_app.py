@@ -12,6 +12,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import text, select
 from contextlib import contextmanager
+import json
 import re
 import streamlit.components.v1 as components
 
@@ -2895,7 +2896,9 @@ def admin_videos():
         else:
             st.info("No videos in the database yet.")
         
-        with st.expander("➕ Add Video"):
+        video_tabs = st.tabs(["➕ Add Video", "✏️ Edit Video"])
+        
+        with video_tabs[0]:
             url = st.text_input("Video URL", key="admin_video_url")
             metadata_json = st.text_area("Metadata (JSON, optional)", "{}", key="admin_video_metadata")
             
@@ -2909,6 +2912,1024 @@ def admin_videos():
                         st.rerun(scope="fragment")
                     except Exception as e:
                         st.error(f"Error: {str(e)}")
+        
+        with video_tabs[1]:
+            if not videos_df.empty:
+                # Get all videos for selection
+                all_videos_df = VideoService.get_all_videos(session=session)
+                if not all_videos_df.empty:
+                    video_options = {f"{row['Video UID']} - {row['URL'][:50]}...": row['Video UID'] for _, row in all_videos_df.iterrows()}
+                    selected_video_display = st.selectbox(
+                        "Select Video to Edit",
+                        list(video_options.keys()),
+                        key="admin_edit_video_select"
+                    )
+                    
+                    if selected_video_display:
+                        selected_video_uid = video_options[selected_video_display]
+                        
+                        try:
+                            # Get current video details
+                            current_video = VideoService.get_video_by_uid(video_uid=selected_video_uid, session=session)
+                            
+                            if current_video:
+                                st.markdown(f"**Editing Video:** {selected_video_uid}")
+                                
+                                col1, col2 = st.columns([2, 1])
+                                
+                                with col1:
+                                    new_url = st.text_input(
+                                        "Video URL",
+                                        value=current_video.url,
+                                        key="admin_edit_video_url",
+                                        help="Update the video URL"
+                                    )
+                                
+                                with col2:
+                                    st.markdown("**Current Video UID:**")
+                                    st.code(selected_video_uid)
+                                    st.caption("Video UID cannot be changed")
+                                
+                                # Metadata editing
+                                st.markdown("**Video Metadata:**")
+                                current_metadata = current_video.video_metadata or {}
+                                
+                                metadata_tab1, metadata_tab2 = st.tabs(["🎛️ Form Editor", "📝 JSON Editor"])
+                                
+                                with metadata_tab1:
+                                    st.markdown("**Edit metadata fields:**")
+                                    
+                                    # Dynamic metadata form
+                                    updated_metadata = {}
+                                    
+                                    # Show existing metadata fields
+                                    for key, value in current_metadata.items():
+                                        col_key, col_val, col_del = st.columns([1, 2, 0.3])
+                                        with col_key:
+                                            new_key = st.text_input(f"Key", value=key, key=f"meta_key_{key}")
+                                        with col_val:
+                                            if isinstance(value, (str, int, float)):
+                                                new_value = st.text_input(f"Value", value=str(value), key=f"meta_val_{key}")
+                                                try:
+                                                    # Try to convert back to original type
+                                                    if isinstance(value, int):
+                                                        new_value = int(new_value)
+                                                    elif isinstance(value, float):
+                                                        new_value = float(new_value)
+                                                except ValueError:
+                                                    pass  # Keep as string
+                                            else:
+                                                new_value = st.text_area(f"Value (JSON)", value=str(value), key=f"meta_val_{key}")
+                                                try:
+                                                    import json
+                                                    new_value = json.loads(new_value)
+                                                except:
+                                                    new_value = str(value)  # Fallback to string
+                                        with col_del:
+                                            if st.button("🗑️", key=f"del_{key}", help="Delete this field"):
+                                                continue  # Skip adding to updated_metadata
+                                        
+                                        if new_key:  # Only add if key is not empty
+                                            updated_metadata[new_key] = new_value
+                                    
+                                    # Add new metadata field
+                                    st.markdown("**Add new field:**")
+                                    col_new_key, col_new_val = st.columns(2)
+                                    with col_new_key:
+                                        new_field_key = st.text_input("New field key", key="admin_new_meta_key")
+                                    with col_new_val:
+                                        new_field_value = st.text_input("New field value", key="admin_new_meta_value")
+                                    
+                                    if new_field_key and new_field_value:
+                                        # Try to parse as number if possible
+                                        try:
+                                            if '.' in new_field_value:
+                                                updated_metadata[new_field_key] = float(new_field_value)
+                                            else:
+                                                updated_metadata[new_field_key] = int(new_field_value)
+                                        except ValueError:
+                                            updated_metadata[new_field_key] = new_field_value
+                                
+                                with metadata_tab2:
+                                    metadata_json = st.text_area(
+                                        "Metadata JSON",
+                                        value=json.dumps(current_metadata, indent=2) if current_metadata else "{}",
+                                        height=200,
+                                        key="admin_edit_video_metadata_json",
+                                        help="Edit metadata as JSON. This will override form editor changes."
+                                    )
+                                    
+                                    try:
+                                        json_metadata = json.loads(metadata_json)
+                                        st.success("✅ Valid JSON")
+                                        updated_metadata = json_metadata
+                                    except json.JSONDecodeError as e:
+                                        st.error(f"❌ Invalid JSON: {str(e)}")
+                                        updated_metadata = current_metadata
+                                
+                                # Update button
+                                update_col, preview_col = st.columns(2)
+                                
+                                with update_col:
+                                    if st.button("💾 Update Video", key="admin_update_video_btn", use_container_width=True):
+                                        try:
+                                            # Use proper service methods
+                                            VideoService.update_video(
+                                                video_uid=selected_video_uid, 
+                                                new_url=new_url, 
+                                                new_metadata=updated_metadata, 
+                                                session=session
+                                            )
+                                            
+                                            st.success(f"✅ Video '{selected_video_uid}' updated successfully!")
+                                            st.rerun(scope="fragment")
+                                        except Exception as e:
+                                            st.error(f"❌ Error updating video: {str(e)}")
+                                
+                                with preview_col:
+                                    with st.expander("👁️ Preview Changes"):
+                                        st.markdown("**New URL:**")
+                                        st.code(new_url)
+                                        st.markdown("**New Metadata:**")
+                                        st.json(updated_metadata)
+                            else:
+                                st.error(f"Video with UID '{selected_video_uid}' not found")
+                        except Exception as e:
+                            st.error(f"Error loading video details: {str(e)}")
+                else:
+                    st.info("No videos available to edit")
+            else:
+                st.info("No videos available to edit")
+
+@st.fragment
+def admin_questions():
+    st.subheader("❓ Question & Group Management")
+    
+    with get_db_session() as session:
+        q_tab1, q_tab2 = st.tabs(["📁 Question Groups", "❓ Individual Questions"])
+        
+        with q_tab1:
+            groups_df = QuestionGroupService.get_all_groups(session=session)
+            st.dataframe(groups_df, use_container_width=True)
+            
+            group_management_tabs = st.tabs(["➕ Create Group", "✏️ Edit Group"])
+            
+            with group_management_tabs[0]:
+                st.markdown("### 🆕 Create New Question Group")
+                
+                basic_col1, basic_col2 = st.columns(2)
+                with basic_col1:
+                    title = st.text_input("Group Title", key="admin_group_title", placeholder="Enter group title...")
+                with basic_col2:
+                    is_reusable = st.checkbox("Reusable across schemas", key="admin_group_reusable", 
+                                            help="Allow this group to be used in multiple schemas")
+                
+                description = st.text_area("Description", key="admin_group_description", 
+                                         placeholder="Describe the purpose of this question group...")
+                
+                # Verification function selection
+                st.markdown("**🔧 Verification Function (Optional):**")
+                try:
+                    available_functions = QuestionGroupService.get_available_verification_functions()
+                    if available_functions:
+                        verification_function = st.selectbox(
+                            "Select verification function",
+                            ["None"] + available_functions,
+                            key="admin_group_verification",
+                            help="Optional function to validate answers"
+                        )
+                        
+                        if verification_function != "None":
+                            try:
+                                func_info = QuestionGroupService.get_verification_function_info(verification_function)
+                                st.info(f"**Function:** `{func_info['name']}{func_info['signature']}`")
+                                if func_info['docstring']:
+                                    st.markdown(f"**Documentation:** {func_info['docstring']}")
+                            except Exception as e:
+                                st.error(f"Error loading function info: {str(e)}")
+                        
+                        verification_function = verification_function if verification_function != "None" else None
+                    else:
+                        st.info("No verification functions found in verify.py")
+                        verification_function = None
+                except Exception as e:
+                    st.error(f"Error loading verification functions: {str(e)}")
+                    verification_function = None
+                
+                st.markdown("**📋 Select Questions:**")
+                questions_df = QuestionService.get_all_questions(session=session)
+                if not questions_df.empty:
+                    available_questions = questions_df[~questions_df["Archived"]]
+                    selected_questions = st.multiselect(
+                        "Questions",
+                        available_questions["ID"].tolist(),
+                        format_func=lambda x: available_questions[available_questions["ID"]==x]["Text"].iloc[0],
+                        key="admin_group_questions",
+                        help="Select questions to include in this group"
+                    )
+                else:
+                    selected_questions = []
+                    st.warning("No questions available.")
+                
+                if st.button("🚀 Create Question Group", key="admin_create_group_btn", type="primary", use_container_width=True):
+                    if title and selected_questions:
+                        try:
+                            QuestionGroupService.create_group(
+                                title=title, description=description, is_reusable=is_reusable, 
+                                question_ids=selected_questions, verification_function=verification_function, 
+                                session=session
+                            )
+                            st.success("✅ Question group created successfully!")
+                            st.rerun(scope="fragment")
+                        except Exception as e:
+                            st.error(f"❌ Error: {str(e)}")
+            
+            with group_management_tabs[1]:
+                st.markdown("### ✏️ Edit Existing Question Group")
+                
+                if not groups_df.empty:
+                    available_groups = groups_df[~groups_df["Archived"]]
+                    if not available_groups.empty:
+                        group_options = {f"{row['Name']} (ID: {row['ID']})": row['ID'] for _, row in available_groups.iterrows()}
+                        selected_group_name = st.selectbox(
+                            "Select Group to Edit",
+                            list(group_options.keys()),
+                            key="admin_edit_group_select",
+                            help="Choose a question group to modify"
+                        )
+                        
+                        if selected_group_name:
+                            selected_group_id = group_options[selected_group_name]
+                            
+                            try:
+                                group_details = QuestionGroupService.get_group_details_with_verification(
+                                    group_id=selected_group_id, session=session
+                                )
+                                current_verification = group_details.get("verification_function")
+                                
+                                edit_basic_col1, edit_basic_col2 = st.columns(2)
+                                with edit_basic_col1:
+                                    new_title = st.text_input(
+                                        "Group Title",
+                                        value=group_details["title"],
+                                        key="admin_edit_group_title"
+                                    )
+                                with edit_basic_col2:
+                                    new_is_reusable = st.checkbox(
+                                        "Reusable across schemas",
+                                        value=group_details["is_reusable"],
+                                        key="admin_edit_group_reusable"
+                                    )
+                                
+                                new_description = st.text_area(
+                                    "Description",
+                                    value=group_details["description"] or "",
+                                    key="admin_edit_group_description"
+                                )
+                                
+                                # Verification function editing
+                                st.markdown("**🔧 Verification Function:**")
+                                try:
+                                    available_functions = QuestionGroupService.get_available_verification_functions()
+                                    verification_options = ["None"] + available_functions
+                                    current_index = 0
+                                    if current_verification and current_verification in available_functions:
+                                        current_index = verification_options.index(current_verification)
+                                    
+                                    new_verification_function = st.selectbox(
+                                        "Select verification function",
+                                        verification_options,
+                                        index=current_index,
+                                        key="admin_edit_group_verification",
+                                        help="Optional function to validate answers"
+                                    )
+                                    
+                                    func_col1, func_col2 = st.columns(2)
+                                    
+                                    with func_col1:
+                                        st.markdown("**Current Function:**")
+                                        if current_verification:
+                                            try:
+                                                current_func_info = QuestionGroupService.get_verification_function_info(current_verification)
+                                                st.code(f"{current_func_info['name']}{current_func_info['signature']}")
+                                                if current_func_info['docstring']:
+                                                    st.caption(f"**Doc:** {current_func_info['docstring']}")
+                                            except Exception as e:
+                                                st.error(f"Error loading current function: {str(e)}")
+                                        else:
+                                            st.info("No verification function set")
+                                    
+                                    with func_col2:
+                                        st.markdown("**New Function:**")
+                                        if new_verification_function != "None":
+                                            try:
+                                                new_func_info = QuestionGroupService.get_verification_function_info(new_verification_function)
+                                                st.code(f"{new_func_info['name']}{new_func_info['signature']}")
+                                                if new_func_info['docstring']:
+                                                    st.caption(f"**Doc:** {new_func_info['docstring']}")
+                                            except Exception as e:
+                                                st.error(f"Error loading function info: {str(e)}")
+                                        else:
+                                            st.info("No verification function will be set")
+                                    
+                                    new_verification_function = new_verification_function if new_verification_function != "None" else None
+                                    
+                                except Exception as e:
+                                    st.error(f"Error loading verification functions: {str(e)}")
+                                    new_verification_function = current_verification
+                                
+                                # Question order management
+                                st.markdown("**📋 Question Order Management:**")
+                                current_order = QuestionGroupService.get_question_order(group_id=selected_group_id, session=session)
+                                
+                                if current_order:
+                                    questions_df = QuestionService.get_all_questions(session=session)
+                                    
+                                    order_key = f"edit_group_order_{selected_group_id}"
+                                    if order_key not in st.session_state:
+                                        st.session_state[order_key] = current_order.copy()
+                                    
+                                    working_order = st.session_state[order_key]
+                                    
+                                    st.info("💡 Use the ⬆️ and ⬇️ buttons to reorder questions. Changes will be applied when you click 'Update Group'.")
+                                    
+                                    if len(working_order) > 5:
+                                        search_term = st.text_input(
+                                            "🔍 Search questions (to quickly find questions in large groups)",
+                                            key=f"search_questions_{selected_group_id}",
+                                            placeholder="Type part of a question..."
+                                        )
+                                    else:
+                                        search_term = ""
+                                    
+                                    for i, q_id in enumerate(working_order):
+                                        question_row = questions_df[questions_df["ID"] == q_id]
+                                        if not question_row.empty:
+                                            q_text = question_row.iloc[0]["Text"]
+                                            
+                                            if search_term and search_term.lower() not in q_text.lower():
+                                                continue
+                                            
+                                            order_col1, order_col2, order_col3 = st.columns([0.1, 0.8, 0.1])
+                                            
+                                            with order_col1:
+                                                if st.button("⬆️", key=f"up_{selected_group_id}_{q_id}_{i}", 
+                                                            disabled=(i == 0), help="Move up"):
+                                                    st.session_state[order_key][i], st.session_state[order_key][i-1] = \
+                                                        st.session_state[order_key][i-1], st.session_state[order_key][i]
+                                                    st.rerun()
+                                            
+                                            with order_col2:
+                                                display_text = q_text[:80] + ('...' if len(q_text) > 80 else '')
+                                                if search_term and search_term.lower() in q_text.lower():
+                                                    st.write(f"**{i+1}.** {display_text} 🔍")
+                                                else:
+                                                    st.write(f"**{i+1}.** {display_text}")
+                                                st.caption(f"ID: {q_id}")
+                                            
+                                            with order_col3:
+                                                if st.button("⬇️", key=f"down_{selected_group_id}_{q_id}_{i}", 
+                                                            disabled=(i == len(working_order) - 1), help="Move down"):
+                                                    st.session_state[order_key][i], st.session_state[order_key][i+1] = \
+                                                        st.session_state[order_key][i+1], st.session_state[order_key][i]
+                                                    st.rerun()
+                                    
+                                    order_action_col1, order_action_col2 = st.columns(2)
+                                    with order_action_col1:
+                                        if st.button("🔄 Reset Order", key=f"reset_order_{selected_group_id}"):
+                                            st.session_state[order_key] = current_order.copy()
+                                            st.rerun()
+                                    
+                                    with order_action_col2:
+                                        if working_order != current_order:
+                                            st.warning("⚠️ Order changed - click 'Update Group' to save")
+                                        else:
+                                            st.success("✅ Order matches saved state")
+                                    
+                                    new_order = working_order
+                                else:
+                                    new_order = current_order
+                                    st.info("No questions in this group.")
+                                
+                                if st.button("💾 Update Question Group", key="admin_update_group_btn", type="primary", use_container_width=True):
+                                    try:
+                                        QuestionGroupService.edit_group(
+                                            group_id=selected_group_id, new_title=new_title,
+                                            new_description=new_description, is_reusable=new_is_reusable,
+                                            verification_function=new_verification_function, session=session
+                                        )
+                                        
+                                        if new_order != current_order:
+                                            QuestionGroupService.update_question_order(
+                                                group_id=selected_group_id, question_ids=new_order, session=session
+                                            )
+                                        
+                                        order_key = f"edit_group_order_{selected_group_id}"
+                                        if order_key in st.session_state:
+                                            del st.session_state[order_key]
+                                        
+                                        st.success("✅ Question group updated successfully!")
+                                        st.rerun(scope="fragment")
+                                    except Exception as e:
+                                        st.error(f"❌ Error updating group: {str(e)}")
+                                        
+                            except Exception as e:
+                                st.error(f"Error loading group details: {str(e)}")
+                    else:
+                        st.info("No non-archived question groups available to edit.")
+                else:
+                    st.info("No question groups available to edit.")
+        
+        with q_tab2:
+            questions_df = QuestionService.get_all_questions(session=session)
+            st.dataframe(questions_df, use_container_width=True)
+            
+            question_management_tabs = st.tabs(["➕ Create Question", "✏️ Edit Question"])
+            
+            with question_management_tabs[0]:
+                st.markdown("### 🆕 Create New Question")
+                
+                basic_info_col1, basic_info_col2 = st.columns(2)
+                with basic_info_col1:
+                    text = st.text_input("Question Text", key="admin_question_text", 
+                                       placeholder="Enter the question text...")
+                with basic_info_col2:
+                    q_type = st.selectbox("Question Type", ["single", "description"], key="admin_question_type",
+                                        help="Single: Multiple choice | Description: Text input")
+                
+                use_text_as_display = st.checkbox("Use question text as display text", value=True, 
+                                                key="admin_question_use_text_as_display",
+                                                help="Uncheck to provide custom display text")
+                if not use_text_as_display:
+                    display_text = st.text_input("Question to display to user", key="admin_question_display_text", 
+                                                value=text, placeholder="Text shown to users...")
+                else:
+                    display_text = None
+                
+                options = []
+                option_weights = []
+                default = None
+                
+                if q_type == "single":
+                    st.markdown("**🎯 Options and Weights:**")
+                    st.info("💡 Default weight is 1.0 for each option. Customize weights to influence scoring.")
+                    
+                    num_options = st.number_input("Number of options", 1, 10, 2, key="admin_question_num_options")
+                    
+                    for i in range(num_options):
+                        opt_col1, opt_col2 = st.columns([3, 1])
+                        with opt_col1:
+                            option = st.text_input(f"Option {i+1}", key=f"admin_question_opt_{i}",
+                                                 placeholder=f"Enter option {i+1}...")
+                        with opt_col2:
+                            weight = st.number_input(f"Weight {i+1}", min_value=0.0, value=1.0, step=0.1, 
+                                                   key=f"admin_question_weight_{i}", 
+                                                   help="Weight for scoring (default: 1.0)")
+                        
+                        if option:
+                            options.append(option)
+                            option_weights.append(weight)
+                    
+                    if options:
+                        default = st.selectbox("Default option", [""] + options, key="admin_question_default",
+                                             help="Option selected by default")
+                        if default == "":
+                            default = None
+                
+                if st.button("🚀 Create Question", key="admin_create_question_btn", type="primary", use_container_width=True):
+                    if text:
+                        try:
+                            QuestionService.add_question(
+                                text=text, qtype=q_type, options=options if q_type == "single" else None,
+                                default=default if q_type == "single" else None, session=session,
+                                display_text=display_text, option_weights=option_weights if q_type == "single" else None
+                            )
+                            st.success("✅ Question created successfully!")
+                            st.rerun(scope="fragment")
+                        except Exception as e:
+                            st.error(f"❌ Error: {str(e)}")
+            
+            with question_management_tabs[1]:
+                st.markdown("### ✏️ Edit Existing Question")
+                
+                if not questions_df.empty:
+                    available_questions = questions_df[~questions_df["Archived"]]
+                    if not available_questions.empty:
+                        question_options = {f"{row['Text'][:50]}... (ID: {row['ID']})": row['ID'] for _, row in available_questions.iterrows()}
+                        selected_question_name = st.selectbox(
+                            "Select Question to Edit",
+                            list(question_options.keys()),
+                            key="admin_edit_question_select",
+                            help="Choose a question to modify"
+                        )
+                        
+                        if selected_question_name:
+                            selected_question_id = question_options[selected_question_name]
+                            
+                            try:
+                                current_question = QuestionService.get_question_by_id(
+                                    question_id=selected_question_id, session=session
+                                )
+                                
+                                st.text_input(
+                                    "Question Text (immutable)",
+                                    value=current_question.text,
+                                    key="admin_edit_question_text",
+                                    disabled=True,
+                                    help="Question text cannot be changed to preserve data integrity"
+                                )
+                                
+                                new_display_text = st.text_input(
+                                    "Question to display to user",
+                                    value=current_question.display_text,
+                                    key="admin_edit_question_display_text"
+                                )
+                                
+                                st.markdown(f"**Question Type:** `{current_question.type}`")
+                                
+                                new_options = None
+                                new_default = None
+                                new_display_values = None
+                                new_option_weights = None
+                                
+                                if current_question.type == "single":
+                                    st.markdown("**🎯 Options, Weights & Order Management:**")
+                                    
+                                    current_options = current_question.options or []
+                                    current_display_values = current_question.display_values or current_options
+                                    current_option_weights = current_question.option_weights or [1.0] * len(current_options)
+                                    current_default = current_question.default_option or ""
+                                    
+                                    # Current options display
+                                    st.markdown("**Current Options:**")
+                                    for i, (opt, disp, weight) in enumerate(zip(current_options, current_display_values, current_option_weights)):
+                                        default_indicator = " 🌟 (DEFAULT)" if opt == current_default else ""
+                                        st.markdown(f"`{i+1}.` **Value:** `{opt}` | **Display:** `{disp}` | **Weight:** `{weight}`{default_indicator}")
+                                    
+                                    # Option order management
+                                    st.markdown("**📋 Option Order Management:**")
+                                    option_order_key = f"edit_question_option_order_{selected_question_id}"
+                                    if option_order_key not in st.session_state:
+                                        st.session_state[option_order_key] = list(range(len(current_options)))
+                                    
+                                    working_option_order = st.session_state[option_order_key]
+                                    
+                                    if len(current_options) > 1:
+                                        st.info("💡 Use the ⬆️ and ⬇️ buttons to reorder options. This will affect the display order for users.")
+                                        
+                                        for i, option_idx in enumerate(working_option_order):
+                                            if option_idx < len(current_options):
+                                                opt = current_options[option_idx]
+                                                disp = current_display_values[option_idx]
+                                                weight = current_option_weights[option_idx]
+                                                
+                                                order_opt_col1, order_opt_col2, order_opt_col3 = st.columns([0.1, 0.8, 0.1])
+                                                
+                                                with order_opt_col1:
+                                                    if st.button("⬆️", key=f"opt_up_{selected_question_id}_{option_idx}_{i}", 
+                                                                disabled=(i == 0), help="Move up"):
+                                                        st.session_state[option_order_key][i], st.session_state[option_order_key][i-1] = \
+                                                            st.session_state[option_order_key][i-1], st.session_state[option_order_key][i]
+                                                        st.rerun()
+                                                
+                                                with order_opt_col2:
+                                                    default_indicator = " 🌟" if opt == current_default else ""
+                                                    st.write(f"**{i+1}.** {disp} (Weight: {weight}){default_indicator}")
+                                                    st.caption(f"Value: {opt}")
+                                                
+                                                with order_opt_col3:
+                                                    if st.button("⬇️", key=f"opt_down_{selected_question_id}_{option_idx}_{i}", 
+                                                                disabled=(i == len(working_option_order) - 1), help="Move down"):
+                                                        st.session_state[option_order_key][i], st.session_state[option_order_key][i+1] = \
+                                                            st.session_state[option_order_key][i+1], st.session_state[option_order_key][i]
+                                                        st.rerun()
+                                        
+                                        opt_order_col1, opt_order_col2 = st.columns(2)
+                                        with opt_order_col1:
+                                            if st.button("🔄 Reset Option Order", key=f"reset_option_order_{selected_question_id}"):
+                                                st.session_state[option_order_key] = list(range(len(current_options)))
+                                                st.rerun()
+                                        
+                                        with opt_order_col2:
+                                            original_order = list(range(len(current_options)))
+                                            if working_option_order != original_order:
+                                                st.warning("⚠️ Option order changed")
+                                            else:
+                                                st.success("✅ Original order")
+                                    
+                                    # Edit options and add new ones
+                                    st.markdown("**✏️ Edit Options and Weights:**")
+                                    st.info("📝 Note: You can only add new options, not remove existing ones (to preserve data integrity).")
+                                    
+                                    num_options = st.number_input(
+                                        "Total number of options", 
+                                        min_value=len(current_options), 
+                                        max_value=10, 
+                                        value=len(current_options),
+                                        key="admin_edit_question_num_options"
+                                    )
+                                    
+                                    new_options = []
+                                    new_display_values = []
+                                    new_option_weights = []
+                                    
+                                    # Apply the working order to existing options
+                                    reordered_options = [current_options[i] for i in working_option_order]
+                                    reordered_display_values = [current_display_values[i] for i in working_option_order]
+                                    reordered_weights = [current_option_weights[i] for i in working_option_order]
+                                    
+                                    for i in range(num_options):
+                                        edit_opt_col1, edit_opt_col2, edit_opt_col3 = st.columns([2, 2, 1])
+                                        
+                                        with edit_opt_col1:
+                                            if i < len(reordered_options):
+                                                st.text_input(
+                                                    f"Option {i+1} Value",
+                                                    value=reordered_options[i],
+                                                    disabled=True,
+                                                    key=f"admin_edit_question_opt_val_{i}",
+                                                    help="Cannot change existing option values"
+                                                )
+                                                new_options.append(reordered_options[i])
+                                            else:
+                                                new_opt = st.text_input(
+                                                    f"Option {i+1} Value (NEW)",
+                                                    key=f"admin_edit_question_opt_val_{i}",
+                                                    placeholder="Enter new option value..."
+                                                )
+                                                if new_opt:
+                                                    new_options.append(new_opt)
+                                        
+                                        with edit_opt_col2:
+                                            if i < len(reordered_display_values):
+                                                new_disp = st.text_input(
+                                                    f"Option {i+1} Display",
+                                                    value=reordered_display_values[i],
+                                                    key=f"admin_edit_question_opt_disp_{i}"
+                                                )
+                                                new_display_values.append(new_disp if new_disp else reordered_display_values[i])
+                                            else:
+                                                new_disp = st.text_input(
+                                                    f"Option {i+1} Display (NEW)",
+                                                    value=new_options[i] if i < len(new_options) else "",
+                                                    key=f"admin_edit_question_opt_disp_{i}",
+                                                    placeholder="Display text for new option..."
+                                                )
+                                                if new_disp:
+                                                    new_display_values.append(new_disp)
+                                                elif i < len(new_options):
+                                                    new_display_values.append(new_options[i])
+                                        
+                                        with edit_opt_col3:
+                                            if i < len(reordered_weights):
+                                                new_weight = st.number_input(
+                                                    f"Weight {i+1}",
+                                                    min_value=0.0,
+                                                    value=reordered_weights[i],
+                                                    step=0.1,
+                                                    key=f"admin_edit_question_opt_weight_{i}",
+                                                    help="Weight for scoring"
+                                                )
+                                                new_option_weights.append(new_weight)
+                                            else:
+                                                new_weight = st.number_input(
+                                                    f"Weight {i+1} (NEW)",
+                                                    min_value=0.0,
+                                                    value=1.0,
+                                                    step=0.1,
+                                                    key=f"admin_edit_question_opt_weight_{i}",
+                                                    help="Weight for scoring (default: 1.0)"
+                                                )
+                                                new_option_weights.append(new_weight)
+                                    
+                                    if new_options:
+                                        new_default = st.selectbox(
+                                            "Default option",
+                                            [""] + new_options,
+                                            index=new_options.index(current_default) + 1 if current_default in new_options else 0,
+                                            key="admin_edit_question_default"
+                                        )
+                                        if new_default == "":
+                                            new_default = None
+                                
+                                if st.button("💾 Update Question", key="admin_update_question_btn", type="primary", use_container_width=True):
+                                    try:
+                                        # Apply option reordering if changed
+                                        final_options = new_options
+                                        final_display_values = new_display_values
+                                        final_option_weights = new_option_weights
+                                        
+                                        # Clear option order state after update
+                                        option_order_key = f"edit_question_option_order_{selected_question_id}"
+                                        if option_order_key in st.session_state:
+                                            del st.session_state[option_order_key]
+                                        
+                                        QuestionService.edit_question(
+                                            question_id=selected_question_id, new_display_text=new_display_text,
+                                            new_opts=final_options, new_default=new_default,
+                                            new_display_values=final_display_values, new_option_weights=final_option_weights,
+                                            session=session
+                                        )
+                                        st.success("✅ Question updated successfully!")
+                                        st.rerun(scope="fragment")
+                                    except Exception as e:
+                                        st.error(f"❌ Error updating question: {str(e)}")
+                                        
+                            except Exception as e:
+                                st.error(f"Error loading question details: {str(e)}")
+                    else:
+                        st.info("No non-archived questions available to edit.")
+                else:
+                    st.info("No questions available to edit.")
+
+@st.fragment 
+def display_assignment_management(session: Session):
+    """Optimized assignment management with fragments and user weight support"""
+    st.markdown("### 🎯 Assign Users to Projects")
+    
+    # Initialize session state
+    if "selected_project_ids" not in st.session_state:
+        st.session_state.selected_project_ids = []
+    if "selected_user_ids" not in st.session_state:
+        st.session_state.selected_user_ids = []
+    if "assignment_role" not in st.session_state:
+        st.session_state.assignment_role = "annotator"
+    if "assignment_user_weight" not in st.session_state:
+        st.session_state.assignment_user_weight = 1.0
+    
+    # Project selection
+    st.markdown("**Step 1: Select Projects**")
+    
+    try:
+        projects_df = ProjectService.get_all_projects(session=session)
+        if projects_df.empty:
+            st.warning("No projects available.")
+            return
+    except Exception as e:
+        st.error(f"Error loading projects: {str(e)}")
+        return
+    
+    project_search = st.text_input("🔍 Search projects", placeholder="Project name...", key="proj_search_mgmt")
+    
+    filtered_projects = [
+        project_row for _, project_row in projects_df.iterrows()
+        if not project_search or project_search.lower() in project_row["Name"].lower()
+    ]
+    
+    if not filtered_projects:
+        st.warning("No projects match the search criteria.")
+        return
+    
+    st.info(f"Found {len(filtered_projects)} projects")
+    
+    select_col1, select_col2 = st.columns(2)
+    with select_col1:
+        if st.button("Select All Visible Projects", key="select_all_projects_mgmt"):
+            st.session_state.selected_project_ids = [int(p["ID"]) for p in filtered_projects]
+            st.rerun(scope="fragment")
+    
+    with select_col2:
+        if st.button("Clear Project Selection", key="clear_projects_mgmt"):
+            st.session_state.selected_project_ids = []
+            st.rerun(scope="fragment")
+    
+    # Project selection grid
+    project_cols = st.columns(4)
+    current_selections = []
+    
+    for i, project_row in enumerate(filtered_projects):
+        with project_cols[i % 4]:
+            project_id = int(project_row["ID"])
+            project_name = project_row["Name"]
+            
+            is_selected = project_id in st.session_state.selected_project_ids
+            
+            checkbox_value = st.checkbox(
+                project_name,
+                value=is_selected,
+                key=f"proj_cb_mgmt_{project_id}",
+                help=f"Project ID: {project_id}"
+            )
+            
+            if checkbox_value:
+                current_selections.append(project_id)
+    
+    if set(current_selections) != set(st.session_state.selected_project_ids):
+        st.session_state.selected_project_ids = current_selections
+        st.rerun(scope="fragment")
+    
+    if not st.session_state.selected_project_ids:
+        st.info("Please select projects above to continue.")
+        return
+    
+    st.success(f"✅ Selected {len(st.session_state.selected_project_ids)} projects")
+    
+    # User selection
+    st.markdown("**Step 2: Select Users**")
+    
+    try:
+        users_df = AuthService.get_all_users(session=session)
+        if users_df.empty:
+            st.warning("No users available.")
+            return
+    except Exception as e:
+        st.error(f"Error loading users: {str(e)}")
+        return
+    
+    user_filter_col1, user_filter_col2 = st.columns(2)
+    with user_filter_col1:
+        user_search = st.text_input("Search users", placeholder="Name or email...", key="user_search_mgmt")
+    with user_filter_col2:
+        user_role_filter = st.selectbox("Filter by user role", ["All", "admin", "human", "model"], key="user_role_filter_mgmt")
+    
+    # Filter users
+    filtered_users = []
+    for _, user_row in users_df.iterrows():
+        if user_role_filter != "All" and user_row["Role"] != user_role_filter:
+            continue
+        
+        if user_search:
+            if (user_search.lower() not in user_row["User ID"].lower() and 
+                user_search.lower() not in user_row["Email"].lower()):
+                continue
+        
+        filtered_users.append(user_row)
+    
+    if not filtered_users:
+        st.warning("No users match the search criteria.")
+        return
+    
+    st.info(f"Found {len(filtered_users)} users")
+    
+    # User pagination
+    users_per_page = 12
+    total_pages = (len(filtered_users) - 1) // users_per_page + 1 if len(filtered_users) > 0 else 1
+    
+    if total_pages > 1:
+        page = st.selectbox(f"Page (showing {users_per_page} users per page)", 
+                           range(1, total_pages + 1), key="user_page_mgmt") - 1
+    else:
+        page = 0
+    
+    start_idx = page * users_per_page
+    end_idx = min(start_idx + users_per_page, len(filtered_users))
+    page_users = filtered_users[start_idx:end_idx]
+    
+    user_select_col1, user_select_col2 = st.columns(2)
+    with user_select_col1:
+        if st.button("Select All on Page", key="select_all_users_mgmt"):
+            page_user_ids = [int(u["ID"]) for u in page_users]
+            st.session_state.selected_user_ids = list(set(st.session_state.selected_user_ids + page_user_ids))
+            st.rerun(scope="fragment")
+    
+    with user_select_col2:
+        if st.button("Clear User Selection", key="clear_users_mgmt"):
+            st.session_state.selected_user_ids = []
+            st.rerun(scope="fragment")
+    
+    # User selection grid
+    user_cols = st.columns(4)
+    current_user_selections = list(st.session_state.selected_user_ids)
+    
+    for i, user_row in enumerate(page_users):
+        with user_cols[i % 4]:
+            user_id = int(user_row["ID"])
+            user_name = user_row["User ID"]
+            user_email = user_row["Email"]
+            user_role = user_row["Role"]
+            
+            is_selected = user_id in st.session_state.selected_user_ids
+            
+            checkbox_value = st.checkbox(
+                user_name,
+                value=is_selected,
+                key=f"user_cb_mgmt_{user_id}",
+                help=f"Email: {user_email}\nRole: {user_role}\nID: {user_id}"
+            )
+            
+            if checkbox_value and user_id not in current_user_selections:
+                current_user_selections.append(user_id)
+            elif not checkbox_value and user_id in current_user_selections:
+                current_user_selections.remove(user_id)
+    
+    if set(current_user_selections) != set(st.session_state.selected_user_ids):
+        st.session_state.selected_user_ids = current_user_selections
+        st.rerun(scope="fragment")
+    
+    if not st.session_state.selected_user_ids:
+        st.info("Please select users above to continue.")
+        return
+    
+    st.success(f"✅ Selected {len(st.session_state.selected_user_ids)} users")
+    
+    # Assignment actions
+    st.markdown("**Step 3: Assignment Role & Settings**")
+    
+    settings_col1, settings_col2 = st.columns(2)
+    
+    with settings_col1:
+        role = st.selectbox("Assignment Role", ["annotator", "reviewer", "admin", "model"], 
+                           index=["annotator", "reviewer", "admin", "model"].index(st.session_state.assignment_role),
+                           key="assign_role_mgmt")
+    
+    with settings_col2:
+        user_weight = st.number_input(
+            "User Weight", 
+            min_value=0.0, 
+            value=st.session_state.assignment_user_weight, 
+            step=0.1,
+            key="assign_user_weight_mgmt",
+            help="Weight for user's answers in scoring (default: 1.0)"
+        )
+    
+    if role != st.session_state.assignment_role:
+        st.session_state.assignment_role = role
+    
+    if user_weight != st.session_state.assignment_user_weight:
+        st.session_state.assignment_user_weight = user_weight
+    
+    st.info(f"Ready to assign {len(st.session_state.selected_user_ids)} users as **{role}** with weight **{user_weight}** to {len(st.session_state.selected_project_ids)} projects")
+    
+    action_col1, action_col2 = st.columns(2)
+    
+    with action_col1:
+        if st.button("✅ Execute Assignments", key="execute_assignments", use_container_width=True):
+            project_ids = st.session_state.selected_project_ids
+            user_ids = st.session_state.selected_user_ids
+            total_operations = len(user_ids) * len(project_ids)
+            success_count = 0
+            error_count = 0
+            
+            progress_bar = st.progress(0)
+            status_container = st.empty()
+            
+            operation_counter = 0
+            
+            for project_id in project_ids:
+                for user_id in user_ids:
+                    try:
+                        ProjectService.add_user_to_project(
+                            project_id=project_id, user_id=user_id, role=role, 
+                            session=session, user_weight=user_weight
+                        )
+                        success_count += 1
+                    except Exception as e:
+                        error_count += 1
+                        if error_count <= 3:
+                            st.error(f"Failed to assign user {user_id} to project {project_id}: {str(e)}")
+                    
+                    operation_counter += 1
+                    progress = operation_counter / total_operations
+                    progress_bar.progress(progress)
+                    status_container.text(f"Processing: {operation_counter}/{total_operations}")
+            
+            if success_count > 0:
+                st.success(f"✅ Successfully completed {success_count} assignments with weight {user_weight}!")
+            if error_count > 0:
+                st.warning(f"⚠️ {error_count} assignments failed")
+            
+            if success_count > 0:
+                st.session_state.selected_project_ids = []
+                st.session_state.selected_user_ids = []
+                st.rerun(scope="fragment")
+    
+    with action_col2:
+        if st.button("🗑️ Remove Assignments", key="execute_removals", use_container_width=True):
+            project_ids = st.session_state.selected_project_ids
+            user_ids = st.session_state.selected_user_ids
+            total_operations = len(user_ids) * len(project_ids)
+            success_count = 0
+            error_count = 0
+            
+            progress_bar = st.progress(0)
+            status_container = st.empty()
+            
+            operation_counter = 0
+            
+            for project_id in project_ids:
+                for user_id in user_ids:
+                    try:
+                        AuthService.archive_user_from_project(user_id=user_id, project_id=project_id, session=session)
+                        success_count += 1
+                    except Exception as e:
+                        error_count += 1
+                        if error_count <= 3:
+                            st.error(f"Failed to remove user {user_id} from project {project_id}: {str(e)}")
+                    
+                    operation_counter += 1
+                    progress = operation_counter / total_operations
+                    progress_bar.progress(progress)
+                    status_container.text(f"Processing: {operation_counter}/{total_operations}")
+            
+            if success_count > 0:
+                st.success(f"🗑️ Successfully removed {success_count} assignments!")
+            if error_count > 0:
+                st.warning(f"⚠️ {error_count} removals failed")
+            
+            if success_count > 0:
+                st.session_state.selected_project_ids = []
+                st.session_state.selected_user_ids = []
+                st.rerun(scope="fragment")
 
 @st.fragment
 def admin_projects():
@@ -3011,441 +4032,6 @@ def admin_schemas():
                         st.rerun(scope="fragment")
                     except Exception as e:
                         st.error(f"Error: {str(e)}")
-
-@st.fragment
-def admin_questions():
-    st.subheader("❓ Question & Group Management")
-    
-    with get_db_session() as session:
-        q_tab1, q_tab2 = st.tabs(["Question Groups", "Individual Questions"])
-        
-        with q_tab1:
-            groups_df = QuestionGroupService.get_all_groups(session=session)
-            st.dataframe(groups_df, use_container_width=True)
-            
-            with st.expander("➕ Create Question Group"):
-                title = st.text_input("Group Title", key="admin_group_title")
-                description = st.text_area("Description", key="admin_group_description")
-                is_reusable = st.checkbox("Reusable across schemas", key="admin_group_reusable")
-                
-                # Verification function selection
-                st.markdown("**Verification Function (Optional):**")
-                try:
-                    available_functions = QuestionGroupService.get_available_verification_functions()
-                    if available_functions:
-                        verification_function = st.selectbox(
-                            "Select verification function",
-                            ["None"] + available_functions,
-                            key="admin_group_verification",
-                            help="Optional function to validate answers"
-                        )
-                        
-                        if verification_function != "None":
-                            try:
-                                func_info = QuestionGroupService.get_verification_function_info(verification_function)
-                                st.info(f"**Function:** `{func_info['name']}{func_info['signature']}`")
-                                if func_info['docstring']:
-                                    st.markdown(f"**Documentation:** {func_info['docstring']}")
-                            except Exception as e:
-                                st.error(f"Error loading function info: {str(e)}")
-                        
-                        verification_function = verification_function if verification_function != "None" else None
-                    else:
-                        st.info("No verification functions found in verify.py")
-                        verification_function = None
-                except Exception as e:
-                    st.error(f"Error loading verification functions: {str(e)}")
-                    verification_function = None
-                
-                questions_df = QuestionService.get_all_questions(session=session)
-                if not questions_df.empty:
-                    available_questions = questions_df[~questions_df["Archived"]]
-                    selected_questions = st.multiselect(
-                        "Questions",
-                        available_questions["ID"].tolist(),
-                        format_func=lambda x: available_questions[available_questions["ID"]==x]["Text"].iloc[0],
-                        key="admin_group_questions"
-                    )
-                else:
-                    selected_questions = []
-                    st.warning("No questions available.")
-                
-                if st.button("Create Group", key="admin_create_group_btn"):
-                    if title and selected_questions:
-                        try:
-                            QuestionGroupService.create_group(
-                                title=title, description=description, is_reusable=is_reusable, 
-                                question_ids=selected_questions, verification_function=verification_function, 
-                                session=session
-                            )
-                            st.success("Question group created!")
-                            st.rerun(scope="fragment")
-                        except Exception as e:
-                            st.error(f"Error: {str(e)}")
-            
-            # Edit Question Group expander
-            with st.expander("✏️ Edit Question Group"):
-                if not groups_df.empty:
-                    available_groups = groups_df[~groups_df["Archived"]]
-                    if not available_groups.empty:
-                        group_options = {f"{row['Name']} (ID: {row['ID']})": row['ID'] for _, row in available_groups.iterrows()}
-                        selected_group_name = st.selectbox(
-                            "Select Group to Edit",
-                            list(group_options.keys()),
-                            key="admin_edit_group_select"
-                        )
-                        
-                        if selected_group_name:
-                            selected_group_id = group_options[selected_group_name]
-                            
-                            try:
-                                group_details = QuestionGroupService.get_group_details_with_verification(
-                                    group_id=selected_group_id, session=session
-                                )
-                                current_verification = group_details.get("verification_function")
-                                
-                                new_title = st.text_input(
-                                    "Group Title",
-                                    value=group_details["title"],
-                                    key="admin_edit_group_title"
-                                )
-                                new_description = st.text_area(
-                                    "Description",
-                                    value=group_details["description"] or "",
-                                    key="admin_edit_group_description"
-                                )
-                                new_is_reusable = st.checkbox(
-                                    "Reusable across schemas",
-                                    value=group_details["is_reusable"],
-                                    key="admin_edit_group_reusable"
-                                )
-                                
-                                # Verification function editing
-                                st.markdown("**Verification Function:**")
-                                try:
-                                    available_functions = QuestionGroupService.get_available_verification_functions()
-                                    verification_options = ["None"] + available_functions
-                                    current_index = 0
-                                    if current_verification and current_verification in available_functions:
-                                        current_index = verification_options.index(current_verification)
-                                    
-                                    new_verification_function = st.selectbox(
-                                        "Select verification function",
-                                        verification_options,
-                                        index=current_index,
-                                        key="admin_edit_group_verification",
-                                        help="Optional function to validate answers"
-                                    )
-                                    
-                                    col1, col2 = st.columns(2)
-                                    
-                                    with col1:
-                                        st.markdown("**Current Function:**")
-                                        if current_verification:
-                                            try:
-                                                current_func_info = QuestionGroupService.get_verification_function_info(current_verification)
-                                                st.code(f"{current_func_info['name']}{current_func_info['signature']}")
-                                                if current_func_info['docstring']:
-                                                    st.markdown(f"**Doc:** {current_func_info['docstring']}")
-                                            except Exception as e:
-                                                st.error(f"Error loading current function: {str(e)}")
-                                        else:
-                                            st.info("No verification function set")
-                                    
-                                    with col2:
-                                        st.markdown("**New Function:**")
-                                        if new_verification_function != "None":
-                                            try:
-                                                new_func_info = QuestionGroupService.get_verification_function_info(new_verification_function)
-                                                st.code(f"{new_func_info['name']}{new_func_info['signature']}")
-                                                if new_func_info['docstring']:
-                                                    st.markdown(f"**Doc:** {new_func_info['docstring']}")
-                                            except Exception as e:
-                                                st.error(f"Error loading function info: {str(e)}")
-                                        else:
-                                            st.info("No verification function will be set")
-                                    
-                                    new_verification_function = new_verification_function if new_verification_function != "None" else None
-                                    
-                                except Exception as e:
-                                    st.error(f"Error loading verification functions: {str(e)}")
-                                    new_verification_function = current_verification
-                                
-                                # Question order management
-                                st.markdown("**Question Order Management:**")
-                                current_order = QuestionGroupService.get_question_order(group_id=selected_group_id, session=session)
-                                
-                                if current_order:
-                                    questions_df = QuestionService.get_all_questions(session=session)
-                                    
-                                    order_key = f"edit_group_order_{selected_group_id}"
-                                    if order_key not in st.session_state:
-                                        st.session_state[order_key] = current_order.copy()
-                                    
-                                    working_order = st.session_state[order_key]
-                                    
-                                    st.markdown("**Current Question Order:**")
-                                    st.info("Use the ⬆️ and ⬇️ buttons to reorder questions. Changes will be applied when you click 'Update Group'.")
-                                    
-                                    if len(working_order) > 5:
-                                        search_term = st.text_input(
-                                            "🔍 Search questions (to quickly find questions in large groups)",
-                                            key=f"search_questions_{selected_group_id}",
-                                            placeholder="Type part of a question..."
-                                        )
-                                    else:
-                                        search_term = ""
-                                    
-                                    for i, q_id in enumerate(working_order):
-                                        question_row = questions_df[questions_df["ID"] == q_id]
-                                        if not question_row.empty:
-                                            q_text = question_row.iloc[0]["Text"]
-                                            
-                                            if search_term and search_term.lower() not in q_text.lower():
-                                                continue
-                                            
-                                            col1, col2, col3 = st.columns([0.1, 0.8, 0.1])
-                                            
-                                            with col1:
-                                                if st.button("⬆️", key=f"up_{selected_group_id}_{q_id}_{i}", 
-                                                            disabled=(i == 0), help="Move up"):
-                                                    st.session_state[order_key][i], st.session_state[order_key][i-1] = \
-                                                        st.session_state[order_key][i-1], st.session_state[order_key][i]
-                                                    st.rerun()
-                                            
-                                            with col2:
-                                                display_text = q_text[:80] + ('...' if len(q_text) > 80 else '')
-                                                if search_term and search_term.lower() in q_text.lower():
-                                                    st.write(f"**{i+1}.** {display_text} 🔍")
-                                                else:
-                                                    st.write(f"**{i+1}.** {display_text}")
-                                                st.caption(f"ID: {q_id}")
-                                            
-                                            with col3:
-                                                if st.button("⬇️", key=f"down_{selected_group_id}_{q_id}_{i}", 
-                                                            disabled=(i == len(working_order) - 1), help="Move down"):
-                                                    st.session_state[order_key][i], st.session_state[order_key][i+1] = \
-                                                        st.session_state[order_key][i+1], st.session_state[order_key][i]
-                                                    st.rerun()
-                                    
-                                    col_reset, col_status = st.columns(2)
-                                    with col_reset:
-                                        if st.button("🔄 Reset Order", key=f"reset_order_{selected_group_id}"):
-                                            st.session_state[order_key] = current_order.copy()
-                                            st.rerun()
-                                    
-                                    with col_status:
-                                        if working_order != current_order:
-                                            st.warning("⚠️ Order changed - click 'Update Group' to save")
-                                        else:
-                                            st.success("✅ Order matches saved state")
-                                    
-                                    new_order = working_order
-                                else:
-                                    new_order = current_order
-                                    st.info("No questions in this group.")
-                                
-                                if st.button("Update Group", key="admin_update_group_btn"):
-                                    try:
-                                        QuestionGroupService.edit_group(
-                                            group_id=selected_group_id, new_title=new_title,
-                                            new_description=new_description, is_reusable=new_is_reusable,
-                                            verification_function=new_verification_function, session=session
-                                        )
-                                        
-                                        if new_order != current_order:
-                                            QuestionGroupService.update_question_order(
-                                                group_id=selected_group_id, question_ids=new_order, session=session
-                                            )
-                                        
-                                        order_key = f"edit_group_order_{selected_group_id}"
-                                        if order_key in st.session_state:
-                                            del st.session_state[order_key]
-                                        
-                                        st.success("Question group updated successfully!")
-                                        st.rerun(scope="fragment")
-                                    except Exception as e:
-                                        st.error(f"Error updating group: {str(e)}")
-                                        
-                            except Exception as e:
-                                st.error(f"Error loading group details: {str(e)}")
-                    else:
-                        st.info("No non-archived question groups available to edit.")
-                else:
-                    st.info("No question groups available to edit.")
-        
-        with q_tab2:
-            questions_df = QuestionService.get_all_questions(session=session)
-            st.dataframe(questions_df, use_container_width=True)
-            
-            with st.expander("➕ Create Question"):
-                text = st.text_input("Question Text", key="admin_question_text")
-                q_type = st.selectbox("Type", ["single", "description"], key="admin_question_type")
-                
-                options = []
-                default = None
-                
-                if q_type == "single":
-                    st.write("**Options:**")
-                    num_options = st.number_input("Number of options", 1, 10, 2, key="admin_question_num_options")
-                    
-                    for i in range(num_options):
-                        option = st.text_input(f"Option {i+1}", key=f"admin_question_opt_{i}")
-                        if option:
-                            options.append(option)
-                    
-                    if options:
-                        default = st.selectbox("Default option", [""] + options, key="admin_question_default")
-                
-                use_text_as_display = st.checkbox("Use question text as display text", value=True, key="admin_question_use_text_as_display")
-                if not use_text_as_display:
-                    display_text = st.text_input("Question to display to user", key="admin_question_display_text", value=text)
-                else:
-                    display_text = None
-                
-                if st.button("Create Question", key="admin_create_question_btn"):
-                    if text:
-                        try:
-                            QuestionService.add_question(
-                                text=text, qtype=q_type, options=options if q_type == "single" else None,
-                                default=default if q_type == "single" else None, session=session,
-                                display_text=display_text
-                            )
-                            st.success("Question created!")
-                            st.rerun(scope="fragment")
-                        except Exception as e:
-                            st.error(f"Error: {str(e)}")
-            
-            # Edit Individual Question expander
-            with st.expander("✏️ Edit Individual Question"):
-                if not questions_df.empty:
-                    available_questions = questions_df[~questions_df["Archived"]]
-                    if not available_questions.empty:
-                        question_options = {f"{row['Text'][:50]}... (ID: {row['ID']})": row['ID'] for _, row in available_questions.iterrows()}
-                        selected_question_name = st.selectbox(
-                            "Select Question to Edit",
-                            list(question_options.keys()),
-                            key="admin_edit_question_select"
-                        )
-                        
-                        if selected_question_name:
-                            selected_question_id = question_options[selected_question_name]
-                            
-                            try:
-                                current_question = QuestionService.get_question_by_id(
-                                    question_id=selected_question_id, session=session
-                                )
-                                
-                                st.text_input(
-                                    "Question Text (immutable)",
-                                    value=current_question.text,
-                                    key="admin_edit_question_text",
-                                    disabled=True
-                                )
-                                new_display_text = st.text_input(
-                                    "Question to display to user",
-                                    value=current_question.display_text,
-                                    key="admin_edit_question_display_text"
-                                )
-                                st.write(f"**Question Type:** {current_question.type}")
-                                
-                                new_options = None
-                                new_default = None
-                                new_display_values = None
-                                
-                                if current_question.type == "single":
-                                    st.markdown("**Options Management:**")
-                                    
-                                    current_options = current_question.options or []
-                                    current_display_values = current_question.display_values or current_options
-                                    current_default = current_question.default_option or ""
-                                    
-                                    st.write("**Current Options:**")
-                                    for i, (opt, disp) in enumerate(zip(current_options, current_display_values)):
-                                        default_indicator = " (DEFAULT)" if opt == current_default else ""
-                                        st.write(f"{i+1}. Value: `{opt}` | Display: `{disp}`{default_indicator}")
-                                    
-                                    st.markdown("**Edit Options:**")
-                                    st.info("Note: You can only add new options, not remove existing ones (to preserve data integrity).")
-                                    
-                                    num_options = st.number_input(
-                                        "Total number of options", 
-                                        min_value=len(current_options), 
-                                        max_value=10, 
-                                        value=len(current_options),
-                                        key="admin_edit_question_num_options"
-                                    )
-                                    
-                                    new_options = []
-                                    new_display_values = []
-                                    
-                                    for i in range(num_options):
-                                        col1, col2 = st.columns(2)
-                                        
-                                        with col1:
-                                            if i < len(current_options):
-                                                st.text_input(
-                                                    f"Option {i+1} Value",
-                                                    value=current_options[i],
-                                                    disabled=True,
-                                                    key=f"admin_edit_question_opt_val_{i}"
-                                                )
-                                                new_options.append(current_options[i])
-                                            else:
-                                                new_opt = st.text_input(
-                                                    f"Option {i+1} Value (NEW)",
-                                                    key=f"admin_edit_question_opt_val_{i}"
-                                                )
-                                                if new_opt:
-                                                    new_options.append(new_opt)
-                                        
-                                        with col2:
-                                            if i < len(current_display_values):
-                                                new_disp = st.text_input(
-                                                    f"Option {i+1} Display",
-                                                    value=current_display_values[i],
-                                                    key=f"admin_edit_question_opt_disp_{i}"
-                                                )
-                                                new_display_values.append(new_disp if new_disp else current_display_values[i])
-                                            else:
-                                                new_disp = st.text_input(
-                                                    f"Option {i+1} Display (NEW)",
-                                                    value=new_options[i] if i < len(new_options) else "",
-                                                    key=f"admin_edit_question_opt_disp_{i}"
-                                                )
-                                                if new_disp:
-                                                    new_display_values.append(new_disp)
-                                                elif i < len(new_options):
-                                                    new_display_values.append(new_options[i])
-                                    
-                                    if new_options:
-                                        new_default = st.selectbox(
-                                            "Default option",
-                                            [""] + new_options,
-                                            index=new_options.index(current_default) + 1 if current_default in new_options else 0,
-                                            key="admin_edit_question_default"
-                                        )
-                                        if new_default == "":
-                                            new_default = None
-                                
-                                if st.button("Update Question", key="admin_update_question_btn"):
-                                    try:
-                                        QuestionService.edit_question(
-                                            question_id=selected_question_id, new_display_text=new_display_text,
-                                            new_opts=new_options, new_default=new_default,
-                                            new_display_values=new_display_values, session=session
-                                        )
-                                        st.success("Question updated successfully!")
-                                        st.rerun(scope="fragment")
-                                    except Exception as e:
-                                        st.error(f"Error updating question: {str(e)}")
-                                        
-                            except Exception as e:
-                                st.error(f"Error loading question details: {str(e)}")
-                    else:
-                        st.info("No non-archived questions available to edit.")
-                else:
-                    st.info("No questions available to edit.")
 
 @st.fragment
 def admin_users():
@@ -3628,276 +4214,6 @@ def perform_bulk_assignments(project_ids, user_ids, role, session, action_type):
         st.session_state.selected_project_ids = []
         st.session_state.selected_user_ids = []
         st.rerun(scope="fragment")
-
-@st.fragment 
-def display_assignment_management(session: Session):
-    """Optimized assignment management with fragments"""
-    st.markdown("### 🎯 Assign Users to Projects")
-    
-    # Initialize session state
-    if "selected_project_ids" not in st.session_state:
-        st.session_state.selected_project_ids = []
-    if "selected_user_ids" not in st.session_state:
-        st.session_state.selected_user_ids = []
-    if "assignment_role" not in st.session_state:
-        st.session_state.assignment_role = "annotator"
-    
-    # Project selection
-    st.markdown("**Step 1: Select Projects**")
-    
-    try:
-        projects_df = ProjectService.get_all_projects(session=session)
-        if projects_df.empty:
-            st.warning("No projects available.")
-            return
-    except Exception as e:
-        st.error(f"Error loading projects: {str(e)}")
-        return
-    
-    project_search = st.text_input("🔍 Search projects", placeholder="Project name...", key="proj_search_mgmt")
-    
-    filtered_projects = [
-        project_row for _, project_row in projects_df.iterrows()
-        if not project_search or project_search.lower() in project_row["Name"].lower()
-    ]
-    
-    if not filtered_projects:
-        st.warning("No projects match the search criteria.")
-        return
-    
-    st.info(f"Found {len(filtered_projects)} projects")
-    
-    select_col1, select_col2 = st.columns(2)
-    with select_col1:
-        if st.button("Select All Visible Projects", key="select_all_projects_mgmt"):
-            st.session_state.selected_project_ids = [int(p["ID"]) for p in filtered_projects]
-            st.rerun(scope="fragment")
-    
-    with select_col2:
-        if st.button("Clear Project Selection", key="clear_projects_mgmt"):
-            st.session_state.selected_project_ids = []
-            st.rerun(scope="fragment")
-    
-    # Project selection grid
-    project_cols = st.columns(4)
-    current_selections = []
-    
-    for i, project_row in enumerate(filtered_projects):
-        with project_cols[i % 4]:
-            project_id = int(project_row["ID"])
-            project_name = project_row["Name"]
-            
-            is_selected = project_id in st.session_state.selected_project_ids
-            
-            checkbox_value = st.checkbox(
-                project_name,
-                value=is_selected,
-                key=f"proj_cb_mgmt_{project_id}",
-                help=f"Project ID: {project_id}"
-            )
-            
-            if checkbox_value:
-                current_selections.append(project_id)
-    
-    if set(current_selections) != set(st.session_state.selected_project_ids):
-        st.session_state.selected_project_ids = current_selections
-        st.rerun(scope="fragment")
-    
-    if not st.session_state.selected_project_ids:
-        st.info("Please select projects above to continue.")
-        return
-    
-    st.success(f"✅ Selected {len(st.session_state.selected_project_ids)} projects")
-    
-    # User selection
-    st.markdown("**Step 2: Select Users**")
-    
-    try:
-        users_df = AuthService.get_all_users(session=session)
-        if users_df.empty:
-            st.warning("No users available.")
-            return
-    except Exception as e:
-        st.error(f"Error loading users: {str(e)}")
-        return
-    
-    user_filter_col1, user_filter_col2 = st.columns(2)
-    with user_filter_col1:
-        user_search = st.text_input("Search users", placeholder="Name or email...", key="user_search_mgmt")
-    with user_filter_col2:
-        user_role_filter = st.selectbox("Filter by user role", ["All", "admin", "human", "model"], key="user_role_filter_mgmt")
-    
-    # Filter users
-    filtered_users = []
-    for _, user_row in users_df.iterrows():
-        if user_role_filter != "All" and user_row["Role"] != user_role_filter:
-            continue
-        
-        if user_search:
-            if (user_search.lower() not in user_row["User ID"].lower() and 
-                user_search.lower() not in user_row["Email"].lower()):
-                continue
-        
-        filtered_users.append(user_row)
-    
-    if not filtered_users:
-        st.warning("No users match the search criteria.")
-        return
-    
-    st.info(f"Found {len(filtered_users)} users")
-    
-    # User pagination
-    users_per_page = 12
-    total_pages = (len(filtered_users) - 1) // users_per_page + 1 if len(filtered_users) > 0 else 1
-    
-    if total_pages > 1:
-        page = st.selectbox(f"Page (showing {users_per_page} users per page)", 
-                           range(1, total_pages + 1), key="user_page_mgmt") - 1
-    else:
-        page = 0
-    
-    start_idx = page * users_per_page
-    end_idx = min(start_idx + users_per_page, len(filtered_users))
-    page_users = filtered_users[start_idx:end_idx]
-    
-    user_select_col1, user_select_col2 = st.columns(2)
-    with user_select_col1:
-        if st.button("Select All on Page", key="select_all_users_mgmt"):
-            page_user_ids = [int(u["ID"]) for u in page_users]
-            st.session_state.selected_user_ids = list(set(st.session_state.selected_user_ids + page_user_ids))
-            st.rerun(scope="fragment")
-    
-    with user_select_col2:
-        if st.button("Clear User Selection", key="clear_users_mgmt"):
-            st.session_state.selected_user_ids = []
-            st.rerun(scope="fragment")
-    
-    # User selection grid
-    user_cols = st.columns(4)
-    current_user_selections = list(st.session_state.selected_user_ids)
-    
-    for i, user_row in enumerate(page_users):
-        with user_cols[i % 4]:
-            user_id = int(user_row["ID"])
-            user_name = user_row["User ID"]
-            user_email = user_row["Email"]
-            user_role = user_row["Role"]
-            
-            is_selected = user_id in st.session_state.selected_user_ids
-            
-            checkbox_value = st.checkbox(
-                user_name,
-                value=is_selected,
-                key=f"user_cb_mgmt_{user_id}",
-                help=f"Email: {user_email}\nRole: {user_role}\nID: {user_id}"
-            )
-            
-            if checkbox_value and user_id not in current_user_selections:
-                current_user_selections.append(user_id)
-            elif not checkbox_value and user_id in current_user_selections:
-                current_user_selections.remove(user_id)
-    
-    if set(current_user_selections) != set(st.session_state.selected_user_ids):
-        st.session_state.selected_user_ids = current_user_selections
-        st.rerun(scope="fragment")
-    
-    if not st.session_state.selected_user_ids:
-        st.info("Please select users above to continue.")
-        return
-    
-    st.success(f"✅ Selected {len(st.session_state.selected_user_ids)} users")
-    
-    # Assignment actions
-    st.markdown("**Step 3: Assignment Role & Actions**")
-    
-    role = st.selectbox("Assignment Role", ["annotator", "reviewer", "admin", "model"], 
-                       index=["annotator", "reviewer", "admin", "model"].index(st.session_state.assignment_role),
-                       key="assign_role_mgmt")
-    
-    if role != st.session_state.assignment_role:
-        st.session_state.assignment_role = role
-    
-    st.info(f"Ready to assign {len(st.session_state.selected_user_ids)} users as **{role}** to {len(st.session_state.selected_project_ids)} projects")
-    
-    action_col1, action_col2 = st.columns(2)
-    
-    with action_col1:
-        if st.button("✅ Execute Assignments", key="execute_assignments", use_container_width=True):
-            project_ids = st.session_state.selected_project_ids
-            user_ids = st.session_state.selected_user_ids
-            total_operations = len(user_ids) * len(project_ids)
-            success_count = 0
-            error_count = 0
-            
-            progress_bar = st.progress(0)
-            status_container = st.empty()
-            
-            operation_counter = 0
-            
-            for project_id in project_ids:
-                for user_id in user_ids:
-                    try:
-                        ProjectService.add_user_to_project(
-                            project_id=project_id, user_id=user_id, role=role, session=session
-                        )
-                        success_count += 1
-                    except Exception as e:
-                        error_count += 1
-                        if error_count <= 3:
-                            st.error(f"Failed to assign user {user_id} to project {project_id}: {str(e)}")
-                    
-                    operation_counter += 1
-                    progress = operation_counter / total_operations
-                    progress_bar.progress(progress)
-                    status_container.text(f"Processing: {operation_counter}/{total_operations}")
-            
-            if success_count > 0:
-                st.success(f"✅ Successfully completed {success_count} assignments!")
-            if error_count > 0:
-                st.warning(f"⚠️ {error_count} assignments failed")
-            
-            if success_count > 0:
-                st.session_state.selected_project_ids = []
-                st.session_state.selected_user_ids = []
-                st.rerun(scope="fragment")
-    
-    with action_col2:
-        if st.button("🗑️ Remove Assignments", key="execute_removals", use_container_width=True):
-            project_ids = st.session_state.selected_project_ids
-            user_ids = st.session_state.selected_user_ids
-            total_operations = len(user_ids) * len(project_ids)
-            success_count = 0
-            error_count = 0
-            
-            progress_bar = st.progress(0)
-            status_container = st.empty()
-            
-            operation_counter = 0
-            
-            for project_id in project_ids:
-                for user_id in user_ids:
-                    try:
-                        AuthService.archive_user_from_project(user_id=user_id, project_id=project_id, session=session)
-                        success_count += 1
-                    except Exception as e:
-                        error_count += 1
-                        if error_count <= 3:
-                            st.error(f"Failed to remove user {user_id} from project {project_id}: {str(e)}")
-                    
-                    operation_counter += 1
-                    progress = operation_counter / total_operations
-                    progress_bar.progress(progress)
-                    status_container.text(f"Processing: {operation_counter}/{total_operations}")
-            
-            if success_count > 0:
-                st.success(f"🗑️ Successfully removed {success_count} assignments!")
-            if error_count > 0:
-                st.warning(f"⚠️ {error_count} removals failed")
-            
-            if success_count > 0:
-                st.session_state.selected_project_ids = []
-                st.session_state.selected_user_ids = []
-                st.rerun(scope="fragment")
 
 @st.fragment 
 def admin_assignments():
