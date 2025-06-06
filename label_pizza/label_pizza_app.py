@@ -1540,7 +1540,7 @@ def get_user_assignment_dates(user_id: int, session: Session) -> Dict[int, Dict[
         return {}
 
 def display_project_dashboard(user_id: int, role: str, session: Session) -> Optional[int]:
-    """Display project group dashboard with enhanced clarity and pagination"""
+    """Display project group dashboard with enhanced clarity and pagination - ENHANCED with better truncation handling"""
     
     st.markdown("## 📂 Project Dashboard")
     
@@ -1642,8 +1642,15 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
         
         current_page = st.session_state[page_key]
         
-        # ENHANCED: Much clearer group header with distinct styling
+        # ENHANCED: Much clearer group header with distinct styling and NO TRUNCATION unless spans multiple lines
         group_color = ["#3498db", "#e74c3c", "#2ecc71", "#f39c12", "#9b59b6", "#1abc9c"][group_index % 6]
+        
+        # Only truncate group name if it's extremely long (would span multiple lines)
+        display_group_name = group_name
+        truncated_group_name = group_name
+        if len(group_name) > 70:  # Only truncate if extremely long
+            truncated_group_name = group_name[:67] + "..."
+        
         st.markdown(f"""
         <div style="
             background: linear-gradient(135deg, {group_color}15, {group_color}08);
@@ -1653,7 +1660,7 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
             margin: 25px 0 20px 0;
             box-shadow: 0 6px 12px rgba(0,0,0,0.1);
             position: relative;
-        ">
+        " title="{display_group_name}">
             <div style="
                 position: absolute;
                 top: -8px;
@@ -1670,7 +1677,7 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
             </div>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
                 <div>
-                    <h2 style="margin: 0; color: {group_color}; font-size: 1.8rem;">📁 {group_name}</h2>
+                    <h2 style="margin: 0; color: {group_color}; font-size: 1.8rem;" title="{display_group_name}">📁 {truncated_group_name}</h2>
                     <p style="margin: 8px 0 0 0; color: #34495e; font-size: 1.1rem; font-weight: 500;">
                         {total_projects} projects in this group {f"• Page {current_page + 1} of {total_pages}" if total_pages > 1 else ""}
                     </p>
@@ -1725,7 +1732,7 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
         end_idx = min(start_idx + projects_per_page, total_projects)
         page_projects = filtered_projects[start_idx:end_idx]
         
-        # Display projects in grid with enhanced clarity
+        # Display projects in grid with enhanced clarity and NO TRUNCATION for project names
         if page_projects:
             # Use 3 columns for better layout
             cols = st.columns(3)
@@ -1741,7 +1748,16 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
                     assignment_date = project.get("assignment_date", "Unknown")
                     progress_text = f"{completion_rate:.1f}% Complete"
                     
-                    # Enhanced project card with better group context
+                    # NO TRUNCATION for project names in display
+                    project_name = project["name"]
+                    display_project_name = project_name
+                    
+                    # Handle long group names in the tag - only truncate if extremely long
+                    truncated_tag_group_name = group_name
+                    if len(group_name) > 60:  # Only for tags, be more conservative
+                        truncated_tag_group_name = group_name[:57] + "..."
+                    
+                    # Enhanced project card with better group context and NO PROJECT NAME TRUNCATION
                     with st.container():
                         st.markdown(f"""
                         <div style="
@@ -1753,7 +1769,7 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
                             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
                             min-height: 200px;
                             position: relative;
-                        ">
+                        " title="Group: {display_group_name}">
                             <div style="
                                 position: absolute;
                                 top: -6px;
@@ -1764,10 +1780,10 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
                                 border-radius: 6px;
                                 font-size: 0.7rem;
                                 font-weight: bold;
-                            ">
-                                {group_name[:15]}{"..." if len(group_name) > 15 else ""}
+                            " title="{display_group_name}">
+                                {truncated_tag_group_name}
                             </div>
-                            <h4 style="margin: 10px 0 8px 0; color: #1f77b4; font-size: 1.1rem;">{project["name"]}</h4>
+                            <h4 style="margin: 10px 0 8px 0; color: #1f77b4; font-size: 1.1rem; line-height: 1.3; word-wrap: break-word;" title="{display_project_name}">{display_project_name}</h4>
                             <p style="margin: 8px 0; color: #666; font-size: 0.9rem; min-height: 50px;">
                                 {project["description"] or 'No description'}
                             </p>
@@ -1781,11 +1797,11 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        # Select button with group-aware styling
-                        if st.button(f"Select {project['name']}", 
+                        # FIXED: Better button text - no truncation, use clear action words
+                        if st.button("Open Project", 
                                    key=f"select_project_{project['id']}", 
                                    use_container_width=True,
-                                   help=f"Open project from {group_name} group"):
+                                   help=f"Open '{display_project_name}' from {display_group_name} group"):
                             selected_project_id = project["id"]
                             st.session_state.selected_project_id = project["id"]
                             st.session_state.current_view = "project"
@@ -1809,7 +1825,7 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
     return None
 
 def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: int):
-    """Clean annotator selection with responsive checkboxes for many users"""
+    """MODERN, COMPACT annotator selection with responsive design and uniform buttons"""
     
     if not annotators:
         st.warning("No annotators have submitted answers for this project yet.")
@@ -1822,14 +1838,13 @@ def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: i
     
     annotator_options = list(annotators.keys())
     
-    # Organized control section with better spacing
-    control_container = st.container()
-    with control_container:
-        # Quick action buttons in a clean, centered layout
-        st.markdown("**Quick Actions:**")
+    # REDESIGNED CONTROL SECTION - more elegant and balanced
+    with st.container():
+        st.markdown("#### 🎯 Quick Actions")
         
-        # Better organized button layout
-        btn_col1, btn_col2, btn_col3 = st.columns([1, 1, 1])
+        # REDESIGNED: Put buttons in one row, status in separate row for better balance
+        # Action buttons row - now just 2 columns for wider, more prominent buttons
+        btn_col1, btn_col2 = st.columns(2)
         with btn_col1:
             if st.button("✅ Select All", key=f"select_all_{project_id}", 
                         help="Select all annotators", use_container_width=True):
@@ -1842,34 +1857,63 @@ def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: i
                 st.session_state.selected_annotators = []
                 st.rerun()
         
-        with btn_col3:
-            # Selection counter with better styling
-            selected_count = len(st.session_state.selected_annotators)
-            total_count = len(annotator_options)
-            st.metric("Selected", f"{selected_count}/{total_count}", 
-                     delta=f"{selected_count} active", label_visibility="visible")
+        # Status row - separate, elegant, and compact
+        selected_count = len(st.session_state.selected_annotators)
+        total_count = len(annotator_options)
+        
+        # Create a compact, elegant status display
+        if selected_count > 0:
+            status_color = "#28a745"
+            status_text = f"📊 {selected_count} of {total_count} annotators selected"
+            delta_text = f"{selected_count} active"
+        else:
+            status_color = "#6c757d"
+            status_text = f"📊 No annotators selected ({total_count} available)"
+            delta_text = "None selected"
+        
+        st.markdown(f"""
+        <div style="
+            background: linear-gradient(135deg, {status_color}15, {status_color}08);
+            border: 1px solid {status_color}40;
+            border-radius: 8px;
+            padding: 8px 16px;
+            margin: 12px 0;
+            text-align: center;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        ">
+            <div style="
+                color: {status_color};
+                font-weight: 600;
+                font-size: 0.9rem;
+            ">{status_text}</div>
+            <div style="
+                color: {status_color}cc;
+                font-size: 0.75rem;
+                margin-top: 2px;
+            ">{delta_text}</div>
+        </div>
+        """, unsafe_allow_html=True)
     
-    # Annotator selection section with better organization
-    selection_container = st.container()
-    with selection_container:
-        st.markdown("**Choose Annotators:**")
+    # MODERN ANNOTATOR SELECTION with elegant card-based design
+    with st.container():
+        st.markdown("#### 👥 Choose Annotators")
         st.caption("Select annotators whose responses you want to see during review")
         
-        # Calculate optimal number of columns based on annotator count
+        # Calculate optimal number of columns based on annotator count - MORE RESPONSIVE
         num_annotators = len(annotator_options)
-        if num_annotators <= 4:
+        if num_annotators <= 3:
             num_cols = num_annotators
-        elif num_annotators <= 12:
-            num_cols = 3
-        elif num_annotators <= 20:
+        elif num_annotators <= 8:
+            num_cols = 4  # More compact for medium numbers
+        elif num_annotators <= 16:
             num_cols = 4
         else:
-            num_cols = 5  # For 30+ annotators, use 5 columns
+            num_cols = 5  # For 17+ annotators, use 5 columns
         
         # Track changes
         updated_selection = []
         
-        # Create rows of checkboxes with better spacing
+        # ENHANCED: Create modern card-based checkboxes with better spacing
         for row_start in range(0, num_annotators, num_cols):
             cols = st.columns(num_cols)
             row_annotators = annotator_options[row_start:row_start + num_cols]
@@ -1889,8 +1933,13 @@ def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: i
                     email = annotator_info.get('email', '')
                     user_id = annotator_info.get('id', '')
                     
-                    # Create clean label (just name and initials)
-                    label = f"**{full_name}** ({initials})"
+                    # FIXED: Only truncate if name has more than 5 words or is extremely long
+                    display_name = full_name
+                    word_count = len(full_name.split())
+                    if word_count > 5 or len(full_name) > 25:  # Only truncate if more than 5 words OR extremely long
+                        display_name = full_name[:22] + "..."
+                    
+                    label = f"**{display_name}**\n`{initials}`"
                     
                     # Create informative tooltip
                     if email and email != f"user_{user_id}@example.com":
@@ -1898,7 +1947,7 @@ def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: i
                     else:
                         tooltip = f"{full_name}\nUser ID: {user_id}"
                     
-                    # Checkbox for this annotator
+                    # MODERN checkbox with compact design
                     checkbox_key = f"annotator_cb_{project_id}_{row_start + i}"
                     is_selected = st.checkbox(
                         label,
@@ -1915,9 +1964,9 @@ def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: i
             st.session_state.selected_annotators = updated_selection
             st.rerun()
     
-    # Elegant selection summary
+    # ELEGANT SELECTION SUMMARY with modern styling
     if st.session_state.selected_annotators:
-        # Create a compact summary with just initials
+        # Create a compact summary with just initials in a modern card
         initials_list = []
         for annotator in st.session_state.selected_annotators:
             if " (" in annotator and annotator.endswith(")"):
@@ -1926,23 +1975,50 @@ def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: i
             else:
                 initials_list.append(annotator[:2].upper())
         
-        # Group initials nicely
-        if len(initials_list) <= 10:
-            initials_text = ", ".join(initials_list)
+        # Group initials nicely with modern styling
+        if len(initials_list) <= 8:
+            initials_text = " • ".join(initials_list)
         else:
             # For many selections, show first few + count
-            shown = initials_list[:8]
-            remaining = len(initials_list) - 8
-            initials_text = f"{', '.join(shown)} + {remaining} more"
+            shown = initials_list[:6]
+            remaining = len(initials_list) - 6
+            initials_text = f"{' • '.join(shown)} + {remaining} more"
         
-        # Better styled summary
-        st.success(f"✅ **Currently Selected:** {initials_text}")
+        # MODERN styled summary with gradient background
+        st.markdown(f"""
+        <div style="
+            background: linear-gradient(135deg, #e8f5e8, #d4f1d4);
+            border: 2px solid #28a745;
+            border-radius: 12px;
+            padding: 12px 16px;
+            margin: 16px 0;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.2);
+        ">
+            <div style="color: #155724; font-weight: 600; font-size: 0.95rem;">
+                ✅ Currently Selected: {initials_text}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     else:
-        st.warning("⚠️ **No annotators selected** - results will only show ground truth")
+        st.markdown(f"""
+        <div style="
+            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+            border: 2px solid #ffc107;
+            border-radius: 12px;
+            padding: 12px 16px;
+            margin: 16px 0;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(255, 193, 7, 0.2);
+        ">
+            <div style="color: #856404; font-weight: 600; font-size: 0.95rem;">
+                ⚠️ No annotators selected - results will only show ground truth
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     
     return st.session_state.selected_annotators
-
-
+    
 def display_project_progress(user_id: int, project_id: int, role: str, session: Session):
     """Display project progress in a refreshable fragment"""
     if role == "annotator":
@@ -1986,7 +2062,7 @@ def display_project_progress(user_id: int, project_id: int, role: str, session: 
             st.error(f"Error loading project progress: {str(e)}")
 
 def display_project_view(user_id: int, role: str, session: Session):
-    """Display the selected project with improved modern UI for reviewer/meta-reviewer tabs"""
+    """Display the selected project with MODERN, COMPACT layout for reviewer/meta-reviewer"""
     project_id = st.session_state.selected_project_id
     
     # Back button
@@ -2040,148 +2116,69 @@ def display_project_view(user_id: int, role: str, session: Session):
         st.error("No videos found in this project.")
         return
     
-    # IMPROVED: Modern, compact control panels with elegant card-style layouts
+    # MODERN, COMPACT: Role-specific control panels with elegant tab layouts
     if role in ["reviewer", "meta_reviewer"]:
         st.markdown("---")
         
-        # Enhanced compact tabs with modern styling
+        # ENHANCED: Elegant, modern tabs with compact design
         if mode == "Training":
             # For training mode: analytics, annotator selection, and layout controls
             analytics_tab, annotator_tab, layout_tab = st.tabs(["📊 Analytics", "👥 Annotators", "🎛️ Layout"])
             
             with analytics_tab:
-                # Modern card layout for analytics
+                # MODERN: Compact analytics section with elegant cards
+                st.markdown("#### 🎯 Performance Insights")
+                
+                # Elegant card for analytics description
                 st.markdown("""
                 <div style="
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    background: linear-gradient(135deg, #e8f4f8, #d5e8f0);
+                    border: 2px solid #3498db;
                     border-radius: 12px;
-                    padding: 20px;
-                    margin: 10px 0;
-                    box-shadow: 0 8px 32px rgba(102, 126, 234, 0.2);
-                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    padding: 16px;
+                    margin: 12px 0;
+                    box-shadow: 0 2px 8px rgba(52, 152, 219, 0.15);
                 ">
-                    <div style="color: white; margin-bottom: 15px;">
-                        <h4 style="margin: 0; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-                            <span style="font-size: 1.2em;">🎯</span>
-                            Performance Analytics
-                        </h4>
-                        <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 0.9rem;">
-                            Detailed accuracy insights for all training participants
-                        </p>
+                    <div style="color: #2980b9; font-weight: 500; font-size: 0.95rem; text-align: center;">
+                        📈 Access detailed accuracy analytics for all participants in this training project
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Centered analytics button with modern styling
-                col1, col2, col3 = st.columns([1, 2, 1])
-                with col2:
-                    # Custom button styling
-                    analytics_available = display_accuracy_button_for_project(project_id=project_id, role=role, session=session)
-                    if not analytics_available:
-                        st.info("🔄 Analytics will be available once participants complete the training")
+                # Center the analytics button with modern styling
+                display_accuracy_button_for_project(project_id=project_id, role=role, session=session)
+                
+                # Modern tip card
+                st.markdown("""
+                <div style="
+                    background: linear-gradient(135deg, #f0f8ff, #e6f3ff);
+                    border-left: 4px solid #3498db;
+                    border-radius: 8px;
+                    padding: 12px 16px;
+                    margin-top: 16px;
+                    font-size: 0.9rem;
+                    color: #2c3e50;
+                ">
+                    💡 <strong>Tip:</strong> Use analytics to identify patterns in annotator performance and areas for improvement.
+                </div>
+                """, unsafe_allow_html=True)
             
             with annotator_tab:
-                # Modern card layout for annotator selection
-                st.markdown("""
-                <div style="
-                    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-                    border-radius: 12px;
-                    padding: 20px;
-                    margin: 10px 0;
-                    box-shadow: 0 8px 32px rgba(240, 147, 251, 0.2);
-                    border: 1px solid rgba(255, 255, 255, 0.1);
-                ">
-                    <div style="color: white; margin-bottom: 15px;">
-                        <h4 style="margin: 0; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-                            <span style="font-size: 1.2em;">👥</span>
-                            Annotator Selection
-                        </h4>
-                        <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 0.9rem;">
-                            Choose which annotators' responses to display during review
-                        </p>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                # MODERN: Enhanced annotator management with elegant design
+                st.markdown("#### 👥 Annotator Management")
                 
-                # Compact annotator selection with improved error handling
-                try:
-                    annotators = get_all_project_annotators(
-                        project_id=project_id, 
-                        session=session
-                    )
-                    if annotators:
-                        # Compact selection interface
-                        st.markdown("##### 🎯 **Quick Selection**")
-                        display_smart_annotator_selection(
-                            annotators=annotators, 
-                            project_id=project_id
-                        )
-                    else:
-                        st.markdown("""
-                        <div style="
-                            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
-                            border-radius: 8px;
-                            padding: 16px;
-                            text-align: center;
-                            border: 1px solid rgba(252, 182, 159, 0.3);
-                        ">
-                            <p style="margin: 0; color: #8b4513; font-weight: 500;">
-                                📝 No annotator responses yet. Responses will appear here as participants submit answers.
-                            </p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                except Exception as e:
-                    st.error(f"Error loading annotators: {str(e)}")
-                    st.session_state.selected_annotators = []
-            
-            with layout_tab:
-                # Modern card layout for layout controls
+                # Elegant description card
                 st.markdown("""
                 <div style="
-                    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+                    background: linear-gradient(135deg, #f8f0ff, #ede7f6);
+                    border: 2px solid #9c27b0;
                     border-radius: 12px;
-                    padding: 20px;
-                    margin: 10px 0;
-                    box-shadow: 0 8px 32px rgba(79, 172, 254, 0.2);
-                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    padding: 16px;
+                    margin: 12px 0;
+                    box-shadow: 0 2px 8px rgba(156, 39, 176, 0.15);
                 ">
-                    <div style="color: white; margin-bottom: 15px;">
-                        <h4 style="margin: 0; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-                            <span style="font-size: 1.2em;">🎛️</span>
-                            Display Settings
-                        </h4>
-                        <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 0.9rem;">
-                            Customize your review interface layout
-                        </p>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Compact layout controls
-                _display_compact_video_layout_controls(videos, role)
-        else:
-            # For annotation mode: annotator selection and layout controls
-            annotator_tab, layout_tab = st.tabs(["👥 Annotators", "🎛️ Layout"])
-            
-            with annotator_tab:
-                # Annotation mode styling
-                st.markdown("""
-                <div style="
-                    background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
-                    border-radius: 12px;
-                    padding: 20px;
-                    margin: 10px 0;
-                    box-shadow: 0 8px 32px rgba(168, 237, 234, 0.2);
-                    border: 1px solid rgba(255, 255, 255, 0.1);
-                ">
-                    <div style="color: #2c3e50; margin-bottom: 15px;">
-                        <h4 style="margin: 0; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-                            <span style="font-size: 1.2em;">👥</span>
-                            Review Participants
-                        </h4>
-                        <p style="margin: 8px 0 0 0; opacity: 0.8; font-size: 0.9rem;">
-                            Select annotators to review during annotation mode
-                        </p>
+                    <div style="color: #7b1fa2; font-weight: 500; font-size: 0.95rem; text-align: center;">
+                        🎯 Select which annotators' responses to display during your review process
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -2198,59 +2195,155 @@ def display_project_view(user_id: int, role: str, session: Session):
                 except Exception as e:
                     st.error(f"Error loading annotators: {str(e)}")
                     st.session_state.selected_annotators = []
-            
-            with layout_tab:
+                
+                # Modern tip card
                 st.markdown("""
                 <div style="
-                    background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
-                    border-radius: 12px;
-                    padding: 20px;
-                    margin: 10px 0;
-                    box-shadow: 0 8px 32px rgba(255, 236, 210, 0.2);
-                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    background: linear-gradient(135deg, #f0f8ff, #e6f3ff);
+                    border-left: 4px solid #9c27b0;
+                    border-radius: 8px;
+                    padding: 12px 16px;
+                    margin-top: 16px;
+                    font-size: 0.9rem;
+                    color: #2c3e50;
                 ">
-                    <div style="color: #8b4513; margin-bottom: 15px;">
-                        <h4 style="margin: 0; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-                            <span style="font-size: 1.2em;">🎛️</span>
-                            Interface Layout
-                        </h4>
-                        <p style="margin: 8px 0 0 0; opacity: 0.8; font-size: 0.9rem;">
-                            Optimize your annotation workflow
-                        </p>
+                    💡 <strong>Tip:</strong> Select annotators whose responses you want to see alongside your review interface.
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with layout_tab:
+                # FIXED: Put content INSIDE the HTML wrapper like other tabs
+                st.markdown("#### 🎛️ Video Layout Settings")
+                
+                # HTML wrapper with actual content inside (like other tabs)
+                st.markdown("""
+                <div style="
+                    background: linear-gradient(135deg, #fff8e1, #ffecb3);
+                    border: 2px solid #ffc107;
+                    border-radius: 12px;
+                    padding: 16px;
+                    margin: 12px 0;
+                    box-shadow: 0 2px 8px rgba(255, 193, 7, 0.15);
+                ">
+                    <div style="color: #856404; font-weight: 500; font-size: 0.95rem; text-align: center;">
+                        🎛️ Customize Your Video Display - Adjust how videos and questions are laid out
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
                 
-                _display_compact_video_layout_controls(videos, role)
+                # NOW put the controls outside the HTML wrapper
+                _display_video_layout_controls(videos, role)
+                
+                # Modern tip card
+                st.info("💡 **Tip:** Adjust layout to optimize your workflow.")
+        else:
+            # For annotation mode: annotator selection and layout controls
+            annotator_tab, layout_tab = st.tabs(["👥 Annotators", "🎛️ Layout"])
+            
+            with annotator_tab:
+                # MODERN: Enhanced annotator management
+                st.markdown("#### 👥 Annotator Management")
+                
+                # Elegant description card
+                st.markdown("""
+                <div style="
+                    background: linear-gradient(135deg, #f8f0ff, #ede7f6);
+                    border: 2px solid #9c27b0;
+                    border-radius: 12px;
+                    padding: 16px;
+                    margin: 12px 0;
+                    box-shadow: 0 2px 8px rgba(156, 39, 176, 0.15);
+                ">
+                    <div style="color: #7b1fa2; font-weight: 500; font-size: 0.95rem; text-align: center;">
+                        🎯 Select which annotators' responses to display during your review process
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                try:
+                    annotators = get_all_project_annotators(
+                        project_id=project_id, 
+                        session=session
+                    )
+                    display_smart_annotator_selection(
+                        annotators=annotators, 
+                        project_id=project_id
+                    )
+                except Exception as e:
+                    st.error(f"Error loading annotators: {str(e)}")
+                    st.session_state.selected_annotators = []
+                
+                # Modern tip card
+                st.markdown("""
+                <div style="
+                    background: linear-gradient(135deg, #f0f8ff, #e6f3ff);
+                    border-left: 4px solid #9c27b0;
+                    border-radius: 8px;
+                    padding: 12px 16px;
+                    margin-top: 16px;
+                    font-size: 0.9rem;
+                    color: #2c3e50;
+                ">
+                    💡 <strong>Tip:</strong> Select annotators whose responses you want to see alongside your review interface.
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with layout_tab:
+                # FIXED: Put content INSIDE the HTML wrapper like other tabs
+                st.markdown("#### 🎛️ Video Layout Settings")
+                
+                # HTML wrapper with actual content inside (like other tabs)
+                st.markdown("""
+                <div style="
+                    background: linear-gradient(135deg, #fff8e1, #ffecb3);
+                    border: 2px solid #ffc107;
+                    border-radius: 12px;
+                    padding: 16px;
+                    margin: 12px 0;
+                    box-shadow: 0 2px 8px rgba(255, 193, 7, 0.15);
+                ">
+                    <div style="color: #856404; font-weight: 500; font-size: 0.95rem; text-align: center;">
+                        🎛️ Customize Your Video Display - Adjust how videos and questions are laid out
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # NOW put the controls outside the HTML wrapper
+                _display_video_layout_controls(videos, role)
+                
+                # Modern tip card
+                st.info("💡 **Tip:** Adjust layout to optimize your workflow.")
     
-    else:  # Annotator role - simple, elegant single tab
+    else:  # Annotator role - simpler single tab with compact layout
         st.markdown("---")
         
-        layout_tab, = st.tabs(["🎛️ Settings"])
+        layout_tab, = st.tabs(["🎛️ Layout Settings"])
         
         with layout_tab:
+            # FIXED: Put content INSIDE the HTML wrapper like other tabs
+            st.markdown("#### 🎛️ Video Layout Settings")
+            
+            # HTML wrapper with actual content inside (like other tabs)
             st.markdown("""
             <div style="
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                background: linear-gradient(135deg, #fff8e1, #ffecb3);
+                border: 2px solid #ffc107;
                 border-radius: 12px;
-                padding: 20px;
-                margin: 10px 0;
-                box-shadow: 0 8px 32px rgba(102, 126, 234, 0.2);
-                border: 1px solid rgba(255, 255, 255, 0.1);
+                padding: 16px;
+                margin: 12px 0;
+                box-shadow: 0 2px 8px rgba(255, 193, 7, 0.15);
             ">
-                <div style="color: white; margin-bottom: 15px;">
-                    <h4 style="margin: 0; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-                        <span style="font-size: 1.2em;">⚙️</span>
-                        Annotation Settings
-                    </h4>
-                    <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 0.9rem;">
-                        Customize your annotation interface
-                    </p>
+                <div style="color: #856404; font-weight: 500; font-size: 0.95rem; text-align: center;">
+                    🎛️ Customize Your Video Display - Adjust how videos and questions are laid out
                 </div>
             </div>
             """, unsafe_allow_html=True)
             
-            _display_compact_video_layout_controls(videos, role)
+            # NOW put the controls outside the HTML wrapper
+            _display_video_layout_controls(videos, role)
+            
+            # Modern tip card
+            st.info("💡 **Tip:** Adjust layout to optimize your annotation workflow.")
     
     # Get layout settings from session state (automatically managed by Streamlit widgets)
     video_pairs_per_row = st.session_state.get(f"{role}_pairs_per_row", 1)
@@ -2297,7 +2390,7 @@ def display_project_view(user_id: int, role: str, session: Session):
         # Add some spacing between rows
         st.markdown("---")
     
-    # PAGINATION CONTROLS MOVED TO BOTTOM (unchanged from original)
+    # PAGINATION CONTROLS MOVED TO BOTTOM
     if total_pages > 1:
         # Create smart pagination options
         def get_pagination_options(current, total):
@@ -2387,6 +2480,7 @@ def display_project_view(user_id: int, role: str, session: Session):
                     pass
         
         with nav_col3:
+            # ENHANCED: Use use_container_width=True for better alignment
             if st.button("Next Page ▶", disabled=(current_page == total_pages - 1), key=f"{role}_next_{project_id}", use_container_width=True):
                 st.session_state[page_key] = min(total_pages - 1, current_page + 1)
                 st.rerun()
@@ -2394,75 +2488,48 @@ def display_project_view(user_id: int, role: str, session: Session):
         # Show current page info at the bottom
         st.markdown(f"<div style='text-align: center; color: #6c757d; margin-top: 1rem;'>Page {current_page + 1} of {total_pages}</div>", unsafe_allow_html=True)
 
-
-def _display_compact_video_layout_controls(videos: List[Dict], role: str):
-    """Compact, modern layout controls with elegant styling"""
+def _display_video_layout_controls(videos: List[Dict], role: str):
+    """Display video layout controls - Streamlit automatically handles session state for widgets"""
     
-    # Modern control panel styling
-    st.markdown("""
-    <div style="
-        background: rgba(255, 255, 255, 0.8);
-        border-radius: 8px;
-        padding: 16px;
-        border: 1px solid rgba(0, 0, 0, 0.05);
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
-        backdrop-filter: blur(10px);
-    ">
-    """, unsafe_allow_html=True)
-    
-    # Compact two-column layout
     col1, col2 = st.columns(2)
     
     with col1:
-        # Modern slider with custom styling
-        st.markdown("**🔄 Layout**")
+        st.markdown("**🔄 Video Pairs Per Row**")
         video_pairs_per_row = st.slider(
-            "Pairs per row", 
+            "Choose layout", 
             1, 2, 
             st.session_state.get(f"{role}_pairs_per_row", 1), 
             key=f"{role}_pairs_per_row",
-            help="Choose how many video-answer pairs to show side by side"
+            help="Choose how many video-answer pairs to display side by side"
         )
     
     with col2:
+        st.markdown("**📄 Videos Per Page**")
+        
         # Handle edge cases for projects with very few videos
         min_videos_per_page = video_pairs_per_row
         max_videos_per_page = max(min(10, len(videos)), video_pairs_per_row + 1)
         default_videos_per_page = min(min(4, len(videos)), max_videos_per_page)
         
         if len(videos) == 1:
-            st.markdown("**📄 Pagination**")
-            st.info("1 video (showing all)")
+            st.write("**1** (only video in project)")
         elif max_videos_per_page > min_videos_per_page:
-            st.markdown("**📄 Pagination**")
             videos_per_page = st.slider(
-                "Videos per page", 
+                "Pagination setting", 
                 min_videos_per_page, 
                 max_videos_per_page, 
                 st.session_state.get(f"{role}_per_page", default_videos_per_page),
                 key=f"{role}_per_page",
-                help="Choose how many videos to show per page"
+                help="Set how many videos to show on each page"
             )
         else:
-            st.markdown("**📄 Pagination**")
-            st.info(f"{len(videos)} videos (showing all)")
+            st.write(f"**{len(videos)}** (showing all videos)")
     
-    st.markdown("</div>", unsafe_allow_html=True)
+    # Show current settings summary
+    pairs_per_row = st.session_state.get(f"{role}_pairs_per_row", 1)
+    videos_per_page = st.session_state.get(f"{role}_per_page", min(4, len(videos)))
     
-    # Quick tips in a subtle, modern format
-    st.markdown("""
-    <div style="
-        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-        border-radius: 6px;
-        padding: 12px;
-        margin-top: 12px;
-        border-left: 3px solid #007bff;
-    ">
-        <p style="margin: 0; font-size: 0.85rem; color: #495057;">
-            <strong>💡 Pro Tips:</strong> Use 2 pairs per row for quick comparisons • Adjust videos per page based on your screen size
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+    st.success(f"📊 **Current Layout:** {pairs_per_row} pair(s) per row • {videos_per_page} videos per page • {len(videos)} total videos")
 
 @st.fragment
 def display_video_answer_pair(
@@ -3675,24 +3742,29 @@ def _display_enhanced_helper_text_answers(
         if all_answers:
             st.caption("📋 Available answers:")
             
-            # Smart tab naming: use initials when there are many annotators to prevent overflow
-            if len(all_answers) > 3:  # Changed from 6 to 3 - much more aggressive
+            # FIXED: Smart tab naming - be much more conservative with truncation
+            if len(all_answers) > 6:  # Only use initials for very crowded interfaces
                 # Too many for full names - use compact names
                 tab_names = []
                 for answer in all_answers:
                     if answer["is_gt"]:
                         tab_names.append("🏆 GT")
                     else:
-                        # Use just initials for annotators
+                        # Use just initials for annotators when there are many
                         tab_names.append(answer["initials"])
             else:
-                # Few enough for full names (only 1-3 total)
+                # Use full names for 6 or fewer tabs
                 tab_names = []
                 for answer in all_answers:
                     if answer["is_gt"]:
                         tab_names.append("Ground Truth")
                     else:
-                        tab_names.append(answer["name"])
+                        # Use full name, no truncation unless extremely long
+                        name = answer["name"]
+                        if len(name) > 20:  # Only truncate if extremely long
+                            tab_names.append(name[:17] + "...")
+                        else:
+                            tab_names.append(name)
             
             tabs = st.tabs(tab_names)
             
@@ -3705,7 +3777,6 @@ def _display_enhanced_helper_text_answers(
                             
     except Exception as e:
         st.caption(f"⚠️ Could not load annotator answers: {str(e)}")
-
 
 def _get_enhanced_options_for_reviewer(
     video_id: int,
@@ -5820,7 +5891,7 @@ def main():
         initial_sidebar_state="expanded"
     )
     
-    # Enhanced Custom CSS - cleaner design with improved styling and sleek radio buttons
+    # Enhanced Custom CSS - MODERN DESIGN with elegant sidebar card and improved aesthetics
     st.markdown("""
         <style>
         /* Global improvements */
@@ -6139,39 +6210,107 @@ def main():
             box-shadow: 0 0 0 2px rgba(31, 119, 180, 0.1);
         }
         
-        /* SIDEBAR IMPROVEMENTS - More compact and elegant */
+        /* MODERN SIDEBAR STYLING - Clean background */
         .css-1d391kg {
             padding-top: 1rem;
+            background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
         }
         
         /* Sidebar title styling */
         .css-1d391kg h3 {
-            font-size: 1.1rem;
-            margin-bottom: 0.5rem;
+            font-size: 1.2rem;
+            margin-bottom: 0.8rem;
+            color: #2c3e50;
+            font-weight: 700;
+            text-align: center;
+            padding: 10px;
+            background: linear-gradient(135deg, #ecf0f1, #bdc3c7);
+            border-radius: 12px;
+            border: 1px solid #bdc3c7;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
         
         /* Sidebar content spacing */
         .css-1d391kg .element-container {
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.8rem;
         }
         
-        /* Compact sidebar radio buttons */
+        /* Enhanced sidebar radio buttons */
         .css-1d391kg .stRadio > div > label {
-            padding: 6px 10px;
-            margin-bottom: 4px;
-            font-size: 0.85rem;
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+            background: linear-gradient(135deg, #ffffff, #f8f9fa);
+            border: 2px solid #e1e5e9;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
         }
         
-        /* Sidebar button styling - smaller logout button */
+        .css-1d391kg .stRadio > div > label:hover {
+            background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+            border-color: #2196f3;
+            transform: translateX(5px) translateY(-2px);
+            box-shadow: 0 4px 15px rgba(33, 150, 243, 0.2);
+        }
+        
+        .css-1d391kg .stRadio > div > label[data-checked="true"] {
+            background: linear-gradient(135deg, #1976d2, #42a5f5);
+            color: white;
+            border-color: #1976d2;
+            transform: translateX(5px) translateY(-2px);
+            box-shadow: 0 6px 20px rgba(25, 118, 210, 0.4);
+        }
+        
+        /* Enhanced sidebar button styling - elegant logout button */
         .css-1d391kg .stButton > button {
-            padding: 6px 12px;
-            font-size: 0.8rem;
-            margin-top: 0.5rem;
+            padding: 12px 20px;
+            font-size: 0.9rem;
+            margin-top: 1rem;
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-weight: 700;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .css-1d391kg .stButton > button:hover {
+            background: linear-gradient(135deg, #c0392b, #a93226);
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(231, 76, 60, 0.4);
         }
         
         /* Remove unnecessary margins in sidebar */
         .css-1d391kg .stMarkdown {
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.8rem;
+        }
+        
+        /* Enhanced user info cards in sidebar */
+        .css-1d391kg .stSuccess,
+        .css-1d391kg .stInfo {
+            border-radius: 12px;
+            padding: 12px 16px;
+            margin: 10px 0;
+            border: none;
+            box-shadow: 0 3px 12px rgba(0,0,0,0.12);
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        
+        /* Special styling for user info displays */
+        .css-1d391kg .stSuccess {
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            color: white;
+        }
+        
+        .css-1d391kg .stInfo {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
         }
         
         /* Better spacing for form elements */
@@ -6194,6 +6333,37 @@ def main():
             border-radius: 6px;
             font-weight: 500;
         }
+        
+        /* Enhanced metrics styling */
+        .stMetric {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        /* Elegant expander styling */
+        .streamlit-expanderHeader {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-weight: 600;
+            border: 1px solid #dee2e6;
+            transition: all 0.2s ease;
+        }
+        
+        .streamlit-expanderHeader:hover {
+            background: linear-gradient(135deg, #e9ecef, #dee2e6);
+            transform: translateY(-1px);
+        }
+        
+        /* Enhanced dataframe styling */
+        .stDataFrame {
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
         </style>
     """, unsafe_allow_html=True)
     
@@ -6211,12 +6381,68 @@ def main():
     user = st.session_state.user
     available_portals = st.session_state.get("available_portals", [])
     
-    # Compact sidebar with improved styling
+    # MODERN, COMPACT sidebar with elegant Label Pizza card
     with st.sidebar:
-        # User info - more compact
+        # Create the beautiful Label Pizza card with red dots (reverted to prettier version)
+        st.markdown("""
+        <div style="
+            width: 100%;
+            padding: 20px;
+            background: linear-gradient(135deg, #ffffff, #f8f9fa);
+            border-radius: 16px;
+            margin: 10px 0 20px 0;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            border: 2px solid #e9ecef;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        ">
+            <div style="
+                position: absolute;
+                top: -20px;
+                right: -20px;
+                width: 60px;
+                height: 60px;
+                background: linear-gradient(135deg, #ff6b6b, #ffa500);
+                border-radius: 50%;
+                opacity: 0.1;
+            "></div>
+            <div style="
+                position: absolute;
+                bottom: -15px;
+                left: -15px;
+                width: 40px;
+                height: 40px;
+                background: linear-gradient(135deg, #ff4757, #ff6b6b);
+                border-radius: 50%;
+                opacity: 0.1;
+            "></div>
+            <div style="
+                font-size: 2.2rem;
+                margin-bottom: 8px;
+                filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+            ">🍕</div>
+            <div style="
+                font-size: 1.4rem;
+                font-weight: 800;
+                color: #2c3e50;
+                margin-bottom: 4px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                letter-spacing: 0.5px;
+            ">Label Pizza</div>
+            <div style="
+                font-size: 0.85rem;
+                color: #6c757d;
+                font-weight: 500;
+                font-style: italic;
+            ">Video Annotation Made Simple</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # User info - compact
         st.markdown("### 👋 Welcome!")
         
-        # Show user info simply
+        # Show user info with enhanced styling
         user_email = user.get('email', 'No email')
         # Fix email display - sometimes email might be stored differently
         if not user_email or user_email == 'No email':
@@ -6224,9 +6450,26 @@ def main():
             user_email = user.get('Email', user.get('user_email', 'No email'))
         
         display_user_simple(user['name'], user_email, is_ground_truth=(user['role'] == 'admin'))
-        st.markdown(f"**Role:** {user['role'].title()}")
         
-        # Portal selection - more compact
+        # Elegant role badge (normal size)
+        role_color = "#e74c3c" if user['role'] == 'admin' else "#3498db"
+        st.markdown(f"""
+        <div style="
+            background: linear-gradient(135deg, {role_color}, {role_color}dd);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin: 8px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        ">
+            Role: {user['role'].title()}
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Portal selection - compact without redundant "Active" status
         if available_portals:
             st.markdown("---")
             st.markdown("**Portal:**")
@@ -6262,11 +6505,8 @@ def main():
                 if "selected_annotators" in st.session_state:
                     del st.session_state.selected_annotators
                 st.rerun()
-            
-            current_portal_name = portal_labels.get(selected_portal, selected_portal)
-            st.success(f"**Active:** {current_portal_name}")
         
-        # Compact logout button
+        # Elegant logout button (styled via CSS)
         if st.button("🚪 Logout", use_container_width=True):
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
