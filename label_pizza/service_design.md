@@ -79,7 +79,11 @@ Service-Layer API Spec
 | `progress(project_id, session)`                       | ✔︎     | —          | `dict`      | returns videos × questions × answers                   |
 | `get_project_by_id(project_id, session)`              | ✔︎     | —          | `Project`   | —                                                      |
 | `get_project_by_name(name, session)`                  | ✔︎     | —          | `Optional[Project]` | —                                           |
-| `add_user_to_project(project_id, user_id, role, session)` | ✔︎ | — | `None` | Role validation 🛡️ |
+| `add_user_to_project(project_id, user_id, role, session, user_weight=None)` | ✔︎ | — | `None` | Role validation 🛡️ |
+| `remove_user_from_project(user_id, project_id, session)`        | ✔︎     | —          | `None` | — |
+| `bulk_assign_users_to_project(user_ids, project_id, role, session)` | ✔︎ | — | `None` | — |
+| `bulk_remove_users_from_project(user_ids, project_id, session)` | ✔︎ | — | `None` | — |
+| `archive_user_from_project(user_id, project_id, session)`       | ✔︎ | — | `None` | — |
 
 **Rules:**
 - Projects are immutable after creation (unless some videos or questions are archived)
@@ -144,10 +148,10 @@ Service-Layer API Spec
 | Function                                                 | Status | Parameters | Returns | Rules enforced |
 | -------------------------------------------------------- | ------ | ---------- | ------- | -------------- |
 | `get_all_questions(session)`                             | ✔︎     | —          | `DataFrame` | — |
-| `add_question(text, qtype, options, default, session, display_values, display_text)` | ✔︎ | — | `Question` | • Default in options 🛡️<br>• Unique text 🛡️<br>• display_text is UI-only, text is immutable after creation 🛡️ |
+| `add_question(text, qtype, options, default, session, display_values=None, display_text=None, option_weights=None)` | ✔︎ | — | `Question` | • Default in options 🛡️<br>• Unique text 🛡️<br>• display_text is UI-only, text is immutable after creation 🛡️ |
 | `get_question_by_text(text, session)`                    | ✔︎     | —          | `Question` | — |
 | `get_question_by_id(question_id, session)`               | ✔︎     | —          | `Question` | — |
-| `edit_question(question_id, new_display_text, new_opts, new_default, session, new_display_values)` | ✔︎ | — | `None` | • Cannot change type 🛡️<br>• Cannot change text 🛡️<br>• Default in options 🛡️ |
+| `edit_question(question_id, new_display_text, new_opts, new_default, session, new_display_values=None, new_option_weights=None)` | ✔︎ | — | `None` | • Cannot change type 🛡️<br>• Cannot change text 🛡️<br>• Default in options 🛡️ |
 | `archive_question(question_id, session)`                 | ✔︎     | —          | `None` | — |
 | `unarchive_question(question_id, session)`               | ✔︎     | —          | `None` | — |
 
@@ -178,7 +182,7 @@ Service-Layer API Spec
 | `update_user_role(user_id, new_role, session)`                  | ✔︎     | —          | `None` | — |
 | `toggle_user_archived(user_id, session)`                        | ✔︎     | —          | `None` | — |
 | `get_project_assignments(session)`                              | ✔︎     | —          | `DataFrame` | — |
-| `assign_user_to_project(user_id, project_id, role, session)`    | ✔︎     | —          | `None` | • Upsert<br>• Admin auto reviewer 🛡️ |
+| `assign_user_to_project(user_id, project_id, role, session, user_weight=None)`    | ✔︎     | —          | `None` | • Upsert<br>• Admin auto reviewer 🛡️ |
 | `remove_user_from_project(user_id, project_id, session)`        | ✔︎     | —          | `None` | — |
 | `bulk_assign_users_to_project(user_ids, project_id, role, session)` | ✔︎ | — | `None` | — |
 | `bulk_remove_users_from_project(user_ids, project_id, session)` | ✔︎ | — | `None` | — |

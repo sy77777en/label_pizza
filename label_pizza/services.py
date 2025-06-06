@@ -603,7 +603,7 @@ class ProjectService:
         return project
 
     @staticmethod
-    def add_user_to_project(project_id: int, user_id: int, role: str, session: Session) -> None:
+    def add_user_to_project(project_id: int, user_id: int, role: str, session: Session, user_weight: Optional[float] = None) -> None:
         """Add a user to a project with the specified role.
         
         Args:
@@ -611,6 +611,7 @@ class ProjectService:
             user_id: The ID of the user
             role: The role to assign ('annotator', 'reviewer', 'admin', or 'model')
             session: Database session
+            user_weight: Optional weight for the user's answers (defaults to 1.0)
             
         Raises:
             ValueError: If project or user not found, or if role is invalid
@@ -667,11 +668,13 @@ class ProjectService:
             )
             if existing:
                 existing.is_archived = False
+                existing.user_weight = user_weight if user_weight is not None else 1.0
             else:
                 session.add(ProjectUserRole(
                     project_id=project_id,
                     user_id=user_id,
-                    role=role_type
+                    role=role_type,
+                    user_weight=user_weight if user_weight is not None else 1.0
                 ))
         
         # Add roles based on the requested role
@@ -1245,7 +1248,8 @@ class QuestionService:
 
     @staticmethod
     def add_question(text: str, qtype: str, options: Optional[List[str]], default: Optional[str], 
-                    session: Session, display_values: Optional[List[str]] = None, display_text: Optional[str] = None) -> Question:
+                    session: Session, display_values: Optional[List[str]] = None, display_text: Optional[str] = None,
+                    option_weights: Optional[List[float]] = None) -> Question:
         """Add a new question.
         
         Args:
@@ -1256,6 +1260,7 @@ class QuestionService:
             session: Database session
             display_values: Optional list of display text for options. For single-type questions, if not provided, uses options as display values.
             display_text: Optional display text for UI. If not provided, uses text.
+            option_weights: Optional list of weights for each option. If not provided, defaults to 1.0 for each option.
         
         Returns:
             Created question
@@ -1281,9 +1286,17 @@ class QuestionService:
                     raise ValueError("Number of display values must match number of options")
             else:
                 display_values = options  # Use options as display values if not provided
+                
+            # Handle option weights
+            if option_weights:
+                if len(option_weights) != len(options):
+                    raise ValueError("Number of option weights must match number of options")
+            else:
+                option_weights = [1.0] * len(options)  # Default to 1.0 for each option
         else:
-            # For description-type questions, display_values should be None
+            # For description-type questions, display_values and option_weights should be None
             display_values = None
+            option_weights = None
         
         # Set display_text
         if not display_text:
@@ -1296,6 +1309,7 @@ class QuestionService:
             type=qtype, 
             options=options, 
             display_values=display_values,
+            option_weights=option_weights,
             default_option=default
         )
         session.add(q)
@@ -1323,7 +1337,8 @@ class QuestionService:
 
     @staticmethod
     def edit_question(question_id: int, new_display_text: str, new_opts: Optional[List[str]], new_default: Optional[str],
-                     session: Session, new_display_values: Optional[List[str]] = None) -> None:
+                     session: Session, new_display_values: Optional[List[str]] = None,
+                     new_option_weights: Optional[List[float]] = None) -> None:
         """Edit an existing question (only display_text and options, not text).
         
         Args:
@@ -1333,6 +1348,7 @@ class QuestionService:
             new_default: New default option for single-choice questions
             session: Database session
             new_display_values: Optional new display values for options. For single-type questions, if not provided, maintains existing display values or uses options.
+            new_option_weights: Optional new weights for options. For single-type questions, if not provided, maintains existing weights or defaults to 1.0.
         
         Raises:
             ValueError: If question not found or validation fails
@@ -1369,18 +1385,29 @@ class QuestionService:
                         new_display_values.append(q.display_values[idx])
                     else:
                         new_display_values.append(opt)
+                        
+            # Handle option weights
+            if new_option_weights:
+                if len(new_option_weights) != len(new_opts):
+                    raise ValueError("Number of option weights must match number of options")
+            else:
+                # If no new weights provided, maintain existing weights for unchanged options
+                new_option_weights = []
+                for opt in new_opts:
+                    if opt in q.options:
+                        idx = q.options.index(opt)
+                        new_option_weights.append(q.option_weights[idx])
+                    else:
+                        new_option_weights.append(1.0)  # Default to 1.0 for new options
         else:  # description type
-            if new_opts is not None or new_default is not None or new_display_values is not None:
+            if new_opts is not None or new_default is not None or new_display_values is not None or new_option_weights is not None:
                 raise ValueError("Cannot change question type")
         
-        # Update only display_text, options, display_values, default_option
-        
+        # Update only display_text, options, display_values, option_weights, default_option
         q.display_text = new_display_text
-        
         q.options = new_opts
-    
         q.display_values = new_display_values
-    
+        q.option_weights = new_option_weights
         q.default_option = new_default
         session.commit()
 
@@ -1762,7 +1789,8 @@ class AuthService:
                 "Role": a.role,
                 "Archived": a.is_archived,
                 "Assigned At": a.assigned_at,
-                "Completed At": a.completed_at
+                "Completed At": a.completed_at,
+                "User Weight": a.user_weight
             }
             for a in assignments
         ])
@@ -1818,8 +1846,19 @@ class AuthService:
         return user
 
     @staticmethod
-    def assign_user_to_project(user_id: int, project_id: int, role: str, session: Session) -> None:
-        """Assign a user to a project with role validation and admin privileges."""
+    def assign_user_to_project(user_id: int, project_id: int, role: str, session: Session, user_weight: Optional[float] = None) -> None:
+        """Assign a user to a project with role validation and admin privileges.
+        
+        Args:
+            user_id: The ID of the user
+            project_id: The ID of the project
+            role: The role to assign ('annotator', 'reviewer', 'admin', or 'model')
+            session: Database session
+            user_weight: Optional weight for the user's answers (defaults to 1.0)
+            
+        Raises:
+            ValueError: If user or project not found, or if role is invalid
+        """
         if role not in ["annotator", "reviewer", "admin", "model"]:
             raise ValueError("Invalid role. Must be one of: annotator, reviewer, admin, model")
         
@@ -1851,11 +1890,13 @@ class AuthService:
         if existing:
             existing.role = role
             existing.is_archived = False  # Unarchive if it was archived
+            existing.user_weight = user_weight if user_weight is not None else 1.0
         else:
             assignment = ProjectUserRole(
                 project_id=project_id,
                 user_id=user_id,
                 role=role,
+                user_weight=user_weight if user_weight is not None else 1.0,
                 is_archived=False
             )
             session.add(assignment)

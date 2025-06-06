@@ -68,8 +68,9 @@ class Question(Base):
     For single-choice questions:
     - options stores the actual values used in answers
     - display_values stores the UI-friendly text for each option
-    - Both arrays must have matching lengths
-    - For description-type questions, both fields are NULL
+    - option_weights stores the weight for each option (defaults to 1.0)
+    - All arrays must have matching lengths
+    - For description-type questions, all fields are NULL
     """
     __tablename__ = "questions"
     id = Column(Integer, primary_key=True)
@@ -78,6 +79,7 @@ class Question(Base):
     type = Column(Enum("single", "description", name="question_type"))
     options = Column(JSONB, nullable=True)  # Actual option values used in answers
     display_values = Column(JSONB, nullable=True)  # Display text for options in UI
+    option_weights = Column(JSONB, nullable=True)  # Weights for each option
     default_option = Column(String(120), nullable=True)
     is_archived = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), default=now)
@@ -134,6 +136,7 @@ class ProjectUserRole(Base):
     project_id = Column(Integer, nullable=False)
     user_id = Column(Integer, nullable=False)
     role = Column(Enum("annotator", "reviewer", "admin", "model", name="project_roles"), nullable=False)
+    user_weight = Column(Float, nullable=True, default=1.0)
     assigned_at = Column(DateTime(timezone=True), default=now)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     is_archived = Column(Boolean, default=False)

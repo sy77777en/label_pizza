@@ -92,6 +92,7 @@ Archiving supports takedowns.
 | `type`               | ENUM (single / description) |
 | `options`            | JSONB array nullable (single-choice) |
 | `display_values`     | JSONB array nullable (single-choice) |
+| `option_weights`     | JSONB array nullable (single-choice) |
 | `default_option`     | VARCHAR(120) nullable |
 | `is_archived`        | BOOL |
 | `created_at`         | TIMESTAMPTZ |
@@ -101,8 +102,9 @@ Question text must be unique and is immutable after creation (use display_text f
 For single-choice questions:
 - `options` stores the actual values used in answers
 - `display_values` stores the UI-friendly text for each option
+- `option_weights` stores the weight for each option (defaults to 1.0)
 - Both arrays must have matching lengths
-- For description-type questions, both fields are NULL
+- For description-type questions, all fields are NULL
 
 ---
 
@@ -167,7 +169,7 @@ For single-choice questions:
 | table | composite PK | notes |
 | ----- | ------------ | ----- |
 | `project_videos` | `(project_id, video_id)` | plus `added_at` |
-| `project_user_roles` | `(project_id, user_id)` | `role`, `assigned_at`, `completed_at`; index on `user_id` |
+| `project_user_roles` | `(project_id, user_id)` | `role`, `assigned_at`, `completed_at`, `user_weight`; index on `user_id` |
 
 **Rationale** – A project = schema + video subset + roles; archiving hides it while retaining history.
 
