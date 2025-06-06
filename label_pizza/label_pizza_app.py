@@ -51,7 +51,7 @@ _seed_admin()
 # VIDEO PLAYER WITH HEIGHT RETURN
 ###############################################################################
 
-def custom_video_player(video_url, aspect_ratio="16:9"):
+def custom_video_player(video_url, aspect_ratio="16:9", autoplay=True, loop=True):
     """
     Custom video player with progress bar positioned below the video
     Responsive design that adapts to Streamlit column width
@@ -59,6 +59,8 @@ def custom_video_player(video_url, aspect_ratio="16:9"):
     Args:
         video_url: URL or path to the video
         aspect_ratio: Video aspect ratio as string (e.g., "16:9", "4:3", "21:9")
+        autoplay: Whether to auto-play the video (default: True)
+        loop: Whether to loop the video (default: True)
         
     Returns:
         int: The calculated height of the video player component
@@ -68,6 +70,13 @@ def custom_video_player(video_url, aspect_ratio="16:9"):
     ratio_parts = aspect_ratio.split(":")
     aspect_ratio_decimal = float(ratio_parts[0]) / float(ratio_parts[1])
     padding_bottom = (1 / aspect_ratio_decimal) * 100
+    
+    # Prepare video attributes
+    video_attributes = 'preload="metadata"'
+    if autoplay:
+        video_attributes += ' autoplay muted'  # Note: muted is required for autoplay in most browsers
+    if loop:
+        video_attributes += ' loop'
     
     # HTML/CSS/JS for responsive custom video player
     html_code = f"""
@@ -310,7 +319,7 @@ def custom_video_player(video_url, aspect_ratio="16:9"):
     <body>
         <div class="video-container">
             <div class="video-wrapper">
-                <video id="customVideo" preload="metadata">
+                <video id="customVideo" {video_attributes}>
                     <source src="{video_url}" type="video/mp4">
                     Your browser does not support the video tag.
                 </video>
@@ -325,7 +334,7 @@ def custom_video_player(video_url, aspect_ratio="16:9"):
                 
                 <!-- Control buttons -->
                 <div class="controls">
-                    <button class="control-btn" id="playPauseBtn" title="Play/Pause">▶️</button>
+                    <button class="control-btn" id="playPauseBtn" title="Play/Pause">{"⏸️" if autoplay else "▶️"}</button>
                     <button class="control-btn" id="muteBtn" title="Mute/Unmute">🔊</button>
                     <div class="volume-control">
                         <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="100" title="Volume">
@@ -349,6 +358,20 @@ def custom_video_player(video_url, aspect_ratio="16:9"):
 
             let isDragging = false;
             let wasPlaying = false;
+
+            // Initialize autoplay state
+            const isAutoplay = {str(autoplay).lower()};
+            
+            // Set initial play/pause button state
+            if (isAutoplay) {{
+                // For autoplay, video should start playing
+                video.addEventListener('loadeddata', () => {{
+                    if (video.paused) {{
+                        video.play().catch(e => console.log('Autoplay prevented:', e));
+                    }}
+                    playPauseBtn.textContent = video.paused ? '▶️' : '⏸️';
+                }});
+            }}
 
             // Play/Pause functionality
             playPauseBtn.addEventListener('click', () => {{
@@ -470,8 +493,16 @@ def custom_video_player(video_url, aspect_ratio="16:9"):
                 return `${{minutes}}:${{seconds.toString().padStart(2, '0')}}`;
             }}
 
-            // Handle video end
+            // Handle video end and play/pause events
             video.addEventListener('ended', () => {{
+                playPauseBtn.textContent = '▶️';
+            }});
+            
+            video.addEventListener('play', () => {{
+                playPauseBtn.textContent = '⏸️';
+            }});
+            
+            video.addEventListener('pause', () => {{
                 playPauseBtn.textContent = '▶️';
             }});
 
@@ -2018,7 +2049,7 @@ def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: i
         """, unsafe_allow_html=True)
     
     return st.session_state.selected_annotators
-    
+
 def display_project_progress(user_id: int, project_id: int, role: str, session: Session):
     """Display project progress in a refreshable fragment"""
     if role == "annotator":
@@ -2508,7 +2539,7 @@ def _display_video_layout_controls(videos: List[Dict], role: str):
         
         # Handle edge cases for projects with very few videos
         min_videos_per_page = video_pairs_per_row
-        max_videos_per_page = max(min(10, len(videos)), video_pairs_per_row + 1)
+        max_videos_per_page = max(min(20, len(videos)), video_pairs_per_row + 1)
         default_videos_per_page = min(min(4, len(videos)), max_videos_per_page)
         
         if len(videos) == 1:
@@ -2525,11 +2556,34 @@ def _display_video_layout_controls(videos: List[Dict], role: str):
         else:
             st.write(f"**{len(videos)}** (showing all videos)")
     
+    # NEW: Video playback controls
+    st.markdown("**🎬 Video Playback Settings**")
+    col3, col4 = st.columns(2)
+    
+    with col3:
+        autoplay = st.checkbox(
+            "🚀 Auto-play videos on load",
+            value=st.session_state.get(f"{role}_autoplay", True),
+            key=f"{role}_autoplay",
+            help="Automatically start playing videos when they load"
+        )
+    
+    with col4:
+        loop = st.checkbox(
+            "🔄 Loop videos",
+            value=st.session_state.get(f"{role}_loop", True),
+            key=f"{role}_loop",
+            help="Automatically restart videos when they finish"
+        )
+    
     # Show current settings summary
     pairs_per_row = st.session_state.get(f"{role}_pairs_per_row", 1)
     videos_per_page = st.session_state.get(f"{role}_per_page", min(4, len(videos)))
+    autoplay_status = "ON" if st.session_state.get(f"{role}_autoplay", True) else "OFF"
+    loop_status = "ON" if st.session_state.get(f"{role}_loop", True) else "OFF"
     
     st.success(f"📊 **Current Layout:** {pairs_per_row} pair(s) per row • {videos_per_page} videos per page • {len(videos)} total videos")
+    st.info(f"🎬 **Playback:** Auto-play {autoplay_status} • Loop {loop_status}")
 
 @st.fragment
 def display_video_answer_pair(
@@ -2605,8 +2659,12 @@ def display_video_answer_pair(
         video_col, answer_col = st.columns([1, 1])
         
         with video_col:
-            # Video player without title (title is now in the centered header)
-            video_height = custom_video_player(video["url"])
+            # Get video playback settings from session state
+            autoplay = st.session_state.get(f"{role}_autoplay", True)
+            loop = st.session_state.get(f"{role}_loop", True)
+            
+            # Video player with playback settings
+            video_height = custom_video_player(video["url"], autoplay=autoplay, loop=loop)
         
         with answer_col:
             # Create tabs with static names (no ✅ to avoid jumping)
