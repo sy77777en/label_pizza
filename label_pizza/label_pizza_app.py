@@ -2582,8 +2582,8 @@ def _display_video_layout_controls(videos: List[Dict], role: str):
     autoplay_status = "ON" if st.session_state.get(f"{role}_autoplay", True) else "OFF"
     loop_status = "ON" if st.session_state.get(f"{role}_loop", True) else "OFF"
     
-    st.success(f"📊 **Current Layout:** {pairs_per_row} pair(s) per row • {videos_per_page} videos per page • {len(videos)} total videos")
-    st.info(f"🎬 **Playback:** Auto-play {autoplay_status} • Loop {loop_status}")
+    # st.success(f"📊 **Current Layout:** {pairs_per_row} pair(s) per row • {videos_per_page} videos per page • {len(videos)} total videos")
+    # st.info(f"🎬 **Playback:** Auto-play {autoplay_status} • Loop {loop_status}")
 
 @st.fragment
 def display_video_answer_pair(
