@@ -7,7 +7,7 @@ NEW ACCURACY FEATURES for training mode projects, ENHANCED ANNOTATOR SELECTION, 
 
 import streamlit as st
 import pandas as pd
-from typing import Dict, Optional, List, Tuple
+from typing import Dict, Optional, List, Tuple, Any
 from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import text, select
@@ -1478,53 +1478,59 @@ def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: i
 # NEW FUNCTIONS FOR SORTING AND FILTERING
 ###############################################################################
 
-def get_model_confidence_scores(project_id: int, session: Session) -> Dict[int, float]:
-    """Get confidence scores for model-type users"""
+def get_model_confidence_scores_enhanced(project_id: int, model_user_ids: List[int], question_ids: List[int], session: Session) -> Dict[int, float]:
+    """Get confidence scores for specific model users on specific questions"""
     try:
-        # Get all model users for this project
-        users_df = AuthService.get_all_users(session=session)
-        model_users = users_df[users_df["Role"] == "model"]
-        
-        if model_users.empty:
+        if not model_user_ids or not question_ids:
             return {}
         
         confidence_scores = {}
+        videos = get_project_videos(project_id=project_id, session=session)
         
-        for _, user in model_users.iterrows():
-            user_id = user["ID"]
-            # Get user's answers for this project
-            answers_df = AnnotatorService.get_answers_for_user_project(
-                user_id=user_id, project_id=project_id, session=session
-            )
+        for video in videos:
+            video_id = video["id"]
+            total_confidence = 0.0
+            answer_count = 0
             
-            if not answers_df.empty:
-                # For model users, we could extract confidence from metadata
-                # This is a placeholder - implement based on your model answer format
-                total_confidence = 0
-                answer_count = 0
-                
-                for _, answer in answers_df.iterrows():
-                    # Extract confidence from answer metadata if available
-                    # For now, using a placeholder calculation
-                    confidence = 0.85  # Default confidence
-                    total_confidence += confidence
-                    answer_count += 1
-                
-                if answer_count > 0:
-                    confidence_scores[user_id] = total_confidence / answer_count
+            for model_user_id in model_user_ids:
+                for question_id in question_ids:
+                    try:
+                        # Use AnnotatorService to get answers
+                        answers_df = AnnotatorService.get_question_answers(
+                            question_id=question_id, project_id=project_id, session=session
+                        )
+                        
+                        if not answers_df.empty:
+                            # Filter for this model user and video
+                            user_video_answers = answers_df[
+                                (answers_df["User ID"] == model_user_id) & 
+                                (answers_df["Video ID"] == video_id)
+                            ]
+                            
+                            if not user_video_answers.empty:
+                                confidence = user_video_answers.iloc[0]["Confidence Score"]
+                                if confidence is not None:
+                                    total_confidence += confidence
+                                    answer_count += 1
+                    except Exception:
+                        continue
+            
+            if answer_count > 0:
+                confidence_scores[video_id] = total_confidence / answer_count
+            else:
+                confidence_scores[video_id] = 0.0
         
         return confidence_scores
     except Exception as e:
         st.error(f"Error getting model confidence scores: {str(e)}")
         return {}
 
-def get_annotator_consensus_rates(project_id: int, selected_annotators: List[str], session: Session) -> Dict[int, float]:
-    """Calculate consensus rates for selected annotators"""
+def get_annotator_consensus_rates_enhanced(project_id: int, selected_annotators: List[str], question_ids: List[int], session: Session) -> Dict[int, float]:
+    """Calculate consensus rates with proper handling of incomplete annotations"""
     try:
-        if not selected_annotators:
+        if not selected_annotators or not question_ids or len(selected_annotators) < 2:
             return {}
         
-        # Get user IDs from display names
         annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
             display_names=selected_annotators, project_id=project_id, session=session
         )
@@ -1534,90 +1540,134 @@ def get_annotator_consensus_rates(project_id: int, selected_annotators: List[str
         
         consensus_rates = {}
         videos = get_project_videos(project_id=project_id, session=session)
-        questions = ProjectService.get_project_questions(project_id=project_id, session=session)
         
         for video in videos:
             video_id = video["id"]
+            total_questions_with_multiple_answers = 0
+            consensus_count = 0
             
-            for user_id in annotator_user_ids:
-                total_questions = 0
-                consensus_count = 0
-                
-                for question in questions:
-                    question_id = question["id"]
+            for question_id in question_ids:
+                try:
+                    answers_df = AnnotatorService.get_question_answers(
+                        question_id=question_id, project_id=project_id, session=session
+                    )
                     
-                    # Get all answers for this question and video from selected annotators
-                    answers = []
-                    for other_user_id in annotator_user_ids:
-                        if other_user_id != user_id:
-                            try:
-                                answer = AnnotatorService.get_user_answer_for_question(
-                                    user_id=other_user_id, video_id=video_id, 
-                                    project_id=project_id, question_id=question_id, session=session
-                                )
-                                if answer:
-                                    answers.append(answer)
-                            except:
-                                continue
-                    
-                    if len(answers) >= 1:  # Need at least one other answer to compare
-                        user_answer = AnnotatorService.get_user_answer_for_question(
-                            user_id=user_id, video_id=video_id,
-                            project_id=project_id, question_id=question_id, session=session
-                        )
+                    if not answers_df.empty:
+                        video_answers = answers_df[
+                            (answers_df["Video ID"] == video_id) & 
+                            (answers_df["User ID"].isin(annotator_user_ids))
+                        ]
                         
-                        if user_answer:
-                            total_questions += 1
-                            # Check if user's answer matches majority
-                            answer_counts = {}
-                            for ans in answers:
-                                answer_counts[ans] = answer_counts.get(ans, 0) + 1
+                        # Only consider questions where at least 2 annotators answered
+                        if len(video_answers) >= 2:
+                            total_questions_with_multiple_answers += 1
+                            answer_values = video_answers["Answer Value"].tolist()
                             
-                            if answer_counts:
-                                most_common_answer = max(answer_counts.keys(), key=lambda x: answer_counts[x])
-                                if user_answer == most_common_answer:
-                                    consensus_count += 1
-                
-                if total_questions > 0:
-                    if user_id not in consensus_rates:
-                        consensus_rates[user_id] = []
-                    consensus_rates[user_id].append(consensus_count / total_questions)
+                            from collections import Counter
+                            answer_counts = Counter(answer_values)
+                            most_common_count = answer_counts.most_common(1)[0][1]
+                            consensus_rate = most_common_count / len(answer_values)
+                            
+                            if consensus_rate >= 0.5:  # Majority agreement
+                                consensus_count += 1
+                except Exception:
+                    continue
+            
+            if total_questions_with_multiple_answers > 0:
+                consensus_rates[video_id] = consensus_count / total_questions_with_multiple_answers
+            else:
+                consensus_rates[video_id] = 0.0
         
-        # Average consensus rate across all videos
-        final_rates = {}
-        for user_id, rates in consensus_rates.items():
-            if rates:
-                final_rates[user_id] = sum(rates) / len(rates)
-        
-        return final_rates
+        return consensus_rates
     except Exception as e:
         st.error(f"Error calculating consensus rates: {str(e)}")
         return {}
 
-def get_video_completion_rates(project_id: int, session: Session) -> Dict[int, float]:
-    """Get completion rates for each video"""
+def get_video_accuracy_rates(project_id: int, selected_annotators: List[str], question_ids: List[int], session: Session) -> Dict[int, float]:
+    """Calculate accuracy rates with proper handling of incomplete annotations"""
     try:
-        videos = get_project_videos(project_id=project_id, session=session)
-        questions = ProjectService.get_project_questions(project_id=project_id, session=session)
+        if not selected_annotators or not question_ids:
+            return {}
         
+        annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
+            display_names=selected_annotators, project_id=project_id, session=session
+        )
+        
+        if not annotator_user_ids:
+            return {}
+        
+        accuracy_rates = {}
+        videos = get_project_videos(project_id=project_id, session=session)
+        
+        for video in videos:
+            video_id = video["id"]
+            total_comparisons = 0
+            correct_comparisons = 0
+            
+            try:
+                gt_df = GroundTruthService.get_ground_truth(
+                    video_id=video_id, project_id=project_id, session=session
+                )
+                
+                if gt_df.empty:
+                    accuracy_rates[video_id] = 0.0
+                    continue
+                
+                for question_id in question_ids:
+                    question_gt = gt_df[gt_df["Question ID"] == question_id]
+                    if question_gt.empty:
+                        continue
+                    
+                    gt_answer = question_gt.iloc[0]["Answer Value"]
+                    
+                    answers_df = AnnotatorService.get_question_answers(
+                        question_id=question_id, project_id=project_id, session=session
+                    )
+                    
+                    if not answers_df.empty:
+                        video_answers = answers_df[
+                            (answers_df["Video ID"] == video_id) & 
+                            (answers_df["User ID"].isin(annotator_user_ids))
+                        ]
+                        
+                        # Count all annotator answers for this question/video
+                        for _, answer_row in video_answers.iterrows():
+                            total_comparisons += 1
+                            if answer_row["Answer Value"] == gt_answer:
+                                correct_comparisons += 1
+                
+                if total_comparisons > 0:
+                    accuracy_rates[video_id] = correct_comparisons / total_comparisons
+                else:
+                    accuracy_rates[video_id] = 0.0
+                    
+            except Exception:
+                accuracy_rates[video_id] = 0.0
+        
+        return accuracy_rates
+    except Exception as e:
+        st.error(f"Error calculating accuracy rates: {str(e)}")
+        return {}
+    
+def get_video_completion_rates_enhanced(project_id: int, question_ids: List[int], session: Session) -> Dict[int, float]:
+    """Get completion rates for each video based on specific questions"""
+    try:
+        if not question_ids:
+            return {}
+            
+        videos = get_project_videos(project_id=project_id, session=session)
         completion_rates = {}
         
         for video in videos:
             video_id = video["id"]
-            total_questions = len(questions)
-            
-            if total_questions == 0:
-                completion_rates[video_id] = 0.0
-                continue
-            
             completed_questions = 0
             
-            for question in questions:
-                question_id = question["id"]
-                
-                # Check if this question has ground truth for this video
+            for question_id in question_ids:
                 try:
-                    gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
+                    # Check if this question has ground truth for this video
+                    gt_df = GroundTruthService.get_ground_truth(
+                        video_id=video_id, project_id=project_id, session=session
+                    )
                     if not gt_df.empty:
                         question_answers = gt_df[gt_df["Question ID"] == question_id]
                         if not question_answers.empty:
@@ -1625,14 +1675,14 @@ def get_video_completion_rates(project_id: int, session: Session) -> Dict[int, f
                 except:
                     continue
             
-            completion_rates[video_id] = (completed_questions / total_questions) * 100
+            completion_rates[video_id] = (completed_questions / len(question_ids)) * 100 if question_ids else 0.0
         
         return completion_rates
     except Exception as e:
         st.error(f"Error calculating video completion rates: {str(e)}")
         return {}
 
-def get_ground_truth_option_filters(project_id: int, session: Session) -> Dict[int, List[str]]:
+def get_ground_truth_option_filters_enhanced(project_id: int, session: Session) -> Dict[int, List[str]]:
     """Get available ground truth options for filtering"""
     try:
         questions = ProjectService.get_project_questions(project_id=project_id, session=session)
@@ -1642,40 +1692,92 @@ def get_ground_truth_option_filters(project_id: int, session: Session) -> Dict[i
             return {}
         
         gt_options = {}
+        videos = get_project_videos(project_id=project_id, session=session)
         
         for question in single_choice_questions:
             question_id = question["id"]
+            unique_answers = set()
             
-            # Get all ground truth answers for this question
-            try:
-                all_gt_df = GroundTruthService.get_all_ground_truth_for_project(project_id=project_id, session=session)
-                if not all_gt_df.empty:
-                    question_gt = all_gt_df[all_gt_df["Question ID"] == question_id]
-                    if not question_gt.empty:
-                        unique_answers = question_gt["Answer Value"].unique().tolist()
-                        gt_options[question_id] = unique_answers
-            except:
-                continue
+            # Check each video for ground truth answers
+            for video in videos:
+                try:
+                    gt_df = GroundTruthService.get_ground_truth(
+                        video_id=video["id"], project_id=project_id, session=session
+                    )
+                    if not gt_df.empty:
+                        question_gt = gt_df[gt_df["Question ID"] == question_id]
+                        if not question_gt.empty:
+                            unique_answers.add(question_gt.iloc[0]["Answer Value"])
+                except:
+                    continue
+            
+            if unique_answers:
+                gt_options[question_id] = list(unique_answers)
         
         return gt_options
     except Exception as e:
         st.error(f"Error getting ground truth options: {str(e)}")
         return {}
 
-def apply_video_sorting_and_filtering(videos: List[Dict], sort_by: str, sort_order: str, 
-                                    filter_by_gt: Dict[int, str], project_id: int, 
-                                    selected_annotators: List[str], session: Session) -> List[Dict]:
-    """Apply sorting and filtering to videos"""
+def apply_video_sorting_and_filtering_enhanced(videos: List[Dict], sort_by: str, sort_order: str, 
+                                             filter_by_gt: Dict[int, str], project_id: int, 
+                                             selected_annotators: List[str], session: Session,
+                                             sort_config: Dict[str, Any] = None) -> List[Dict]:
+    """Apply sorting and filtering with proper ascending/descending logic"""
     try:
-        # Get sorting data
-        if sort_by == "Model Confidence":
-            confidence_scores = get_model_confidence_scores(project_id=project_id, session=session)
-        elif sort_by == "Annotator Consensus":
-            consensus_rates = get_annotator_consensus_rates(
-                project_id=project_id, selected_annotators=selected_annotators, session=session
-            )
-        elif sort_by == "Completion Rate":
-            completion_rates = get_video_completion_rates(project_id=project_id, session=session)
+        sort_config = sort_config or {}
+        
+        # For Default sorting, we still need to respect ascending/descending order
+        # Sort by video ID as a stable sort key
+        if sort_by == "Default":
+            reverse = (sort_order == "Descending")
+            videos.sort(key=lambda x: x.get("id", 0), reverse=reverse)
+        else:
+            # Only apply advanced sorting if it was explicitly applied by user
+            sort_applied = st.session_state.get(f"sort_applied_{project_id}", False)
+            
+            if not sort_applied:
+                # If sort hasn't been applied yet, use default order
+                reverse = (sort_order == "Descending")
+                videos.sort(key=lambda x: x.get("id", 0), reverse=reverse)
+            else:
+                # Get sorting data based on configuration
+                if sort_by == "Model Confidence":
+                    model_user_ids = sort_config.get("model_user_ids", [])
+                    question_ids = sort_config.get("question_ids", [])
+                    if model_user_ids and question_ids:
+                        confidence_scores = get_model_confidence_scores_enhanced(
+                            project_id=project_id, model_user_ids=model_user_ids, 
+                            question_ids=question_ids, session=session
+                        )
+                    else:
+                        confidence_scores = {}
+                elif sort_by == "Annotator Consensus":
+                    question_ids = sort_config.get("question_ids", [])
+                    if question_ids and len(selected_annotators) >= 2:
+                        consensus_rates = get_annotator_consensus_rates_enhanced(
+                            project_id=project_id, selected_annotators=selected_annotators, 
+                            question_ids=question_ids, session=session
+                        )
+                    else:
+                        consensus_rates = {}
+                elif sort_by == "Completion Rate":
+                    question_ids = sort_config.get("question_ids", [])
+                    if question_ids:
+                        completion_rates = get_video_completion_rates_enhanced(
+                            project_id=project_id, question_ids=question_ids, session=session
+                        )
+                    else:
+                        completion_rates = {}
+                elif sort_by == "Accuracy Rate":
+                    question_ids = sort_config.get("question_ids", [])
+                    if question_ids and selected_annotators:
+                        accuracy_rates = get_video_accuracy_rates(
+                            project_id=project_id, selected_annotators=selected_annotators, 
+                            question_ids=question_ids, session=session
+                        )
+                    else:
+                        accuracy_rates = {}
         
         # Apply ground truth filtering
         filtered_videos = []
@@ -1698,22 +1800,21 @@ def apply_video_sorting_and_filtering(videos: List[Dict], sort_by: str, sort_ord
                     include_video = False
             
             if include_video:
-                # Add sorting score to video
-                if sort_by == "Model Confidence":
-                    # For videos, use average confidence of all model users
-                    video["sort_score"] = sum(confidence_scores.values()) / len(confidence_scores) if confidence_scores else 0
-                elif sort_by == "Annotator Consensus":
-                    # For videos, use average consensus rate
-                    video["sort_score"] = sum(consensus_rates.values()) / len(consensus_rates) if consensus_rates else 0
-                elif sort_by == "Completion Rate":
-                    video["sort_score"] = completion_rates.get(video_id, 0)
-                else:
-                    video["sort_score"] = 0
+                # Add sorting score to video (only for non-default sorts)
+                if sort_by != "Default" and st.session_state.get(f"sort_applied_{project_id}", False):
+                    if sort_by == "Model Confidence":
+                        video["sort_score"] = confidence_scores.get(video_id, 0)
+                    elif sort_by == "Annotator Consensus":
+                        video["sort_score"] = consensus_rates.get(video_id, 0)
+                    elif sort_by == "Completion Rate":
+                        video["sort_score"] = completion_rates.get(video_id, 0)
+                    elif sort_by == "Accuracy Rate":
+                        video["sort_score"] = accuracy_rates.get(video_id, 0)
                 
                 filtered_videos.append(video)
         
-        # Sort videos
-        if sort_by != "Default":
+        # Sort videos by score if not default
+        if sort_by != "Default" and st.session_state.get(f"sort_applied_{project_id}", False):
             reverse = (sort_order == "Descending")
             filtered_videos.sort(key=lambda x: x.get("sort_score", 0), reverse=reverse)
         
@@ -1746,6 +1847,314 @@ def display_project_progress(user_id: int, project_id: int, role: str, session: 
             display_user_accuracy_simple(user_id=user_id, project_id=project_id, role=role, session=session)
         except ValueError as e:
             st.error(f"Error loading project progress: {str(e)}")
+
+def display_enhanced_sort_tab(project_id: int, session: Session):
+    """Enhanced sort tab with improved UI/UX and proper validation"""
+    st.markdown("#### 🔄 Video Sorting Options")
+    
+    # Revert to original style to match other tabs
+    st.markdown(f"""
+    <div style="{get_card_style(COLORS['primary'])}text-align: center;">
+        <div style="color: #1f77b4; font-weight: 500; font-size: 0.95rem;">
+            📊 Sort videos by different criteria to optimize your review workflow
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Main configuration in a clean layout
+    config_col1, config_col2 = st.columns([2, 1])
+    
+    with config_col1:
+        sort_options = ["Default", "Model Confidence", "Annotator Consensus", "Completion Rate", "Accuracy Rate"]
+        sort_by = st.selectbox(
+            "Sort method",
+            sort_options,
+            key=f"video_sort_by_{project_id}",
+            help="Choose sorting criteria"
+        )
+    
+    with config_col2:
+        sort_order = st.selectbox(
+            "Order",
+            ["Ascending", "Descending"],  # Default to Ascending first
+            key=f"video_sort_order_{project_id}",
+            help="Sort direction"
+        )
+    
+    # Configuration and validation
+    sort_config = {}
+    config_valid = True
+    config_messages = []
+    
+    if sort_by != "Default":
+        st.markdown("**Configuration:**")
+        
+        if sort_by == "Model Confidence":
+            # Model users selection
+            try:
+                users_df = AuthService.get_all_users(session=session)
+                assignments_df = AuthService.get_project_assignments(session=session)
+                project_assignments = assignments_df[assignments_df["Project ID"] == project_id]
+                
+                model_users = []
+                for _, assignment in project_assignments.iterrows():
+                    if assignment["Role"] == "model":
+                        user_id = assignment["User ID"]
+                        user_info = users_df[users_df["ID"] == user_id]
+                        if not user_info.empty:
+                            model_users.append({
+                                "id": user_id,
+                                "name": user_info.iloc[0]["User ID"]
+                            })
+                
+                if not model_users:
+                    config_messages.append(("error", "No model users found in this project."))
+                    config_valid = False
+                else:
+                    selected_models = st.multiselect(
+                        "Model users:",
+                        [f"{user['name']} (ID: {user['id']})" for user in model_users],
+                        key=f"model_users_{project_id}"
+                    )
+                    sort_config["model_user_ids"] = [
+                        user["id"] for user in model_users 
+                        if f"{user['name']} (ID: {user['id']})" in selected_models
+                    ]
+                    
+                    if not sort_config["model_user_ids"]:
+                        config_messages.append(("warning", "Select at least one model user."))
+                        config_valid = False
+            except Exception as e:
+                config_messages.append(("error", f"Error loading model users: {str(e)}"))
+                config_valid = False
+            
+            # Questions selection for model confidence
+            questions = ProjectService.get_project_questions(project_id=project_id, session=session)
+            single_choice_questions = [q for q in questions if q["type"] == "single"]
+            
+            if not single_choice_questions:
+                config_messages.append(("error", "No single-choice questions available."))
+                config_valid = False
+            else:
+                selected_questions = st.multiselect(
+                    "Questions:",
+                    [f"{q['text']} (ID: {q['id']})" for q in single_choice_questions],
+                    key=f"confidence_questions_{project_id}",
+                    help="Select questions with confidence scores"
+                )
+                sort_config["question_ids"] = [
+                    q["id"] for q in single_choice_questions 
+                    if f"{q['text']} (ID: {q['id']})" in selected_questions
+                ]
+                
+                if not sort_config["question_ids"]:
+                    config_messages.append(("warning", "Select at least one question."))
+                    config_valid = False
+        
+        elif sort_by == "Annotator Consensus":
+            # Check annotator selection first
+            selected_annotators = st.session_state.get("selected_annotators", [])
+            if len(selected_annotators) < 2:
+                if len(selected_annotators) == 1:
+                    config_messages.append(("error", "Consensus requires at least 2 annotators. Only 1 annotator selected."))
+                else:
+                    config_messages.append(("error", "No annotators selected. Go to Annotators tab first."))
+                config_valid = False
+            
+            # Questions selection
+            questions = ProjectService.get_project_questions(project_id=project_id, session=session)
+            single_choice_questions = [q for q in questions if q["type"] == "single"]
+            
+            if not single_choice_questions:
+                config_messages.append(("error", "No single-choice questions available."))
+                config_valid = False
+            else:
+                selected_questions = st.multiselect(
+                    "Questions:",
+                    [f"{q['text']} (ID: {q['id']})" for q in single_choice_questions],
+                    default=[f"{q['text']} (ID: {q['id']})" for q in single_choice_questions],
+                    key=f"consensus_questions_{project_id}",
+                    help="Select questions for consensus calculation"
+                )
+                sort_config["question_ids"] = [
+                    q["id"] for q in single_choice_questions 
+                    if f"{q['text']} (ID: {q['id']})" in selected_questions
+                ]
+                
+                if not sort_config["question_ids"]:
+                    config_messages.append(("warning", "Select at least one question."))
+                    config_valid = False
+        
+        elif sort_by == "Completion Rate":
+            questions = ProjectService.get_project_questions(project_id=project_id, session=session)
+            single_choice_questions = [q for q in questions if q["type"] == "single"]
+            
+            if not single_choice_questions:
+                config_messages.append(("error", "No single-choice questions available."))
+                config_valid = False
+            else:
+                selected_questions = st.multiselect(
+                    "Questions:",
+                    [f"{q['text']} (ID: {q['id']})" for q in single_choice_questions],
+                    default=[f"{q['text']} (ID: {q['id']})" for q in single_choice_questions],
+                    key=f"completion_questions_{project_id}",
+                    help="Select questions for completion tracking"
+                )
+                sort_config["question_ids"] = [
+                    q["id"] for q in single_choice_questions 
+                    if f"{q['text']} (ID: {q['id']})" in selected_questions
+                ]
+                
+                if not sort_config["question_ids"]:
+                    config_messages.append(("warning", "Select at least one question."))
+                    config_valid = False
+        
+        elif sort_by == "Accuracy Rate":
+            # Check annotator selection
+            selected_annotators = st.session_state.get("selected_annotators", [])
+            if not selected_annotators:
+                config_messages.append(("error", "No annotators selected. Go to Annotators tab first."))
+                config_valid = False
+            
+            # Questions selection
+            questions = ProjectService.get_project_questions(project_id=project_id, session=session)
+            single_choice_questions = [q for q in questions if q["type"] == "single"]
+            
+            if not single_choice_questions:
+                config_messages.append(("error", "No single-choice questions available."))
+                config_valid = False
+            else:
+                selected_questions = st.multiselect(
+                    "Questions:",
+                    [f"{q['text']} (ID: {q['id']})" for q in single_choice_questions],
+                    default=[f"{q['text']} (ID: {q['id']})" for q in single_choice_questions],
+                    key=f"accuracy_questions_{project_id}",
+                    help="Select questions for accuracy comparison"
+                )
+                sort_config["question_ids"] = [
+                    q["id"] for q in single_choice_questions 
+                    if f"{q['text']} (ID: {q['id']})" in selected_questions
+                ]
+                
+                if not sort_config["question_ids"]:
+                    config_messages.append(("warning", "Select at least one question."))
+                    config_valid = False
+    
+    # Show configuration messages compactly
+    if config_messages:
+        for msg_type, msg in config_messages:
+            if msg_type == "error":
+                st.error(msg)
+            elif msg_type == "warning":
+                st.warning(msg)
+            else:
+                st.info(msg)
+    
+    # Action buttons in a compact row
+    action_col1, action_col2, action_col3 = st.columns([1, 1, 1])
+    
+    with action_col1:
+        if st.button("🔄 Apply", 
+                    key=f"apply_sort_{project_id}", 
+                    disabled=not config_valid,
+                    use_container_width=True,
+                    type="primary"):
+            st.session_state[f"sort_config_{project_id}"] = sort_config
+            st.session_state[f"sort_applied_{project_id}"] = True
+            st.success("✅ Applied!")
+            st.rerun()
+    
+    with action_col2:
+        if st.button("🔄 Reset", 
+                    key=f"reset_sort_{project_id}",
+                    use_container_width=True):
+            st.session_state[f"video_sort_by_{project_id}"] = "Default"
+            st.session_state[f"sort_config_{project_id}"] = {}
+            st.session_state[f"sort_applied_{project_id}"] = False
+            st.success("✅ Reset!")
+            st.rerun()
+    
+    with action_col3:
+        # Status indicator
+        current_sort = st.session_state.get(f"video_sort_by_{project_id}", "Default")
+        sort_applied = st.session_state.get(f"sort_applied_{project_id}", False)
+        
+        if current_sort != "Default" and sort_applied:
+            st.success("✅ Active")
+        elif current_sort != "Default":
+            st.warning("⏳ Ready")
+        else:
+            st.info("📋 Default")
+    
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #f0f8ff, #e6f3ff); border-left: 4px solid {COLORS['primary']}; border-radius: 8px; padding: 12px 16px; margin-top: 16px; font-size: 0.9rem; color: #2c3e50;">
+        💡 <strong>Tip:</strong> Configure your sorting options above, then click "Apply Sorting" to sort the videos accordingly.
+    </div>
+    """, unsafe_allow_html=True)
+
+def display_enhanced_filter_tab(project_id: int, session: Session):
+    """Enhanced filter tab with proper ground truth detection and full question text"""
+    st.markdown("#### 🔍 Video Filtering Options")
+    
+    st.markdown(f"""
+    <div style="{get_card_style(COLORS['warning'])}text-align: center;">
+        <div style="color: #856404; font-weight: 500; font-size: 0.95rem;">
+            🎯 Filter videos by specific ground truth answers to focus your review
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Get available ground truth options using enhanced function
+    gt_options = get_ground_truth_option_filters_enhanced(project_id=project_id, session=session)
+    
+    if gt_options:
+        st.markdown("**Filter by Ground Truth Answers:**")
+        
+        questions = ProjectService.get_project_questions(project_id=project_id, session=session)
+        question_lookup = {q["id"]: q["text"] for q in questions}
+        
+        selected_filters = {}
+        
+        for question_id, available_answers in gt_options.items():
+            question_text = question_lookup.get(question_id, f"Question {question_id}")
+            
+            # Don't truncate - show full question text
+            display_question = question_text
+            
+            filter_key = f"video_filter_q_{question_id}_{project_id}"
+            selected_answer = st.selectbox(
+                f"**{display_question}**",
+                ["Any"] + sorted(available_answers),
+                key=filter_key,
+                help=f"Filter videos where this question has the selected ground truth answer"
+            )
+            
+            if selected_answer != "Any":
+                selected_filters[question_id] = selected_answer
+        
+        if selected_filters:
+            filter_summary = []
+            for q_id, answer in selected_filters.items():
+                q_text = question_lookup.get(q_id, f"Q{q_id}")
+                # Show more of the question text in summary
+                display_text = q_text[:80] + "..." if len(q_text) > 80 else q_text
+                filter_summary.append(f"{display_text} = {answer}")
+            
+            st.success(f"🔍 **Active Filters:** {' | '.join(filter_summary)}")
+        else:
+            st.info("ℹ️ **No filters active** - showing all videos")
+        
+        # Store filters in session state
+        st.session_state[f"video_filters_{project_id}"] = selected_filters
+    else:
+        st.info("No ground truth data available for filtering yet. Complete ground truth annotation to enable filtering.")
+        st.session_state[f"video_filters_{project_id}"] = {}
+    
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #fff3cd, #ffeaa7); border-left: 4px solid {COLORS['warning']}; border-radius: 8px; padding: 12px 16px; margin-top: 16px; font-size: 0.9rem; color: #2c3e50;">
+        💡 <strong>Tip:</strong> Filters only work on questions that have ground truth answers. Complete annotation first to see more filter options.
+    </div>
+    """, unsafe_allow_html=True)
 
 def display_project_view(user_id: int, role: str, session: Session):
     """Display the selected project with modern, compact layout and enhanced sorting/filtering"""
@@ -1848,111 +2257,10 @@ def display_project_view(user_id: int, role: str, session: Session):
             """, unsafe_allow_html=True)
         
         with sort_tab:
-            st.markdown("#### 🔄 Video Sorting Options")
-            
-            st.markdown(f"""
-            <div style="{get_card_style(COLORS['primary'])}text-align: center;">
-                <div style="color: #1f77b4; font-weight: 500; font-size: 0.95rem;">
-                    📊 Sort videos by different criteria to optimize your review workflow
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            sort_col1, sort_col2 = st.columns(2)
-            
-            with sort_col1:
-                sort_options = ["Default", "Model Confidence", "Annotator Consensus", "Completion Rate"]
-                sort_by = st.selectbox(
-                    "Sort videos by",
-                    sort_options,
-                    key=f"video_sort_by_{project_id}",
-                    help="Choose how to order the videos"
-                )
-            
-            with sort_col2:
-                sort_order = st.selectbox(
-                    "Sort order",
-                    ["Descending", "Ascending"],
-                    key=f"video_sort_order_{project_id}",
-                    help="High to low or low to high"
-                )
-            
-            # Explanation of sort options
-            if sort_by == "Model Confidence":
-                st.info("📊 **Model Confidence**: Sort by average confidence scores from AI model annotations")
-            elif sort_by == "Annotator Consensus":
-                st.info("🤝 **Annotator Consensus**: Sort by how much selected annotators agree with each other")
-            elif sort_by == "Completion Rate":
-                st.info("✅ **Completion Rate**: Sort by percentage of questions that have ground truth answers")
-            else:
-                st.info("📋 **Default**: Videos in their original order")
-            
-            st.markdown(f"""
-            <div style="background: linear-gradient(135deg, #f0f8ff, #e6f3ff); border-left: 4px solid {COLORS['primary']}; border-radius: 8px; padding: 12px 16px; margin-top: 16px; font-size: 0.9rem; color: #2c3e50;">
-                💡 <strong>Tip:</strong> Use "Completion Rate" to focus on videos that need more attention, or "Annotator Consensus" to review controversial cases.
-            </div>
-            """, unsafe_allow_html=True)
-        
+            display_enhanced_sort_tab(project_id=project_id, session=session)
+
         with filter_tab:
-            st.markdown("#### 🔍 Video Filtering Options")
-            
-            st.markdown(f"""
-            <div style="{get_card_style(COLORS['warning'])}text-align: center;">
-                <div style="color: #856404; font-weight: 500; font-size: 0.95rem;">
-                    🎯 Filter videos by specific ground truth answers to focus your review
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Get available ground truth options
-            gt_options = get_ground_truth_option_filters(project_id=project_id, session=session)
-            
-            if gt_options:
-                st.markdown("**Filter by Ground Truth Answers:**")
-                
-                questions = ProjectService.get_project_questions(project_id=project_id, session=session)
-                question_lookup = {q["id"]: q["text"] for q in questions}
-                
-                selected_filters = {}
-                
-                for question_id, available_answers in gt_options.items():
-                    question_text = question_lookup.get(question_id, f"Question {question_id}")
-                    
-                    # Truncate long question text
-                    display_question = question_text[:50] + "..." if len(question_text) > 50 else question_text
-                    
-                    filter_key = f"video_filter_q_{question_id}_{project_id}"
-                    selected_answer = st.selectbox(
-                        f"**{display_question}**",
-                        ["Any"] + available_answers,
-                        key=filter_key,
-                        help=f"Filter videos where this question has the selected ground truth answer"
-                    )
-                    
-                    if selected_answer != "Any":
-                        selected_filters[question_id] = selected_answer
-                
-                if selected_filters:
-                    filter_summary = []
-                    for q_id, answer in selected_filters.items():
-                        q_text = question_lookup.get(q_id, f"Q{q_id}")[:30] + "..."
-                        filter_summary.append(f"{q_text} = {answer}")
-                    
-                    st.success(f"🔍 **Active Filters:** {' | '.join(filter_summary)}")
-                else:
-                    st.info("ℹ️ **No filters active** - showing all videos")
-                
-                # Store filters in session state
-                st.session_state[f"video_filters_{project_id}"] = selected_filters
-            else:
-                st.info("No ground truth data available for filtering yet.")
-                st.session_state[f"video_filters_{project_id}"] = {}
-            
-            st.markdown(f"""
-            <div style="background: linear-gradient(135deg, #fff3cd, #ffeaa7); border-left: 4px solid {COLORS['warning']}; border-radius: 8px; padding: 12px 16px; margin-top: 16px; font-size: 0.9rem; color: #2c3e50;">
-                💡 <strong>Tip:</strong> Use filters to focus on specific cases, like videos where the ground truth answer is a particular option.
-            </div>
-            """, unsafe_allow_html=True)
+            display_enhanced_filter_tab(project_id=project_id, session=session)
         
         with order_tab:
             st.markdown("#### 📋 Question Group Display Order")
@@ -1960,7 +2268,7 @@ def display_project_view(user_id: int, role: str, session: Session):
             st.markdown(f"""
             <div style="{get_card_style('#e74c3c')}text-align: center;">
                 <div style="color: #c0392b; font-weight: 500; font-size: 0.95rem;">
-                    🔄 Customize the order of question groups for this session (not saved to database)
+                    🔄 Customize the order of question groups for this session
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -2063,11 +2371,13 @@ def display_project_view(user_id: int, role: str, session: Session):
         sort_order = st.session_state.get(f"video_sort_order_{project_id}", "Descending")
         filter_by_gt = st.session_state.get(f"video_filters_{project_id}", {})
         selected_annotators = st.session_state.get("selected_annotators", [])
+        sort_config = st.session_state.get(f"sort_config_{project_id}", {})
         
-        videos = apply_video_sorting_and_filtering(
+        videos = apply_video_sorting_and_filtering_enhanced(
             videos=videos, sort_by=sort_by, sort_order=sort_order,
             filter_by_gt=filter_by_gt, project_id=project_id,
-            selected_annotators=selected_annotators, session=session
+            selected_annotators=selected_annotators, session=session,
+            sort_config=sort_config
         )
     
     # Get layout settings
@@ -2079,18 +2389,24 @@ def display_project_view(user_id: int, role: str, session: Session):
     # Show sorting/filtering summary
     if role in ["reviewer", "meta_reviewer"]:
         sort_by = st.session_state.get(f"video_sort_by_{project_id}", "Default")
+        sort_applied = st.session_state.get(f"sort_applied_{project_id}", False)
         filter_by_gt = st.session_state.get(f"video_filters_{project_id}", {})
         
         summary_parts = []
-        if sort_by != "Default":
-            sort_order = st.session_state.get(f"video_sort_order_{project_id}", "Descending")
-            summary_parts.append(f"🔄 Sorted by {sort_by} ({sort_order})")
+        if sort_by != "Default" and sort_applied:
+            sort_order = st.session_state.get(f"video_sort_order_{project_id}", "Ascending")
+            summary_parts.append(f"🔄 {sort_by} ({sort_order})")
+        elif sort_by != "Default" and not sort_applied:
+            summary_parts.append(f"⚙️ {sort_by} configured")
+        elif sort_by == "Default":
+            sort_order = st.session_state.get(f"video_sort_order_{project_id}", "Ascending")
+            summary_parts.append(f"📋 Default order ({sort_order})")
         
         if filter_by_gt:
-            summary_parts.append(f"🔍 {len(filter_by_gt)} filter(s) active")
+            summary_parts.append(f"🔍 {len(filter_by_gt)} filter(s)")
         
         if summary_parts:
-            st.info(" | ".join(summary_parts))
+            st.info(" • ".join(summary_parts))
     
     # Calculate pagination
     total_pages = (len(videos) - 1) // videos_per_page + 1 if videos else 1
@@ -2804,7 +3120,7 @@ def _get_question_display_data(video_id: int, project_id: int, user_id: int, gro
     }
 
 def _display_clean_sticky_single_choice_question(question: Dict, video_id: int, project_id: int, role: str, existing_value: str, is_modified_by_admin: bool, admin_info: Optional[Dict], form_disabled: bool, session: Session, gt_value: str = "", mode: str = "") -> str:
-    """Display a single choice question with sticky header"""
+    """Display a single choice question with sticky header and single status display"""
     question_id = question["id"]
     question_text = question["display_text"]
     options = question["options"]
@@ -2846,6 +3162,10 @@ def _display_clean_sticky_single_choice_question(question: Dict, video_id: int, 
                 </div>
             """, unsafe_allow_html=True)
     
+    # Show single status for reviewers/meta-reviewers
+    if role in ["reviewer", "meta_reviewer"]:
+        _display_annotator_status(video_id=video_id, project_id=project_id, question_id=question_id, session=session)
+    
     # Question content
     if role == "reviewer" and is_modified_by_admin and admin_info:
         current_value = admin_info["current_value"]
@@ -2881,23 +3201,6 @@ def _display_clean_sticky_single_choice_question(question: Dict, video_id: int, 
             video_id=video_id, project_id=project_id, question_id=question_id, 
             options=options, display_values=display_values, session=session
         )
-        
-        selected_annotators = st.session_state.get("selected_annotators", [])
-        if not selected_annotators:
-            st.caption("⚠️ No annotators selected - only ground truth will be shown")
-        else:
-            try:
-                shown_initials = []
-                for name in selected_annotators[:3]:
-                    if " (" in name and name.endswith(")"):
-                        initials = name.split(" (")[1][:-1]
-                        shown_initials.append(initials)
-                    else:
-                        shown_initials.append(name[:2])
-                
-                st.caption(f"📊 Showing answers from: {', '.join(shown_initials)}")
-            except Exception:
-                st.caption(f"📊 Showing answers from {len(selected_annotators)} annotators")
         
         radio_key = f"q_{video_id}_{question_id}_{role}_stable"
         
@@ -2962,7 +3265,7 @@ def _display_clean_sticky_single_choice_question(question: Dict, video_id: int, 
     return result
 
 def _display_clean_sticky_description_question(question: Dict, video_id: int, project_id: int, role: str, existing_value: str, is_modified_by_admin: bool, admin_info: Optional[Dict], form_disabled: bool, session: Session, gt_value: str = "", mode: str = "", answer_reviews: Optional[Dict] = None) -> str:
-    """Display a description question with elegant left-right layout"""
+    """Display a description question with elegant left-right layout and single status display"""
     question_id = question["id"]
     question_text = question["display_text"]
     
@@ -3031,6 +3334,9 @@ def _display_clean_sticky_description_question(question: Dict, video_id: int, pr
             label_visibility="collapsed"
         )
         
+        # Show single status for reviewers/meta-reviewers
+        _display_annotator_status(video_id=video_id, project_id=project_id, question_id=question_id, session=session)
+        
         _display_enhanced_helper_text_answers(
             video_id=video_id, project_id=project_id, question_id=question_id, 
             question_text=question_text, text_key=text_key,
@@ -3065,7 +3371,7 @@ def _display_clean_sticky_description_question(question: Dict, video_id: int, pr
     return result
 
 def _display_enhanced_helper_text_answers(video_id: int, project_id: int, question_id: int, question_text: str, text_key: str, gt_value: str, role: str, answer_reviews: Optional[Dict], session: Session):
-    """Display helper text showing other annotator answers with elegant tab-based interface"""
+    """Display helper text showing other annotator answers (status display removed)"""
     selected_annotators = st.session_state.get("selected_annotators", [])
     
     try:
@@ -3116,8 +3422,6 @@ def _display_enhanced_helper_text_answers(video_id: int, project_id: int, questi
                 })
         
         if all_answers:
-            st.caption("📋 Available answers:")
-            
             # Smart tab naming
             if len(all_answers) > 6:
                 tab_names = []
@@ -3148,7 +3452,7 @@ def _display_enhanced_helper_text_answers(video_id: int, project_id: int, questi
         st.caption(f"⚠️ Could not load annotator answers: {str(e)}")
 
 def _get_enhanced_options_for_reviewer(video_id: int, project_id: int, question_id: int, options: List[str], display_values: List[str], session: Session) -> List[str]:
-    """Get enhanced options showing who selected what for reviewers with percentage display"""
+    """Get enhanced options showing who selected what for reviewers (status display removed)"""
     selected_annotators = st.session_state.get("selected_annotators", [])
     
     try:
@@ -3156,16 +3460,12 @@ def _get_enhanced_options_for_reviewer(video_id: int, project_id: int, question_
             display_names=selected_annotators, project_id=project_id, session=session
         )
         
-        if not annotator_user_ids and selected_annotators:
-            st.caption(f"⚠️ Could not find user IDs for selected annotators")
-        
         option_selections = GroundTruthService.get_question_option_selections(
             video_id=video_id, project_id=project_id, question_id=question_id, 
             annotator_user_ids=annotator_user_ids, session=session
         )
         
     except Exception as e:
-        st.caption(f"⚠️ Error getting annotator data: {str(e)}")
         option_selections = {}
         annotator_user_ids = []
     
@@ -3204,6 +3504,69 @@ def _get_enhanced_options_for_reviewer(video_id: int, project_id: int, question_
         enhanced_options.append(option_text)
     
     return enhanced_options
+
+def _display_annotator_status(video_id: int, project_id: int, question_id: int, session: Session):
+    """Display a single compact status message showing present and missing annotators"""
+    selected_annotators = st.session_state.get("selected_annotators", [])
+    
+    if not selected_annotators:
+        st.caption("⚠️ No annotators selected - only ground truth will be shown")
+        return
+    
+    try:
+        annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
+            display_names=selected_annotators, project_id=project_id, session=session
+        )
+        
+        # Get answers for this question/video
+        answers_df = AnnotatorService.get_question_answers(
+            question_id=question_id, project_id=project_id, session=session
+        )
+        
+        # Find which annotators have answered this specific question/video
+        annotators_with_answers = set()
+        if not answers_df.empty:
+            video_answers = answers_df[answers_df["Video ID"] == video_id]
+            for _, answer_row in video_answers.iterrows():
+                user_id = answer_row["User ID"]
+                if user_id in annotator_user_ids:
+                    # Get user name
+                    users_df = AuthService.get_all_users(session=session)
+                    user_info = users_df[users_df["ID"] == user_id]
+                    if not user_info.empty:
+                        annotators_with_answers.add(user_info.iloc[0]["User ID"])
+        
+        # Get initials for present and missing annotators
+        present_initials = []
+        missing_initials = []
+        
+        for display_name in selected_annotators:
+            if " (" in display_name and display_name.endswith(")"):
+                name = display_name.split(" (")[0]
+                initials = display_name.split(" (")[1][:-1]
+            else:
+                name = display_name
+                initials = display_name[:2].upper()
+            
+            if name in annotators_with_answers:
+                present_initials.append(initials)
+            else:
+                missing_initials.append(initials)
+        
+        # Create compact status message
+        status_parts = []
+        if present_initials:
+            status_parts.append(f"📊 Showing: {', '.join(present_initials)}")
+        if missing_initials:
+            status_parts.append(f"⚠️ Missing: {', '.join(missing_initials)}")
+        
+        if status_parts:
+            st.caption(" | ".join(status_parts))
+        elif not present_initials and not missing_initials:
+            st.caption("⚠️ No annotators have answered this question yet")
+            
+    except Exception as e:
+        st.caption(f"⚠️ Could not load annotator status: {str(e)}")
 
 def _get_submit_button_config(role: str, form_disabled: bool, all_questions_modified_by_admin: bool, has_any_editable_questions: bool, is_group_complete: bool, mode: str, ground_truth_exists: bool = False, has_any_admin_modified_questions: bool = False) -> Tuple[str, bool]:
     """Get the submit button text and disabled state with improved logic"""
