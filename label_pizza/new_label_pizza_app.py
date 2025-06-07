@@ -1346,7 +1346,7 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
     return None
 
 def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: int):
-    """Modern, compact annotator selection with single-line display"""
+    """Modern, compact annotator selection with responsive design and uniform button widths"""
     if not annotators:
         st.warning("No annotators have submitted answers for this project yet.")
         return []
@@ -1419,14 +1419,16 @@ def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: i
                     email = annotator_info.get('email', '')
                     user_id = annotator_info.get('id', '')
                     
-                    # Keep full display name for checkbox
-                    display_name = annotator_display
+                    display_name = full_name
+                    word_count = len(full_name.split())
+                    if word_count > 5 or len(full_name) > 25:
+                        display_name = full_name[:22] + "..."
                     
-                    tooltip = f"Email: {email}\nID: {user_id}" if email and email != f"user_{user_id}@example.com" else f"User ID: {user_id}"
+                    tooltip = f"{full_name}\nEmail: {email}\nID: {user_id}" if email and email != f"user_{user_id}@example.com" else f"{full_name}\nUser ID: {user_id}"
                     
                     checkbox_key = f"annotator_cb_{project_id}_{row_start + i}"
                     is_selected = st.checkbox(
-                        display_name,
+                        f"**{display_name}**\n`{initials}`",
                         value=annotator_display in st.session_state.selected_annotators,
                         key=checkbox_key,
                         help=tooltip
@@ -5495,33 +5497,20 @@ def main():
         /* Enhanced checkbox styling with uniform width */
         .stCheckbox > label {
             background: linear-gradient(135deg, #ffffff, #f8f9fa);
-            padding: 6px 8px;
+            padding: 8px 12px;
             border-radius: 6px;
             border: 1px solid #e9ecef;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
             cursor: pointer;
             transition: all 0.2s ease;
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            display: block;
             font-weight: 500;
-            font-size: 0.75rem;
+            font-size: 0.85rem;
             width: 100%;
-            min-height: 40px;
+            min-height: 60px;
             text-align: center;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .stCheckbox > label > div {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            width: 100%;
-            text-align: center;
+            white-space: pre-line;
         }
         
         .stCheckbox > label:hover {
