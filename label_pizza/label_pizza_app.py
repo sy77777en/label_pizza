@@ -468,8 +468,8 @@ def show_personal_annotator_accuracy(user_id: int, project_id: int, session: Ses
         overall_accuracy = calculate_overall_accuracy(accuracy_data)
         per_question_accuracy = calculate_per_question_accuracy(accuracy_data)
         
-        user_info = AuthService.get_user_info_by_id(user_id=user_id, session=session)
-        questions = ProjectService.get_project_questions(project_id=project_id, session=session)
+        user_info = AuthService.get_user_info_by_id(user_id=int(user_id), session=session)
+        questions = ProjectService.get_project_questions(project_id=int(project_id), session=session)
         question_lookup = {q["id"]: q["text"] for q in questions}
         
         user_name = user_info["user_id_str"]
@@ -552,8 +552,8 @@ def show_personal_reviewer_accuracy(user_id: int, project_id: int, session: Sess
         overall_accuracy = calculate_overall_accuracy(accuracy_data)
         per_question_accuracy = calculate_per_question_accuracy(accuracy_data)
         
-        user_info = AuthService.get_user_info_by_id(user_id=user_id, session=session)
-        questions = ProjectService.get_project_questions(project_id=project_id, session=session)
+        user_info = AuthService.get_user_info_by_id(user_id=int(user_id), session=session)
+        questions = ProjectService.get_project_questions(project_id=int(project_id), session=session)
         question_lookup = {q["id"]: q["text"] for q in questions}
         
         user_name = user_info["user_id_str"]
@@ -1078,7 +1078,7 @@ def get_user_projects(user_id: int, session: Session) -> Dict:
 def get_available_portals(user: Dict, user_projects: Dict) -> List[str]:
     """Determine which portals the user can access"""
     if user["role"] == "admin":
-        return ["annotator", "reviewer", "meta_reviewer", "admin"]
+        return ["annotator", "reviewer", "meta_reviewer", "search", "admin"]
     
     available_portals = []
     if user_projects.get("annotator"):
@@ -1087,6 +1087,2254 @@ def get_available_portals(user: Dict, user_projects: Dict) -> List[str]:
         available_portals.append("reviewer")
     
     return available_portals
+
+###############################################################################
+# SEARCH PORTAL - COMPLETELY REDESIGNED FOR ADMIN WITH CLEAN UI/UX
+###############################################################################
+
+@handle_database_errors
+def search_portal():
+    """Advanced Search Portal for Admins - Clean, Organized, Functional"""
+    st.title("🔍 Advanced Search Portal")
+    st.markdown("**Comprehensive search and editing capabilities across all projects**")
+    
+    # Clean tab design with clear separation
+    main_tabs = st.tabs([
+        "🎬 Video Answer Search", 
+        "📊 Video Criteria Search",
+        "📋 Bulk Operations"
+    ])
+    
+    with main_tabs[0]:
+        video_answer_search_portal()
+    
+    with main_tabs[1]:
+        video_criteria_search_portal()
+    
+    with main_tabs[2]:
+        bulk_operations_portal()
+
+###############################################################################
+# VIDEO ANSWER SEARCH PORTAL
+###############################################################################
+
+@st.fragment
+def video_answer_search_portal():
+    """Search and edit all answers for a specific video with improved UI"""
+    
+    st.markdown("## 🎬 Video Answer Search & Editor")
+    st.markdown("*Find and edit all answers for any video across all project groups*")
+    
+    with get_db_session() as session:
+        # Improved Step 1: Video Selection Section
+        video_info = display_improved_video_selection_section(session)
+        
+        if not video_info:
+            return
+        
+        st.markdown("---")
+        
+        # Improved Step 2: Project Group Filter Section  
+        project_group_filter = display_improved_project_group_filter_section(session)
+        
+        st.markdown("---")
+        
+        # Improved Step 3: Main Video + Answers Layout
+        display_improved_video_answers_editor(video_info, project_group_filter, session)
+
+def display_improved_video_selection_section(session: Session) -> Optional[Dict[str, Any]]:
+    """Improved video selection interface with better styling"""
+    
+    st.markdown("### 📹 Step 1: Select Video")
+    
+    # Get videos with better organization
+    videos_df = VideoService.get_all_videos(session=session)
+    if videos_df.empty:
+        st.warning("🚫 No videos available in the system")
+        return None
+    
+    # Improved filter controls with consistent heights - ALL using st.selectbox for uniform styling
+    col1, col2, col3 = st.columns([3, 2, 2])
+    
+    with col1:
+        search_term = st.text_input(
+            "🔍 Search videos by UID", 
+            placeholder="Type video UID to filter...",
+            key="admin_video_search",
+            help="Search through video UIDs to find the one you want"
+        )
+    
+    with col2:
+        # Use selectbox to match height with text input
+        include_archived = st.selectbox(
+            "📦 Archive Filter",
+            ["Active videos only", "Include archived videos"],
+            key="include_archived_videos_select",
+            help="Choose whether to show archived videos"
+        ) == "Include archived videos"
+    
+    with col3:
+        total_videos = len(videos_df)
+        active_videos = len(videos_df[~videos_df["Archived"]])
+        
+        # Use selectbox for consistent height - display as info
+        if include_archived:
+            info_display = st.selectbox(
+                "📊 Video Count",
+                [f"Total: {total_videos} ({active_videos} active + {total_videos - active_videos} archived)"],
+                key="video_count_display",
+                disabled=True,
+                help="Currently showing all videos including archived ones"
+            )
+        else:
+            info_display = st.selectbox(
+                "📊 Video Count", 
+                [f"Active: {active_videos}" + (f" ({total_videos - active_videos} archived hidden)" if total_videos > active_videos else " (no archived)")],
+                key="video_count_display",
+                disabled=True,
+                help="Currently showing only active videos"
+            )
+    
+    # Apply filters
+    filtered_videos = videos_df
+    if not include_archived:
+        filtered_videos = videos_df[~videos_df["Archived"]]
+    
+    if search_term:
+        filtered_videos = filtered_videos[
+            filtered_videos["Video UID"].str.contains(search_term, case=False, na=False)
+        ]
+    
+    if filtered_videos.empty:
+        st.warning("🔍 No videos match your search criteria")
+        return None
+    
+    # Improved video selection
+    st.markdown("**📋 Select Video:**")
+    
+    video_options = {}
+    for _, row in filtered_videos.iterrows():
+        created_date = row["Created At"].strftime("%m/%d/%Y") if pd.notna(row["Created At"]) else "Unknown"
+        status_emoji = "📦" if row["Archived"] else "📹"
+        display_name = f"{status_emoji} {row['Video UID']} • {created_date}"
+        video_options[display_name] = row["Video UID"]
+    
+    # Better selectbox presentation
+    if len(video_options) > 20:
+        st.info(f"📊 Showing {len(video_options)} videos (use search to narrow results)")
+    
+    selected_video_display = st.selectbox(
+        "Choose from available videos:",
+        [""] + list(video_options.keys()),
+        key="selected_video_admin",
+        help=f"Select from {len(video_options)} available videos",
+        label_visibility="collapsed"
+    )
+    
+    if not selected_video_display:
+        st.info("👆 Please select a video from the dropdown above to continue")
+        return None
+    
+    # Get video info
+    selected_video_uid = video_options[selected_video_display]
+    video_info = get_video_info_by_uid(selected_video_uid, session)
+    
+    if not video_info:
+        st.error("❌ Error loading video information")
+        return None
+    
+    # Improved selected video display
+    st.markdown(f"""
+    <div style="{get_card_style('#28a745')}text-align: center;">
+        <div style="color: #155724; font-weight: 600; font-size: 1rem;">
+            ✅ Selected: <strong>{video_info['uid']}</strong>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    return video_info
+
+def display_improved_project_group_filter_section(session: Session) -> List[int]:
+    """Improved project group filtering interface"""
+    
+    st.markdown("### 🗂️ Step 2: Configure Project Group Filters")
+    
+    try:
+        project_groups = ProjectGroupService.list_project_groups(session=session)
+        
+        if not project_groups:
+            st.warning("🚫 No project groups found")
+            return []
+        
+        # Initialize with all groups selected
+        if "admin_selected_groups" not in st.session_state:
+            st.session_state.admin_selected_groups = [g.id for g in project_groups]
+        
+        # Improved quick actions
+        action_col1, action_col2, action_col3 = st.columns([1, 1, 2])
+        
+        with action_col1:
+            if st.button("✅ Select All", key="admin_select_all_groups", use_container_width=True):
+                st.session_state.admin_selected_groups = [g.id for g in project_groups]
+                st.rerun(scope="fragment")
+        
+        with action_col2:
+            if st.button("❌ Clear All", key="admin_clear_all_groups", use_container_width=True):
+                st.session_state.admin_selected_groups = []
+                st.rerun(scope="fragment")
+        
+        with action_col3:
+            selected_count = len(st.session_state.admin_selected_groups)
+            total_count = len(project_groups)
+            
+            # Use metric for consistent display
+            st.metric(
+                label="📊 Selected Groups", 
+                value=f"{selected_count}/{total_count}",
+                delta="All selected" if selected_count == total_count else f"{total_count - selected_count} remaining"
+            )
+        
+        st.markdown("**📋 Select Project Groups:**")
+        
+        # Improved group selection grid
+        num_cols = min(2, len(project_groups))  # Use 2 columns for better readability
+        cols = st.columns(num_cols)
+        
+        updated_selections = []
+        
+        for i, group in enumerate(project_groups):
+            with cols[i % num_cols]:
+                # Get project count
+                try:
+                    group_info = ProjectGroupService.get_project_group_by_id(group_id=group.id, session=session)
+                    project_count = len(group_info["projects"])
+                except:
+                    project_count = 0
+                
+                is_selected = group.id in st.session_state.admin_selected_groups
+                
+                # Improved checkbox design
+                checkbox_value = st.checkbox(
+                    f"**{group.name}**",
+                    value=is_selected,
+                    key=f"admin_group_cb_{group.id}",
+                    help=f"Description: {group.description or 'No description'}"
+                )
+                
+                # Better project group info card
+                card_color = "#e7f3ff" if is_selected else "#f8f9fa"
+                border_color = "#2196f3" if is_selected else "#e9ecef"
+                
+                st.markdown(f"""
+                <div style="background: {card_color}; border: 1px solid {border_color}; border-radius: 8px; padding: 12px; margin: 8px 0;">
+                    <div style="color: #1976d2; font-weight: 600; font-size: 0.9rem; margin-bottom: 6px;">
+                        📁 {project_count} project{'s' if project_count != 1 else ''}
+                    </div>
+                    <div style="color: #424242; font-size: 0.85rem; line-height: 1.4;">
+                        {group.description if group.description else '<em>No description provided</em>'}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                if checkbox_value:
+                    updated_selections.append(group.id)
+        
+        # Update selections if changed
+        if set(updated_selections) != set(st.session_state.admin_selected_groups):
+            st.session_state.admin_selected_groups = updated_selections
+            st.rerun(scope="fragment")
+        
+        return st.session_state.admin_selected_groups
+        
+    except Exception as e:
+        st.error(f"❌ Error loading project groups: {str(e)}")
+        return []
+
+def display_improved_video_answers_editor(video_info: Dict[str, Any], selected_group_ids: List[int], session: Session):
+    """Improved video + answers editor layout"""
+    
+    st.markdown("### 🎯 Step 3: Video Player & Ground Truth Editor")
+    
+    if not selected_group_ids:
+        st.warning("⚠️ Please select at least one project group in Step 2 to see results")
+        return
+    
+    # Get all ground truth for this video
+    gt_data = get_video_ground_truth_across_groups(video_info["id"], selected_group_ids, session)
+    
+    # Improved video player section
+    display_improved_video_player_section(video_info)
+    
+    st.markdown("---")
+    
+    # Improved project groups display
+    display_improved_project_groups_section(gt_data, video_info, session)
+
+def display_improved_video_player_section(video_info: Dict[str, Any]):
+    """Improved video player section"""
+    
+    st.markdown("#### 📹 Video Player")
+    
+    # Improved video info card
+    created_at = video_info["created_at"].strftime('%Y-%m-%d %H:%M') if video_info["created_at"] else 'Unknown'
+    
+    st.markdown(f"""
+    <div style="{get_card_style('#2196f3')}">
+        <div style="color: #1565c0; font-weight: 700; font-size: 1.1rem; margin-bottom: 8px;">
+            📹 {video_info["uid"]}
+        </div>
+        <div style="color: #1976d2; font-size: 0.85rem; margin-bottom: 6px;">
+            <strong>URL:</strong> <code style="background: rgba(255,255,255,0.8); padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">{video_info["url"]}</code>
+        </div>
+        <div style="color: #1976d2; font-size: 0.85rem;">
+            <strong>Created:</strong> {created_at}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Video player
+    custom_video_player(video_info["url"], autoplay=False, loop=True)
+
+def display_improved_project_groups_section(gt_data: Dict, video_info: Dict[str, Any], session: Session):
+    """Improved project groups display with better organization"""
+    
+    if not gt_data:
+        st.info("📭 No projects found with questions in the selected project groups")
+        return
+    
+    # Enhanced summary stats
+    total_projects = sum(len(group_data["projects"]) for group_data in gt_data.values())
+    total_groups = len(gt_data)
+    
+    # Count total question groups across all projects
+    total_qg = 0
+    for group_data in gt_data.values():
+        for project_data in group_data["projects"].values():
+            total_qg += len(project_data.get("question_groups", {}))
+    
+    summary_col1, summary_col2, summary_col3 = st.columns(3)
+    
+    with summary_col1:
+        st.metric("📁 Project Groups", total_groups)
+    
+    with summary_col2:
+        st.metric("📂 Projects", total_projects)
+    
+    with summary_col3:
+        st.metric("❓ Question Groups", total_qg)
+    
+    # Display each project group with improved styling
+    for group_id, group_data in gt_data.items():
+        group_name = group_data["group_name"]
+        projects = group_data["projects"]
+        project_count = len(projects)
+        
+        # Improved project group header
+        st.markdown(f"""
+        <div style="{get_card_style('#3498db')}text-align: center; margin: 20px 0;">
+            <div style="color: #2980b9; font-weight: 700; font-size: 1.2rem; margin-bottom: 4px;">
+                📁 {group_name}
+            </div>
+            <div style="color: #2980b9; font-size: 0.9rem;">
+                {project_count} project{'s' if project_count != 1 else ''} with questions
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Display projects with improved styling
+        display_improved_projects_as_expanders(group_data, video_info, session)
+
+def display_improved_projects_as_expanders(group_data: Dict, video_info: Dict[str, Any], session: Session):
+    """Display projects with improved expander styling"""
+    
+    projects = group_data["projects"]
+    
+    if not projects:
+        st.info("📭 No projects with questions in this group")
+        return
+    
+    current_user = st.session_state.user
+    user_id = current_user["id"]
+    
+    # Display each project with enhanced info
+    for project_id, project_data in projects.items():
+        project_name = project_data["project_name"]
+        project_description = project_data.get("project_description", "")
+        
+        # Count question groups and get completion status
+        question_groups = project_data.get("question_groups", {})
+        qg_count = len(question_groups)
+        
+        # Calculate completion status WITH QUESTION GROUP NAMES
+        completed_qg = 0
+        completion_details = []
+        
+        for qg_id, qg_data in question_groups.items():
+            qg_title = qg_data.get("title", f"Question Group {qg_id}")
+            has_gt = any(q_data.get("ground_truth") is not None for q_data in qg_data.get("questions", {}).values())
+            
+            if has_gt:
+                completed_qg += 1
+                completion_details.append(f"✅ {qg_title}")
+            else:
+                completion_details.append(f"⏳ {qg_title}")
+        
+        # Enhanced project label with detailed status like other portals
+        completion_icon = "✅" if completed_qg == qg_count and qg_count > 0 else "⏳" if completed_qg > 0 else "📝"
+        
+        if qg_count > 0:
+            # Show individual question group status like other portals
+            detailed_progress = " | ".join(completion_details)
+            project_label = f"{completion_icon} {project_name} • {detailed_progress}"
+        else:
+            project_label = f"{completion_icon} {project_name} • No question groups"
+        
+        with st.expander(project_label, expanded=(completed_qg == 0)):  # Expand incomplete projects by default
+            if project_description:
+                st.markdown(f"*{project_description}*")
+            
+            # Show project stats
+            if qg_count > 1:
+                progress_percent = (completed_qg / qg_count * 100) if qg_count > 0 else 0
+                st.progress(progress_percent / 100)
+                st.caption(f"📊 Overall Progress: {completed_qg}/{qg_count} question groups completed ({progress_percent:.0f}%)")
+            
+            display_project_question_groups_with_tabs(
+                project_data, project_id, video_info, user_id, session
+            )
+
+def display_project_question_groups_with_tabs(project_data: Dict, project_id: int, video_info: Dict[str, Any], user_id: int, session: Session):
+    """Display question groups using tabs exactly like other portals"""
+    
+    question_groups = project_data.get("question_groups", {})
+    
+    if not question_groups:
+        st.info("📭 No question groups found in this project")
+        return
+    
+    # Convert to list format like other portals
+    qg_list = []
+    for qg_id, qg_data in question_groups.items():
+        qg_list.append({
+            "ID": qg_id,
+            "Title": qg_data["title"],
+            "Description": qg_data.get("description", "")
+        })
+    
+    # Use tabs for question groups EXACTLY like other portals
+    if len(qg_list) > 1:
+        qg_tab_names = [group['Title'] for group in qg_list]
+        qg_tabs = st.tabs(qg_tab_names)
+        
+        for qg_tab, group in zip(qg_tabs, qg_list):
+            with qg_tab:
+                display_single_question_group_for_search(
+                    video_info, project_id, user_id, group["ID"], 
+                    question_groups[group["ID"]], session
+                )
+    else:
+        # Single question group
+        group = qg_list[0]
+        st.markdown(f"### ❓ {group['Title']}")
+        if group.get('Description'):
+            st.caption(group['Description'])
+        
+        display_single_question_group_for_search(
+            video_info, project_id, user_id, group["ID"], 
+            question_groups[group["ID"]], session
+        )
+
+def display_single_question_group_for_search(video_info: Dict, project_id: int, user_id: int, qg_id: int, qg_data: Dict, session: Session):
+    """Display single question group with proper portal-consistent messaging"""
+    
+    # Determine the correct role and button text
+    try:
+        gt_status = determine_ground_truth_status(video_info["id"], project_id, qg_id, user_id, session)
+    except Exception as e:
+        st.error(f"Error determining ground truth status: {str(e)}")
+        # Create fallback form
+        with st.form(f"error_gt_status_{video_info['id']}_{qg_id}_{project_id}"):
+            st.error("Could not determine ground truth status")
+            st.form_submit_button("Unable to Load", disabled=True)
+        return
+    
+    # Show mode messages exactly like other portals
+    if gt_status["role"] == "meta_reviewer":
+        st.warning("🎯 **Meta-Reviewer Mode** - Override ground truth answers as needed.")
+    else:  # reviewer or reviewer_resubmit
+        st.info("🔍 **Review Mode** - Help create the ground truth dataset!")
+    
+    # Get questions from service
+    try:
+        service_questions = QuestionService.get_questions_by_group_id(group_id=qg_id, session=session)
+        
+        if not service_questions:
+            st.info("No questions found in this group")
+            # Create empty form with submit button to prevent error
+            with st.form(f"empty_form_{video_info['id']}_{qg_id}_{project_id}"):
+                st.info("No questions available")
+                st.form_submit_button("No Actions Available", disabled=True)
+            return
+        
+        # Get existing answers to populate form
+        existing_answers = {}
+        try:
+            existing_answers = GroundTruthService.get_ground_truth_for_question_group(
+                video_id=video_info["id"], project_id=project_id, question_group_id=qg_id, session=session
+            )
+        except Exception as e:
+            st.warning(f"Could not load existing answers: {str(e)}")
+            existing_answers = {}
+        
+        # Create form with unique key INCLUDING project_id to prevent duplicates
+        form_key = f"search_form_{video_info['id']}_{qg_id}_{project_id}_{gt_status['role']}_{user_id}"
+        
+        # Ensure form is always created
+        try:
+            with st.form(form_key):
+                answers = {}
+                
+                # Content height (same as other portals)
+                content_height = 500
+                
+                # Wrap question display in try/catch
+                try:
+                    with st.container(height=content_height, border=False):
+                        for i, question in enumerate(service_questions):
+                            question_id = question["id"]
+                            question_text = question["text"]
+                            existing_value = existing_answers.get(question_text, "")
+                            
+                            if i > 0:
+                                st.markdown('<div style="margin: 32px 0;"></div>', unsafe_allow_html=True)
+                            
+                            # Check admin modification status
+                            is_modified_by_admin = False
+                            admin_info = None
+                            if gt_status["role"] == "meta_reviewer":
+                                try:
+                                    is_modified_by_admin = GroundTruthService.check_question_modified_by_admin(
+                                        video_id=video_info["id"], project_id=project_id, question_id=question_id, session=session
+                                    )
+                                    if is_modified_by_admin:
+                                        admin_info = GroundTruthService.get_admin_modification_details(
+                                            video_id=video_info["id"], project_id=project_id, question_id=question_id, session=session
+                                        )
+                                except Exception:
+                                    is_modified_by_admin = False
+                                    admin_info = None
+                            
+                            # Use the EXACT same question display functions as other portals
+                            display_role = "meta_reviewer" if gt_status["role"] == "meta_reviewer" else "reviewer"
+                            
+                            # Pass None for selected_annotators in search portal (we don't show annotator info)
+                            try:
+                                if question["type"] == "single":
+                                    answers[question_text] = _display_clean_sticky_single_choice_question(
+                                        question, video_info["id"], project_id, display_role, existing_value,
+                                        is_modified_by_admin, admin_info, False, session,
+                                        "", "", None  # No gt_value, mode, or selected_annotators for search
+                                    )
+                                else:
+                                    answers[question_text] = _display_clean_sticky_description_question(
+                                        question, video_info["id"], project_id, display_role, existing_value,
+                                        is_modified_by_admin, admin_info, False, session,
+                                        "", "", None, None  # No gt_value, mode, answer_reviews, or selected_annotators for search
+                                    )
+                            except Exception as e:
+                                st.error(f"Error displaying question {question_id}: {str(e)}")
+                                # Provide fallback answer
+                                answers[question_text] = existing_value
+                except Exception as e:
+                    st.error(f"Error displaying questions: {str(e)}")
+                    # Still provide empty answers
+                    answers = {}
+                
+                st.markdown('<div style="margin: 8px 0;"></div>', unsafe_allow_html=True)
+                
+                # ALWAYS include submit button
+                submitted = st.form_submit_button(gt_status["button_text"], use_container_width=True, type="primary")
+                
+                if submitted:
+                    try:
+                        if gt_status["role"] == "meta_reviewer":
+                            GroundTruthService.override_ground_truth_to_question_group(
+                                video_id=video_info["id"], project_id=project_id, 
+                                question_group_id=qg_id, admin_id=user_id, 
+                                answers=answers, session=session
+                            )
+                            st.success("✅ Ground truth overridden successfully!")
+                        else:  # reviewer or reviewer_resubmit
+                            GroundTruthService.submit_ground_truth_to_question_group(
+                                video_id=video_info["id"], project_id=project_id, 
+                                reviewer_id=user_id, question_group_id=qg_id, 
+                                answers=answers, session=session
+                            )
+                            success_msg = "✅ Ground truth re-submitted successfully!" if gt_status["role"] == "reviewer_resubmit" else "✅ Ground truth submitted successfully!"
+                            st.success(success_msg)
+                        
+                        st.rerun(scope="fragment")
+                        
+                    except Exception as e:
+                        st.error(f"❌ Error saving ground truth: {str(e)}")
+        
+        except Exception as e:
+            st.error(f"Error creating form: {str(e)}")
+            # Create emergency fallback form
+            with st.form(f"emergency_form_{video_info['id']}_{qg_id}_{project_id}_{user_id}"):
+                st.error("Could not create proper form")
+                st.form_submit_button("Form Creation Failed", disabled=True)
+                    
+    except Exception as e:
+        st.error(f"❌ Error loading question group: {str(e)}")
+        # Create empty form with submit button to prevent error
+        with st.form(f"error_form_{video_info['id']}_{qg_id}_{project_id}_{user_id}"):
+            st.error("Failed to load questions")
+            st.form_submit_button("Unable to Load", disabled=True)
+
+def display_single_question_group_like_other_portals(video_info: Dict, project_id: int, user_id: int, qg_id: int, qg_data: Dict, session: Session, group_id: int):
+    """Display single question group exactly like other portals with proper GT logic"""
+    
+    # Determine the correct role and button text based on GT status
+    gt_status = determine_ground_truth_status(int(video_info["id"]), int(project_id), int(qg_id), int(user_id), session)
+    
+    # Show appropriate mode message (same as other portals)
+    if gt_status["role"] == "meta_reviewer":
+        st.warning(f"🎯 **Admin Override Mode** - {gt_status['message']}")
+    elif gt_status["role"] == "reviewer_resubmit":
+        st.info(f"🔄 **Re-submit Mode** - {gt_status['message']}")
+    else:
+        st.info(f"🔍 **Ground Truth Creation Mode** - {gt_status['message']}")
+    
+    # Get questions from service
+    try:
+        service_questions = QuestionService.get_questions_by_group_id(group_id=qg_id, session=session)
+        
+        if not service_questions:
+            st.info("No questions found in this group")
+            return
+        
+        # Get existing answers to populate form
+        existing_answers = {}
+        try:
+            existing_answers = GroundTruthService.get_ground_truth_for_question_group(
+                video_id=video_info["id"], project_id=project_id, question_group_id=qg_id, session=session
+            )
+        except:
+            pass
+        
+        # Create form with unique key
+        form_key = f"search_form_{video_info['id']}_{qg_id}_{project_id}_{group_id}_{gt_status['role']}"
+        
+        with st.form(form_key):
+            answers = {}
+            
+            # Content height (same as other portals)
+            content_height = 500
+            
+            with st.container(height=content_height, border=False):
+                for i, question in enumerate(service_questions):
+                    question_id = question["id"]
+                    question_text = question["text"]
+                    existing_value = existing_answers.get(question_text, "")
+                    
+                    if i > 0:
+                        st.markdown('<div style="margin: 32px 0;"></div>', unsafe_allow_html=True)
+                    
+                    # Check admin modification status
+                    is_modified_by_admin = False
+                    admin_info = None
+                    if gt_status["role"] == "meta_reviewer":
+                        is_modified_by_admin = GroundTruthService.check_question_modified_by_admin(
+                            video_id=video_info["id"], project_id=project_id, question_id=question_id, session=session
+                        )
+                        if is_modified_by_admin:
+                            admin_info = GroundTruthService.get_admin_modification_details(
+                                video_id=video_info["id"], project_id=project_id, question_id=question_id, session=session
+                            )
+                    
+                    # Use the EXACT same question display functions as other portals
+                    display_role = "meta_reviewer" if gt_status["role"] == "meta_reviewer" else "reviewer"
+                    
+                    if question["type"] == "single":
+                        answers[question_text] = _display_clean_sticky_single_choice_question(
+                            question, video_info["id"], project_id, display_role, existing_value,
+                            is_modified_by_admin, admin_info, False, session
+                        )
+                    else:
+                        answers[question_text] = _display_clean_sticky_description_question(
+                            question, video_info["id"], project_id, display_role, existing_value,
+                            is_modified_by_admin, admin_info, False, session, "", ""
+                        )
+            
+            # Margin exactly like other portals
+            st.markdown('<div style="margin: 8px 0;"></div>', unsafe_allow_html=True)
+            
+            # Submit button with exact same styling as other portals
+            submitted = st.form_submit_button(gt_status["button_text"], use_container_width=True, type="primary")
+            
+            if submitted:
+                try:
+                    if gt_status["role"] == "meta_reviewer":
+                        GroundTruthService.override_ground_truth_to_question_group(
+                            video_id=video_info["id"], project_id=project_id, 
+                            question_group_id=qg_id, admin_id=user_id, 
+                            answers=answers, session=session
+                        )
+                        st.success("✅ Ground truth overridden successfully!")
+                    else:  # reviewer or reviewer_resubmit
+                        GroundTruthService.submit_ground_truth_to_question_group(
+                            video_id=video_info["id"], project_id=project_id, 
+                            reviewer_id=user_id, question_group_id=qg_id, 
+                            answers=answers, session=session
+                        )
+                        success_msg = "✅ Ground truth re-submitted successfully!" if gt_status["role"] == "reviewer_resubmit" else "✅ Ground truth set successfully!"
+                        st.success(success_msg)
+                    
+                    st.rerun(scope="fragment")
+                    
+                except Exception as e:
+                    st.error(f"❌ Error saving ground truth: {str(e)}")
+                    
+    except Exception as e:
+        st.error(f"❌ Error loading question group: {str(e)}")
+
+def display_admin_project_group_gt_editor_with_fixed_height(group_data: Dict, video_info: Dict[str, Any], session: Session, group_id: int):
+    """Display project group GT editor with fixed height container and unique form keys"""
+    
+    projects = group_data["projects"]
+    
+    if not projects:
+        st.info("📭 No projects with questions in this group")
+        return
+    
+    # Get current user for admin operations
+    current_user = st.session_state.user
+    user_id = current_user["id"]
+    
+    # Fixed height container for this project group (same as other portals)
+    container_height = 600
+    
+    with st.container(height=container_height, border=True):
+        # Use tabs for projects within this group (but now inside fixed container)
+        if len(projects) > 1:
+            project_names = [data["project_name"] for data in projects.values()]
+            project_tabs = st.tabs([f"📂 {name}" for name in project_names])
+            
+            for tab, (project_id, project_data) in zip(project_tabs, projects.items()):
+                with tab:
+                    display_admin_project_with_proper_logic(
+                        project_data, project_id, video_info, user_id, session, group_id
+                    )
+        else:
+            # Single project
+            project_id, project_data = next(iter(projects.items()))
+            st.markdown(f"**📂 Project:** {project_data['project_name']}")
+            if project_data.get("project_description"):
+                st.caption(project_data['project_description'])
+            
+            display_admin_project_with_proper_logic(
+                project_data, project_id, video_info, user_id, session, group_id
+            )
+
+
+def display_admin_project_with_proper_logic(project_data: Dict, project_id: int, video_info: Dict[str, Any], user_id: int, session: Session, group_id: int):
+    """Display project with proper ground truth logic matching your requirements"""
+    
+    question_groups = project_data.get("question_groups", {})
+    
+    if not question_groups:
+        st.info("📭 No question groups found in this project")
+        return
+    
+    # Display each question group
+    for qg_id, qg_data in question_groups.items():
+        qg_title = qg_data["title"]
+        qg_description = qg_data.get("description", "")
+        
+        st.markdown(f"### ❓ {qg_title}")
+        if qg_description:
+            st.caption(qg_description)
+        
+        # Determine the correct role and button text based on GT status
+        gt_status = determine_ground_truth_status(int(video_info["id"]), int(project_id), int(qg_id), int(user_id), session)
+        
+        # Show appropriate mode message
+        if gt_status["role"] == "meta_reviewer":
+            st.warning(f"🎯 **Admin Override Mode** - {gt_status['message']}")
+        elif gt_status["role"] == "reviewer_resubmit":
+            st.info(f"🔄 **Re-submit Mode** - {gt_status['message']}")
+        else:
+            st.info(f"🔍 **Ground Truth Creation Mode** - {gt_status['message']}")
+        
+        # Get questions from service
+        try:
+            service_questions = QuestionService.get_questions_by_group_id(group_id=qg_id, session=session)
+            
+            if not service_questions:
+                st.info("No questions found in this group")
+                continue
+            
+            # Get existing answers to populate form
+            existing_answers = {}
+            try:
+                existing_answers = GroundTruthService.get_ground_truth_for_question_group(
+                    video_id=video_info["id"], project_id=project_id, question_group_id=qg_id, session=session
+                )
+            except:
+                pass
+            
+            # Create form with unique key including group_id to avoid conflicts
+            form_key = f"search_form_{video_info['id']}_{qg_id}_{project_id}_{group_id}_{gt_status['role']}"
+            
+            with st.form(form_key):
+                answers = {}
+                
+                # Content area (smaller since we're in a container already)
+                content_height = 400
+                
+                with st.container(height=content_height, border=False):
+                    for i, question in enumerate(service_questions):
+                        question_id = question["id"]
+                        question_text = question["text"]
+                        existing_value = existing_answers.get(question_text, "")
+                        
+                        if i > 0:
+                            st.markdown('<div style="margin: 32px 0;"></div>', unsafe_allow_html=True)
+                        
+                        # Check admin modification status
+                        is_modified_by_admin = False
+                        admin_info = None
+                        if gt_status["role"] == "meta_reviewer":
+                            is_modified_by_admin = GroundTruthService.check_question_modified_by_admin(
+                                video_id=video_info["id"], project_id=project_id, question_id=question_id, session=session
+                            )
+                            if is_modified_by_admin:
+                                admin_info = GroundTruthService.get_admin_modification_details(
+                                    video_id=video_info["id"], project_id=project_id, question_id=question_id, session=session
+                                )
+                        
+                        # Use the exact same question display functions as other portals
+                        display_role = "meta_reviewer" if gt_status["role"] == "meta_reviewer" else "reviewer"
+                        
+                        if question["type"] == "single":
+                            answers[question_text] = _display_clean_sticky_single_choice_question(
+                                question, video_info["id"], project_id, display_role, existing_value,
+                                is_modified_by_admin, admin_info, False, session
+                            )
+                        else:
+                            answers[question_text] = _display_clean_sticky_description_question(
+                                question, video_info["id"], project_id, display_role, existing_value,
+                                is_modified_by_admin, admin_info, False, session, "", ""
+                            )
+                
+                st.markdown('<div style="margin: 8px 0;"></div>', unsafe_allow_html=True)
+                
+                # Submit button with correct text based on status
+                submitted = st.form_submit_button(gt_status["button_text"], use_container_width=True, type="primary")
+                
+                if submitted:
+                    try:
+                        if gt_status["role"] == "meta_reviewer":
+                            GroundTruthService.override_ground_truth_to_question_group(
+                                video_id=video_info["id"], project_id=project_id, 
+                                question_group_id=qg_id, admin_id=user_id, 
+                                answers=answers, session=session
+                            )
+                            st.success("✅ Ground truth overridden successfully!")
+                        else:  # reviewer or reviewer_resubmit
+                            GroundTruthService.submit_ground_truth_to_question_group(
+                                video_id=video_info["id"], project_id=project_id, 
+                                reviewer_id=user_id, question_group_id=qg_id, 
+                                answers=answers, session=session
+                            )
+                            success_msg = "✅ Ground truth re-submitted successfully!" if gt_status["role"] == "reviewer_resubmit" else "✅ Ground truth set successfully!"
+                            st.success(success_msg)
+                        
+                        st.rerun(scope="fragment")
+                        
+                    except Exception as e:
+                        st.error(f"❌ Error saving ground truth: {str(e)}")
+                        
+        except Exception as e:
+            st.error(f"❌ Error loading question group: {str(e)}")
+        
+        # Add separator between question groups
+        if len(question_groups) > 1:
+            st.markdown("---")
+
+def determine_ground_truth_status(video_id: int, project_id: int, question_group_id: int, user_id: int, session: Session) -> Dict[str, str]:
+    """Determine the correct role and button text - simplified"""
+    
+    try:
+        # Check if ground truth exists for this question group
+        gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
+        questions = QuestionService.get_questions_by_group_id(group_id=question_group_id, session=session)
+        
+        if gt_df.empty or not questions:
+            return {
+                "role": "reviewer",
+                "button_text": "Submit Ground Truth",
+                "message": "Create Ground Truth for this question group"
+            }
+        
+        # Check if any questions in this group have ground truth
+        question_ids = [q["id"] for q in questions]
+        group_gt = gt_df[gt_df["Question ID"].isin(question_ids)]
+        
+        if group_gt.empty:
+            return {
+                "role": "reviewer", 
+                "button_text": "Submit Ground Truth",
+                "message": "Create Ground Truth for this question group"
+            }
+        
+        # Check if any questions were modified by admin
+        has_admin_override = any(
+            GroundTruthService.check_question_modified_by_admin(
+                video_id=int(video_id), project_id=int(project_id), question_id=int(qid), session=session
+            )
+            for qid in question_ids
+        )
+        
+        if has_admin_override:
+            return {
+                "role": "meta_reviewer",
+                "button_text": "🎯 Override Ground Truth",
+                "message": "Override Ground Truth for this question group"
+            }
+        
+        # Check if current user is the original reviewer
+        original_reviewer_ids = set(group_gt["Reviewer ID"].unique())
+        if user_id in original_reviewer_ids:
+            return {
+                "role": "reviewer_resubmit",
+                "button_text": "✅ Re-submit Ground Truth",
+                "message": "Re-submit Ground Truth for this question group"
+            }
+        
+        # Ground truth exists but user is not original reviewer
+        return {
+            "role": "meta_reviewer",
+            "button_text": "🎯 Override Ground Truth",
+            "message": "Override Ground Truth for this question group"
+        }
+        
+    except Exception as e:
+        return {
+            "role": "reviewer",
+            "button_text": "Submit Ground Truth",
+            "message": "Create Ground Truth for this question group"
+        }
+
+def _display_unified_status(video_id: int, project_id: int, question_id: int, session: Session, show_annotators: bool = False, selected_annotators: List[str] = None):
+    """Display ground truth status and optionally annotator status in single line"""
+    
+    status_parts = []
+    
+    # Get annotator status first if requested
+    if show_annotators and selected_annotators:
+        try:
+            annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
+                display_names=selected_annotators, project_id=project_id, session=session
+            )
+            
+            # Get answers for this question/video
+            answers_df = AnnotatorService.get_question_answers(
+                question_id=question_id, project_id=project_id, session=session
+            )
+            
+            # Find which annotators have answered this specific question/video
+            annotators_with_answers = set()
+            if not answers_df.empty:
+                video_answers = answers_df[answers_df["Video ID"] == video_id]
+                for _, answer_row in video_answers.iterrows():
+                    user_id = answer_row["User ID"]
+                    if user_id in annotator_user_ids:
+                        users_df = AuthService.get_all_users(session=session)
+                        user_info = users_df[users_df["ID"] == user_id]
+                        if not user_info.empty:
+                            annotators_with_answers.add(user_info.iloc[0]["User ID"])
+            
+            # Get initials for present and missing annotators
+            present_initials = []
+            missing_initials = []
+            
+            for display_name in selected_annotators:
+                if " (" in display_name and display_name.endswith(")"):
+                    name = display_name.split(" (")[0]
+                    initials = display_name.split(" (")[1][:-1]
+                else:
+                    name = display_name
+                    initials = display_name[:2].upper()
+                
+                if name in annotators_with_answers:
+                    present_initials.append(initials)
+                else:
+                    missing_initials.append(initials)
+            
+            # Add annotator status parts
+            if present_initials:
+                status_parts.append(f"📊 Showing: {', '.join(present_initials)}")
+            if missing_initials:
+                status_parts.append(f"⚠️ Missing: {', '.join(missing_initials)}")
+                
+        except Exception:
+            status_parts.append("⚠️ Could not load annotator status")
+    
+    try:
+        gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
+        
+        if not gt_df.empty:
+            # Make sure question_id is the right type
+            question_id_int = int(question_id)
+            question_gt = gt_df[gt_df["Question ID"] == question_id_int]
+            
+            if not question_gt.empty:
+                gt_row = question_gt.iloc[0]
+                
+                try:
+                    reviewer_info = AuthService.get_user_info_by_id(user_id=int(gt_row["Reviewer ID"]), session=session)
+                    
+                    name_parts = reviewer_info["user_id_str"].split()
+                    initials = f"{name_parts[0][0]}{name_parts[-1][0]}".upper() if len(name_parts) >= 2 else reviewer_info["user_id_str"][:2].upper()
+                    
+                    modified_by_admin = gt_row["Modified By Admin"] is not None
+                    
+                    if modified_by_admin:
+                        status_parts.append(f"🏆 GT by: {initials} (Admin)")
+                    else:
+                        status_parts.append(f"🏆 GT by: {initials}")
+                except Exception:
+                    status_parts.append("🏆 GT exists")
+            else:
+                status_parts.append("📭 No GT")
+        else:
+            status_parts.append("📭 No GT")
+            
+    except Exception:
+        status_parts.append("📭 No GT")
+    
+    # Display single combined status line
+    if status_parts:
+        st.caption(" | ".join(status_parts))
+
+def display_video_answers_editor(video_info: Dict[str, Any], selected_group_ids: List[int], session: Session):
+    """Single column layout for search portal - cleaner design"""
+    
+    st.markdown("### 🎯 Step 3: Video Player & Ground Truth Editor")
+    
+    if not selected_group_ids:
+        st.warning("⚠️ Please select at least one project group in Step 2 to see results")
+        return
+    
+    # Get all ground truth for this video
+    gt_data = get_video_ground_truth_across_groups(video_info["id"], selected_group_ids, session)
+    
+    # Single column layout - video at top, then project groups
+    display_video_player_section(video_info)
+    
+    st.markdown("---")
+    
+    display_project_groups_as_expanders(gt_data, video_info, session)
+
+def display_project_groups_as_expanders(gt_data: Dict, video_info: Dict[str, Any], session: Session):
+    """Display project groups with projects as expanders (no nested expanders)"""
+    
+    if not gt_data:
+        st.info("📭 No projects found with questions in the selected project groups")
+        return
+    
+    # Summary stats
+    total_projects = sum(len(group_data["projects"]) for group_data in gt_data.values())
+    total_groups = len(gt_data)
+    
+    st.markdown(f"""
+    <div style="{get_card_style(COLORS['info'])}text-align: center;">
+        <div style="color: #2980b9; font-weight: 600; font-size: 1rem;">
+            📊 Found <strong>{total_projects} projects</strong> across <strong>{total_groups} project groups</strong>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Display each project group with headers (no expanders for groups)
+    for group_id, group_data in gt_data.items():
+        group_name = group_data["group_name"]
+        projects = group_data["projects"]
+        project_count = len(projects)
+        
+        # Project group header (not an expander)
+        st.markdown(f"""
+        <div style="{get_card_style('#3498db')}text-align: center; margin: 20px 0;">
+            <div style="color: #2980b9; font-weight: 700; font-size: 1.2rem;">
+                📁 {group_name} ({project_count} projects)
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Each project as an expander (no nesting)
+        display_projects_as_expanders_only(group_data, video_info, session)
+
+def display_projects_as_expanders_only(group_data: Dict, video_info: Dict[str, Any], session: Session):
+    """Display each project as its own expander (no nested expanders)"""
+    
+    projects = group_data["projects"]
+    
+    if not projects:
+        st.info("📭 No projects with questions in this group")
+        return
+    
+    # Get current user for admin operations
+    current_user = st.session_state.user
+    user_id = current_user["id"]
+    
+    # Each project as its own expander
+    for project_id, project_data in projects.items():
+        project_name = project_data["project_name"]
+        project_description = project_data.get("project_description", "")
+        
+        # Count question groups for display
+        question_groups = project_data.get("question_groups", {})
+        qg_count = len(question_groups)
+        
+        project_label = f"📂 {project_name}"
+        if qg_count > 0:
+            project_label += f" ({qg_count} question groups)"
+        
+        with st.expander(project_label, expanded=False):
+            if project_description:
+                st.caption(project_description)
+            
+            display_project_question_groups_with_tabs(
+                project_data, project_id, video_info, user_id, session
+            )
+
+def display_projects_as_expanders(group_data: Dict, video_info: Dict[str, Any], session: Session):
+    """Display each project as its own expander"""
+    
+    projects = group_data["projects"]
+    
+    if not projects:
+        st.info("📭 No projects with questions in this group")
+        return
+    
+    # Get current user for admin operations
+    current_user = st.session_state.user
+    user_id = current_user["id"]
+    
+    # Each project as its own expander
+    for project_id, project_data in projects.items():
+        project_name = project_data["project_name"]
+        project_description = project_data.get("project_description", "")
+        
+        # Count question groups for display
+        question_groups = project_data.get("question_groups", {})
+        qg_count = len(question_groups)
+        
+        project_label = f"📂 {project_name}"
+        if qg_count > 0:
+            project_label += f" ({qg_count} question groups)"
+        
+        with st.expander(project_label, expanded=False):
+            if project_description:
+                st.caption(project_description)
+            
+            display_project_question_groups_with_tabs(
+                project_data, project_id, video_info, user_id, session
+            )
+
+def get_video_ground_truth_across_groups(video_id: int, selected_group_ids: List[int], session: Session) -> Dict:
+    """Get only ground truth for a video across selected project groups"""
+    
+    results = {}
+    
+    for group_id in selected_group_ids:
+        try:
+            # Get group info
+            group_info = ProjectGroupService.get_project_group_by_id(group_id=group_id, session=session)
+            group_name = group_info["group"].name
+            projects = group_info["projects"]
+            
+            group_results = {"group_name": group_name, "projects": {}}
+            
+            for project in projects:
+                # Check if video is in this project
+                project_videos = VideoService.get_project_videos(project_id=project.id, session=session)
+                video_in_project = any(v["id"] == video_id for v in project_videos)
+                
+                if not video_in_project:
+                    continue
+                
+                # Get project ground truth only
+                project_results = get_project_ground_truth_for_video(video_id, project.id, session)
+                
+                if project_results["has_data"]:
+                    group_results["projects"][project.id] = {
+                        "project_name": project.name,
+                        "project_description": project.description,
+                        **project_results
+                    }
+            
+            if group_results["projects"]:
+                results[group_id] = group_results
+                
+        except Exception as e:
+            st.error(f"Error processing group {group_id}: {str(e)}")
+            continue
+    
+    return results
+
+def get_project_ground_truth_for_video(video_id: int, project_id: int, session: Session) -> Dict:
+    """Get only ground truth for a video in a specific project"""
+    
+    try:
+        # Get project info
+        project = ProjectService.get_project_by_id(project_id=project_id, session=session)
+        
+        # Get schema question groups
+        question_groups = SchemaService.get_schema_question_groups_list(
+            schema_id=project.schema_id, session=session
+        )
+        
+        project_results = {
+            "has_data": False,
+            "question_groups": {}
+        }
+        
+        for group in question_groups:
+            group_id = group["ID"]
+            group_title = group["Title"]
+            
+            # Get questions in this group
+            questions = QuestionService.get_questions_by_group_id(group_id=group_id, session=session)
+            
+            group_data = {
+                "title": group_title,
+                "description": group["Description"],
+                "questions": {}
+            }
+            
+            has_group_data = False
+            
+            for question in questions:
+                question_id = question["id"]
+                question_text = question["text"]
+                question_type = question["type"]
+                
+                question_data = {
+                    "text": question_text,
+                    "type": question_type,
+                    "ground_truth": None
+                }
+                
+                # Get ground truth only
+                try:
+                    gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
+                    
+                    if not gt_df.empty:
+                        gt_row = gt_df[gt_df["Question ID"] == question_id]
+                        
+                        if not gt_row.empty:
+                            gt_data = gt_row.iloc[0]
+                            reviewer_info = AuthService.get_user_info_by_id(
+                                user_id=int(gt_data["Reviewer ID"]), session=session
+                            )
+                            
+                            question_data["ground_truth"] = {
+                                "answer_value": gt_data["Answer Value"],
+                                "original_value": gt_data["Original Value"],
+                                "reviewer_name": reviewer_info["user_id_str"],
+                                "modified_by_admin": gt_data["Modified By Admin"] is not None,
+                                "created_at": gt_data["Created At"],
+                                "modified_at": gt_data["Modified At"]
+                            }
+                            has_group_data = True
+                except Exception:
+                    pass
+                
+                # Always include question even if no GT yet (for editing)
+                group_data["questions"][question_id] = question_data
+                if not has_group_data and len(questions) > 0:
+                    has_group_data = True  # Include groups that have questions even without GT
+            
+            if has_group_data:
+                project_results["question_groups"][group_id] = group_data
+                project_results["has_data"] = True
+        
+        return project_results
+        
+    except Exception as e:
+        st.error(f"Error getting project ground truth: {str(e)}")
+        return {"has_data": False, "question_groups": {}}
+
+def display_video_player_section(video_info: Dict[str, Any]):
+    """Clean video player section matching other portals exactly"""
+    
+    st.markdown("#### 📹 Video Player")
+    
+    # Video info card (keep same styling as other portals)
+    created_at = video_info["created_at"].strftime('%Y-%m-%d %H:%M') if video_info["created_at"] else 'Unknown'
+    
+    st.markdown(f"""
+    <div style="{get_card_style('#2196f3')}">
+        <div style="color: #1565c0; font-weight: 700; font-size: 1.1rem; margin-bottom: 12px;">
+            📹 {video_info["uid"]}
+        </div>
+        <div style="color: #1976d2; font-size: 0.9rem; margin-bottom: 8px;">
+            <strong>URL:</strong> <span style="font-family: monospace; background: rgba(255,255,255,0.8); padding: 2px 6px; border-radius: 4px;">{video_info["url"]}</span>
+        </div>
+        <div style="color: #1976d2; font-size: 0.9rem;">
+            <strong>Created:</strong> {created_at}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Video player (same as other portals)
+    custom_video_player(video_info["url"], autoplay=True, loop=True)
+
+def display_answers_editor_section(answers_data: Dict, video_info: Dict[str, Any], session: Session):
+    """Clean answers editor using the same layout patterns as other portals"""
+    
+    st.markdown("#### 📝 Answers & Ground Truth Editor")
+    
+    # Summary stats
+    total_projects = sum(len(group_data["projects"]) for group_data in answers_data.values())
+    total_groups = len(answers_data)
+    
+    st.markdown(f"""
+    <div style="{get_card_style(COLORS['success'])}text-align: center;">
+        <div style="color: #1e8449; font-weight: 600;">
+            📊 Found data in <strong>{total_projects} projects</strong> across <strong>{total_groups} project groups</strong>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Use the same approach as other portals - tabs for top level organization
+    if len(answers_data) > 1:
+        group_names = [group_data["group_name"] for group_data in answers_data.values()]
+        group_tabs = st.tabs([f"📁 {name}" for name in group_names])
+        
+        for tab, (group_id, group_data) in zip(group_tabs, answers_data.items()):
+            with tab:
+                display_admin_project_group_editor(group_data, video_info, session)
+    else:
+        # Single group - show directly
+        group_data = next(iter(answers_data.values()))
+        st.markdown(f"### 📁 {group_data['group_name']}")
+        display_admin_project_group_editor(group_data, video_info, session)
+
+def display_admin_project_group_editor(group_data: Dict, video_info: Dict[str, Any], session: Session):
+    """Display project group using the same patterns as other portals"""
+    
+    projects = group_data["projects"]
+    
+    if not projects:
+        st.info("📭 No projects with data in this group")
+        return
+    
+    # Use the same project selection approach as other portals
+    if len(projects) > 1:
+        project_names = [data["project_name"] for data in projects.values()]
+        project_tabs = st.tabs([f"📂 {name}" for name in project_names])
+        
+        for tab, (project_id, project_data) in zip(project_tabs, projects.items()):
+            with tab:
+                display_admin_project_editor(project_data, project_id, video_info, session)
+    else:
+        # Single project
+        project_id, project_data = next(iter(projects.items()))
+        st.markdown(f"**📂 Project:** {project_data['project_name']}")
+        if project_data.get("project_description"):
+            st.caption(project_data['project_description'])
+        
+        display_admin_project_editor(project_data, project_id, video_info, session)
+
+def display_admin_project_editor(project_data: Dict, project_id: int, video_info: Dict[str, Any], session: Session):
+    """Display project editor using the same layout as other portals"""
+    
+    question_groups = project_data.get("question_groups", {})
+    
+    if not question_groups:
+        st.info("📭 No question groups with data in this project")
+        return
+    
+    # Get current user for admin operations
+    current_user = st.session_state.user
+    user_id = current_user["id"]
+    
+    # Convert our data structure to match what the other portals expect
+    # Create a list of question groups similar to how other portals organize them
+    qg_list = []
+    for qg_id, qg_data in question_groups.items():
+        qg_list.append({
+            "ID": qg_id,
+            "Title": qg_data["title"],
+            "Description": qg_data.get("description", "")
+        })
+    
+    # Use tabs for question groups like other portals
+    if len(qg_list) > 1:
+        qg_tab_names = [group['Title'] for group in qg_list]
+        qg_tabs = st.tabs(qg_tab_names)
+        
+        for tab, group in zip(qg_tabs, qg_list):
+            with tab:
+                # Determine admin role and display the question group
+                display_admin_question_group_editor(
+                    video_info, project_id, user_id, group["ID"], 
+                    question_groups[group["ID"]], session
+                )
+    else:
+        # Single question group
+        group = qg_list[0]
+        st.markdown(f"### ❓ {group['Title']}")
+        if group.get('Description'):
+            st.caption(group['Description'])
+        
+        display_admin_question_group_editor(
+            video_info, project_id, user_id, group["ID"], 
+            question_groups[group["ID"]], session
+        )
+
+def display_admin_question_group_editor(video_info: Dict, project_id: int, user_id: int, group_id: int, qg_data: Dict, session: Session):
+    """Display question group editor using the same container and form patterns as other portals"""
+    
+    questions_dict = qg_data.get("questions", {})
+    
+    if not questions_dict:
+        st.info("📭 No questions with data in this group")
+        return
+    
+    # Check if this question group has ground truth to determine admin role
+    has_ground_truth = any(
+        q_data.get("ground_truth") is not None 
+        for q_data in questions_dict.values()
+    )
+    
+    admin_role = "meta_reviewer" if has_ground_truth else "reviewer"
+    mode = "Admin Override" if has_ground_truth else "Ground Truth Creation"
+    
+    # Show admin role info like other portals show mode info
+    if admin_role == "meta_reviewer":
+        st.warning(f"🎯 **Admin Override Mode** - You can override existing ground truth")
+    else:
+        st.info(f"🔍 **Ground Truth Creation Mode** - Create ground truth for this question group")
+    
+    # Get questions from service to match other portal patterns
+    try:
+        service_questions = QuestionService.get_questions_by_group_id(group_id=group_id, session=session)
+        
+        # Filter to only questions that have data
+        questions_with_data = [q for q in service_questions if q["id"] in questions_dict.keys()]
+        
+        if not questions_with_data:
+            st.info("No questions found in this group")
+            return
+        
+        # Get existing ground truth to populate form
+        existing_answers = {}
+        try:
+            if has_ground_truth:
+                existing_answers = GroundTruthService.get_ground_truth_for_question_group(
+                    video_id=video_info["id"], project_id=project_id, question_group_id=group_id, session=session
+                )
+        except:
+            pass
+        
+        # Use the same container height as other portals
+        content_height = 500
+        
+        # Create form exactly like other portals
+        form_key = f"admin_form_{video_info['id']}_{group_id}_search"
+        with st.form(form_key):
+            answers = {}
+            
+            with st.container(height=content_height, border=False):
+                for i, question in enumerate(questions_with_data):
+                    question_id = question["id"]
+                    question_text = question["text"]
+                    existing_value = existing_answers.get(question_text, "")
+                    
+                    # Show existing data from our search results
+                    q_data = questions_dict.get(question_id, {})
+                    
+                    if i > 0:
+                        st.markdown('<div style="margin: 32px 0;"></div>', unsafe_allow_html=True)
+                    
+                    # Display question using the same patterns as other portals
+                    if question["type"] == "single":
+                        answers[question_text] = display_admin_single_choice_question(
+                            question, video_info["id"], project_id, existing_value, 
+                            q_data, admin_role, session
+                        )
+                    else:
+                        answers[question_text] = display_admin_description_question(
+                            question, video_info["id"], project_id, existing_value, 
+                            q_data, admin_role, session
+                        )
+            
+            st.markdown('<div style="margin: 8px 0;"></div>', unsafe_allow_html=True)
+            
+            # Submit button like other portals
+            button_text = "🎯 Override Ground Truth" if admin_role == "meta_reviewer" else "✅ Set Ground Truth"
+            submitted = st.form_submit_button(button_text, use_container_width=True, type="primary")
+            
+            if submitted:
+                try:
+                    if admin_role == "meta_reviewer":
+                        GroundTruthService.override_ground_truth_to_question_group(
+                            video_id=video_info["id"], project_id=project_id, 
+                            question_group_id=group_id, admin_id=user_id, 
+                            answers=answers, session=session
+                        )
+                        st.success("✅ Ground truth overridden successfully!")
+                    else:
+                        GroundTruthService.submit_ground_truth_to_question_group(
+                            video_id=video_info["id"], project_id=project_id, 
+                            reviewer_id=user_id, question_group_id=group_id, 
+                            answers=answers, session=session
+                        )
+                        st.success("✅ Ground truth set successfully!")
+                    
+                    st.rerun(scope="fragment")
+                    
+                except Exception as e:
+                    st.error(f"❌ Error saving ground truth: {str(e)}")
+                    
+    except Exception as e:
+        st.error(f"❌ Error loading question group: {str(e)}")
+
+
+
+###############################################################################
+# VIDEO CRITERIA SEARCH PORTAL
+###############################################################################
+
+@st.fragment
+def video_criteria_search_portal():
+    """Search videos by criteria with clean results display"""
+    
+    st.markdown("## 📊 Video Criteria Search")
+    st.markdown("*Find videos based on ground truth criteria or completion status*")
+    
+    with get_db_session() as session:
+        search_type_tabs = st.tabs(["🎯 Ground Truth Criteria", "📈 Completion Status"])
+        
+        with search_type_tabs[0]:
+            ground_truth_criteria_search(session)
+        
+        with search_type_tabs[1]:
+            completion_status_search(session)
+
+def ground_truth_criteria_search(session: Session):
+    """Search videos by ground truth criteria"""
+    
+    st.markdown("### 🎯 Search by Ground Truth Answers")
+    
+    # Project selection
+    projects_df = ProjectService.get_all_projects(session=session)
+    if projects_df.empty:
+        st.warning("🚫 No projects available")
+        return
+    
+    st.markdown("**Step 1: Select Projects to Search**")
+    selected_projects = st.multiselect(
+        "Projects",
+        projects_df["ID"].tolist(),
+        format_func=lambda x: projects_df[projects_df["ID"]==x]["Name"].iloc[0],
+        key="criteria_search_projects",
+        help="Choose which projects to include in the search"
+    )
+    
+    if not selected_projects:
+        st.info("👆 Please select one or more projects to continue")
+        return
+    
+    # Criteria builder
+    st.markdown("**Step 2: Build Search Criteria**")
+    
+    if "search_criteria_admin" not in st.session_state:
+        st.session_state.search_criteria_admin = []
+    
+    # Add criteria interface
+    with st.expander("➕ Add New Criteria", expanded=True):
+        add_col1, add_col2, add_col3, add_col4 = st.columns([2, 2, 2, 1])
+        
+        with add_col1:
+            project_for_criteria = st.selectbox(
+                "Project",
+                selected_projects,
+                format_func=lambda x: projects_df[projects_df["ID"]==x]["Name"].iloc[0],
+                key="criteria_project_select"
+            )
+        
+        with add_col2:
+            if project_for_criteria:
+                questions = ProjectService.get_project_questions(project_id=project_for_criteria, session=session)
+                single_questions = [q for q in questions if q["type"] == "single"]
+                
+                if single_questions:
+                    selected_question = st.selectbox(
+                        "Question",
+                        [None] + single_questions,
+                        format_func=lambda x: x["text"] if x else "Select question...",
+                        key="criteria_question_select"
+                    )
+                else:
+                    selected_question = None
+                    st.warning("No single-choice questions available")
+            else:
+                selected_question = None
+        
+        with add_col3:
+            if selected_question:
+                question_obj = QuestionService.get_question_by_id(question_id=selected_question["id"], session=session)
+                if question_obj.options:
+                    selected_answer = st.selectbox(
+                        "Required Answer",
+                        question_obj.options,
+                        key="criteria_answer_select"
+                    )
+                else:
+                    selected_answer = None
+                    st.warning("No options available")
+            else:
+                selected_answer = None
+        
+        with add_col4:
+            if project_for_criteria and selected_question and selected_answer:
+                if st.button("➕ Add", key="add_criteria_btn", use_container_width=True):
+                    project_name = projects_df[projects_df["ID"]==project_for_criteria]["Name"].iloc[0]
+                    
+                    criterion = {
+                        "project_id": project_for_criteria,
+                        "project_name": project_name,
+                        "question_id": selected_question["id"],
+                        "question_text": selected_question["text"],
+                        "required_answer": selected_answer
+                    }
+                    
+                    if criterion not in st.session_state.search_criteria_admin:
+                        st.session_state.search_criteria_admin.append(criterion)
+                        st.rerun(scope="fragment")
+    
+    # Display current criteria
+    if st.session_state.search_criteria_admin:
+        st.markdown("**Current Search Criteria:**")
+        
+        for i, criterion in enumerate(st.session_state.search_criteria_admin):
+            crit_col1, crit_col2 = st.columns([6, 1])
+            
+            with crit_col1:
+                st.markdown(f"""
+                <div style="background: #e3f2fd; border: 1px solid #2196f3; border-radius: 8px; padding: 12px; margin: 4px 0;">
+                    <div style="color: #1976d2; font-weight: 600;">{criterion['project_name']}</div>
+                    <div style="color: #424242; margin-top: 4px;">
+                        <strong>Question:</strong> {criterion['question_text']}<br>
+                        <strong>Required Answer:</strong> {criterion['required_answer']}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with crit_col2:
+                if st.button("🗑️", key=f"remove_crit_{i}", help="Remove criteria"):
+                    st.session_state.search_criteria_admin.pop(i)
+                    st.rerun(scope="fragment")
+        
+        # Search execution
+        st.markdown("**Step 3: Execute Search**")
+        
+        exec_col1, exec_col2, exec_col3 = st.columns([2, 2, 2])
+        
+        with exec_col1:
+            match_logic = st.radio(
+                "Match Logic",
+                ["Match ALL criteria", "Match ANY criteria"],
+                key="criteria_match_logic",
+                help="ALL = video must match every criteria, ANY = video matches at least one"
+            )
+        
+        with exec_col2:
+            if st.button("🔍 Search Videos", key="execute_criteria_search", type="primary", use_container_width=True):
+                match_all = (match_logic == "Match ALL criteria")
+                results = execute_ground_truth_search(st.session_state.search_criteria_admin, match_all, session)
+                st.session_state.criteria_search_results = results
+                st.rerun(scope="fragment")
+        
+        with exec_col3:
+            if st.button("🧹 Clear Criteria", key="clear_criteria_admin", use_container_width=True):
+                st.session_state.search_criteria_admin = []
+                if "criteria_search_results" in st.session_state:
+                    del st.session_state.criteria_search_results
+                st.rerun(scope="fragment")
+        
+        # Display results
+        if "criteria_search_results" in st.session_state:
+            display_video_search_results_grid(st.session_state.criteria_search_results, session)
+
+def completion_status_search(session: Session):
+    """Search videos by completion status"""
+    
+    st.markdown("### 📈 Search by Completion Status")
+    
+    # Search interface
+    search_col1, search_col2, search_col3 = st.columns(3)
+    
+    with search_col1:
+        projects_df = ProjectService.get_all_projects(session=session)
+        if projects_df.empty:
+            st.warning("No projects available")
+            return
+        
+        selected_projects_status = st.multiselect(
+            "Select Projects",
+            projects_df["ID"].tolist(),
+            format_func=lambda x: projects_df[projects_df["ID"]==x]["Name"].iloc[0],
+            key="status_search_projects"
+        )
+    
+    with search_col2:
+        completion_filter = st.selectbox(
+            "Completion Status",
+            ["All videos", "Complete ground truth", "Missing ground truth", "Partial ground truth"],
+            key="status_completion_filter"
+        )
+    
+    with search_col3:
+        if selected_projects_status:
+            if st.button("🔍 Search", key="execute_status_search", type="primary", use_container_width=True):
+                results = execute_project_based_search(selected_projects_status, completion_filter, session)
+                display_project_status_results(results, session)
+
+def display_video_search_results_grid(results: List[Dict], session: Session):
+    """Display video search results in organized grid"""
+    
+    if not results:
+        st.warning("🔍 No videos match your search criteria")
+        return
+    
+    st.markdown(f"### 🎬 Search Results ({len(results)} videos found)")
+    
+    # Pagination
+    videos_per_page = 20
+    total_pages = (len(results) - 1) // videos_per_page + 1 if results else 1
+    
+    if total_pages > 1:
+        page_col1, page_col2, page_col3 = st.columns([1, 2, 1])
+        with page_col2:
+            current_page = st.selectbox(
+                "Page",
+                range(1, total_pages + 1),
+                key="criteria_results_page",
+                help=f"Showing {videos_per_page} videos per page"
+            ) - 1
+    else:
+        current_page = 0
+    
+    start_idx = current_page * videos_per_page
+    end_idx = min(start_idx + videos_per_page, len(results))
+    page_results = results[start_idx:end_idx]
+    
+    st.markdown(f"**Showing {start_idx + 1}-{end_idx} of {len(results)} videos**")
+    
+    # Results grid
+    cols_per_row = 4
+    
+    for i in range(0, len(page_results), cols_per_row):
+        cols = st.columns(cols_per_row)
+        row_results = page_results[i:i + cols_per_row]
+        
+        for j, result in enumerate(row_results):
+            with cols[j]:
+                display_video_result_card_admin(result, session)
+
+def display_video_result_card_admin(result: Dict, session: Session):
+    """Display video result card with admin editing capability"""
+    
+    video_info = result["video_info"]
+    matches = result.get("matches", [])
+    criteria = result.get("criteria", [])
+    
+    # Calculate match percentage
+    if criteria:
+        match_count = sum(matches) if matches else 0
+        total_criteria = len(criteria)
+        match_percentage = match_count / total_criteria if total_criteria > 0 else 0
+    else:
+        match_percentage = 1.0
+        match_count = 0
+        total_criteria = 0
+    
+    # Card styling based on match percentage
+    if match_percentage == 1.0:
+        card_color = "#4caf50"
+    elif match_percentage >= 0.5:
+        card_color = "#ff9800"
+    else:
+        card_color = "#2196f3"
+    
+    created_date = video_info["created_at"].strftime('%m/%d/%Y') if video_info["created_at"] else 'Unknown'
+    
+    # Video card
+    st.markdown(f"""
+    <div style="background: {card_color}15; border: 2px solid {card_color}; border-radius: 12px; padding: 16px; margin: 8px 0; text-align: center; min-height: 140px;">
+        <div style="color: {card_color}; font-weight: 700; font-size: 1rem; margin-bottom: 8px;">
+            📹 {video_info["uid"]}
+        </div>
+        {f'<div style="color: #424242; font-size: 0.85rem; margin-bottom: 6px;"><strong>{match_count}/{total_criteria}</strong> criteria matched</div>' if criteria else ''}
+        <div style="color: #666; font-size: 0.8rem; margin-bottom: 8px;">
+            Created: {created_date}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Action buttons
+    btn_col1, btn_col2 = st.columns(2)
+    
+    with btn_col1:
+        if st.button("👁️ View", key=f"view_result_{video_info['id']}", use_container_width=True):
+            show_video_details_admin_modal(video_info, matches, criteria, session)
+    
+    with btn_col2:
+        if st.button("✏️ Edit", key=f"edit_result_{video_info['id']}", use_container_width=True):
+            # Set this video for editing and switch to video answer search
+            st.session_state.admin_quick_edit_video = video_info["uid"]
+            st.rerun()
+
+def display_project_status_results(results: List[Dict], session: Session):
+    """Display project completion status results"""
+    
+    if not results:
+        st.warning("🔍 No videos match your criteria")
+        return
+    
+    st.markdown(f"### 📊 Status Search Results ({len(results)} videos)")
+    
+    # Status summary
+    status_counts = {}
+    for result in results:
+        status = result["completion_status"]
+        status_counts[status] = status_counts.get(status, 0) + 1
+    
+    # Display summary
+    summary_cols = st.columns(4)
+    status_styles = {
+        "complete": ("✅", "Complete", "#4caf50"),
+        "partial": ("⚠️", "Partial", "#ff9800"),
+        "missing": ("❌", "Missing", "#f44336"),
+        "no_questions": ("❓", "No Questions", "#9e9e9e")
+    }
+    
+    col_idx = 0
+    for status, count in status_counts.items():
+        if status in status_styles and col_idx < len(summary_cols):
+            emoji, label, color = status_styles[status]
+            with summary_cols[col_idx]:
+                st.metric(f"{emoji} {label}", count)
+            col_idx += 1
+    
+    # Results table
+    st.markdown("**Detailed Results:**")
+    
+    table_data = []
+    for result in results:
+        status_info = status_styles.get(result["completion_status"], ("❓", "Unknown", "#000"))
+        completion_pct = round(result['completed_questions'] / result['total_questions'] * 100, 1) if result['total_questions'] > 0 else 0
+        
+        table_data.append({
+            "Video UID": result["video_uid"],
+            "Project": result["project_name"],
+            "Status": f"{status_info[0]} {status_info[1]}",
+            "Progress": f"{result['completed_questions']}/{result['total_questions']} ({completion_pct}%)"
+        })
+    
+    # Display table with pagination
+    df = pd.DataFrame(table_data)
+    st.dataframe(df, use_container_width=True)
+    
+    # Download option
+    csv = df.to_csv(index=False)
+    st.download_button(
+        label="📥 Download Results",
+        data=csv,
+        file_name="completion_status_search_results.csv",
+        mime="text/csv"
+    )
+
+@st.dialog("📹 Video Details", width="large")
+def show_video_details_admin_modal(video_info: Dict[str, Any], matches: List[bool], criteria: List[Dict], session: Session):
+    """Show video details in admin modal with editing options"""
+    
+    st.markdown(f"### 📹 {video_info['uid']} - Detailed View")
+    
+    # Video info
+    info_col1, info_col2 = st.columns(2)
+    
+    with info_col1:
+        st.markdown(f"**URL:** {video_info['url']}")
+        created_at = video_info["created_at"].strftime('%Y-%m-%d %H:%M') if video_info["created_at"] else 'Unknown'
+        st.markdown(f"**Created:** {created_at}")
+    
+    with info_col2:
+        if criteria:
+            match_count = sum(matches)
+            total_criteria = len(criteria)
+            st.metric("Criteria Matches", f"{match_count}/{total_criteria}")
+    
+    # Video preview
+    st.markdown("#### 🎬 Video Preview")
+    custom_video_player(video_info["url"], autoplay=False)
+    
+    # Criteria results
+    if criteria:
+        st.markdown("#### 📋 Criteria Match Details")
+        
+        for i, (criterion, match) in enumerate(zip(criteria, matches)):
+            match_color = "#4caf50" if match else "#f44336"
+            match_icon = "✅" if match else "❌"
+            
+            st.markdown(f"""
+            <div style="background: {match_color}15; border-left: 4px solid {match_color}; padding: 12px; margin: 8px 0; border-radius: 6px;">
+                <div style="color: {match_color}; font-weight: 600; font-size: 1rem;">
+                    {match_icon} {criterion['project_name']}
+                </div>
+                <div style="color: #424242; margin-top: 6px;">
+                    <strong>Question:</strong> {criterion['question_text']}<br>
+                    <strong>Required Answer:</strong> {criterion['required_answer']}<br>
+                    <strong>Status:</strong> {'Match found' if match else 'No match or missing ground truth'}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    # Quick edit button
+    if st.button("✏️ Open in Answer Editor", type="primary", use_container_width=True):
+        st.session_state.admin_quick_edit_video = video_info["uid"]
+        st.rerun()
+
+###############################################################################
+# BULK OPERATIONS PORTAL
+###############################################################################
+
+@st.fragment
+def bulk_operations_portal():
+    """Bulk operations for admin efficiency"""
+    
+    st.markdown("## 📋 Bulk Operations")
+    st.markdown("*Perform batch operations across multiple videos and projects*")
+    
+    st.info("🚧 **Coming Soon:** Bulk ground truth operations, batch video management, and mass project assignments.")
+    
+    # Placeholder for future bulk operations
+    with st.expander("🔮 Planned Features"):
+        st.markdown("""
+        - **Bulk Ground Truth Import/Export**
+        - **Mass Video Assignment to Projects**
+        - **Batch Project Creation**
+        - **Bulk User Assignment Management**
+        - **Ground Truth Validation Reports**
+        - **Performance Analytics Dashboard**
+        """)
+
+###############################################################################
+# HELPER FUNCTIONS (REUSED AND OPTIMIZED)
+###############################################################################
+
+def get_video_info_by_uid(video_uid: str, session: Session) -> Optional[Dict[str, Any]]:
+    """Get video information as a dictionary by UID"""
+    try:
+        video = VideoService.get_video_by_uid(video_uid=video_uid, session=session)
+        if not video:
+            return None
+        
+        return {
+            "id": video.id,
+            "uid": video.video_uid,
+            "url": video.url,
+            "metadata": video.video_metadata or {},
+            "created_at": video.created_at,
+            "is_archived": video.is_archived
+        }
+    except Exception:
+        return None
+
+def get_video_answers_across_groups(video_id: int, selected_group_ids: List[int], session: Session) -> Dict:
+    """Get all answers and ground truth for a video across selected project groups"""
+    
+    results = {}
+    
+    for group_id in selected_group_ids:
+        try:
+            # Get group info
+            group_info = ProjectGroupService.get_project_group_by_id(group_id=group_id, session=session)
+            group_name = group_info["group"].name
+            projects = group_info["projects"]
+            
+            group_results = {"group_name": group_name, "projects": {}}
+            
+            for project in projects:
+                # Check if video is in this project
+                project_videos = VideoService.get_project_videos(project_id=project.id, session=session)
+                video_in_project = any(v["id"] == video_id for v in project_videos)
+                
+                if not video_in_project:
+                    continue
+                
+                # Get project answers and ground truth
+                project_results = get_project_answers_for_video(video_id, project.id, session)
+                
+                if project_results["has_data"]:
+                    group_results["projects"][project.id] = {
+                        "project_name": project.name,
+                        "project_description": project.description,
+                        **project_results
+                    }
+            
+            if group_results["projects"]:
+                results[group_id] = group_results
+                
+        except Exception as e:
+            st.error(f"Error processing group {group_id}: {str(e)}")
+            continue
+    
+    return results
+
+def get_project_answers_for_video(video_id: int, project_id: int, session: Session) -> Dict:
+    """Get all answers and ground truth for a video in a specific project"""
+    
+    try:
+        # Get project info
+        project = ProjectService.get_project_by_id(project_id=project_id, session=session)
+        
+        # Get schema question groups
+        question_groups = SchemaService.get_schema_question_groups_list(
+            schema_id=project.schema_id, session=session
+        )
+        
+        project_results = {
+            "has_data": False,
+            "question_groups": {}
+        }
+        
+        for group in question_groups:
+            group_id = group["ID"]
+            group_title = group["Title"]
+            
+            # Get questions in this group
+            questions = QuestionService.get_questions_by_group_id(group_id=group_id, session=session)
+            
+            group_data = {
+                "title": group_title,
+                "description": group["Description"],
+                "questions": {}
+            }
+            
+            has_group_data = False
+            
+            for question in questions:
+                question_id = question["id"]
+                question_text = question["text"]
+                question_type = question["type"]
+                
+                question_data = {
+                    "text": question_text,
+                    "type": question_type,
+                    "annotator_answers": [],
+                    "ground_truth": None
+                }
+                
+                # Get annotator answers
+                try:
+                    answers_df = AnnotatorService.get_answers(video_id=video_id, project_id=project_id, session=session)
+                    
+                    if not answers_df.empty:
+                        question_answers = answers_df[answers_df["Question ID"] == question_id]
+                        
+                        for _, answer_row in question_answers.iterrows():
+                            user_info = AuthService.get_user_info_by_id(
+                                user_id=int(answer_row["User ID"]), session=session
+                            )
+                            
+                            question_data["annotator_answers"].append({
+                                "user_name": user_info["user_id_str"],
+                                "user_id": answer_row["User ID"],
+                                "answer_value": answer_row["Answer Value"],
+                                "confidence": answer_row["Confidence Score"],
+                                "created_at": answer_row["Created At"],
+                                "notes": answer_row["Notes"]
+                            })
+                except Exception:
+                    pass
+                
+                # Get ground truth
+                try:
+                    gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
+                    
+                    if not gt_df.empty:
+                        gt_row = gt_df[gt_df["Question ID"] == question_id]
+                        
+                        if not gt_row.empty:
+                            gt_data = gt_row.iloc[0]
+                            reviewer_info = AuthService.get_user_info_by_id(
+                                user_id=int(gt_data["Reviewer ID"]), session=session
+                            )
+                            
+                            question_data["ground_truth"] = {
+                                "answer_value": gt_data["Answer Value"],
+                                "original_value": gt_data["Original Value"],
+                                "reviewer_name": reviewer_info["user_id_str"],
+                                "modified_by_admin": gt_data["Modified By Admin"] is not None,
+                                "created_at": gt_data["Created At"],
+                                "modified_at": gt_data["Modified At"]
+                            }
+                except Exception:
+                    pass
+                
+                # Check if this question has any data
+                if question_data["annotator_answers"] or question_data["ground_truth"]:
+                    group_data["questions"][question_id] = question_data
+                    has_group_data = True
+            
+            if has_group_data:
+                project_results["question_groups"][group_id] = group_data
+                project_results["has_data"] = True
+        
+        return project_results
+        
+    except Exception as e:
+        st.error(f"Error getting project answers: {str(e)}")
+        return {"has_data": False, "question_groups": {}}
+
+def execute_ground_truth_search(criteria: List[Dict], match_all: bool, session: Session) -> List[Dict]:
+    """Execute ground truth search with given criteria"""
+    
+    if not criteria:
+        return []
+    
+    # Get all videos that could potentially match
+    all_videos = VideoService.get_all_videos(session=session)
+    all_videos = all_videos[~all_videos["Archived"]]  # Only non-archived videos
+    
+    matching_videos = []
+    
+    for _, video_row in all_videos.iterrows():
+        video_uid = video_row["Video UID"]
+        video_info = get_video_info_by_uid(video_uid=video_uid, session=session)
+        
+        if not video_info:
+            continue
+        
+        # Check criteria
+        matches = []
+        
+        for criterion in criteria:
+            project_id = criterion["project_id"]
+            question_id = criterion["question_id"]
+            required_answer = criterion["required_answer"]
+            
+            # Check if video is in this project
+            project_videos = VideoService.get_project_videos(project_id=project_id, session=session)
+            video_in_project = any(v["id"] == video_info["id"] for v in project_videos)
+            
+            if not video_in_project:
+                matches.append(False)
+                continue
+            
+            # Check ground truth
+            try:
+                gt_df = GroundTruthService.get_ground_truth(video_id=video_info["id"], project_id=project_id, session=session)
+                
+                if gt_df.empty:
+                    matches.append(False)
+                    continue
+                
+                question_gt = gt_df[gt_df["Question ID"] == question_id]
+                
+                if question_gt.empty:
+                    matches.append(False)
+                    continue
+                
+                actual_answer = question_gt.iloc[0]["Answer Value"]
+                matches.append(str(actual_answer) == str(required_answer))
+                
+            except:
+                matches.append(False)
+        
+        # Apply match logic
+        if match_all and all(matches):
+            # Video matches all criteria
+            matching_videos.append({
+                "video_info": video_info,
+                "matches": matches,
+                "criteria": criteria
+            })
+        elif not match_all and any(matches):
+            # Video matches at least one criterion
+            matching_videos.append({
+                "video_info": video_info,
+                "matches": matches,
+                "criteria": criteria
+            })
+    
+    return matching_videos
+
+def execute_project_based_search(project_ids: List[int], completion_filter: str, session: Session) -> List[Dict]:
+    """Execute project-based search"""
+    
+    results = []
+    
+    for project_id in project_ids:
+        project = ProjectService.get_project_by_id(project_id=project_id, session=session)
+        project_videos = VideoService.get_project_videos(project_id=project_id, session=session)
+        
+        for video_info in project_videos:
+            video_id = video_info["id"]
+            video_uid = video_info["uid"]
+            
+            # Get completion status
+            try:
+                gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
+                questions = ProjectService.get_project_questions(project_id=project_id, session=session)
+                
+                total_questions = len(questions)
+                completed_questions = len(gt_df) if not gt_df.empty else 0
+                
+                if total_questions == 0:
+                    completion_status = "no_questions"
+                elif completed_questions == 0:
+                    completion_status = "missing"
+                elif completed_questions == total_questions:
+                    completion_status = "complete"
+                else:
+                    completion_status = "partial"
+                
+            except:
+                completion_status = "error"
+            
+            # Apply filter
+            include_video = False
+            
+            if completion_filter == "All videos":
+                include_video = True
+            elif completion_filter == "Complete ground truth" and completion_status == "complete":
+                include_video = True
+            elif completion_filter == "Missing ground truth" and completion_status == "missing":
+                include_video = True
+            elif completion_filter == "Partial ground truth" and completion_status == "partial":
+                include_video = True
+            
+            if include_video:
+                results.append({
+                    "video_id": video_id,
+                    "video_uid": video_uid,
+                    "video_url": video_info["url"],
+                    "project_id": project_id,
+                    "project_name": project.name,
+                    "completion_status": completion_status,
+                    "completed_questions": completed_questions if completion_status != "error" else 0,
+                    "total_questions": total_questions if completion_status != "error" else 0
+                })
+    
+    return results
 
 ###############################################################################
 # SHARED UTILITY FUNCTIONS
@@ -2603,7 +4851,7 @@ def display_video_answer_pair(video: Dict, project_id: int, user_id: int, role: 
             for group in question_groups
         ]
         
-        # Progress display
+        # ORIGINAL Progress display format (REVERTED)
         st.markdown(f"""
         <div style="{get_card_style(COLORS['info'])}text-align: center;">
             <div style="color: #2980b9; font-weight: 500; font-size: 0.95rem;">
@@ -2739,7 +4987,7 @@ def _load_existing_answer_reviews(video_id: int, project_id: int, question_id: i
                     answer_id = int(answer_row.iloc[0]["Answer ID"])
                     existing_review = GroundTruthService.get_answer_review(answer_id=answer_id, session=session)
                     
-                    user_info = AuthService.get_user_info_by_id(user_id=user_id, session=session)
+                    user_info = AuthService.get_user_info_by_id(user_id=int(user_id), session=session)
                     name_parts = user_info["user_id_str"].split()
                     initials = f"{name_parts[0][0]}{name_parts[-1][0]}".upper() if len(name_parts) >= 2 else user_info["user_id_str"][:2].upper()
                     display_name = f"{user_info['user_id_str']} ({initials})"
@@ -2838,7 +5086,16 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
         
         if not questions:
             st.info("No questions in this group.")
+            # Create empty form to prevent missing submit button error
+            with st.form(f"empty_form_{video['id']}_{group_id}_{role}"):
+                st.info("No questions available in this group.")
+                st.form_submit_button("No Actions Available", disabled=True)
             return
+        
+        # Get selected annotators for reviewer/meta-reviewer roles
+        selected_annotators = None
+        if role in ["reviewer", "meta_reviewer"]:
+            selected_annotators = st.session_state.get("selected_annotators", [])
         
         # Check admin modifications
         has_any_admin_modified_questions = False
@@ -2857,6 +5114,10 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
         
         if display_data["error"]:
             st.info(display_data["error"])
+            # Create empty form to prevent missing submit button error
+            with st.form(f"error_form_{video['id']}_{group_id}_{role}"):
+                st.error(display_data["error"])
+                st.form_submit_button("Unable to Load", disabled=True)
             return
         
         questions = display_data["questions"]
@@ -2925,52 +5186,60 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                     )
                     answer_reviews[question_text] = existing_review_data
         
-        # Create form
+        # Create form - ensure it always has questions and a submit button
         form_key = f"form_{video['id']}_{group_id}_{role}"
         with st.form(form_key):
             answers = {}
             
             content_height = max(350, container_height - 150)
             
-            with st.container(height=content_height, border=False):
-                for i, question in enumerate(questions):
-                    question_id = question["id"]
-                    question_text = question["text"]
-                    existing_value = existing_answers.get(question_text, "")
-                    gt_value = gt_answers.get(question_text, "")
-                    
-                    is_modified_by_admin = False
-                    admin_info = None
-                    if role in ["reviewer", "meta_reviewer"]:
-                        is_modified_by_admin = GroundTruthService.check_question_modified_by_admin(
-                            video_id=video["id"], project_id=project_id, question_id=question_id, session=session
-                        )
-                        if is_modified_by_admin:
-                            admin_info = GroundTruthService.get_admin_modification_details(
+            # Ensure we always display content even if questions fail to load
+            try:
+                with st.container(height=content_height, border=False):
+                    for i, question in enumerate(questions):
+                        question_id = question["id"]
+                        question_text = question["text"]
+                        existing_value = existing_answers.get(question_text, "")
+                        gt_value = gt_answers.get(question_text, "")
+                        
+                        is_modified_by_admin = False
+                        admin_info = None
+                        if role in ["reviewer", "meta_reviewer"]:
+                            is_modified_by_admin = GroundTruthService.check_question_modified_by_admin(
                                 video_id=video["id"], project_id=project_id, question_id=question_id, session=session
                             )
-                    
-                    if i > 0:
-                        st.markdown('<div style="margin: 32px 0;"></div>', unsafe_allow_html=True)
-                    
-                    if question["type"] == "single":
-                        answers[question_text] = _display_clean_sticky_single_choice_question(
-                            question, video["id"], project_id, role, existing_value,
-                            is_modified_by_admin, admin_info, form_disabled, session,
-                            gt_value, mode
-                        )
-                    else:
-                        answers[question_text] = _display_clean_sticky_description_question(
-                            question, video["id"], project_id, role, existing_value,
-                            is_modified_by_admin, admin_info, form_disabled, session,
-                            gt_value, mode, answer_reviews
-                        )
+                            if is_modified_by_admin:
+                                admin_info = GroundTruthService.get_admin_modification_details(
+                                    video_id=video["id"], project_id=project_id, question_id=question_id, session=session
+                                )
+                        
+                        if i > 0:
+                            st.markdown('<div style="margin: 32px 0;"></div>', unsafe_allow_html=True)
+                        
+                        # Pass selected_annotators parameter
+                        if question["type"] == "single":
+                            answers[question_text] = _display_clean_sticky_single_choice_question(
+                                question, video["id"], project_id, role, existing_value,
+                                is_modified_by_admin, admin_info, form_disabled, session,
+                                gt_value, mode, selected_annotators
+                            )
+                        else:
+                            answers[question_text] = _display_clean_sticky_description_question(
+                                question, video["id"], project_id, role, existing_value,
+                                is_modified_by_admin, admin_info, form_disabled, session,
+                                gt_value, mode, answer_reviews, selected_annotators
+                            )
+            except Exception as e:
+                st.error(f"Error displaying questions: {str(e)}")
+                # Still provide empty answers dict for form submission
+                answers = {}
             
             st.markdown('<div style="margin: 8px 0;"></div>', unsafe_allow_html=True)
             
+            # ALWAYS include a submit button
             submitted = st.form_submit_button(button_text, use_container_width=True, disabled=button_disabled)
             
-            # Handle form submission
+            # Handle form submission (rest remains the same...)
             if submitted and not button_disabled:
                 try:
                     if role == "annotator":
@@ -3048,6 +5317,10 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                     
     except ValueError as e:
         st.error(f"Error loading question group: {str(e)}")
+        # Create fallback form to prevent missing submit button error
+        with st.form(f"fallback_form_{video['id']}_{group_id}_{role}"):
+            st.error("Failed to load question group properly")
+            st.form_submit_button("Unable to Load Questions", disabled=True)
 
 def _submit_answer_reviews(answer_reviews: Dict, video_id: int, project_id: int, user_id: int, session: Session):
     """Submit answer reviews for annotators using proper service API"""
@@ -3119,8 +5392,8 @@ def _get_question_display_data(video_id: int, project_id: int, user_id: int, gro
         "error": None
     }
 
-def _display_clean_sticky_single_choice_question(question: Dict, video_id: int, project_id: int, role: str, existing_value: str, is_modified_by_admin: bool, admin_info: Optional[Dict], form_disabled: bool, session: Session, gt_value: str = "", mode: str = "") -> str:
-    """Display a single choice question with sticky header and single status display"""
+def _display_clean_sticky_single_choice_question(question: Dict, video_id: int, project_id: int, role: str, existing_value: str, is_modified_by_admin: bool, admin_info: Optional[Dict], form_disabled: bool, session: Session, gt_value: str = "", mode: str = "", selected_annotators: List[str] = None) -> str:
+    """Display a single choice question with unified status display"""
     question_id = question["id"]
     question_text = question["display_text"]
     options = question["options"]
@@ -3162,18 +5435,27 @@ def _display_clean_sticky_single_choice_question(question: Dict, video_id: int, 
                 </div>
             """, unsafe_allow_html=True)
     
-    # Show single status for reviewers/meta-reviewers
+    # Show unified status for reviewers/meta-reviewers
     if role in ["reviewer", "meta_reviewer"]:
-        _display_annotator_status(video_id=video_id, project_id=project_id, question_id=question_id, session=session)
+        show_annotators = selected_annotators is not None and len(selected_annotators) > 0
+        _display_unified_status(
+            video_id=video_id, 
+            project_id=project_id, 
+            question_id=question_id, 
+            session=session,
+            show_annotators=show_annotators,
+            selected_annotators=selected_annotators or []
+        )
     
-    # Question content
+    # Question content with FIXED UNIQUE KEYS
     if role == "reviewer" and is_modified_by_admin and admin_info:
         current_value = admin_info["current_value"]
         admin_name = admin_info["admin_name"]
 
         enhanced_options = _get_enhanced_options_for_reviewer(
             video_id=video_id, project_id=project_id, question_id=question_id, 
-            options=options, display_values=display_values, session=session
+            options=options, display_values=display_values, session=session,
+            selected_annotators=selected_annotators or []
         )
         
         admin_idx = default_idx
@@ -3188,7 +5470,7 @@ def _display_clean_sticky_single_choice_question(question: Dict, video_id: int, 
             "Admin's selection:",
             options=enhanced_options,
             index=admin_idx,
-            key=f"q_{video_id}_{question_id}_{role}_locked",
+            key=f"q_{video_id}_{project_id}_{question_id}_{role}_locked",  # ✅ Added project_id
             disabled=True,
             label_visibility="collapsed",
             horizontal=True
@@ -3197,12 +5479,14 @@ def _display_clean_sticky_single_choice_question(question: Dict, video_id: int, 
         result = current_value
         
     elif role in ["reviewer", "meta_reviewer"]:
+        # ALWAYS get enhanced options for reviewer/meta-reviewer roles (including search portal)
         enhanced_options = _get_enhanced_options_for_reviewer(
             video_id=video_id, project_id=project_id, question_id=question_id, 
-            options=options, display_values=display_values, session=session
+            options=options, display_values=display_values, session=session,
+            selected_annotators=selected_annotators or []
         )
         
-        radio_key = f"q_{video_id}_{question_id}_{role}_stable"
+        radio_key = f"q_{video_id}_{project_id}_{question_id}_{role}_stable"  # ✅ Added project_id
         
         current_idx = default_idx
         if existing_value:
@@ -3240,7 +5524,7 @@ def _display_clean_sticky_single_choice_question(question: Dict, video_id: int, 
                 "Select your answer:",
                 options=enhanced_display_values,
                 index=default_idx,
-                key=f"q_{video_id}_{question_id}_{role}",
+                key=f"q_{video_id}_{project_id}_{question_id}_{role}",  # ✅ Added project_id
                 disabled=form_disabled,
                 label_visibility="collapsed",
                 horizontal=True
@@ -3255,7 +5539,7 @@ def _display_clean_sticky_single_choice_question(question: Dict, video_id: int, 
                 "Select your answer:",
                 options=display_values,
                 index=default_idx,
-                key=f"q_{video_id}_{question_id}_{role}",
+                key=f"q_{video_id}_{project_id}_{question_id}_{role}",  # ✅ Added project_id
                 disabled=form_disabled,
                 label_visibility="collapsed",
                 horizontal=True
@@ -3264,8 +5548,9 @@ def _display_clean_sticky_single_choice_question(question: Dict, video_id: int, 
     
     return result
 
-def _display_clean_sticky_description_question(question: Dict, video_id: int, project_id: int, role: str, existing_value: str, is_modified_by_admin: bool, admin_info: Optional[Dict], form_disabled: bool, session: Session, gt_value: str = "", mode: str = "", answer_reviews: Optional[Dict] = None) -> str:
-    """Display a description question with elegant left-right layout and single status display"""
+def _display_clean_sticky_description_question(question: Dict, video_id: int, project_id: int, role: str, existing_value: str, is_modified_by_admin: bool, admin_info: Optional[Dict], form_disabled: bool, session: Session, gt_value: str = "", mode: str = "", answer_reviews: Optional[Dict] = None, selected_annotators: List[str] = None) -> str:
+    """Display a description question with unified status display"""
+    
     question_id = question["id"]
     question_text = question["display_text"]
     
@@ -3304,7 +5589,7 @@ def _display_clean_sticky_description_question(question: Dict, video_id: int, pr
                 </div>
             """, unsafe_allow_html=True)
     
-    # Question content
+    # Question content with FIXED UNIQUE KEYS
     if role == "reviewer" and is_modified_by_admin and admin_info:
         current_value = admin_info["current_value"]
         admin_name = admin_info["admin_name"]
@@ -3314,7 +5599,7 @@ def _display_clean_sticky_description_question(question: Dict, video_id: int, pr
         answer = st.text_area(
             "Admin's answer:",
             value=current_value,
-            key=f"q_{video_id}_{question_id}_{role}_locked",
+            key=f"q_{video_id}_{project_id}_{question_id}_{role}_locked",  # ✅ Added project_id
             disabled=True,
             height=120,
             label_visibility="collapsed"
@@ -3323,7 +5608,7 @@ def _display_clean_sticky_description_question(question: Dict, video_id: int, pr
         result = current_value
         
     elif role in ["reviewer", "meta_reviewer"]:
-        text_key = f"q_{video_id}_{question_id}_{role}_stable"
+        text_key = f"q_{video_id}_{project_id}_{question_id}_{role}_stable"  # ✅ Added project_id
         
         answer = st.text_area(
             "Enter your answer:",
@@ -3334,15 +5619,26 @@ def _display_clean_sticky_description_question(question: Dict, video_id: int, pr
             label_visibility="collapsed"
         )
         
-        # Show single status for reviewers/meta-reviewers
-        _display_annotator_status(video_id=video_id, project_id=project_id, question_id=question_id, session=session)
-        
-        _display_enhanced_helper_text_answers(
-            video_id=video_id, project_id=project_id, question_id=question_id, 
-            question_text=question_text, text_key=text_key,
-            gt_value=existing_value if role == "meta_reviewer" else "",
-            role=role, answer_reviews=answer_reviews, session=session
+        # Show unified status
+        show_annotators = selected_annotators is not None and len(selected_annotators) > 0
+        _display_unified_status(
+            video_id=video_id, 
+            project_id=project_id, 
+            question_id=question_id, 
+            session=session,
+            show_annotators=show_annotators,
+            selected_annotators=selected_annotators or []
         )
+        
+        # Show enhanced helper text if annotators selected OR if we have ground truth (for search portal)
+        if show_annotators or (role == "meta_reviewer" and existing_value):
+            _display_enhanced_helper_text_answers(
+                video_id=video_id, project_id=project_id, question_id=question_id, 
+                question_text=question_text, text_key=text_key,
+                gt_value=existing_value if role == "meta_reviewer" else "",
+                role=role, answer_reviews=answer_reviews, session=session,
+                selected_annotators=selected_annotators or []
+            )
         
         result = answer
         
@@ -3350,7 +5646,7 @@ def _display_clean_sticky_description_question(question: Dict, video_id: int, pr
         result = st.text_area(
             "Enter your answer:",
             value=existing_value,
-            key=f"q_{video_id}_{question_id}_{role}",
+            key=f"q_{video_id}_{project_id}_{question_id}_{role}",  # ✅ Added project_id
             disabled=form_disabled,
             height=120,
             label_visibility="collapsed"
@@ -3370,23 +5666,102 @@ def _display_clean_sticky_description_question(question: Dict, video_id: int, pr
     
     return result
 
-def _display_enhanced_helper_text_answers(video_id: int, project_id: int, question_id: int, question_text: str, text_key: str, gt_value: str, role: str, answer_reviews: Optional[Dict], session: Session):
-    """Display helper text showing other annotator answers (status display removed)"""
-    selected_annotators = st.session_state.get("selected_annotators", [])
+def _get_enhanced_options_for_reviewer(video_id: int, project_id: int, question_id: int, options: List[str], display_values: List[str], session: Session, selected_annotators: List[str] = None) -> List[str]:
+    """Get enhanced options showing who selected what for reviewers"""
     
     try:
-        annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
-            display_names=selected_annotators, project_id=project_id, session=session
-        )
+        # Get annotator selections if annotators are provided
+        annotator_user_ids = []
+        if selected_annotators:
+            annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
+                display_names=selected_annotators, project_id=project_id, session=session
+            )
         
-        text_answers = GroundTruthService.get_question_text_answers(
+        option_selections = GroundTruthService.get_question_option_selections(
             video_id=video_id, project_id=project_id, question_id=question_id, 
             annotator_user_ids=annotator_user_ids, session=session
         )
         
+        # Also get ground truth info for search portal
+        gt_selection = None
+        try:
+            gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
+            if not gt_df.empty:
+                question_gt = gt_df[gt_df["Question ID"] == question_id]
+                if not question_gt.empty:
+                    gt_selection = question_gt.iloc[0]["Answer Value"]
+        except:
+            pass
+        
+    except Exception as e:
+        # Fallback: still check for ground truth even if annotator data fails
+        gt_selection = None
+        option_selections = {}
+        try:
+            gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
+            if not gt_df.empty:
+                question_gt = gt_df[gt_df["Question ID"] == question_id]
+                if not question_gt.empty:
+                    gt_selection = question_gt.iloc[0]["Answer Value"]
+        except:
+            pass
+    
+    total_annotators = len(annotator_user_ids) if selected_annotators else 0
+    enhanced_options = []
+    
+    for i, display_val in enumerate(display_values):
+        actual_val = options[i] if i < len(options) else display_val
+        option_text = display_val
+        
+        selection_info = []
+        
+        # Add annotator selection info if available
+        if actual_val in option_selections:
+            annotators = []
+            for selector in option_selections[actual_val]:
+                if selector["type"] != "ground_truth":  # Don't double-count GT here
+                    annotators.append(selector["initials"])
+            
+            if annotators and total_annotators > 0:
+                count = len(annotators)
+                percentage = (count / total_annotators) * 100
+                percentage_str = f"{int(percentage)}%" if percentage == int(percentage) else f"{percentage:.1f}%"
+                selection_info.append(f"{percentage_str}: {', '.join(annotators)}")
+            elif annotators:
+                selection_info.append(f"{', '.join(annotators)}")
+        
+        # Add ground truth indicator if this option is the GT
+        if gt_selection and str(actual_val) == str(gt_selection):
+            selection_info.append("🏆 GT")
+        
+        if selection_info:
+            option_text += f" — {' | '.join(selection_info)}"
+        
+        enhanced_options.append(option_text)
+    
+    return enhanced_options
+
+def _display_enhanced_helper_text_answers(video_id: int, project_id: int, question_id: int, question_text: str, text_key: str, gt_value: str, role: str, answer_reviews: Optional[Dict], session: Session, selected_annotators: List[str] = None):
+    """Display helper text showing other annotator answers"""
+    
+    try:
+        annotator_user_ids = []
+        text_answers = []
+        
+        # Get annotator answers if annotators are selected
+        if selected_annotators:
+            annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
+                display_names=selected_annotators, project_id=project_id, session=session
+            )
+            
+            text_answers = GroundTruthService.get_question_text_answers(
+                video_id=video_id, project_id=project_id, question_id=question_id, 
+                annotator_user_ids=annotator_user_ids, session=session
+            )
+        
         all_answers = []
         
-        # Add Ground Truth for meta-reviewer
+        # Add Ground Truth for meta-reviewer OR if we have existing GT (search portal)
         if role == "meta_reviewer" and gt_value:
             all_answers.append({
                 "name": "Ground Truth",
@@ -3395,6 +5770,24 @@ def _display_enhanced_helper_text_answers(video_id: int, project_id: int, questi
                 "is_gt": True,
                 "display_name": "Ground Truth"
             })
+        # For search portal - check if we have ground truth even without annotators
+        elif not selected_annotators or len(selected_annotators) == 0:
+            try:
+                gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
+                if not gt_df.empty:
+                    question_gt = gt_df[gt_df["Question ID"] == question_id]
+                    if not question_gt.empty:
+                        gt_answer = question_gt.iloc[0]["Answer Value"]
+                        if gt_answer and str(gt_answer).strip():
+                            all_answers.append({
+                                "name": "Ground Truth",
+                                "full_text": str(gt_answer),
+                                "has_answer": True,
+                                "is_gt": True,
+                                "display_name": "Ground Truth"
+                            })
+            except:
+                pass
         
         # Add annotator answers
         if text_answers:
@@ -3449,124 +5842,7 @@ def _display_enhanced_helper_text_answers(video_id: int, project_id: int, questi
                     )
                             
     except Exception as e:
-        st.caption(f"⚠️ Could not load annotator answers: {str(e)}")
-
-def _get_enhanced_options_for_reviewer(video_id: int, project_id: int, question_id: int, options: List[str], display_values: List[str], session: Session) -> List[str]:
-    """Get enhanced options showing who selected what for reviewers (status display removed)"""
-    selected_annotators = st.session_state.get("selected_annotators", [])
-    
-    try:
-        annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
-            display_names=selected_annotators, project_id=project_id, session=session
-        )
-        
-        option_selections = GroundTruthService.get_question_option_selections(
-            video_id=video_id, project_id=project_id, question_id=question_id, 
-            annotator_user_ids=annotator_user_ids, session=session
-        )
-        
-    except Exception as e:
-        option_selections = {}
-        annotator_user_ids = []
-    
-    total_annotators = len(annotator_user_ids)
-    
-    enhanced_options = []
-    for i, display_val in enumerate(display_values):
-        actual_val = options[i] if i < len(options) else display_val
-        option_text = display_val
-        
-        if actual_val in option_selections:
-            annotators = []
-            has_gt = False
-            
-            for selector in option_selections[actual_val]:
-                if selector["type"] == "ground_truth":
-                    has_gt = True
-                else:
-                    annotators.append(selector["initials"])
-            
-            selection_info = []
-            if annotators and total_annotators > 0:
-                count = len(annotators)
-                percentage = (count / total_annotators) * 100
-                percentage_str = f"{int(percentage)}%" if percentage == int(percentage) else f"{percentage:.1f}%"
-                selection_info.append(f"{percentage_str}: {', '.join(annotators)}")
-            elif annotators:
-                selection_info.append(f"{', '.join(annotators)}")
-            
-            if has_gt:
-                selection_info.append("🏆 GT")
-            
-            if selection_info:
-                option_text += f" — {' | '.join(selection_info)}"
-        
-        enhanced_options.append(option_text)
-    
-    return enhanced_options
-
-def _display_annotator_status(video_id: int, project_id: int, question_id: int, session: Session):
-    """Display a single compact status message showing present and missing annotators"""
-    selected_annotators = st.session_state.get("selected_annotators", [])
-    
-    if not selected_annotators:
-        st.caption("⚠️ No annotators selected - only ground truth will be shown")
-        return
-    
-    try:
-        annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
-            display_names=selected_annotators, project_id=project_id, session=session
-        )
-        
-        # Get answers for this question/video
-        answers_df = AnnotatorService.get_question_answers(
-            question_id=question_id, project_id=project_id, session=session
-        )
-        
-        # Find which annotators have answered this specific question/video
-        annotators_with_answers = set()
-        if not answers_df.empty:
-            video_answers = answers_df[answers_df["Video ID"] == video_id]
-            for _, answer_row in video_answers.iterrows():
-                user_id = answer_row["User ID"]
-                if user_id in annotator_user_ids:
-                    # Get user name
-                    users_df = AuthService.get_all_users(session=session)
-                    user_info = users_df[users_df["ID"] == user_id]
-                    if not user_info.empty:
-                        annotators_with_answers.add(user_info.iloc[0]["User ID"])
-        
-        # Get initials for present and missing annotators
-        present_initials = []
-        missing_initials = []
-        
-        for display_name in selected_annotators:
-            if " (" in display_name and display_name.endswith(")"):
-                name = display_name.split(" (")[0]
-                initials = display_name.split(" (")[1][:-1]
-            else:
-                name = display_name
-                initials = display_name[:2].upper()
-            
-            if name in annotators_with_answers:
-                present_initials.append(initials)
-            else:
-                missing_initials.append(initials)
-        
-        # Create compact status message
-        status_parts = []
-        if present_initials:
-            status_parts.append(f"📊 Showing: {', '.join(present_initials)}")
-        if missing_initials:
-            status_parts.append(f"⚠️ Missing: {', '.join(missing_initials)}")
-        
-        if status_parts:
-            st.caption(" | ".join(status_parts))
-        elif not present_initials and not missing_initials:
-            st.caption("⚠️ No annotators have answered this question yet")
-            
-    except Exception as e:
-        st.caption(f"⚠️ Could not load annotator status: {str(e)}")
+        st.caption(f"⚠️ Could not load answer information: {str(e)}")
 
 def _get_submit_button_config(role: str, form_disabled: bool, all_questions_modified_by_admin: bool, has_any_editable_questions: bool, is_group_complete: bool, mode: str, ground_truth_exists: bool = False, has_any_admin_modified_questions: bool = False) -> Tuple[str, bool]:
     """Get the submit button text and disabled state with improved logic"""
@@ -6068,6 +8344,151 @@ def main():
             overflow: hidden;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
+
+        /* Search Portal specific styling */
+        .search-video-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+            margin: 16px 0;
+        }
+
+        .search-criteria-card {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border: 2px solid #dee2e6;
+            border-radius: 12px;
+            padding: 12px;
+            margin: 8px 0;
+            transition: all 0.2s ease;
+        }
+
+        .search-criteria-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .search-result-card {
+            background: linear-gradient(135deg, #ffffff, #f8f9fa);
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 16px;
+            margin: 8px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .search-result-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+            border-color: #1f77b4;
+        }
+
+        .search-expandable-content {
+            max-height: 600px;
+            overflow-y: auto;
+            padding: 8px;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            background: #fafbfc;
+        }
+
+        .search-question-answer {
+            background: #ffffff;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 8px 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .search-ground-truth {
+            background: linear-gradient(135deg, #d4edda, #c3e6cb);
+            border-left: 4px solid #28a745;
+            padding: 8px 12px;
+            margin: 4px 0;
+            border-radius: 4px;
+        }
+
+        .search-annotator-answer {
+            background: linear-gradient(135deg, #e7f3ff, #cce7ff);
+            border-left: 4px solid #1f77b4;
+            padding: 8px 12px;
+            margin: 4px 0;
+            border-radius: 4px;
+        }
+
+        .search-status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .search-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin: 16px 0;
+        }
+
+        /* Enhanced expander styling for search */
+        .search-portal .streamlit-expanderHeader {
+            background: linear-gradient(135deg, #ffffff, #f8f9fa);
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 10px 16px;
+            font-weight: 600;
+            margin: 8px 0;
+            transition: all 0.2s ease;
+        }
+
+        .search-portal .streamlit-expanderHeader:hover {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-color: #1f77b4;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(31, 119, 180, 0.15);
+        }
+
+        /* Search input enhancement */
+        .search-portal .stTextInput > div > div > input {
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+            padding: 12px 16px;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+        }
+
+        .search-portal .stTextInput > div > div > input:focus {
+            border-color: #1f77b4;
+            box-shadow: 0 0 0 3px rgba(31, 119, 180, 0.1);
+        }
+
+        /* Search multiselect enhancement */
+        .search-portal .stMultiSelect > div > div {
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+            background: linear-gradient(135deg, #ffffff, #f8f9fa);
+            transition: all 0.2s ease;
+        }
+
+        .search-portal .stMultiSelect > div > div:focus-within {
+            border-color: #1f77b4;
+            box-shadow: 0 0 0 3px rgba(31, 119, 180, 0.1);
+        }
+
+        /* Video grid responsive design */
+        @media (max-width: 768px) {
+            .search-video-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .search-stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
         </style>
     """, unsafe_allow_html=True)
     
@@ -6176,6 +8597,7 @@ def main():
                 "annotator": "👥 Annotator",
                 "reviewer": "🔍 Reviewer", 
                 "meta_reviewer": "🎯 Meta-Reviewer",
+                "search": "🔍 Search",
                 "admin": "⚙️ Admin"
             }
             
@@ -6217,7 +8639,8 @@ def main():
         "admin": admin_portal,
         "meta_reviewer": meta_reviewer_portal,
         "reviewer": reviewer_portal,
-        "annotator": annotator_portal
+        "annotator": annotator_portal,
+        "search": search_portal
     }
     
     portal_function = portal_functions.get(selected_portal)

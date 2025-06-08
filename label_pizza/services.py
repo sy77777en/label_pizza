@@ -114,6 +114,8 @@ class VideoService:
             {
                 "Video UID": v.video_uid,
                 "URL": v.url,
+                "Created At": v.created_at,
+                "Updated At": v.updated_at,
                 "Archived": v.is_archived
             }
             for v in videos
@@ -291,6 +293,36 @@ class VideoService:
             "url": v.url,
             "metadata": v.video_metadata
         } for v in videos]
+    
+    @staticmethod
+    def update_video(video_uid: str, new_url: str, new_metadata: dict, session: Session) -> None:
+        """Update video URL and metadata.
+        
+        Args:
+            video_uid: Video UID to update
+            new_url: New video URL
+            new_metadata: New metadata dictionary
+            session: Database session
+            
+        Raises:
+            ValueError: If video not found or validation fails
+        """
+        video = VideoService.get_video_by_uid(video_uid=video_uid, session=session)
+        if not video:
+            raise ValueError(f"Video with UID '{video_uid}' not found")
+        
+        if new_url and new_url != video.url:
+            if not new_url.startswith(("http://", "https://")):
+                raise ValueError("URL must start with http:// or https://")
+            video.url = new_url
+        
+        if new_metadata is not None:
+            if not isinstance(new_metadata, dict):
+                raise ValueError("Metadata must be a dictionary")
+            video.video_metadata = new_metadata
+        
+        video.updated_at = datetime.now(timezone.utc)
+        session.commit()
 
 class ProjectService:
     @staticmethod
