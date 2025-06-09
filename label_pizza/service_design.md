@@ -126,10 +126,10 @@ Service-Layer API Spec
 | `get_all_groups(session)`                                 | ✔︎     | —          | `DataFrame` | Includes stats |
 | `get_group_questions(group_id, session)`                  | ✔︎     | —          | `DataFrame` | — |
 | `get_group_details(group_id, session)`                    | ✔︎     | —          | `dict` | — |
-| `create_group(title, desc, is_reusable, question_ids, verification_function, session)` | ✔︎ | — | `QuestionGroup` | • Unique title 🛡️<br>• Questions exist 🛡️ |
+| `create_group(title, desc, is_reusable, question_ids, verification_function, , is_auto_submit, session)` | ✔︎ | — | `QuestionGroup` | • Unique title 🛡️<br>• Questions exist 🛡️<br>• is_auto_submit controls auto-submission in annotation mode |
 | `get_group_by_name(name, session)`                        | ✔︎     | —          | `Optional[QuestionGroup]` | — |
 | `get_group_by_id(group_id, session)`                      | ✔︎     | —          | `Optional[QuestionGroup]` | — |
-| `edit_group(group_id, new_title, new_description, is_reusable, session)` | ✔︎ | — | `None` | • Unique title 🛡️<br>• Reuse rule 🛡️ |
+| `edit_group(group_id, new_title, new_description, is_reusable, verification_function, is_auto_submit, session)` | ✔︎ | — | `None` | • Unique title 🛡️<br>• Reuse rule 🛡️<br>• Can update is_auto_submit 🛡️ |
 | `archive_group(group_id, session)`                        | ✔︎     | —          | `None` | — |
 | `unarchive_group(group_id, session)`                      | ✔︎     | —          | `None` | — |
 | `get_question_order(group_id, session)`                   | ✔︎     | —          | `list[int]` | — |

@@ -76,6 +76,7 @@ Archiving supports takedowns.
 | `title`        | VARCHAR(255) UNIQUE |
 | `description`  | TEXT |
 | `is_reusable`  | BOOL | **FALSE** | `TRUE` ⇒ can be imported by many schemas (e.g., Shot Transition) |
+| `is_auto_submit` | BOOL | **FALSE** | `TRUE` ⇒ answers are automatically submitted for annotation mode |
 | `is_archived`  | BOOL | FALSE |
 
 **Rationale** – Most groups one-time; reusable flag allows read-only sharing.

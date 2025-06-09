@@ -59,6 +59,7 @@ class QuestionGroup(Base):
     title = Column(String(255), unique=True, nullable=False)
     description = Column(Text)
     is_reusable = Column(Boolean, default=False)  # TRUE ⇒ can be imported by many schemas
+    is_auto_submit = Column(Boolean, default=False)  # TRUE ⇒ answers are automatically submitted for annotation mode
     is_archived = Column(Boolean, default=False)
     verification_function = Column(String(255), nullable=True)  # Name of verification function in verify.py
 

@@ -2131,6 +2131,7 @@ class QuestionGroupService:
             "title": group.title,
             "description": group.description,
             "is_reusable": group.is_reusable,
+            "is_auto_submit": group.is_auto_submit,
             "is_archived": group.is_archived,
             "verification_function": group.verification_function
         }
@@ -2149,6 +2150,7 @@ class QuestionGroupService:
             - Description: Group description
             - Questions: List of questions in the group
             - Reusable: Whether the group is reusable
+            - Auto Submit: Whether the group is auto-submit
             - Archived: Whether the group is archived
             - Question Count: Number of questions
             - Archived Questions: Number of archived questions
@@ -2191,6 +2193,7 @@ class QuestionGroupService:
                 "Description": g.description,
                 "Questions": "\n".join(question_list) if question_list else "No questions",
                 "Reusable": g.is_reusable,
+                "Auto Submit": g.is_auto_submit,
                 "Archived": g.is_archived,
                 "Question Count": len(questions),
                 "Archived Questions": sum(1 for q in questions if q.is_archived),
@@ -2259,6 +2262,7 @@ class QuestionGroupService:
             "title": group.title,
             "description": group.description,
             "is_reusable": group.is_reusable,
+            "is_auto_submit": group.is_auto_submit,
             "is_archived": group.is_archived,
             "verification_function": group.verification_function
         }
@@ -2294,7 +2298,8 @@ class QuestionGroupService:
         is_reusable: bool,
         question_ids: List[int],
         verification_function: Optional[str],
-        session: Session
+        is_auto_submit: bool = False,
+        session: Session = None
     ) -> QuestionGroup:
         """Create a new question group.
         
@@ -2304,6 +2309,7 @@ class QuestionGroupService:
             is_reusable: Whether group can be used in multiple schemas
             question_ids: List of question IDs in desired order
             verification_function: Optional name of verification function from verify.py
+            is_auto_submit: If TRUE, answers are automatically submitted for annotation mode
             session: Database session
             
         Returns:
@@ -2339,7 +2345,8 @@ class QuestionGroupService:
             title=title,
             description=description,
             is_reusable=is_reusable,
-            verification_function=verification_function
+            verification_function=verification_function,
+            is_auto_submit=is_auto_submit
         )
         session.add(group)
         session.flush()  # Get the group ID
@@ -2443,8 +2450,8 @@ class QuestionGroupService:
 
     @staticmethod
     def edit_group(group_id: int, new_title: str, new_description: str, is_reusable: bool, 
-                verification_function: Optional[str], session: Session) -> None:
-        """Edit a question group including its verification function.
+                verification_function: Optional[str], is_auto_submit: bool = False, session: Session = None) -> None:
+        """Edit a question group including its verification function and auto-submit flag.
         
         Args:
             group_id: Group ID
@@ -2452,6 +2459,7 @@ class QuestionGroupService:
             new_description: New group description
             is_reusable: Whether the group is reusable
             verification_function: New verification function name (can be None to remove)
+            is_auto_submit: If not None, sets the auto-submit flag
             session: Database session
             
         Raises:
@@ -2494,6 +2502,7 @@ class QuestionGroupService:
         group.description = new_description
         group.is_reusable = is_reusable
         group.verification_function = verification_function  # This can be None to remove verification
+        group.is_auto_submit = is_auto_submit
         session.commit()
 
     @staticmethod
@@ -2525,62 +2534,6 @@ class QuestionGroupService:
                 "success": False,
                 "error_message": str(e)
             }
-
-    @staticmethod
-    def edit_group(group_id: int, new_title: str, new_description: str, is_reusable: bool, 
-                verification_function: Optional[str], session: Session) -> None:
-        """Edit a question group including its verification function.
-        
-        Args:
-            group_id: Group ID
-            new_title: New group title
-            new_description: New group description
-            is_reusable: Whether the group is reusable
-            verification_function: New verification function name (can be None to remove)
-            session: Database session
-            
-        Raises:
-            ValueError: If group not found or validation fails
-        """
-        group = session.get(QuestionGroup, group_id)
-        if not group:
-            raise ValueError(f"Question group with ID {group_id} not found")
-        
-        # If making a group non-reusable, check if it's used in multiple schemas
-        if not is_reusable and group.is_reusable:
-            schemas = session.scalars(
-                select(Schema)
-                .join(SchemaQuestionGroup, Schema.id == SchemaQuestionGroup.schema_id)
-                .where(SchemaQuestionGroup.question_group_id == group_id)
-                .distinct()
-            ).all()
-            
-            if len(schemas) > 1:
-                raise ValueError(
-                    f"Cannot make group non-reusable as it is used in multiple schemas: "
-                    f"{', '.join(s.name for s in schemas)}"
-                )
-        
-        # Check if new title conflicts with existing group
-        if new_title != group.title:
-            existing = session.scalar(
-                select(QuestionGroup).where(QuestionGroup.title == new_title)
-            )
-            if existing:
-                raise ValueError(f"Question group with title '{new_title}' already exists")
-        
-        # Validate verification function if provided
-        if verification_function:
-            if not hasattr(verify, verification_function):
-                raise ValueError(f"Verification function '{verification_function}' not found in verify.py")
-        
-        # Update group properties
-        group.title = new_title
-        group.description = new_description
-        group.is_reusable = is_reusable
-        group.verification_function = verification_function  # This can be None to remove verification
-        session.commit()
-
 
     @staticmethod
     def archive_group(group_id: int, session: Session) -> None:
@@ -4181,3 +4134,5 @@ class ProjectGroupService:
         
         # Remove empty groups
         return {name: projects for name, projects in grouped_projects.items() if projects}
+
+        
