@@ -1278,6 +1278,25 @@ class QuestionService:
                 "Archived": q.is_archived
             } for q in qs
         ])
+    
+    @staticmethod
+    def get_question_object_by_id(question_id: int, session: Session) -> Question:
+        """Get a question object by its ID.
+        
+        Args:
+            question_id: Question ID
+            session: Database session
+            
+        Returns:
+            Question object if found
+            
+        Raises:
+            ValueError: If question not found
+        """
+        question = session.get(Question, question_id)
+        if not question:
+            raise ValueError(f"Question with ID {question_id} not found")
+        return question
 
     @staticmethod
     def add_question(text: str, qtype: str, options: Optional[List[str]], default: Optional[str], 
@@ -1350,25 +1369,6 @@ class QuestionService:
         return q
 
     @staticmethod
-    def get_question_by_text(text: str, session: Session) -> Question:
-        """Get a question by its text.
-        
-        Args:
-            text: Question text
-            session: Database session
-            
-        Returns:
-            Question object if found
-            
-        Raises:
-            ValueError: If question not found
-        """
-        question = session.scalar(select(Question).where(Question.text == text))
-        if not question:
-            raise ValueError(f"Question with text '{text}' not found")
-        return question
-
-    @staticmethod
     def edit_question(question_id: int, new_display_text: str, new_opts: Optional[List[str]], new_default: Optional[str],
                      session: Session, new_display_values: Optional[List[str]] = None,
                      new_option_weights: Optional[List[float]] = None) -> None:
@@ -1387,7 +1387,7 @@ class QuestionService:
             ValueError: If question not found or validation fails
         """
         # Get question
-        q = QuestionService.get_question_by_id(question_id=question_id, session=session)
+        q = QuestionService.get_question_object_by_id(question_id=question_id, session=session)
 
         # Check if question is archived
         if q.is_archived:
@@ -1479,7 +1479,38 @@ class QuestionService:
         session.commit()
 
     @staticmethod
-    def get_question_by_id(question_id: int, session: Session) -> Question:
+    def get_question_by_text(text: str, session: Session) -> Dict[str, Any]:
+        """Get a question by its text.
+        
+        Args:
+            text: Question text
+            session: Database session
+            
+        Returns:
+            Dictionary with question data if found
+            
+        Raises:
+            ValueError: If question not found
+        """
+        question = session.scalar(select(Question).where(Question.text == text))
+        if not question:
+            raise ValueError(f"Question with text '{text}' not found")
+        
+        return {
+            "id": question.id,
+            "text": question.text,
+            "display_text": question.display_text,
+            "type": question.type,
+            "options": question.options,
+            "display_values": question.display_values,
+            "default_option": question.default_option,
+            "option_weights": question.option_weights,
+            "created_at": question.created_at,
+            "archived": question.is_archived
+        }
+
+    @staticmethod
+    def get_question_by_id(question_id: int, session: Session) -> Dict[str, Any]:
         """Get a question by its ID.
         
         Args:
@@ -1487,7 +1518,7 @@ class QuestionService:
             session: Database session
             
         Returns:
-            Question object if found
+            Dictionary with question data if found
             
         Raises:
             ValueError: If question not found
@@ -1495,7 +1526,19 @@ class QuestionService:
         question = session.get(Question, question_id)
         if not question:
             raise ValueError(f"Question with ID {question_id} not found")
-        return question
+        
+        return {
+            "id": question.id,
+            "text": question.text,
+            "display_text": question.display_text,
+            "type": question.type,
+            "options": question.options,
+            "display_values": question.display_values,
+            "default_option": question.default_option,
+            "option_weights": question.option_weights,
+            "created_at": question.created_at,
+            "archived": question.is_archived
+        }
     
     @staticmethod
     def get_questions_by_group_id(group_id: int, session: Session) -> List[Dict[str, Any]]:
@@ -1529,6 +1572,7 @@ class QuestionService:
             "display_text": q.display_text,
             "type": q.type,
             "options": q.options,
+            "option_weights": q.option_weights,
             "display_values": q.display_values,
             "default_option": q.default_option
         } for q in questions]
@@ -1793,6 +1837,35 @@ class AuthService:
         else:
             user.user_type = new_role
             session.commit()
+    
+    @staticmethod
+    def get_user_weights_for_project(project_id: int, session: Session) -> Dict[int, float]:
+        """Get user weights for a specific project.
+        
+        Args:
+            project_id: Project ID
+            session: Database session
+            
+        Returns:
+            Dictionary mapping user_id to user_weight
+            
+        Raises:
+            ValueError: If error getting user weights
+        """
+        try:
+            assignments_df = AuthService.get_project_assignments(session=session)
+            project_assignments = assignments_df[assignments_df["Project ID"] == project_id]
+            
+            user_weights = {}
+            for _, assignment in project_assignments.iterrows():
+                user_id = assignment["User ID"]
+                weight = assignment.get("User Weight", 1.0)
+                user_weights[user_id] = weight
+            
+            return user_weights
+        except Exception as e:
+            raise ValueError(f"Error getting user weights for project: {str(e)}")
+
 
     @staticmethod
     def toggle_user_archived(user_id: int, session: Session) -> None:
@@ -2234,6 +2307,7 @@ class QuestionGroupService:
             {
                 "ID": q.id,
                 "Text": q.text,
+                "Display Text": q.display_text,
                 "Type": q.type,
                 "Options": ", ".join(q.options or []) if q.options else "",
                 "Default": q.default_option or "",
@@ -4187,10 +4261,10 @@ class AutoSubmitService:
                     
                     # Get option weight
                     option_weight = 1.0
-                    if question.type == "single" and question.option_weights:
+                    if question["type"] == "single" and question["option_weights"]:
                         try:
-                            option_index = question.options.index(answer_value)
-                            option_weight = float(question.option_weights[option_index])
+                            option_index = question["options"].index(answer_value)
+                            option_weight = float(question["option_weights"][option_index])
                         except (ValueError, IndexError):
                             option_weight = 1.0
                     
@@ -4203,10 +4277,10 @@ class AutoSubmitService:
                 user_weight = float(virtual_response["user_weight"])
                 
                 option_weight = 1.0
-                if question.type == "single" and question.option_weights:
+                if question["type"] == "single" and question["option_weights"]:
                     try:
-                        option_index = question.options.index(answer_value)
-                        option_weight = float(question.option_weights[option_index])
+                        option_index = question["options"].index(answer_value)
+                        option_weight = float(question["option_weights"][option_index])
                     except (ValueError, IndexError):
                         option_weight = 1.0
                 

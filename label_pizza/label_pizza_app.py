@@ -681,6 +681,7 @@ def display_user_accuracy_simple(user_id: int, project_id: int, role: str, sessi
             return False
     
     except Exception:
+        print(f"Error displaying user accuracy: {e}")
         pass
     
     return False
@@ -981,7 +982,8 @@ def display_accuracy_button_for_project(project_id: int, role: str, session: Ses
                            use_container_width=True):
                     show_reviewer_accuracy_detailed(project_id=project_id, session=session)
                 return True
-    except Exception:
+    except Exception as e:
+        print(f"Error displaying user accuracy: {e}")
         pass
     
     return False
@@ -1887,27 +1889,50 @@ def _display_unified_status(video_id: int, project_id: int, question_id: int, se
     if status_parts:
         st.caption(" | ".join(status_parts))
 
-# Update display_smart_annotator_selection to show confidence for model users
-
 def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: int):
-    """Modern, compact annotator selection with confidence scores for model users"""
+    """Modern, compact annotator selection with completion checks and confidence scores for model users"""
     if not annotators:
         st.warning("No annotators have submitted answers for this project yet.")
         return []
     
-    if "selected_annotators" not in st.session_state:
-        annotator_options = list(annotators.keys())
-        st.session_state.selected_annotators = annotator_options[:3] if len(annotator_options) > 3 else annotator_options
+    # Check completion status for each annotator
+    try:
+        with get_db_session() as session:
+            completed_annotators = {}
+            incomplete_annotators = {}
+            
+            for annotator_display, annotator_info in annotators.items():
+                user_id = annotator_info.get('id')
+                if user_id:
+                    try:
+                        progress = calculate_user_overall_progress(user_id=user_id, project_id=project_id, session=session)
+                        if progress >= 100:
+                            completed_annotators[annotator_display] = annotator_info
+                        else:
+                            incomplete_annotators[annotator_display] = annotator_info
+                    except:
+                        incomplete_annotators[annotator_display] = annotator_info
+                else:
+                    incomplete_annotators[annotator_display] = annotator_info
+    except:
+        # Fallback: treat all as completed if we can't check
+        completed_annotators = annotators
+        incomplete_annotators = {}
     
-    annotator_options = list(annotators.keys())
+    if "selected_annotators" not in st.session_state:
+        # Only select completed annotators by default
+        completed_options = list(completed_annotators.keys())
+        st.session_state.selected_annotators = completed_options[:3] if len(completed_options) > 3 else completed_options
+    
+    all_annotator_options = list(annotators.keys())
     
     with st.container():
         st.markdown("#### 🎯 Quick Actions")
         
         btn_col1, btn_col2 = st.columns(2)
         with btn_col1:
-            if st.button("✅ Select All", key=f"select_all_{project_id}", help="Select all annotators", use_container_width=True):
-                st.session_state.selected_annotators = annotator_options.copy()
+            if st.button("✅ Select All Completed", key=f"select_completed_{project_id}", help="Select all annotators who completed the project", use_container_width=True):
+                st.session_state.selected_annotators = list(completed_annotators.keys())
                 st.rerun()
         
         with btn_col2:
@@ -1917,78 +1942,39 @@ def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: i
         
         # Status display
         selected_count = len(st.session_state.selected_annotators)
-        total_count = len(annotator_options)
+        completed_count = len(completed_annotators)
+        total_count = len(annotators)
         
         status_color = COLORS['success'] if selected_count > 0 else COLORS['secondary']
-        status_text = f"📊 {selected_count} of {total_count} annotators selected" if selected_count > 0 else f"📊 No annotators selected ({total_count} available)"
-        delta_text = f"{selected_count} active" if selected_count > 0 else "None selected"
+        status_text = f"📊 {selected_count} selected • {completed_count} completed • {total_count} total"
         
         st.markdown(f"""
         <div style="background: linear-gradient(135deg, {status_color}15, {status_color}08); border: 1px solid {status_color}40; border-radius: 8px; padding: 8px 16px; margin: 12px 0; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.1);">
             <div style="color: {status_color}; font-weight: 600; font-size: 0.9rem;">{status_text}</div>
-            <div style="color: {status_color}cc; font-size: 0.75rem; margin-top: 2px;">{delta_text}</div>
         </div>
         """, unsafe_allow_html=True)
     
     with st.container():
         st.markdown("#### 👥 Choose Annotators")
-        st.caption("Select annotators whose responses you want to see during review")
-        
-        num_annotators = len(annotator_options)
-        if num_annotators <= 3:
-            num_cols = num_annotators
-        elif num_annotators <= 8:
-            num_cols = 4
-        elif num_annotators <= 16:
-            num_cols = 4
-        else:
-            num_cols = 5
+        st.caption("✅ = Completed project • ⏳ = In progress • 🤖 = AI Model")
         
         updated_selection = []
         
-        for row_start in range(0, num_annotators, num_cols):
-            cols = st.columns(num_cols)
-            row_annotators = annotator_options[row_start:row_start + num_cols]
-            
-            for i, annotator_display in enumerate(row_annotators):
-                with cols[i]:
-                    if " (" in annotator_display and annotator_display.endswith(")"):
-                        full_name = annotator_display.split(" (")[0]
-                        initials = annotator_display.split(" (")[1][:-1]
-                    else:
-                        full_name = annotator_display
-                        initials = annotator_display[:2].upper()
-                    
-                    annotator_info = annotators.get(annotator_display, {})
-                    email = annotator_info.get('email', '')
-                    user_id = annotator_info.get('id', '')
-                    user_role = annotator_info.get('role', 'human')
-                    
-                    # Enhanced display name for model users
-                    display_name = annotator_display
-                    if user_role == "model":
-                        display_name = f"🤖 {display_name}"
-                    
-                    tooltip = f"Email: {email}\nID: {user_id}\nRole: {user_role}"
-                    if user_role == "model":
-                        tooltip += "\nType: AI Model"
-                    
-                    checkbox_key = f"annotator_cb_{project_id}_{row_start + i}"
-                    is_selected = st.checkbox(
-                        display_name,
-                        value=annotator_display in st.session_state.selected_annotators,
-                        key=checkbox_key,
-                        help=tooltip
-                    )
-                    
-                    if is_selected:
-                        updated_selection.append(annotator_display)
+        # Display completed annotators first
+        if completed_annotators:
+            st.markdown("**✅ Completed Annotators:**")
+            display_annotator_checkboxes(completed_annotators, project_id, "completed", updated_selection, disabled=False)
+        
+        # Display incomplete annotators (NO LONGER DISABLED)
+        if incomplete_annotators:
+            st.markdown("**⏳ Incomplete Annotators:**")
+            display_annotator_checkboxes(incomplete_annotators, project_id, "incomplete", updated_selection, disabled=False)
         
         if set(updated_selection) != set(st.session_state.selected_annotators):
             st.session_state.selected_annotators = updated_selection
             st.rerun()
     
-    # Selection summary with model user indicators
+    # Selection summary with model user indicators and completion status
     if st.session_state.selected_annotators:
         initials_list = []
         for annotator in st.session_state.selected_annotators:
@@ -2000,10 +1986,13 @@ def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: i
             else:
                 initials = annotator[:2].upper()
             
-            if user_role == "model":
-                initials = f"🤖{initials}"
+            # Show completion status
+            if annotator in completed_annotators:
+                status_icon = "🤖✅" if user_role == "model" else "✅"
+            else:
+                status_icon = "🤖⏳" if user_role == "model" else "⏳"
             
-            initials_list.append(initials)
+            initials_list.append(f"{status_icon}{initials}")
         
         if len(initials_list) <= 8:
             initials_text = " • ".join(initials_list)
@@ -2029,6 +2018,132 @@ def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: i
         """, unsafe_allow_html=True)
     
     return st.session_state.selected_annotators
+
+def display_smart_annotator_selection_for_auto_submit(annotators: Dict[str, Dict], project_id: int):
+    """Annotator selection for auto-submit - only completed annotators"""
+    if not annotators:
+        st.warning("No annotators have submitted answers for this project yet.")
+        return []
+    
+    # Check completion status for each annotator
+    try:
+        with get_db_session() as session:
+            completed_annotators = {}
+            
+            for annotator_display, annotator_info in annotators.items():
+                user_id = annotator_info.get('id')
+                if user_id:
+                    try:
+                        progress = calculate_user_overall_progress(user_id=user_id, project_id=project_id, session=session)
+                        if progress >= 100:
+                            completed_annotators[annotator_display] = annotator_info
+                    except:
+                        pass  # Skip if can't check progress
+    except:
+        completed_annotators = {}
+    
+    auto_submit_key = f"auto_submit_annotators_{project_id}"
+    if auto_submit_key not in st.session_state:
+        st.session_state[auto_submit_key] = list(completed_annotators.keys())
+    
+    with st.container():
+        st.markdown("#### 👥 Select Completed Annotators for Auto-Submit")
+        st.caption("Only annotators who completed the entire project can be used for auto-submit")
+        
+        if not completed_annotators:
+            st.warning("No completed annotators available for auto-submit.")
+            return []
+        
+        btn_col1, btn_col2 = st.columns(2)
+        with btn_col1:
+            if st.button("✅ Select All Completed", key=f"select_all_auto_submit_{project_id}", use_container_width=True):
+                st.session_state[auto_submit_key] = list(completed_annotators.keys())
+                st.rerun()
+        
+        with btn_col2:
+            if st.button("❌ Clear All", key=f"clear_all_auto_submit_{project_id}", use_container_width=True):
+                st.session_state[auto_submit_key] = []
+                st.rerun()
+        
+        # Selection checkboxes
+        updated_selection = []
+        display_annotator_checkboxes(completed_annotators, project_id, "auto_submit", updated_selection, disabled=False)
+        
+        if set(updated_selection) != set(st.session_state[auto_submit_key]):
+            st.session_state[auto_submit_key] = updated_selection
+            st.rerun()
+        
+        # Status display
+        selected_count = len(st.session_state[auto_submit_key])
+        total_count = len(completed_annotators)
+        
+        status_color = COLORS['success'] if selected_count > 0 else COLORS['secondary']
+        status_text = f"📊 {selected_count} selected of {total_count} completed annotators"
+        
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, {status_color}15, {status_color}08); border: 1px solid {status_color}40; border-radius: 8px; padding: 8px 16px; margin: 12px 0; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.1);">
+            <div style="color: {status_color}; font-weight: 600; font-size: 0.9rem;">{status_text}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    return st.session_state[auto_submit_key]
+
+def display_annotator_checkboxes(annotators: Dict[str, Dict], project_id: int, section: str, updated_selection: List[str], disabled: bool = False):
+    """Helper function to display annotator checkboxes"""
+    num_annotators = len(annotators)
+    if num_annotators <= 3:
+        num_cols = num_annotators
+    elif num_annotators <= 8:
+        num_cols = 4
+    else:
+        num_cols = 5
+    
+    annotator_items = list(annotators.items())
+    
+    for row_start in range(0, num_annotators, num_cols):
+        cols = st.columns(num_cols)
+        row_annotators = annotator_items[row_start:row_start + num_cols]
+        
+        for i, (annotator_display, annotator_info) in enumerate(row_annotators):
+            with cols[i]:
+                if " (" in annotator_display and annotator_display.endswith(")"):
+                    full_name = annotator_display.split(" (")[0]
+                    initials = annotator_display.split(" (")[1][:-1]
+                else:
+                    full_name = annotator_display
+                    initials = annotator_display[:2].upper()
+                
+                email = annotator_info.get('email', '')
+                user_id = annotator_info.get('id', '')
+                user_role = annotator_info.get('role', 'human')
+                
+                # Enhanced display name for model users
+                display_name = annotator_display
+                status_icon = "⏳" if disabled else "✅"
+                if user_role == "model":
+                    display_name = f"🤖 {display_name}"
+                else:
+                    display_name = f"{status_icon} {display_name}"
+                
+                tooltip = f"Email: {email}\nID: {user_id}\nRole: {user_role}"
+                if user_role == "model":
+                    tooltip += "\nType: AI Model"
+                if disabled:
+                    tooltip += "\nStatus: Incomplete - cannot select"
+                
+                checkbox_key = f"annotator_cb_{project_id}_{section}_{row_start + i}"
+                is_selected = annotator_display in st.session_state.selected_annotators and not disabled
+                
+                checkbox_value = st.checkbox(
+                    display_name,
+                    value=is_selected,
+                    key=checkbox_key,
+                    help=tooltip,
+                    disabled=disabled
+                )
+                
+                if checkbox_value and not disabled:
+                    updated_selection.append(annotator_display)
 
 def display_project_groups_as_expanders(gt_data: Dict, video_info: Dict[str, Any], session: Session):
     """Display project groups with projects as expanders (no nested expanders)"""
@@ -2241,7 +2356,8 @@ def get_project_ground_truth_for_video(video_id: int, project_id: int, session: 
                                 "modified_at": gt_data["Modified At"]
                             }
                             has_group_data = True
-                except Exception:
+                except Exception as e:
+                    print(f"Error getting ground truth: {e}")
                     pass
                 
                 # Always include question even if no GT yet (for editing)
@@ -2367,11 +2483,11 @@ def ground_truth_criteria_search(session: Session):
         
         with add_col3:
             if selected_question:
-                question_obj = QuestionService.get_question_by_id(question_id=selected_question["id"], session=session)
-                if question_obj.options:
+                question_data = QuestionService.get_question_by_id(question_id=selected_question["id"], session=session)
+                if question_data["options"]:
                     selected_answer = st.selectbox(
                         "Required Answer",
-                        question_obj.options,
+                        question_data["options"],
                         key="criteria_answer_select"
                     )
                 else:
@@ -2709,7 +2825,8 @@ def display_criteria_question_group_editor(video_info: Dict, project_id: int, us
                 video_id=video_info["id"], project_id=project_id, 
                 question_group_id=group_id, session=session
             )
-        except:
+        except Exception as e:
+            print(f"Error getting ground truth: {e}")
             pass
         
         # Initialize answer review states (same as video search)
@@ -2759,7 +2876,8 @@ def display_criteria_question_group_editor(video_info: Dict, project_id: int, us
                                     video_id=video_info["id"], project_id=project_id, 
                                     question_id=question_id, session=session
                                 )
-                        except:
+                        except Exception as e:
+                            print(f"Error checking question modified by admin: {e}")
                             pass
                     
                     # Add criteria highlighting
@@ -3065,7 +3183,8 @@ def display_completion_question_group_editor(video_info: Dict, project_id: int, 
                 video_id=video_info["id"], project_id=project_id, 
                 question_group_id=group_id, session=session
             )
-        except:
+        except Exception as e:
+            print(f"Error getting ground truth: {e}")
             pass
         
         # Initialize answer review states
@@ -3111,7 +3230,8 @@ def display_completion_question_group_editor(video_info: Dict, project_id: int, 
                                     video_id=video_info["id"], project_id=project_id, 
                                     question_id=question_id, session=session
                                 )
-                        except:
+                        except Exception as e:
+                            print(f"Error checking question modified by admin: {e}")
                             pass
                     
                     # Display question with UNIQUE KEYS using completion prefix
@@ -3264,7 +3384,7 @@ def execute_ground_truth_search(criteria: List[Dict], match_all: bool, session: 
     return matching_videos
 
 def display_auto_submit_tab(project_id: int, user_id: int, role: str, videos: List[Dict], session: Session):
-    """Display auto-submit interface for both annotator and reviewer - FIXED CURRENT PAGE SCOPE"""
+    """Display auto-submit interface - different logic for annotator vs reviewer"""
     
     st.markdown("#### ⚡ Auto-Submit Controls")
     
@@ -3273,140 +3393,184 @@ def display_auto_submit_tab(project_id: int, user_id: int, role: str, videos: Li
     if role == "annotator":
         is_training_mode = check_project_has_full_ground_truth(project_id=project_id, session=session)
     
-    if is_training_mode:
-        st.markdown(f"""
-        <div style="{get_card_style('#ffc107')}text-align: center;">
-            <div style="color: #856404; font-weight: 500; font-size: 0.95rem;">
-                🎓 Training Mode - Auto-submit is disabled during training
+    if role == "annotator":
+        # Original annotator logic with auto-submit groups
+        if is_training_mode:
+            st.markdown(f"""
+            <div style="{get_card_style('#ffc107')}text-align: center;">
+                <div style="color: #856404; font-weight: 500; font-size: 0.95rem;">
+                    🎓 Training Mode - Auto-submit is disabled during training
+                </div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown(f"""
-        <div style="{get_card_style('#17a2b8')}text-align: center;">
-            <div style="color: #0c5460; font-weight: 500; font-size: 0.95rem;">
-                ⚡ Auto-submit using weighted majority voting with configurable thresholds
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown(f"""
+            <div style="{get_card_style('#17a2b8')}text-align: center;">
+                <div style="color: #0c5460; font-weight: 500; font-size: 0.95rem;">
+                    ⚡ Auto-submit using weighted majority voting with configurable thresholds
+                </div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Get project details
-    try:
-        project = ProjectService.get_project_by_id(project_id=project_id, session=session)
-        question_groups = get_schema_question_groups(schema_id=project.schema_id, session=session)
-    except Exception as e:
-        st.error(f"Error loading project details: {str(e)}")
-        return
-    
-    if not question_groups:
-        st.warning("No question groups found in this project.")
-        return
-    
-    # Get ALL project videos for "Entire project" scope
-    all_project_videos = get_project_videos(project_id=project_id, session=session)
-    
-    # CALCULATE CURRENT PAGE VIDEOS - THIS IS THE FIX!
-    # Get pagination settings from session state
-    videos_per_page = st.session_state.get(f"{role}_per_page", min(4, len(videos)))
-    page_key = f"{role}_current_page_{project_id}"
-    current_page = st.session_state.get(page_key, 0)
-    
-    # Calculate current page videos
-    start_idx = current_page * videos_per_page
-    end_idx = min(start_idx + videos_per_page, len(videos))
-    current_page_videos = videos[start_idx:end_idx]
-    
-    # Separate auto-submit and manual groups
-    auto_submit_groups = []
-    manual_groups = []
-    
-    for group in question_groups:
+            """, unsafe_allow_html=True)
+        
+        # Get project details
         try:
-            group_details = QuestionGroupService.get_group_details_with_verification(
-                group_id=group["ID"], session=session
-            )
-            if group_details.get("is_auto_submit", False):
-                auto_submit_groups.append(group)
-            else:
+            project = ProjectService.get_project_by_id(project_id=project_id, session=session)
+            question_groups = get_schema_question_groups(schema_id=project.schema_id, session=session)
+        except Exception as e:
+            st.error(f"Error loading project details: {str(e)}")
+            return
+        
+        if not question_groups:
+            st.warning("No question groups found in this project.")
+            return
+        
+        # Get ALL project videos for "Entire project" scope
+        all_project_videos = get_project_videos(project_id=project_id, session=session)
+        
+        # CALCULATE CURRENT PAGE VIDEOS
+        videos_per_page = st.session_state.get(f"{role}_per_page", min(4, len(videos)))
+        page_key = f"{role}_current_page_{project_id}"
+        current_page = st.session_state.get(page_key, 0)
+        
+        start_idx = current_page * videos_per_page
+        end_idx = min(start_idx + videos_per_page, len(videos))
+        current_page_videos = videos[start_idx:end_idx]
+        
+        # Separate auto-submit and manual groups
+        auto_submit_groups = []
+        manual_groups = []
+        
+        for group in question_groups:
+            try:
+                group_details = QuestionGroupService.get_group_details_with_verification(
+                    group_id=group["ID"], session=session
+                )
+                if group_details.get("is_auto_submit", False):
+                    auto_submit_groups.append(group)
+                else:
+                    manual_groups.append(group)
+            except:
                 manual_groups.append(group)
-        except:
-            manual_groups.append(group)
-    
-    # Scope selection - FIXED WITH CORRECT VIDEO COUNTS
-    st.markdown("### 🎯 Scope Selection")
-    scope_options = ["Current page of videos", "Entire project"]
-    
-    # DEFAULT TO "Entire project" if there are auto-submit groups
-    default_scope_index = 1 if auto_submit_groups else 0
-    
-    selected_scope = st.radio(
-        "Auto-submit scope:",
-        scope_options,
-        index=default_scope_index,
-        key=f"auto_submit_scope_{role}_{project_id}",
-        help="Choose whether to apply auto-submit to current page or all videos",
-        disabled=is_training_mode
-    )
-    
-    # Get videos based on scope - FIXED WITH PROPER CALCULATION
-    if selected_scope == "Current page of videos":
-        target_videos = current_page_videos
-        page_info = f" (page {current_page + 1})" if len(videos) > videos_per_page else ""
-        st.info(f"📊 Target: {len(target_videos)} videos on current page{page_info}")
         
-        # Show which videos are included
-        if len(target_videos) > 0:
-            video_names = [v["uid"] for v in target_videos[:5]]  # Show first 5
-            if len(target_videos) > 5:
-                video_list = f"{', '.join(video_names)}, +{len(target_videos)-5} more"
-            else:
-                video_list = ', '.join(video_names)
-            st.caption(f"Videos: {video_list}")
-    else:
-        target_videos = all_project_videos
-        st.info(f"📊 Target: {len(target_videos)} videos in entire project")
+        # Scope selection
+        st.markdown("### 🎯 Scope Selection")
+        scope_options = ["Current page of videos", "Entire project"]
         
-        # Show comparison with current page
-        if len(videos) != len(all_project_videos):
-            st.caption(f"Note: Current filtered/sorted view has {len(videos)} videos, but entire project scope uses all {len(all_project_videos)} videos")
-    
-    # Show auto-submit groups status - IMPROVED
-    if auto_submit_groups:
-        st.markdown("### 🤖 Automatic Processing")
+        default_scope_index = 1 if auto_submit_groups else 0
         
-        # Show which groups are auto-submit
-        auto_group_names = [group["Title"] for group in auto_submit_groups]
-        if len(auto_group_names) == 1:
-            st.info(f"Found **{auto_group_names[0]}** with auto-submit enabled")
-        else:
-            group_list = ", ".join(auto_group_names[:-1]) + f" and {auto_group_names[-1]}"
-            st.info(f"Found **{group_list}** with auto-submit enabled")
-        
-        if role == "annotator":
-            st.success("✅ These groups automatically submit default answers when you enter the project")
-        else:
-            if st.button("🚀 Run Auto-Submit Groups", 
-                        key=f"run_auto_groups_{role}_{project_id}",
-                        use_container_width=True,
-                        disabled=is_training_mode):
-                process_auto_submit_groups(auto_submit_groups, target_videos, project_id, user_id, role, session)
-    
-    # Manual controls for other groups
-    if manual_groups:
-        st.markdown("### 🎛️ Manual Auto-Submit Controls")
-        
-        # Question group selection
-        selected_group_names = st.multiselect(
-            "Select question groups for manual auto-submit:",
-            [group["Title"] for group in manual_groups],
-            key=f"manual_groups_{role}_{project_id}",
+        selected_scope = st.radio(
+            "Auto-submit scope:",
+            scope_options,
+            index=default_scope_index,
+            key=f"auto_submit_scope_{role}_{project_id}",
+            help="Choose whether to apply auto-submit to current page or all videos",
             disabled=is_training_mode
         )
         
-        selected_groups = [group for group in manual_groups if group["Title"] in selected_group_names]
+        # Get videos based on scope
+        if selected_scope == "Current page of videos":
+            target_videos = current_page_videos
+            page_info = f" (page {current_page + 1})" if len(videos) > videos_per_page else ""
+            st.info(f"📊 Target: {len(target_videos)} videos on current page{page_info}")
+        else:
+            target_videos = all_project_videos
+            st.info(f"📊 Target: {len(target_videos)} videos in entire project")
+        
+        # Show auto-submit groups status
+        if auto_submit_groups:
+            st.markdown("### 🤖 Automatic Processing")
+            
+            auto_group_names = [group["Title"] for group in auto_submit_groups]
+            if len(auto_group_names) == 1:
+                st.info(f"Found **{auto_group_names[0]}** with auto-submit enabled")
+            else:
+                group_list = ", ".join(auto_group_names[:-1]) + f" and {auto_group_names[-1]}"
+                st.info(f"Found **{group_list}** with auto-submit enabled")
+            
+            st.success("✅ These groups automatically submit default answers when you enter the project")
+        
+        # Manual controls for other groups
+        if manual_groups:
+            st.markdown("### 🎛️ Manual Auto-Submit Controls")
+            
+            selected_group_names = st.multiselect(
+                "Select question groups for manual auto-submit:",
+                [group["Title"] for group in manual_groups],
+                key=f"manual_groups_{role}_{project_id}",
+                disabled=is_training_mode
+            )
+            
+            selected_groups = [group for group in manual_groups if group["Title"] in selected_group_names]
+            
+            if selected_groups:
+                display_manual_auto_submit_controls(selected_groups, target_videos, project_id, user_id, role, session, is_training_mode)
+    
+    else:  # reviewer role - NO AUTO-SUBMIT GROUPS
+        st.markdown(f"""
+        <div style="{get_card_style('#17a2b8')}text-align: center;">
+            <div style="color: #0c5460; font-weight: 500; font-size: 0.95rem;">
+                🔍 Reviewer Auto-Submit - Create ground truth using weighted majority voting
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Get project details
+        try:
+            project = ProjectService.get_project_by_id(project_id=project_id, session=session)
+            question_groups = get_schema_question_groups(schema_id=project.schema_id, session=session)
+        except Exception as e:
+            st.error(f"Error loading project details: {str(e)}")
+            return
+        
+        if not question_groups:
+            st.warning("No question groups found in this project.")
+            return
+        
+        # Get ALL project videos
+        all_project_videos = get_project_videos(project_id=project_id, session=session)
+        
+        # Calculate current page videos  
+        videos_per_page = st.session_state.get(f"{role}_per_page", min(4, len(videos)))
+        page_key = f"{role}_current_page_{project_id}"
+        current_page = st.session_state.get(page_key, 0)
+        
+        start_idx = current_page * videos_per_page
+        end_idx = min(start_idx + videos_per_page, len(videos))
+        current_page_videos = videos[start_idx:end_idx]
+        
+        # Scope selection for reviewers
+        st.markdown("### 🎯 Scope Selection")
+        scope_options = ["Current page of videos", "Entire project"]
+        
+        selected_scope = st.radio(
+            "Auto-submit scope:",
+            scope_options,
+            index=1,  # Default to entire project for reviewers
+            key=f"auto_submit_scope_{role}_{project_id}",
+            help="Choose whether to apply auto-submit to current page or all videos"
+        )
+        
+        if selected_scope == "Current page of videos":
+            target_videos = current_page_videos
+            page_info = f" (page {current_page + 1})" if len(videos) > videos_per_page else ""
+            st.info(f"📊 Target: {len(target_videos)} videos on current page{page_info}")
+        else:
+            target_videos = all_project_videos
+            st.info(f"📊 Target: {len(target_videos)} videos in entire project")
+        
+        # Manual controls for ALL groups (no auto-submit groups for reviewers)
+        st.markdown("### 🎛️ Ground Truth Auto-Submit Controls")
+        
+        selected_group_names = st.multiselect(
+            "Select question groups for ground truth auto-submit:",
+            [group["Title"] for group in question_groups],
+            key=f"manual_groups_{role}_{project_id}"
+        )
+        
+        selected_groups = [group for group in question_groups if group["Title"] in selected_group_names]
         
         if selected_groups:
-            display_manual_auto_submit_controls(selected_groups, target_videos, project_id, user_id, role, session, is_training_mode)
+            display_manual_auto_submit_controls(selected_groups, target_videos, project_id, user_id, role, session, False)
 
 def process_auto_submit_groups(auto_groups: List[Dict], videos: List[Dict], project_id: int, user_id: int, role: str, session: Session):
     """Process groups with auto-submit flag enabled"""
@@ -3432,7 +3596,7 @@ def process_auto_submit_groups(auto_groups: List[Dict], videos: List[Dict], proj
         
         for question in questions:
             question_id = question["id"]
-            default_answer = question.get("default") or (question["options"][0] if question["type"] == "single" and question["options"] else "")
+            default_answer = question.get("default_option") or (question["options"][0] if question["type"] == "single" and question["options"] else "")
             
             virtual_responses_by_question[question_id] = [{
                 "name": "System Default",
@@ -3491,7 +3655,7 @@ def process_auto_submit_groups(auto_groups: List[Dict], videos: List[Dict], proj
         st.metric("Verification Failures", total_verification_failures, help="Failed verification function")
 
 def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: List[Dict], project_id: int, user_id: int, role: str, session: Session, is_training_mode: bool):
-    """Display manual auto-submit controls with clean, simplified UI"""
+    """Display manual auto-submit controls with enhanced reviewer logic"""
     
     # Get annotators for filtering (reviewer only)
     available_annotators = {}
@@ -3505,6 +3669,7 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
     virtual_responses_key = f"virtual_responses_{role}_{project_id}"
     thresholds_key = f"thresholds_{role}_{project_id}"
     selected_annotators_key = f"auto_submit_annotators_{role}_{project_id}"
+    user_weights_key = f"user_weights_{role}_{project_id}"
     
     # Initialize state
     if virtual_responses_key not in st.session_state:
@@ -3512,51 +3677,55 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
     if thresholds_key not in st.session_state:
         st.session_state[thresholds_key] = {}
     if selected_annotators_key not in st.session_state:
-        st.session_state[selected_annotators_key] = list(available_annotators.keys()) if available_annotators else []
+        st.session_state[selected_annotators_key] = []
+    if user_weights_key not in st.session_state:
+        st.session_state[user_weights_key] = {}
     
-    # Annotator selection (reviewer only)
+    # Annotator selection with weights (reviewer only)
     if role == "reviewer" and available_annotators:
-        st.markdown("#### 👥 Annotator Selection")
+        st.markdown("#### 👥 Annotator Selection & Weights")
+        st.caption("Only completed annotators can be selected for auto-submit")
         
-        annotator_col1, annotator_col2 = st.columns(2)
-        with annotator_col1:
-            if st.button("✅ Select All Annotators", key=f"select_all_auto_{project_id}", disabled=is_training_mode):
-                st.session_state[selected_annotators_key] = list(available_annotators.keys())
-                st.rerun()
+        # Use the new function for auto-submit (completed only)
+        selected_annotators = display_smart_annotator_selection_for_auto_submit(
+            annotators=available_annotators, project_id=project_id
+        )
+        st.session_state[selected_annotators_key] = selected_annotators
         
-        with annotator_col2:
-            if st.button("❌ Clear Selection", key=f"clear_all_auto_{project_id}", disabled=is_training_mode):
-                st.session_state[selected_annotators_key] = []
-                st.rerun()
+        # Get default user weights from service
+        try:
+            default_weights = AuthService.get_user_weights_for_project(project_id=project_id, session=session)
+        except:
+            default_weights = {}
         
-        # Annotator checkboxes
-        selected_annotators = []
-        annotator_names = list(available_annotators.keys())
-        
-        num_cols = min(4, len(annotator_names))
-        if num_cols > 0:
-            cols = st.columns(num_cols)
+        # Weight controls for selected annotators
+        if selected_annotators:
+            st.markdown("#### ⚖️ Annotator Weights")
+            st.info("💡 Adjust weights to influence voting. Higher weights = more influence.")
             
-            for i, annotator_name in enumerate(annotator_names):
-                with cols[i % num_cols]:
-                    is_selected = annotator_name in st.session_state[selected_annotators_key]
-                    
-                    checkbox_value = st.checkbox(
-                        annotator_name,
-                        value=is_selected,
-                        key=f"auto_annotator_{i}_{project_id}",
-                        disabled=is_training_mode
+            weight_cols = st.columns(min(3, len(selected_annotators)))
+            
+            for i, annotator_name in enumerate(selected_annotators):
+                annotator_info = available_annotators.get(annotator_name, {})
+                user_id_for_weight = annotator_info.get('id', '')
+                
+                with weight_cols[i % len(weight_cols)]:
+                    current_weight = st.session_state[user_weights_key].get(
+                        annotator_name, 
+                        default_weights.get(user_id_for_weight, 1.0)
                     )
                     
-                    if checkbox_value:
-                        selected_annotators.append(annotator_name)
-        
-        # Update state
-        if set(selected_annotators) != set(st.session_state[selected_annotators_key]):
-            st.session_state[selected_annotators_key] = selected_annotators
-            st.rerun()
-        
-        st.info(f"📊 Selected {len(st.session_state[selected_annotators_key])} annotators for voting")
+                    new_weight = st.number_input(
+                        f"Weight for {annotator_name[:15]}...",
+                        min_value=0.0,
+                        value=current_weight,
+                        step=0.1,
+                        key=f"auto_submit_weight_{annotator_name}_{project_id}",
+                        disabled=is_training_mode,
+                        help="Weight for this annotator's answers in voting"
+                    )
+                    
+                    st.session_state[user_weights_key][annotator_name] = new_weight
     
     # Get all questions for the selected groups
     all_questions_by_group = {}
@@ -3564,171 +3733,336 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
         questions = QuestionService.get_questions_by_group_id(group_id=group["ID"], session=session)
         all_questions_by_group[group["ID"]] = questions
     
-    # Simplified configuration interface
+    # Configuration interface - DIFFERENT FOR REVIEWER
     st.markdown("#### 🤖 Auto-Submit Configuration")
-    st.caption("Configure default answers and consensus thresholds for automated submission")
     
-    config_tabs = st.tabs(["🎯 Default Answers", "📊 Consensus Required"])
-    
-    with config_tabs[0]:
-        st.markdown("##### Set Default Answers")
-        st.info("💡 **Info:** Add default answers that will be used as 'votes' in the auto-submission process")
+    if role == "reviewer":
+        st.caption("Configure existing annotator answers as voting options with their weights")
         
-        # Same layout as consensus required
-        for group in selected_groups:
-            group_id = group["ID"]
-            group_title = group["Title"]
-            questions = all_questions_by_group.get(group_id, [])
+        config_tabs = st.tabs(["🎯 Existing Answers", "📊 Consensus Required"])
+        
+        with config_tabs[0]:
+            st.markdown("##### Use Existing Annotator Answers")
+            st.info("💡 **Info:** All available answer options from selected annotators with adjustable weights")
             
-            if not questions:
-                continue
-            
-            st.markdown(f"**📋 {group_title}**")
-            
-            # Two column layout for default answers
-            cols = st.columns(2)
-            
-            for i, question in enumerate(questions):
-                question_id = question["id"]
-                question_text = question["display_text"]  # Use display text
+            # Load existing answers for each question and use them as options
+            for group in selected_groups:
+                group_id = group["ID"]
+                group_title = group["Title"]
+                questions = all_questions_by_group.get(group_id, [])
                 
-                # Initialize if needed
-                if question_id not in st.session_state[virtual_responses_key]:
-                    st.session_state[virtual_responses_key][question_id] = []
+                if not questions:
+                    continue
                 
-                virtual_responses = st.session_state[virtual_responses_key][question_id]
+                st.markdown(f"**📋 {group_title}**")
                 
-                with cols[i % 2]:
-                    # Shortened question text
-                    short_text = question_text[:50] + "..." if len(question_text) > 50 else question_text
-                    st.markdown(f"*{short_text}*")
+                # Two column layout (same as annotator)
+                cols = st.columns(2)
+                
+                for i, question in enumerate(questions):
+                    question_id = question["id"]
+                    question_text = question["display_text"]
                     
-                    # Current default answers in compact format
-                    if virtual_responses:
-                        for j, vr in enumerate(virtual_responses):
-                            answer_col1, answer_col2, answer_col3 = st.columns([3, 1, 0.5])
+                    # Initialize if needed - use existing answers from annotators
+                    if question_id not in st.session_state[virtual_responses_key]:
+                        # Get existing answers from selected annotators
+                        virtual_responses = []
+                        try:
+                            if st.session_state[selected_annotators_key]:
+                                annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
+                                    display_names=st.session_state[selected_annotators_key], 
+                                    project_id=project_id, session=session
+                                )
+                                
+                                # Get unique answers from these annotators
+                                answers_df = AnnotatorService.get_question_answers(
+                                    question_id=question_id, project_id=project_id, session=session
+                                )
+                                
+                                if not answers_df.empty:
+                                    annotator_answers = answers_df[answers_df["User ID"].isin(annotator_user_ids)]
+                                    unique_answers = annotator_answers["Answer Value"].unique()
+                                    
+                                    # Get default weights for options
+                                    question_data = QuestionService.get_question_by_id(question_id=question_id, session=session)
+                                    default_option_weights = question_data.get("option_weights", [])
+                                    options = question_data.get("options", [])
+                                    
+                                    # Create mapping of option to default weight
+                                    option_to_weight = {}
+                                    if options and default_option_weights and len(options) == len(default_option_weights):
+                                        option_to_weight = dict(zip(options, default_option_weights))
+                                    
+                                    for answer in unique_answers:
+                                        if answer and str(answer).strip():
+                                            default_weight = option_to_weight.get(str(answer), 1.0)
+                                            virtual_responses.append({
+                                                "answer": str(answer),
+                                                "user_weight": default_weight
+                                            })
+                        except Exception as e:
+                            # Fallback to question options if available
+                            if question["type"] == "single" and question.get("options"):
+                                question_data = QuestionService.get_question_by_id(question_id=question_id, session=session)
+                                default_option_weights = question_data.get("option_weights", [])
+                                options = question_data.get("options", [])
+                                
+                                virtual_responses = []
+                                for j, option in enumerate(options):
+                                    weight = default_option_weights[j] if j < len(default_option_weights) else 1.0
+                                    virtual_responses.append({
+                                        "answer": option,
+                                        "user_weight": weight
+                                    })
+                        
+                        st.session_state[virtual_responses_key][question_id] = virtual_responses
+                    
+                    virtual_responses = st.session_state[virtual_responses_key][question_id]
+                    
+                    with cols[i % 2]:
+                        short_text = question_text[:50] + "..." if len(question_text) > 50 else question_text
+                        st.markdown(f"*{short_text}*")
+                        
+                        # Show options with weights - REVIEWER SPECIFIC UI
+                        if virtual_responses:
+                            st.caption("**Available answer options with adjustable weights:**")
                             
-                            with answer_col1:
-                                if question["type"] == "single":
-                                    # Use display values for options
-                                    options = question["options"]
-                                    display_values = question.get("display_values", options)
-                                    display_to_value = dict(zip(display_values, options))
-                                    value_to_display = dict(zip(options, display_values))
-                                    
-                                    # Get current display value
-                                    current_display = value_to_display.get(vr["answer"], display_values[0] if display_values else "")
-                                    current_index = display_values.index(current_display) if current_display in display_values else 0
-                                    
-                                    selected_display = st.selectbox(
-                                        "Answer",
-                                        display_values,
-                                        index=current_index,
-                                        key=f"ans_{question_id}_{j}",
+                            for j, vr in enumerate(virtual_responses):
+                                option_col1, option_col2 = st.columns([3, 1])
+                                
+                                with option_col1:
+                                    # DISABLED TEXTBOX instead of selectbox (same width as annotator)
+                                    st.text_input(
+                                        "Option",
+                                        value=str(vr["answer"]),
+                                        disabled=True,
+                                        key=f"reviewer_opt_display_{question_id}_{j}",
+                                        label_visibility="collapsed"
+                                    )
+                                
+                                with option_col2:
+                                    # Weight adjustment (same as annotator)
+                                    new_weight = st.number_input(
+                                        "Weight",
+                                        min_value=0.0,
+                                        value=vr["user_weight"],
+                                        step=0.1,
+                                        key=f"reviewer_opt_wt_{question_id}_{j}",
                                         disabled=is_training_mode,
                                         label_visibility="collapsed"
                                     )
-                                    # Convert back to actual value
-                                    vr["answer"] = display_to_value[selected_display]
-                                else:
-                                    new_answer = st.text_input(
-                                        "Answer",
-                                        value=vr["answer"],
-                                        key=f"ans_{question_id}_{j}",
-                                        disabled=is_training_mode,
-                                        label_visibility="collapsed",
-                                        placeholder="Default answer..."
-                                    )
-                                    vr["answer"] = new_answer
+                                    vr["user_weight"] = new_weight
+                        else:
+                            st.caption("No annotator answers found for this question")
                             
-                            with answer_col2:
-                                new_weight = st.number_input(
-                                    "Weight",
-                                    min_value=0.0,
-                                    value=vr["user_weight"],
-                                    step=0.1,
-                                    key=f"wt_{question_id}_{j}",
-                                    disabled=is_training_mode,
-                                    label_visibility="collapsed"
-                                )
-                                vr["user_weight"] = new_weight
-                            
-                            with answer_col3:
-                                if st.button("🗑️", key=f"rm_{question_id}_{j}", disabled=is_training_mode, help="Remove"):
-                                    st.session_state[virtual_responses_key][question_id].pop(j)
+                            # For single choice questions, fall back to question options
+                            if question["type"] == "single" and question.get("options"):
+                                if st.button(f"+ Load Question Options", key=f"load_opts_reviewer_{question_id}", disabled=is_training_mode):
+                                    question_data = QuestionService.get_question_by_id(question_id=question_id, session=session)
+                                    default_option_weights = question_data.get("option_weights", [])
+                                    options = question_data.get("options", [])
+                                    
+                                    option_responses = []
+                                    for k, option in enumerate(options):
+                                        weight = default_option_weights[k] if k < len(default_option_weights) else 1.0
+                                        option_responses.append({
+                                            "answer": option,
+                                            "user_weight": weight
+                                        })
+                                    st.session_state[virtual_responses_key][question_id] = option_responses
                                     st.rerun()
-                    
-                    # Add button
-                    if st.button(f"+ Add Default", key=f"add_{question_id}", disabled=is_training_mode, use_container_width=True):
-                        # Use actual default value, not display value
-                        default_answer = question.get("default") or (question["options"][0] if question["type"] == "single" and question["options"] else "")
-                        st.session_state[virtual_responses_key][question_id].append({
-                            "answer": default_answer,
-                            "user_weight": 1.0
-                        })
-                        st.rerun()
-    
-    with config_tabs[1]:
-        st.markdown("##### Consensus Thresholds")
-        st.info("🎯 **Tip:** 100% = requires full consensus, 50% = requires majority vote")
         
-        # Simple grid for thresholds
-        for group in selected_groups:
-            group_id = group["ID"]
-            group_title = group["Title"]
-            questions = all_questions_by_group.get(group_id, [])
+        with config_tabs[1]:
+            st.markdown("##### Consensus Thresholds")
+            st.info("🎯 **Tip:** 100% = requires full consensus, 50% = requires majority vote")
             
-            if not questions:
-                continue
-            
-            st.markdown(f"**📋 {group_title}**")
-            
-            # Two column layout for thresholds
-            cols = st.columns(2)
-            
-            for i, question in enumerate(questions):
-                question_id = question["id"]
-                question_text = question["display_text"]  # Use display text
+            for group in selected_groups:
+                group_id = group["ID"]
+                group_title = group["Title"]
+                questions = all_questions_by_group.get(group_id, [])
                 
-                # Initialize threshold
-                if question_id not in st.session_state[thresholds_key]:
-                    st.session_state[thresholds_key][question_id] = 100.0
+                if not questions:
+                    continue
                 
-                with cols[i % 2]:
-                    # Shortened question text
-                    short_text = question_text[:50] + "..." if len(question_text) > 50 else question_text
+                st.markdown(f"**📋 {group_title}**")
+                
+                cols = st.columns(2)
+                
+                for i, question in enumerate(questions):
+                    question_id = question["id"]
+                    question_text = question["display_text"]
                     
-                    new_threshold = st.slider(
-                        short_text,
-                        min_value=0.0,
-                        max_value=100.0,
-                        value=st.session_state[thresholds_key][question_id],
-                        step=10.0,
-                        key=f"thresh_{question_id}",
-                        disabled=is_training_mode,
-                        format="%g%%"
-                    )
-                    st.session_state[thresholds_key][question_id] = new_threshold
+                    if question_id not in st.session_state[thresholds_key]:
+                        st.session_state[thresholds_key][question_id] = 50.0  # Default to majority for reviewers
+                    
+                    with cols[i % 2]:
+                        short_text = question_text[:50] + "..." if len(question_text) > 50 else question_text
+                        
+                        new_threshold = st.slider(
+                            short_text,
+                            min_value=0.0,
+                            max_value=100.0,
+                            value=st.session_state[thresholds_key][question_id],
+                            step=10.0,
+                            key=f"reviewer_thresh_{question_id}",
+                            disabled=is_training_mode,
+                            format="%g%%"
+                        )
+                        st.session_state[thresholds_key][question_id] = new_threshold
+    
+    else:  # Annotator role - original logic
+        st.caption("Configure default answers and consensus thresholds for automated submission")
+        
+        config_tabs = st.tabs(["🎯 Default Answers", "📊 Consensus Required"])
+        
+        with config_tabs[0]:
+            st.markdown("##### Set Default Answers")
+            st.info("💡 **Info:** Add default answers that will be used as 'votes' in the auto-submission process")
+            
+            for group in selected_groups:
+                group_id = group["ID"]
+                group_title = group["Title"]
+                questions = all_questions_by_group.get(group_id, [])
+                
+                if not questions:
+                    continue
+                
+                st.markdown(f"**📋 {group_title}**")
+                
+                cols = st.columns(2)
+                
+                for i, question in enumerate(questions):
+                    question_id = question["id"]
+                    question_text = question["display_text"]
+                    
+                    if question_id not in st.session_state[virtual_responses_key]:
+                        st.session_state[virtual_responses_key][question_id] = []
+                    
+                    virtual_responses = st.session_state[virtual_responses_key][question_id]
+                    
+                    with cols[i % 2]:
+                        short_text = question_text[:50] + "..." if len(question_text) > 50 else question_text
+                        st.markdown(f"*{short_text}*")
+                        
+                        # Current default answers
+                        if virtual_responses:
+                            for j, vr in enumerate(virtual_responses):
+                                answer_col1, answer_col2, answer_col3 = st.columns([3, 1, 0.5])
+                                
+                                with answer_col1:
+                                    if question["type"] == "single":
+                                        options = question["options"]
+                                        display_values = question.get("display_values", options)
+                                        display_to_value = dict(zip(display_values, options))
+                                        value_to_display = dict(zip(options, display_values))
+                                        
+                                        current_display = value_to_display.get(vr["answer"], display_values[0] if display_values else "")
+                                        current_index = display_values.index(current_display) if current_display in display_values else 0
+                                        
+                                        selected_display = st.selectbox(
+                                            "Answer",
+                                            display_values,
+                                            index=current_index,
+                                            key=f"annotator_ans_{question_id}_{j}",
+                                            disabled=is_training_mode,
+                                            label_visibility="collapsed"
+                                        )
+                                        vr["answer"] = display_to_value[selected_display]
+                                    else:
+                                        new_answer = st.text_input(
+                                            "Answer",
+                                            value=vr["answer"],
+                                            key=f"annotator_ans_{question_id}_{j}",
+                                            disabled=is_training_mode,
+                                            label_visibility="collapsed",
+                                            placeholder="Default answer..."
+                                        )
+                                        vr["answer"] = new_answer
+                                
+                                with answer_col2:
+                                    new_weight = st.number_input(
+                                        "Weight",
+                                        min_value=0.0,
+                                        value=vr["user_weight"],
+                                        step=0.1,
+                                        key=f"annotator_wt_{question_id}_{j}",
+                                        disabled=is_training_mode,
+                                        label_visibility="collapsed"
+                                    )
+                                    vr["user_weight"] = new_weight
+                                
+                                with answer_col3:
+                                    if st.button("🗑️", key=f"annotator_rm_{question_id}_{j}", disabled=is_training_mode, help="Remove"):
+                                        st.session_state[virtual_responses_key][question_id].pop(j)
+                                        st.rerun()
+                        
+                        # Add button (ONLY FOR ANNOTATOR)
+                        if st.button(f"+ Add Default", key=f"annotator_add_{question_id}", disabled=is_training_mode, use_container_width=True):
+                            default_answer = question.get("default") or (question["options"][0] if question["type"] == "single" and question["options"] else "")
+                            st.session_state[virtual_responses_key][question_id].append({
+                                "answer": default_answer,
+                                "user_weight": 1.0
+                            })
+                            st.rerun()
+        
+        with config_tabs[1]:
+            st.markdown("##### Consensus Thresholds")
+            st.info("🎯 **Tip:** 100% = requires full consensus, 50% = requires majority vote")
+            
+            for group in selected_groups:
+                group_id = group["ID"]
+                group_title = group["Title"]
+                questions = all_questions_by_group.get(group_id, [])
+                
+                if not questions:
+                    continue
+                
+                st.markdown(f"**📋 {group_title}**")
+                
+                cols = st.columns(2)
+                
+                for i, question in enumerate(questions):
+                    question_id = question["id"]
+                    question_text = question["display_text"]
+                    
+                    if question_id not in st.session_state[thresholds_key]:
+                        st.session_state[thresholds_key][question_id] = 100.0
+                    
+                    with cols[i % 2]:
+                        short_text = question_text[:50] + "..." if len(question_text) > 50 else question_text
+                        
+                        new_threshold = st.slider(
+                            short_text,
+                            min_value=0.0,
+                            max_value=100.0,
+                            value=st.session_state[thresholds_key][question_id],
+                            step=10.0,
+                            key=f"annotator_thresh_{question_id}",
+                            disabled=is_training_mode,
+                            format="%g%%"
+                        )
+                        st.session_state[thresholds_key][question_id] = new_threshold
     
     # Enhanced action buttons
     st.markdown("#### ⚡ Execute Auto-Submit")
     
     # Summary of current configuration
-    total_default_answers = sum(len(responses) for responses in st.session_state[virtual_responses_key].values())
+    total_selected_annotators = len(st.session_state[selected_annotators_key]) if role == "reviewer" else 0
     total_questions = sum(len(questions) for questions in all_questions_by_group.values())
+    
+    summary_text = f"📊 Configuration: {total_questions} questions"
+    if role == "reviewer":
+        summary_text += f" • {total_selected_annotators} annotators selected"
     
     st.markdown(f"""
     <div style="background: linear-gradient(135deg, #e8f5e8, #d4f1d4); border: 2px solid #28a745; border-radius: 12px; padding: 16px; margin: 16px 0; text-align: center;">
         <div style="color: #155724; font-weight: 600; font-size: 1rem;">
-            📊 Configuration Summary
-        </div>
-        <div style="color: #155724; margin-top: 8px; font-size: 0.9rem;">
-            {total_default_answers} default answers configured across {total_questions} questions
+            {summary_text}
         </div>
     </div>
     """, unsafe_allow_html=True)
     
-    action_col1, action_col2 = st.columns(2)
+    action_col1, action_col2, action_col3 = st.columns(3)
     
     with action_col1:
         if st.button("🔍 Preview Results", 
@@ -3739,6 +4073,14 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
             run_preload_preview(selected_groups, videos, project_id, user_id, role, session)
     
     with action_col2:
+        if st.button("⚙️ Preload Options", 
+                    key=f"preload_options_{role}_{project_id}",
+                    use_container_width=True,
+                    disabled=is_training_mode,
+                    help="Preload options without auto-submitting"):
+            run_preload_options_only(selected_groups, videos, project_id, user_id, role, session)
+    
+    with action_col3:
         if st.button("🚀 Execute Auto-Submit", 
                     key=f"auto_submit_{role}_{project_id}",
                     use_container_width=True,
@@ -3746,6 +4088,162 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
                     type="primary",
                     help="Run auto-submit with current configuration"):
             run_manual_auto_submit(selected_groups, videos, project_id, user_id, role, session)
+
+def run_preload_options_only(selected_groups: List[Dict], videos: List[Dict], project_id: int, user_id: int, role: str, session: Session):
+    """Preload options without auto-submitting - useful for reviewers to see voting results"""
+    
+    virtual_responses_key = f"virtual_responses_{role}_{project_id}"
+    thresholds_key = f"thresholds_{role}_{project_id}"
+    selected_annotators_key = f"auto_submit_annotators_{role}_{project_id}"
+    user_weights_key = f"user_weights_{role}_{project_id}"
+    
+    virtual_responses_by_question = st.session_state.get(virtual_responses_key, {})
+    thresholds = st.session_state.get(thresholds_key, {})
+    selected_annotators = st.session_state.get(selected_annotators_key, [])
+    user_weights = st.session_state.get(user_weights_key, {})
+    
+    # Get user IDs and weights
+    include_user_ids = []
+    user_weight_map = {}
+    
+    if role == "reviewer":
+        try:
+            annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
+                display_names=selected_annotators, project_id=project_id, session=session
+            )
+            include_user_ids = annotator_user_ids
+            
+            # Map user weights
+            for annotator_name in selected_annotators:
+                try:
+                    annotator_info = get_all_project_annotators(project_id=project_id, session=session)
+                    if annotator_name in annotator_info:
+                        user_id_for_weight = annotator_info[annotator_name].get('id')
+                        if user_id_for_weight:
+                            weight = user_weights.get(annotator_name, 1.0)
+                            user_weight_map[user_id_for_weight] = weight
+                except:
+                    continue
+        except:
+            include_user_ids = []
+    else:
+        include_user_ids = [user_id]
+    
+    st.markdown("### 🔍 Options Preload Results")
+    st.caption("Showing voting analysis without submitting any answers")
+    
+    preload_results = []
+    
+    # Preview first few videos to avoid overwhelming
+    preview_videos = videos[:5] if len(videos) > 5 else videos
+    
+    for group in selected_groups:
+        group_id = group["ID"]
+        group_title = group["Title"]
+        
+        for video in preview_videos:
+            video_id = video["id"]
+            video_uid = video["uid"]
+            
+            try:
+                # Use the calculation function without submitting
+                result = AutoSubmitService.calculate_auto_submit_answers(
+                    video_id=video_id, project_id=project_id, question_group_id=group_id,
+                    include_user_ids=include_user_ids, virtual_responses_by_question=virtual_responses_by_question,
+                    thresholds=thresholds, session=session, user_weights=user_weight_map
+                )
+                
+                preload_results.append({
+                    "group": group_title,
+                    "video": video_uid,
+                    "would_submit": len(result["answers"]),
+                    "would_skip": len(result["skipped"]),
+                    "threshold_failures": len(result["threshold_failures"]),
+                    "answers": result["answers"],
+                    "vote_details": result["vote_details"],
+                    "voting_summary": result.get("voting_summary", {})
+                })
+                
+            except Exception as e:
+                preload_results.append({
+                    "group": group_title,
+                    "video": video_uid,
+                    "error": str(e)
+                })
+    
+    # Enhanced results display with voting details
+    if preload_results:
+        success_count = sum(1 for r in preload_results if "error" not in r and r["would_submit"] > 0)
+        total_count = len(preload_results)
+        
+        # Summary metrics
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("🎯 Ready to Submit", success_count)
+        with col2:
+            st.metric("⏭️ Would Skip", total_count - success_count)
+        with col3:
+            success_rate = (success_count / total_count * 100) if total_count > 0 else 0
+            st.metric("📊 Success Rate", f"{success_rate:.1f}%")
+        
+        # Detailed results with voting breakdown
+        for i, result in enumerate(preload_results):
+            if "error" in result:
+                st.error(f"❌ **{result['group']} - {result['video']}**: {result['error']}")
+            else:
+                status_color = COLORS['success'] if result['would_submit'] > 0 else COLORS['warning']
+                
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, {status_color}15, {status_color}08); border-left: 4px solid {status_color}; border-radius: 8px; padding: 12px; margin: 8px 0;">
+                    <div style="color: {status_color}; font-weight: 600; margin-bottom: 4px;">
+                        📹 {result['group']} - {result['video']}
+                    </div>
+                    <div style="color: #495057; font-size: 0.9rem;">
+                        Ready: {result['would_submit']} • Skip: {result['would_skip']} • Threshold failures: {result['threshold_failures']}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Show detailed voting breakdown for all results
+                with st.expander(f"🗳️ Voting analysis for {result['video']}", expanded=(i < 2)):
+                    if result["answers"]:
+                        st.markdown("**📊 Winning answers:**")
+                        for question, answer in result["answers"].items():
+                            st.write(f"**{question}**: {answer}")
+                    
+                    if result["vote_details"]:
+                        st.markdown("**🗳️ Vote breakdown:**")
+                        for question, vote_details in result["vote_details"].items():
+                            if vote_details:
+                                st.markdown(f"**{question}:**")
+                                total_weight = sum(vote_details.values())
+                                
+                                # Sort by weight descending
+                                sorted_votes = sorted(vote_details.items(), key=lambda x: x[1], reverse=True)
+                                
+                                for option, weight in sorted_votes:
+                                    percentage = (weight / total_weight * 100) if total_weight > 0 else 0
+                                    threshold = thresholds.get(question, 50.0)
+                                    
+                                    status_icon = "✅" if percentage >= threshold else "❌"
+                                    st.caption(f"  {status_icon} {option}: {weight:.2f} weight ({percentage:.1f}%)")
+                    
+                    if result.get("voting_summary"):
+                        st.markdown("**📈 Voting summary:**")
+                        summary = result["voting_summary"]
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.metric("Total Votes", summary.get("total_votes", 0))
+                            st.metric("Participating Annotators", summary.get("annotator_count", 0))
+                        with col2:
+                            st.metric("Average Confidence", f"{summary.get('avg_confidence', 0):.2f}")
+                            st.metric("Consensus Score", f"{summary.get('consensus_score', 0):.1f}%")
+        
+        if len(videos) > 5:
+            st.info(f"📊 Preview shows first 5 videos. Full execution would process all {len(videos)} videos.")
+    else:
+        st.warning("No preload results available")
 
 def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project_id: int, user_id: int, role: str, session: Session):
     """Run preload preview with enhanced results display"""
@@ -4944,6 +5442,7 @@ def auto_submit_for_annotator_on_load(video_id: int, project_id: int, user_id: i
                             continue
                             
                     except Exception as e:
+                        print(f"Error getting existing answers: {e}")
                         pass  # No existing answers, proceed with auto-submit
                     
                     # Create default system responses with better logic
@@ -4955,14 +5454,14 @@ def auto_submit_for_annotator_on_load(video_id: int, project_id: int, user_id: i
                         
                         # Better default answer logic
                         if question["type"] == "single":
-                            if question.get("default"):
-                                default_answer = question["default"]
+                            if question.get("default_option"):
+                                default_answer = question["default_option"]
                             elif question.get("options") and len(question["options"]) > 0:
                                 default_answer = question["options"][0]
                             else:
                                 default_answer = "No option available"
                         else:  # description type
-                            default_answer = question.get("default", "Auto-generated response")
+                            default_answer = question.get("default_option", "Auto-generated response")
                         
                         virtual_responses_by_question[question_id] = [{
                             "name": "System Default",
@@ -5061,7 +5560,8 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                         if question_id in question_map:
                             question_text = question_map[question_id]["text"]
                             gt_answers[question_text] = gt_row["Answer Value"]
-            except:
+            except Exception as e:
+                print(f"Error getting ground truth: {e}")
                 pass
         
         # Check if we have editable questions
@@ -5177,7 +5677,8 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                             if overall_progress >= 100:
                                 show_annotator_completion()
                                 return
-                        except:
+                        except Exception as e:
+                            print(f"Error calculating user overall progress: {e}")
                             pass
                         
                         if mode == "Training":
@@ -5227,7 +5728,8 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                                 if project_progress['completion_percentage'] >= 100:
                                     show_reviewer_completion()
                                     return
-                            except:
+                            except Exception as e:
+                                print(f"Error showing reviewer completion: {e}")
                                 pass
                             
                             st.success("✅ Ground truth submitted!")
@@ -6341,7 +6843,8 @@ def run_project_wide_auto_submit_on_entry(project_id: int, user_id: int, session
                             )
                             if video_answers and any(answer.strip() for answer in video_answers.values() if answer):
                                 has_answers = True
-                        except:
+                        except Exception as e:
+                            print(f"Error getting user answers: {e}")
                             pass
                         
                         if has_answers:
@@ -6358,14 +6861,14 @@ def run_project_wide_auto_submit_on_entry(project_id: int, user_id: int, session
                             question_id = question["id"]
                             
                             if question["type"] == "single":
-                                if question.get("default"):
-                                    default_answer = question["default"]
+                                if question.get("default_option"):
+                                    default_answer = question["default_option"]
                                 elif question.get("options") and len(question["options"]) > 0:
                                     default_answer = question["options"][0]
                                 else:
                                     continue  # Skip invalid questions
                             else:
-                                default_answer = question.get("default", "Auto-generated response")
+                                default_answer = question.get("default_option", "Auto-generated response")
                             
                             virtual_responses_by_question[question_id] = [{
                                 "name": "System Default",
@@ -6400,7 +6903,6 @@ def run_project_wide_auto_submit_on_entry(project_id: int, user_id: int, session
             time.sleep(0.1)
                         
     except Exception as e:
-        print(f"Error in run_project_wide_auto_submit_on_entry: {str(e)}")
         pass  # Silently fail to not disrupt user experience
         
 def display_project_view(user_id: int, role: str, session: Session):
@@ -6455,8 +6957,8 @@ def display_project_view(user_id: int, role: str, session: Session):
         st.error("No videos found in this project.")
         return
         
-    # Role-specific control panels with auto-submit tab added
-    if role in ["reviewer", "meta_reviewer"]:
+    # Role-specific control panels - NO AUTO-SUBMIT FOR META-REVIEWER
+    if role == "reviewer":
         st.markdown("---")
         
         if mode == "Training":
@@ -6603,6 +7105,86 @@ def display_project_view(user_id: int, role: str, session: Session):
         
         with auto_submit_tab:
             display_auto_submit_tab(project_id=project_id, user_id=user_id, role=role, videos=videos, session=session)
+    
+    elif role == "meta_reviewer":
+        st.markdown("---")
+        
+        # NO AUTO-SUBMIT TAB FOR META-REVIEWER
+        if mode == "Training":
+            analytics_tab, annotator_tab, sort_tab, filter_tab, order_tab, layout_tab = st.tabs([
+                "📊 Analytics", "👥 Annotators", "🔄 Sort", "🔍 Filter", "📋 Order", "🎛️ Layout"
+            ])
+            
+            with analytics_tab:
+                st.markdown("#### 🎯 Performance Insights")
+                
+                st.markdown(f"""
+                <div style="{get_card_style(COLORS['info'])}text-align: center;">
+                    <div style="color: #2980b9; font-weight: 500; font-size: 0.95rem;">
+                        📈 Access detailed accuracy analytics for all participants in this training project
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                display_accuracy_button_for_project(project_id=project_id, role=role, session=session)
+                
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, #f0f8ff, #e6f3ff); border-left: 4px solid {COLORS['info']}; border-radius: 8px; padding: 12px 16px; margin-top: 16px; font-size: 0.9rem; color: #2c3e50;">
+                    💡 <strong>Tip:</strong> Use analytics to identify patterns in annotator performance and areas for improvement.
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            annotator_tab, sort_tab, filter_tab, order_tab, layout_tab = st.tabs([
+                "👥 Annotators", "🔄 Sort", "🔍 Filter", "📋 Order", "🎛️ Layout"
+            ])
+        
+        with annotator_tab:
+            st.markdown("#### 👥 Annotator Management")
+            
+            st.markdown(f"""
+            <div style="{get_card_style('#9c27b0')}text-align: center;">
+                <div style="color: #7b1fa2; font-weight: 500; font-size: 0.95rem;">
+                    🎯 Select which annotators' responses to display during your review process
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            try:
+                annotators = get_all_project_annotators(project_id=project_id, session=session)
+                display_smart_annotator_selection(annotators=annotators, project_id=project_id)
+            except Exception as e:
+                st.error(f"Error loading annotators: {str(e)}")
+                st.session_state.selected_annotators = []
+            
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, #f0f8ff, #e6f3ff); border-left: 4px solid #9c27b0; border-radius: 8px; padding: 12px 16px; margin-top: 16px; font-size: 0.9rem; color: #2c3e50;">
+                💡 <strong>Tip:</strong> Select annotators whose responses you want to see alongside your review interface.
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with sort_tab:
+            display_enhanced_sort_tab(project_id=project_id, session=session)
+
+        with filter_tab:
+            display_enhanced_filter_tab(project_id=project_id, session=session)
+        
+        with order_tab:
+            # Same order tab logic as reviewer...
+            pass  # (Same as reviewer order tab code above)
+        
+        with layout_tab:
+            st.markdown("#### 🎛️ Video Layout Settings")
+            
+            st.markdown(f"""
+            <div style="{get_card_style(COLORS['warning'])}text-align: center;">
+                <div style="color: #856404; font-weight: 500; font-size: 0.95rem;">
+                    🎛️ Customize Your Video Display - Adjust how videos and questions are laid out
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            _display_video_layout_controls(videos, role)
+            st.info("💡 **Tip:** Adjust layout to optimize your workflow.")
     
     else:  # Annotator role
         st.markdown("---")
@@ -7124,7 +7706,7 @@ def _submit_answer_reviews(answer_reviews: Dict, video_id: int, project_id: int,
                         
                         if not answers_df.empty:
                             answer_row = answers_df[
-                                (answers_df["Question ID"] == int(question.id)) & 
+                                (answers_df["Question ID"] == int(question["id"])) & 
                                 (answers_df["User ID"] == int(annotator_user_id))
                             ]
                             
@@ -7474,7 +8056,8 @@ def _get_enhanced_options_for_reviewer(video_id: int, project_id: int, question_
                 question_gt = gt_df[gt_df["Question ID"] == question_id]
                 if not question_gt.empty:
                     gt_selection = question_gt.iloc[0]["Answer Value"]
-        except:
+        except Exception as e:
+            print(f"Error getting ground truth: {e}")
             pass
         
     except Exception as e:
@@ -7570,7 +8153,8 @@ def _display_enhanced_helper_text_answers(video_id: int, project_id: int, questi
                                 "is_gt": True,
                                 "display_name": "Ground Truth"
                             })
-            except:
+            except Exception as e:
+                print(f"Error getting ground truth: {e}")
                 pass
         
         # Add annotator answers
@@ -8292,7 +8876,7 @@ def admin_questions():
                                 
                                 st.text_input(
                                     "Question Text (immutable)",
-                                    value=current_question.text,
+                                    value=current_question["text"],
                                     key="admin_edit_question_text",
                                     disabled=True,
                                     help="Question text cannot be changed to preserve data integrity"
@@ -8300,24 +8884,24 @@ def admin_questions():
                                 
                                 new_display_text = st.text_input(
                                     "Question to display to user",
-                                    value=current_question.display_text,
+                                    value=current_question["display_text"],
                                     key="admin_edit_question_display_text"
                                 )
                                 
-                                st.markdown(f"**Question Type:** `{current_question.type}`")
+                                st.markdown(f"**Question Type:** `{current_question['type']}`")
                                 
                                 new_options = None
                                 new_default = None
                                 new_display_values = None
                                 new_option_weights = None
                                 
-                                if current_question.type == "single":
+                                if current_question["type"] == "single":
                                     st.markdown("**🎯 Options, Weights & Order Management:**")
                                     
-                                    current_options = current_question.options or []
-                                    current_display_values = current_question.display_values or current_options
-                                    current_option_weights = current_question.option_weights or [1.0] * len(current_options)
-                                    current_default = current_question.default_option or ""
+                                    current_options = current_question["options"] or []
+                                    current_display_values = current_question["display_values"] or current_options
+                                    current_option_weights = current_question["option_weights"] or [1.0] * len(current_options)
+                                    current_default = current_question["default_option"] or ""
                                     
                                     # Current options display
                                     st.markdown("**Current Options:**")
@@ -9217,7 +9801,8 @@ def admin_assignments():
                                                 if accuracy is not None:
                                                     color = get_accuracy_color(accuracy)
                                                     accuracy_info = f" <span style='color: {color}; font-weight: bold;'>[{accuracy:.1f}%]</span>"
-                                except Exception:
+                                except Exception as e:
+                                    print(f"Error getting accuracy data: {e}")
                                     pass
                             
                             # Build date info

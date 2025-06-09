@@ -14,12 +14,12 @@ def test_question_service_add_question(session):
         display_text="Test Question UI"
     )
     question = QuestionService.get_question_by_text("test question", session)
-    assert question.text == "test question"
-    assert question.display_text == "Test Question UI"
-    assert question.type == "single"
-    assert question.options == ["option1", "option2"]
-    assert question.display_values == ["Option 1", "Option 2"]
-    assert question.default_option == "option1"
+    assert question["text"] == "test question"
+    assert question["display_text"] == "Test Question UI"
+    assert question["type"] == "single"
+    assert question["options"] == ["option1", "option2"]
+    assert question["display_values"] == ["Option 1", "Option 2"]
+    assert question["default_option"] == "option1"
 
 def test_question_service_add_question_default_display_values(session):
     """Test adding a question without display values (should use options as display values, display_text defaults to text)."""
@@ -31,8 +31,8 @@ def test_question_service_add_question_default_display_values(session):
         session=session
     )
     question = QuestionService.get_question_by_text("test question", session)
-    assert question.display_values == ["option1", "option2"]
-    assert question.display_text == "test question"
+    assert question["display_values"] == ["option1", "option2"]
+    assert question["display_text"] == "test question"
 
 def test_question_service_add_question_mismatched_display_values(session):
     """Test adding a question with mismatched display values length."""
@@ -58,12 +58,12 @@ def test_question_service_add_question_description_no_display_values(session):
         display_text=None
     )
     question = QuestionService.get_question_by_text("test question", session)
-    assert question.text == "test question"
-    assert question.display_text == "test question"
-    assert question.type == "description"
-    assert question.options is None
-    assert question.display_values is None
-    assert question.default_option is None
+    assert question["text"] == "test question"
+    assert question["display_text"] == "test question"
+    assert question["type"] == "description"
+    assert question["options"] is None
+    assert question["display_values"] is None
+    assert question["default_option"] is None
 
 def test_question_service_add_question_duplicate(session, test_question):
     """Test adding a question with duplicate text."""
@@ -112,8 +112,8 @@ def test_question_service_add_question_invalid_default(session):
 def test_question_service_get_question_by_text(session, test_question):
     """Test getting a question by text."""
     question = QuestionService.get_question_by_text("test question", session)
-    assert question.id == test_question.id
-    assert question.text == "test question"
+    assert question["id"] == test_question["id"]
+    assert question["text"] == "test question"
 
 def test_question_service_get_question_by_text_not_found(session):
     """Test getting a non-existent question by text."""
@@ -122,9 +122,9 @@ def test_question_service_get_question_by_text_not_found(session):
 
 def test_question_service_archive_question(session, test_question):
     """Test archiving a question."""
-    QuestionService.archive_question(test_question.id, session)
-    question = QuestionService.get_question_by_id(test_question.id, session)
-    assert question.is_archived
+    QuestionService.archive_question(test_question["id"], session)
+    question = QuestionService.get_question_by_id(test_question["id"], session)
+    assert question["archived"]
 
 def test_question_service_archive_question_not_found(session):
     """Test archiving a non-existent question."""
@@ -133,18 +133,18 @@ def test_question_service_archive_question_not_found(session):
 
 def test_question_service_get_question_by_id(session, test_question):
     """Test getting a question by ID."""
-    question = QuestionService.get_question_by_id(test_question.id, session)
-    assert question.text == "test question"
-    assert question.type == "single"
-    assert question.options == ["option1", "option2"]
-    assert question.default_option == "option1"
+    question = QuestionService.get_question_by_id(test_question["id"], session)
+    assert question["text"] == "test question"
+    assert question["type"] == "single"
+    assert question["options"] == ["option1", "option2"]
+    assert question["default_option"] == "option1"
 
 def test_question_service_get_all_questions(session, test_question):
     """Test getting all questions."""
     questions = QuestionService.get_all_questions(session)
     assert isinstance(questions, pd.DataFrame)
     assert len(questions) == 1
-    assert questions.iloc[0]["ID"] == test_question.id
+    assert questions.iloc[0]["ID"] == test_question["id"]
     assert questions.iloc[0]["Text"] == "test question"
     assert questions.iloc[0]["Type"] == "single"
     assert questions.iloc[0]["Options"] == "option1, option2"
@@ -157,35 +157,35 @@ def test_question_service_get_all_questions_empty(session):
 
 def test_question_service_get_all_questions_with_archived(session, test_question):
     """Test getting all questions including archived ones."""
-    QuestionService.archive_question(test_question.id, session)
+    QuestionService.archive_question(test_question["id"], session)
     questions = QuestionService.get_all_questions(session)
     assert len(questions) == 1
-    assert questions.iloc[0]["ID"] == test_question.id
+    assert questions.iloc[0]["ID"] == test_question["id"]
     assert questions.iloc[0]["Archived"] == True
 
 def test_question_service_edit_question(session, test_question):
     """Test editing a question (only display_text and options, not text)."""
     QuestionService.edit_question(
-        question_id=test_question.id,
+        question_id=test_question["id"],
         new_display_text="Updated UI Text",
         new_opts=["option1", "option2", "option3"],
         new_default="option3",
         session=session,
         new_display_values=["Option 1", "Option 2", "Option 3"]
     )
-    question = QuestionService.get_question_by_id(test_question.id, session)
-    assert question.text == "test question"
-    assert question.display_text == "Updated UI Text"
-    assert question.type == "single"
-    assert question.options == ["option1", "option2", "option3"]
-    assert question.display_values == ["Option 1", "Option 2", "Option 3"]
-    assert question.default_option == "option3"
+    question = QuestionService.get_question_by_id(test_question["id"], session)
+    assert question["text"] == "test question"
+    assert question["display_text"] == "Updated UI Text"
+    assert question["type"] == "single"
+    assert question["options"] == ["option1", "option2", "option3"]
+    assert question["display_values"] == ["Option 1", "Option 2", "Option 3"]
+    assert question["default_option"] == "option3"
 
 def test_question_service_edit_question_maintain_display_values(session, test_question):
     """Test editing a question while maintaining existing display values."""
     # First add display values
     QuestionService.edit_question(
-        question_id=test_question.id,
+        question_id=test_question["id"],
         new_display_text="Test Question",
         new_opts=["option1", "option2"],
         new_default="option1",
@@ -195,22 +195,22 @@ def test_question_service_edit_question_maintain_display_values(session, test_qu
     
     # Then edit options while maintaining display values
     QuestionService.edit_question(
-        question_id=test_question.id,
+        question_id=test_question["id"],
         new_display_text="Test Question",
         new_opts=["option1", "option2", "option3"],
         new_default="option1",
         session=session
     )
-    question = QuestionService.get_question_by_id(test_question.id, session)
-    assert question.options == ["option1", "option2", "option3"]
-    assert question.display_values == ["Option 1", "Option 2", "option3"]  # New option uses its value as display
-    assert question.display_text == "Test Question"
+    question = QuestionService.get_question_by_id(test_question["id"], session)
+    assert question["options"] == ["option1", "option2", "option3"]
+    assert question["display_values"] == ["Option 1", "Option 2", "option3"]  # New option uses its value as display
+    assert question["display_text"] == "Test Question"
 
 def test_question_service_edit_question_mismatched_display_values(session, test_question):
     """Test editing a question with mismatched display values length."""
     with pytest.raises(ValueError, match="Number of display values must match number of options"):
         QuestionService.edit_question(
-            question_id=test_question.id,
+            question_id=test_question["id"],
             new_display_text="test question",
             new_opts=["option1", "option2", "option3"],
             new_default="option1",
@@ -223,7 +223,7 @@ def test_question_service_edit_question_description_no_display_values(session, t
     # Try to edit a single-type question to be a description-type question
     with pytest.raises(ValueError, match="Cannot change question type"):
         QuestionService.edit_question(
-            question_id=test_question.id,
+            question_id=test_question["id"],
             new_display_text="test question edited",
             new_opts=None,  # Try to remove options
             new_default=None,  # Try to remove default
@@ -232,11 +232,11 @@ def test_question_service_edit_question_description_no_display_values(session, t
         )
     
     # Verify the question remains unchanged
-    updated_question = QuestionService.get_question_by_id(test_question.id, session)
-    assert updated_question.type == "single"
-    assert updated_question.options == ["option1", "option2"]
-    assert updated_question.display_values == ["Option 1", "Option 2"]
-    assert updated_question.default_option == "option1"
+    updated_question = QuestionService.get_question_by_id(test_question["id"], session)
+    assert updated_question["type"] == "single"
+    assert updated_question["options"] == ["option1", "option2"]
+    assert updated_question["display_values"] == ["Option 1", "Option 2"]
+    assert updated_question["default_option"] == "option1"
 
 def test_question_service_edit_question_not_found(session):
     """Test editing a non-existent question."""
@@ -251,32 +251,11 @@ def test_question_service_edit_question_not_found(session):
 
 def test_question_service_edit_question_archived(session, test_question):
     """Test editing an archived question."""
-    QuestionService.archive_question(test_question.id, session)
+    QuestionService.archive_question(test_question["id"], session)
     with pytest.raises(ValueError, match="is archived"):
         QuestionService.edit_question(
-            test_question.id,
+            test_question["id"],
             new_display_text="updated question",
-            new_opts=["option1", "option2"],
-            new_default="option1",
-            session=session
-        )
-
-def test_question_service_edit_question_duplicate_text(session, test_question):
-    """Test editing a question to have duplicate text."""
-    # Create another question
-    QuestionService.add_question(
-        text="other question",
-        qtype="single",
-        options=["option1", "option2"],
-        default="option1",
-        session=session
-    )
-    
-    # Try to edit first question to have same text
-    with pytest.raises(ValueError, match="already exists"):
-        QuestionService.edit_question(
-            test_question.id,
-            new_display_text="other question",
             new_opts=["option1", "option2"],
             new_default="option1",
             session=session
@@ -286,7 +265,7 @@ def test_question_service_edit_question_single_choice_no_options(session, test_q
     """Test editing a single-choice question without options."""
     with pytest.raises(ValueError, match="Cannot remove existing options: .*"):
         QuestionService.edit_question(
-            test_question.id,
+            test_question["id"],
             new_display_text="test question",
             new_opts=["option1"],
             new_default="option1",
@@ -297,7 +276,7 @@ def test_question_service_edit_question_single_choice_empty_options(session, tes
     """Test editing a single-choice question with empty options."""
     with pytest.raises(ValueError, match="Cannot change question type"):
         QuestionService.edit_question(
-            test_question.id,
+            test_question["id"],
             new_display_text="test question",
             new_opts=None,
             new_default=None,
@@ -308,7 +287,7 @@ def test_question_service_edit_question_single_choice_invalid_default(session, t
     """Test editing a single-choice question with invalid default option."""
     with pytest.raises(ValueError, match="must be one of the available options"):
         QuestionService.edit_question(
-            test_question.id,
+            test_question["id"],
             new_display_text="test question",
             new_opts=["option1", "option2"],
             new_default="invalid",

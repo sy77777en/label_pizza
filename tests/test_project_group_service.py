@@ -40,7 +40,7 @@ def test_project_group_service_create_project_group_duplicate(session, test_proj
 
 def test_project_group_service_create_project_group_invalid_project(session):
     """Test creating a project group with invalid project ID."""
-    with pytest.raises(ValueError, match="Project with ID None not found"):
+    with pytest.raises(ValueError, match="Project not found"):
         ProjectGroupService.create_project_group(
             name="test_group",
             description="Test group description",
@@ -263,7 +263,7 @@ def test_project_group_service_validate_project_group_uniqueness(session):
     )
     project2 = ProjectService.get_project_by_name("project2", session)
     # Try to create a group with both projects - should fail due to overlap
-    with pytest.raises(ValueError, match="Projects .* have overlapping questions and videos: .*"):
+    with pytest.raises(ValueError, match="Cannot group projects .* and .* together. They have .* overlapping videos with shared questions: .*"):
         ProjectGroupService.create_project_group(
             name="test_group",
             description="Test description",
@@ -282,7 +282,7 @@ def test_project_group_service_validate_project_group_uniqueness(session):
     # Get the group
     group = ProjectGroupService.get_project_group_by_name("test_group_success", session)
 
-    with pytest.raises(ValueError, match="Projects .* have overlapping questions and videos: .*"):
+    with pytest.raises(ValueError, match="Cannot group projects .* and .* together. They have .* overlapping videos with shared questions: .*"):
         ProjectGroupService.edit_project_group(
             group_id=group.id,
             name="test_group_failed",

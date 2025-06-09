@@ -229,7 +229,7 @@ def test_annotator_service_get_question_answers(session, test_user, test_project
     
     # Get answers for the question
     result = AnnotatorService.get_question_answers(
-        question_id=question.id,
+        question_id=question["id"],
         project_id=test_project.id,
         session=session
     )
@@ -610,7 +610,7 @@ def test_ground_truth_service_submit_answer_review(session, test_user, test_proj
         title="Description Group",
         description="Group for description questions",
         is_reusable=True,
-        question_ids=[question.id],
+        question_ids=[question["id"]],
         verification_function=None,
         session=session
     )
@@ -691,7 +691,7 @@ def test_ground_truth_service_submit_answer_review_invalid_status(session, test_
         title="Description Group",
         description="Group for description questions",
         is_reusable=True,
-        question_ids=[question.id],
+        question_ids=[question["id"]],
         verification_function=None,
         session=session
     )

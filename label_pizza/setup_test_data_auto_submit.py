@@ -122,9 +122,9 @@ def create_questions(session):
     )
     
     return {
-        'group1': [q1_1.id, q1_2.id],
-        'group2': [q2_1.id, q2_2.id, q2_3.id], 
-        'group3': [q3_1.id]
+        'group1': [q1_1["id"], q1_2["id"]],
+        'group2': [q2_1["id"], q2_2["id"], q2_3["id"]], 
+        'group3': [q3_1["id"]]
     }
 
 def create_question_groups(session, question_ids):

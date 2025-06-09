@@ -25,7 +25,7 @@ def test_schema_service_create_schema_duplicate(session, test_schema, test_quest
         title="test_group_for_schema_duplicate",
         description="test description",
         is_reusable=True,
-        question_ids=[question.id],
+        question_ids=[question["id"]],
         verification_function=None,
         session=session
     )
@@ -52,6 +52,8 @@ def test_schema_service_create_schema_non_reusable_group(session, test_question_
         new_title=test_question_group.title,  # Keep same title
         new_description=test_question_group.description,  # Keep same description
         is_reusable=False,
+        verification_function=None,
+        is_auto_submit=False,
         session=session
     )
     SchemaService.create_schema("schema1", [test_question_group.id], session)
@@ -237,6 +239,8 @@ def test_schema_service_edit_group(session, test_schema, test_question_group):
         new_title="edited_group",
         new_description="edited description",
         is_reusable=True,
+        verification_function=None,
+        is_auto_submit=False,
         session=session
     )
     
@@ -262,8 +266,9 @@ def test_schema_service_edit_group_duplicate_title(session, test_schema, test_qu
         title="test_group2",
         description="test description",
         is_reusable=True,
-        question_ids=[question2.id],
+        question_ids=[question2["id"]],
         verification_function=None,
+        is_auto_submit=False,
         session=session
     )
     
@@ -274,6 +279,8 @@ def test_schema_service_edit_group_duplicate_title(session, test_schema, test_qu
             new_title="test_group2",
             new_description="edited description",
             is_reusable=True,
+            verification_function=None,
+            is_auto_submit=False,
             session=session
         )
 
@@ -285,5 +292,7 @@ def test_schema_service_edit_group_not_found(session):
             new_title="edited_group",
             new_description="edited description",
             is_reusable=True,
+            verification_function=None,
+            is_auto_submit=False,
             session=session
         ) 

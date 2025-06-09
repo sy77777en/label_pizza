@@ -86,7 +86,7 @@ def test_schema(session):
         title="test_group_for_schema",
         description="test description",
         is_reusable=True,
-        question_ids=[question.id],
+        question_ids=[question["id"]],
         verification_function=None,
         session=session
     )
@@ -115,7 +115,7 @@ def test_question_group(session):
         title="test_group",
         description="test description",
         is_reusable=True,
-        question_ids=[question.id],  # Add the question to the group
+        question_ids=[question["id"]],  # Add the question to the group
         verification_function=None,
         session=session
     )

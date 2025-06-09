@@ -19,7 +19,7 @@ def test_question_group_service_create_group(session):
         title="test_group",
         description="test description",
         is_reusable=True,
-        question_ids=[question.id],  # Add the question to the group
+        question_ids=[question["id"]],  # Add the question to the group
         verification_function=None,
         session=session
     )
@@ -46,7 +46,7 @@ def test_question_group_service_create_group_duplicate(session, test_question_gr
             title="test_group",
             description="test description",
             is_reusable=True,
-            question_ids=[new_question.id],  # Use test_question.id instead of test_question_group.id
+            question_ids=[new_question["id"]],
             verification_function=None,
             session=session
         )
@@ -57,14 +57,14 @@ def test_question_group_service_create_group_with_questions(session, test_questi
         title="test_group",
         description="test description",
         is_reusable=True,
-        question_ids=[test_question.id],
+        question_ids=[test_question["id"]],
         verification_function=None,
         session=session
     )
     assert group.title == "test_group"
     questions = QuestionGroupService.get_group_questions(group.id, session)
     assert len(questions) == 1
-    assert questions.iloc[0]["ID"] == test_question.id
+    assert questions.iloc[0]["ID"] == test_question["id"]
     assert questions.iloc[0]["Text"] == "test question"
     assert questions.iloc[0]["Display Text"] == "Test Question"
 
@@ -173,7 +173,7 @@ def test_question_group_service_update_question_order(session, test_question_gro
         title="test_group2",
         description="test description",
         is_reusable=True,
-        question_ids=[test_question_group.id, question2.id],
+        question_ids=[test_question_group.id, question2["id"]],
         verification_function=None,
         session=session
     )
@@ -181,14 +181,14 @@ def test_question_group_service_update_question_order(session, test_question_gro
     # Update order
     QuestionGroupService.update_question_order(
         group.id,
-        [question2.id, test_question_group.id],
+        [question2["id"], test_question_group.id],
         session
     )
     
     # Verify new order
     order = QuestionGroupService.get_question_order(group.id, session)
     assert len(order) == 2
-    assert order[0] == question2.id
+    assert order[0] == question2["id"]
     assert order[1] == test_question_group.id
 
 def test_question_group_service_get_all_groups_by_reusable(session, test_question_group):

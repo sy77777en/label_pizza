@@ -98,7 +98,7 @@ def test_video_service_get_videos_with_project_status(session, test_video):
         title="test_group",
         description="test description",
         is_reusable=True,
-        question_ids=[question.id],
+        question_ids=[question["id"]],
         verification_function=None,
         session=session
     )
@@ -321,7 +321,7 @@ def test_video_service_get_all_videos_multiple_projects(session, test_video):
             title=f"test_group{i}",
             description="test description",
             is_reusable=True,
-            question_ids=[question.id],  # Add the question to the group
+            question_ids=[question["id"]],  # Add the question to the group
             verification_function=None,
             session=session
         )
@@ -386,7 +386,7 @@ def test_video_service_get_all_videos_with_review(session, test_video, test_user
         title="test_group_review",
         description="test description",
         is_reusable=True,
-        question_ids=[q.id for q in questions],
+        question_ids=[q["id"] for q in questions],
         verification_function=None,
         session=session
     )
@@ -422,7 +422,7 @@ def test_video_service_get_all_videos_with_review(session, test_video, test_user
         project_id=project.id,
         user_id=test_user.id,
         question_group_id=question_group.id,
-        answers={q.text: "option1" for q in questions},  # Answer for all questions
+        answers={q["text"]: "option1" for q in questions},  # Answer for all questions
         session=session
     )
     
@@ -432,7 +432,7 @@ def test_video_service_get_all_videos_with_review(session, test_video, test_user
         project_id=project.id,
         reviewer_id=test_user.id,
         question_group_id=question_group.id,
-        answers={q.text: "option1" for q in questions},  # Ground truth for all questions
+        answers={q["text"]: "option1" for q in questions},  # Ground truth for all questions
         session=session
     )
     

@@ -306,7 +306,7 @@ class TestDataSetup:
                     # Try to get existing question
                     try:
                         question = QuestionService.get_question_by_text(q_data["text"], session)
-                        question_ids.append(question.id)
+                        question_ids.append(question["id"])
                     except:
                         continue
             
