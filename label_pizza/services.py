@@ -112,6 +112,7 @@ class VideoService:
         
         return pd.DataFrame([
             {
+                "ID": v.id,
                 "Video UID": v.video_uid,
                 "URL": v.url,
                 "Created At": v.created_at,
@@ -2700,7 +2701,7 @@ class BaseAnswerService:
         
         # Define role hierarchy
         role_hierarchy = {
-            'annotator': ['annotator', 'reviewer', 'admin'],
+            'annotator': ['annotator', 'reviewer', 'model', 'admin'],
             'reviewer': ['reviewer', 'admin'],
             'admin': ['admin']
         }
@@ -4135,4 +4136,318 @@ class ProjectGroupService:
         # Remove empty groups
         return {name: projects for name, projects in grouped_projects.items() if projects}
 
-        
+    
+class AutoSubmitService:
+    @staticmethod
+    def get_weighted_votes_for_question(
+        video_id: int, 
+        project_id: int, 
+        question_id: int,
+        include_user_ids: List[int],
+        virtual_responses: List[Dict],
+        session: Session
+    ) -> Dict[str, float]:
+        """Calculate weighted votes for a single question"""
+        try:
+            from models import User, ProjectUserRole
+            from sqlalchemy import select
+            
+            # Get question details
+            question = QuestionService.get_question_by_id(question_id=question_id, session=session)
+            if not question:
+                return {}
+            
+            vote_weights = {}
+            
+            # Get real user answers
+            answers_df = AnnotatorService.get_question_answers(
+                question_id=question_id, project_id=project_id, session=session
+            )
+            
+            if not answers_df.empty:
+                video_answers = answers_df[
+                    (answers_df["Video ID"] == video_id) & 
+                    (answers_df["User ID"].isin(include_user_ids))
+                ]
+                
+                for _, answer_row in video_answers.iterrows():
+                    user_id = int(answer_row["User ID"])
+                    answer_value = str(answer_row["Answer Value"])
+                    
+                    # Get user weight from project assignment - FIXED
+                    assignment = session.execute(
+                        select(ProjectUserRole).where(
+                            ProjectUserRole.user_id == user_id,
+                            ProjectUserRole.project_id == project_id,
+                            ProjectUserRole.role == "annotator"
+                        )
+                    ).first()
+                    
+                    user_weight = float(assignment[0].user_weight) if assignment else 1.0
+                    
+                    # Get option weight
+                    option_weight = 1.0
+                    if question.type == "single" and question.option_weights:
+                        try:
+                            option_index = question.options.index(answer_value)
+                            option_weight = float(question.option_weights[option_index])
+                        except (ValueError, IndexError):
+                            option_weight = 1.0
+                    
+                    combined_weight = user_weight * option_weight
+                    vote_weights[answer_value] = vote_weights.get(answer_value, 0.0) + combined_weight
+            
+            # Add virtual responses
+            for virtual_response in virtual_responses:
+                answer_value = str(virtual_response["answer"])
+                user_weight = float(virtual_response["user_weight"])
+                
+                option_weight = 1.0
+                if question.type == "single" and question.option_weights:
+                    try:
+                        option_index = question.options.index(answer_value)
+                        option_weight = float(question.option_weights[option_index])
+                    except (ValueError, IndexError):
+                        option_weight = 1.0
+                
+                combined_weight = user_weight * option_weight
+                vote_weights[answer_value] = vote_weights.get(answer_value, 0.0) + combined_weight
+            
+            return vote_weights
+            
+        except Exception as e:
+            raise ValueError(f"Error calculating weighted votes: {str(e)}")
+    
+    @staticmethod
+    def calculate_auto_submit_answers(
+        video_id: int,
+        project_id: int, 
+        question_group_id: int,
+        include_user_ids: List[int],
+        virtual_responses_by_question: Dict[int, List[Dict]],
+        thresholds: Dict[int, float],
+        session: Session
+    ) -> Dict[str, Any]:
+        """Calculate which answers would be auto-submitted"""
+        try:
+            questions = QuestionService.get_questions_by_group_id(group_id=question_group_id, session=session)
+            results = {
+                "answers": {},
+                "skipped": [],
+                "threshold_failures": [],
+                "vote_details": {}
+            }
+            
+            # Check existing answers
+            existing_answers = {}
+            try:
+                existing_answers = AnnotatorService.get_user_answers_for_question_group(
+                    video_id=video_id, project_id=project_id, user_id=include_user_ids[0] if include_user_ids else 1,
+                    question_group_id=question_group_id, session=session
+                )
+            except:
+                pass
+            
+            for question in questions:
+                question_id = question["id"]
+                question_text = question["text"]
+                
+                # Skip if answer already exists
+                if question_text in existing_answers and existing_answers[question_text]:
+                    results["skipped"].append(question_text)
+                    continue
+                
+                virtual_responses = virtual_responses_by_question.get(question_id, [])
+                vote_weights = AutoSubmitService.get_weighted_votes_for_question(
+                    video_id=video_id, project_id=project_id, question_id=question_id,
+                    include_user_ids=include_user_ids, virtual_responses=virtual_responses, session=session
+                )
+                
+                results["vote_details"][question_text] = vote_weights
+                
+                if not vote_weights:
+                    continue
+                
+                # Find winning option
+                total_weight = sum(vote_weights.values())
+                if total_weight == 0:
+                    continue
+                
+                winning_option = max(vote_weights.keys(), key=lambda k: vote_weights[k])
+                winning_weight = vote_weights[winning_option]
+                winning_percentage = (winning_weight / total_weight) * 100
+                
+                # Check threshold
+                threshold = thresholds.get(question_id, 100.0)
+                if winning_percentage >= threshold:
+                    results["answers"][question_text] = winning_option
+                else:
+                    results["threshold_failures"].append({
+                        "question": question_text,
+                        "percentage": winning_percentage,
+                        "threshold": threshold
+                    })
+            
+            return results
+            
+        except Exception as e:
+            raise ValueError(f"Error calculating auto-submit answers: {str(e)}")
+    
+    @staticmethod
+    def auto_submit_question_group(
+        video_id: int,
+        project_id: int,
+        question_group_id: int, 
+        user_id: int,
+        include_user_ids: List[int],
+        virtual_responses_by_question: Dict[int, List[Dict]],
+        thresholds: Dict[int, float],
+        session: Session
+    ) -> Dict[str, Any]:
+        """Actually submit the auto-calculated answers"""
+        try:
+            # Calculate what would be submitted
+            calculation_results = AutoSubmitService.calculate_auto_submit_answers(
+                video_id=video_id, project_id=project_id, question_group_id=question_group_id,
+                include_user_ids=include_user_ids, virtual_responses_by_question=virtual_responses_by_question,
+                thresholds=thresholds, session=session
+            )
+            
+            answers = calculation_results["answers"]
+            
+            if not answers:
+                return {
+                    "success": True,
+                    "submitted_count": 0,
+                    "skipped_count": len(calculation_results["skipped"]),
+                    "threshold_failures": len(calculation_results["threshold_failures"]),
+                    "verification_failed": False,
+                    "details": calculation_results
+                }
+            
+            # Run verification if the group has one
+            try:
+                group_details = QuestionGroupService.get_group_details_with_verification(
+                    group_id=question_group_id, session=session
+                )
+                verification_function = group_details.get("verification_function")
+                
+                if verification_function:
+                    # Import the group to access verification - FIXED
+                    from models import QuestionGroup
+                    from sqlalchemy import select
+                    
+                    group = session.execute(
+                        select(QuestionGroup).where(QuestionGroup.id == question_group_id)
+                    ).scalar_one()
+                    
+                    # Use existing verification method
+                    AnnotatorService._run_verification(group, answers)
+                    
+            except ValueError as verification_error:
+                return {
+                    "success": False,
+                    "submitted_count": 0,
+                    "skipped_count": len(calculation_results["skipped"]),
+                    "threshold_failures": len(calculation_results["threshold_failures"]),
+                    "verification_failed": True,
+                    "verification_error": str(verification_error),
+                    "details": calculation_results
+                }
+            
+            # Submit the answers
+            AnnotatorService.submit_answer_to_question_group(
+                video_id=video_id, project_id=project_id, user_id=user_id,
+                question_group_id=question_group_id, answers=answers, session=session
+            )
+            
+            return {
+                "success": True,
+                "submitted_count": len(answers),
+                "skipped_count": len(calculation_results["skipped"]),
+                "threshold_failures": len(calculation_results["threshold_failures"]),
+                "verification_failed": False,
+                "details": calculation_results
+            }
+            
+        except Exception as e:
+            raise ValueError(f"Error in auto-submit: {str(e)}")
+
+
+class ReviewerAutoSubmitService:
+    @staticmethod
+    def auto_submit_ground_truth_group(
+        video_id: int,
+        project_id: int,
+        question_group_id: int, 
+        reviewer_id: int,
+        include_user_ids: List[int],
+        virtual_responses_by_question: Dict[int, List[Dict]],
+        thresholds: Dict[int, float],
+        session: Session
+    ) -> Dict[str, Any]:
+        """Auto-submit ground truth using weighted voting"""
+        try:
+            # Calculate answers using same logic as annotator
+            calculation_results = AutoSubmitService.calculate_auto_submit_answers(
+                video_id=video_id, project_id=project_id, question_group_id=question_group_id,
+                include_user_ids=include_user_ids, virtual_responses_by_question=virtual_responses_by_question,
+                thresholds=thresholds, session=session
+            )
+            
+            answers = calculation_results["answers"]
+            
+            if not answers:
+                return {
+                    "success": True,
+                    "submitted_count": 0,
+                    "skipped_count": len(calculation_results["skipped"]),
+                    "threshold_failures": len(calculation_results["threshold_failures"]),
+                    "verification_failed": False,
+                    "details": calculation_results
+                }
+            
+            # Run verification
+            try:
+                group_details = QuestionGroupService.get_group_details_with_verification(
+                    group_id=question_group_id, session=session
+                )
+                verification_function = group_details.get("verification_function")
+                
+                if verification_function:
+                    from models import QuestionGroup
+                    from sqlalchemy import select
+                    
+                    group = session.execute(
+                        select(QuestionGroup).where(QuestionGroup.id == question_group_id)
+                    ).scalar_one()
+                    AnnotatorService._run_verification(group, answers)
+                    
+            except ValueError as verification_error:
+                return {
+                    "success": False,
+                    "submitted_count": 0,
+                    "skipped_count": len(calculation_results["skipped"]),
+                    "threshold_failures": len(calculation_results["threshold_failures"]),
+                    "verification_failed": True,
+                    "verification_error": str(verification_error),
+                    "details": calculation_results
+                }
+            
+            # Submit ground truth
+            GroundTruthService.submit_ground_truth_to_question_group(
+                video_id=video_id, project_id=project_id, reviewer_id=reviewer_id,
+                question_group_id=question_group_id, answers=answers, session=session
+            )
+            
+            return {
+                "success": True,
+                "submitted_count": len(answers),
+                "skipped_count": len(calculation_results["skipped"]),
+                "threshold_failures": len(calculation_results["threshold_failures"]),
+                "verification_failed": False,
+                "details": calculation_results
+            }
+            
+        except Exception as e:
+            raise ValueError(f"Error in reviewer auto-submit: {str(e)}")
