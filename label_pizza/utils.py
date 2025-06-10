@@ -240,130 +240,6 @@ def _display_enhanced_helper_text_answers(video_id: int, project_id: int, questi
         st.caption(f"⚠️ Could not load answer information: {str(e)}")
 
 
-def _display_unified_status(video_id: int, project_id: int, question_id: int, session: Session, show_annotators: bool = False, selected_annotators: List[str] = None):
-    """Display ground truth status and optionally annotator status with confidence scores for models"""
-    
-    status_parts = []
-    
-    # Get annotator status first if requested
-    if show_annotators and selected_annotators:
-        try:
-            annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
-                display_names=selected_annotators, project_id=project_id, session=session
-            )
-            
-            # Get answers for this question/video
-            answers_df = AnnotatorService.get_question_answers(
-                question_id=question_id, project_id=project_id, session=session
-            )
-            
-            # Get user info for role checking
-            users_df = AuthService.get_all_users(session=session)
-            user_lookup = {row["ID"]: {"role": row["Role"], "name": row["User ID"]} for _, row in users_df.iterrows()}
-            
-            # Find which annotators have answered this specific question/video
-            annotators_with_answers = set()
-            annotators_missing = set()
-            
-            if not answers_df.empty:
-                video_answers = answers_df[answers_df["Video ID"] == video_id]
-                answered_user_ids = set(video_answers["User ID"].tolist())
-                
-                for user_id in annotator_user_ids:
-                    user_info = user_lookup.get(user_id, {})
-                    user_name = user_info.get("name", f"User {user_id}")
-                    user_role = user_info.get("role", "human")
-                    
-                    if user_id in answered_user_ids:
-                        # Check if this is a model user and get confidence score
-                        if user_role == "model":
-                            try:
-                                user_answer_row = video_answers[video_answers["User ID"] == user_id]
-                                if not user_answer_row.empty:
-                                    confidence = user_answer_row.iloc[0]["Confidence Score"]
-                                    if confidence is not None:
-                                        user_name += f" (conf: {confidence:.2f})"
-                                    else:
-                                        user_name += " (🤖)"
-                                else:
-                                    user_name += " (🤖)"
-                            except Exception as e:
-                                print(f"Error getting confidence for user {user_id}: {e}")
-                                user_name += " (🤖)"
-                        
-                        annotators_with_answers.add(user_name)
-                    else:
-                        if user_role == "model":
-                            user_name += " (🤖)"
-                        annotators_missing.add(user_name)
-            else:
-                # No answers at all - all are missing
-                for user_id in annotator_user_ids:
-                    user_info = user_lookup.get(user_id, {})
-                    user_name = user_info.get("name", f"User {user_id}")
-                    user_role = user_info.get("role", "human")
-                    if user_role == "model":
-                        user_name += " (🤖)"
-                    annotators_missing.add(user_name)
-            
-            # Add annotator status parts with FULL NAMES and confidence scores
-            if annotators_with_answers:
-                names_list = list(annotators_with_answers)
-                if len(names_list) <= 3:
-                    status_parts.append(f"📊 Answered: {', '.join(names_list)}")
-                else:
-                    shown_names = ', '.join(names_list[:2])
-                    remaining = len(names_list) - 2
-                    status_parts.append(f"📊 Answered: {shown_names} +{remaining} more")
-            
-            if annotators_missing:
-                missing_list = list(annotators_missing)
-                if len(missing_list) <= 2:
-                    status_parts.append(f"⚠️ Missing: {', '.join(missing_list)}")
-                else:
-                    shown_missing = ', '.join(missing_list[:1])
-                    remaining = len(missing_list) - 1
-                    status_parts.append(f"⚠️ Missing: {shown_missing} +{remaining} more")
-                
-        except Exception as e:
-            print(f"Error getting annotator status: {e}")
-            status_parts.append("⚠️ Could not load annotator status")
-    
-    # Ground truth status (existing code remains the same)
-    try:
-        gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
-        
-        if not gt_df.empty:
-            question_id_int = int(question_id)
-            question_gt = gt_df[gt_df["Question ID"] == question_id_int]
-            
-            if not question_gt.empty:
-                gt_row = question_gt.iloc[0]
-                
-                try:
-                    reviewer_info = AuthService.get_user_info_by_id(user_id=int(gt_row["Reviewer ID"]), session=session)
-                    reviewer_name = reviewer_info["user_id_str"]
-                    
-                    modified_by_admin = gt_row["Modified By Admin"] is not None
-                    
-                    if modified_by_admin:
-                        status_parts.append(f"🏆 GT by: {reviewer_name} (Admin)")
-                    else:
-                        status_parts.append(f"🏆 GT by: {reviewer_name}")
-                except Exception:
-                    status_parts.append("🏆 GT exists")
-            else:
-                status_parts.append("📭 No GT")
-        else:
-            status_parts.append("📭 No GT")
-            
-    except Exception:
-        status_parts.append("📭 No GT")
-    
-    # Display single combined status line
-    if status_parts:
-        st.caption(" | ".join(status_parts))
-
 
 
 def _display_clean_sticky_single_choice_question(
@@ -760,6 +636,104 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
         run_preload_preview(selected_groups, videos, project_id, user_id, role, session)
         st.session_state[f"show_preview_{role}_{project_id}"] = False
 
+def _display_unified_status(video_id: int, project_id: int, question_id: int, session: Session, show_annotators: bool = False, selected_annotators: List[str] = None):
+    """Display ground truth status and optionally annotator status with clean user display names"""
+    
+    status_parts = []
+    
+    # Get annotator status first if requested
+    if show_annotators and selected_annotators:
+        try:
+            annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
+                display_names=selected_annotators, project_id=project_id, session=session
+            )
+            
+            # Get answers for this question/video
+            answers_df = AnnotatorService.get_question_answers(
+                question_id=question_id, project_id=project_id, session=session
+            )
+            
+            # Get user info consistently using system roles
+            users_df = AuthService.get_all_users(session=session)
+            user_lookup = {row["ID"]: {"role": row["Role"], "name": row["User ID"]} for _, row in users_df.iterrows()}
+            
+            # Find which annotators have answered this specific question/video
+            annotators_with_answers = set()
+            annotators_missing = set()
+            
+            if not answers_df.empty:
+                video_answers = answers_df[answers_df["Video ID"] == video_id]
+                answered_user_ids = set(video_answers["User ID"].tolist())
+                
+                for user_id in annotator_user_ids:
+                    user_info = user_lookup.get(user_id, {})
+                    user_name = user_info.get("name", f"User {user_id}")
+                    
+                    if user_id in answered_user_ids:
+                        annotators_with_answers.add(user_name)
+                    else:
+                        annotators_missing.add(user_name)
+            else:
+                # No answers at all - all are missing
+                for user_id in annotator_user_ids:
+                    user_info = user_lookup.get(user_id, {})
+                    user_name = user_info.get("name", f"User {user_id}")
+                    annotators_missing.add(user_name)
+            
+            # Add annotator status parts with initials, no truncation
+            if annotators_with_answers:
+                display_names = []
+                for user_name in annotators_with_answers:
+                    display_name, _ = AuthService.get_user_display_name_with_initials(user_name)
+                    display_names.append(display_name)
+                status_parts.append(f"📊 Answered: {', '.join(display_names)}")
+            
+            if annotators_missing:
+                display_names = []
+                for user_name in annotators_missing:
+                    display_name, _ = AuthService.get_user_display_name_with_initials(user_name)
+                    display_names.append(display_name)
+                status_parts.append(f"⚠️ Missing: {', '.join(display_names)}")
+                
+        except Exception as e:
+            print(f"Error getting annotator status: {e}")
+            status_parts.append("⚠️ Could not load annotator status")
+    
+    # Ground truth status (existing code remains the same)
+    try:
+        gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
+        
+        if not gt_df.empty:
+            question_id_int = int(question_id)
+            question_gt = gt_df[gt_df["Question ID"] == question_id_int]
+            
+            if not question_gt.empty:
+                gt_row = question_gt.iloc[0]
+                
+                try:
+                    reviewer_info = AuthService.get_user_info_by_id(user_id=int(gt_row["Reviewer ID"]), session=session)
+                    reviewer_name = reviewer_info["user_id_str"]
+                    
+                    modified_by_admin = gt_row["Modified By Admin"] is not None
+                    
+                    if modified_by_admin:
+                        status_parts.append(f"🏆 GT by: {reviewer_name} (Admin)")
+                    else:
+                        status_parts.append(f"🏆 GT by: {reviewer_name}")
+                except Exception:
+                    status_parts.append("🏆 GT exists")
+            else:
+                status_parts.append("📭 No GT")
+        else:
+            status_parts.append("📭 No GT")
+            
+    except Exception:
+        status_parts.append("📭 No GT")
+    
+    # Display single combined status line
+    if status_parts:
+        st.caption(" | ".join(status_parts))
+
 def _get_enhanced_options_for_reviewer(video_id: int, project_id: int, question_id: int, options: List[str], display_values: List[str], session: Session, selected_annotators: List[str] = None) -> List[str]:
     """Get enhanced options showing who selected what for reviewers with model confidence scores"""
     
@@ -771,9 +745,12 @@ def _get_enhanced_options_for_reviewer(video_id: int, project_id: int, question_
                 display_names=selected_annotators, project_id=project_id, session=session
             )
         
-        # Get user info for role checking
+        # Get user info consistently using system roles
         users_df = AuthService.get_all_users(session=session)
         user_lookup = {row["ID"]: {"role": row["Role"], "name": row["User ID"]} for _, row in users_df.iterrows()}
+        
+        # Create reverse lookup: user_name -> user_info
+        name_to_user_lookup = {row["User ID"]: {"id": row["ID"], "role": row["Role"]} for _, row in users_df.iterrows()}
         
         option_selections = GroundTruthService.get_question_option_selections(
             video_id=video_id, project_id=project_id, question_id=question_id, 
@@ -791,8 +768,8 @@ def _get_enhanced_options_for_reviewer(video_id: int, project_id: int, question_
             for _, answer_row in video_answers.iterrows():
                 user_id = answer_row["User ID"]
                 confidence = answer_row["Confidence Score"]
-                if confidence is not None and user_id in user_lookup:
-                    confidence_map[user_id] = confidence
+                if confidence is not None:
+                    confidence_map[int(user_id)] = confidence
         
         # Also get ground truth info for search portal
         gt_selection = None
@@ -819,6 +796,8 @@ def _get_enhanced_options_for_reviewer(video_id: int, project_id: int, question_
         except:
             pass
         confidence_map = {}
+        user_lookup = {}
+        name_to_user_lookup = {}
     
     total_annotators = len(annotator_user_ids) if selected_annotators else 0
     enhanced_options = []
@@ -834,18 +813,23 @@ def _get_enhanced_options_for_reviewer(video_id: int, project_id: int, question_
             annotators = []
             for selector in option_selections[actual_val]:
                 if selector["type"] != "ground_truth":  # Don't double-count GT here
-                    user_id = selector.get("user_id")
-                    annotator_text = selector["initials"]
+                    user_name = selector.get("name", "Unknown User")
                     
-                    # Get user role from lookup
-                    user_info = user_lookup.get(user_id, {}) if user_id else {}
+                    # Get initials using centralized function
+                    _, initials = AuthService.get_user_display_name_with_initials(user_name)
+                    
+                    # Look up user info from user_name
+                    user_info = name_to_user_lookup.get(user_name, {})
+                    user_id_int = user_info.get("id")
                     user_role = user_info.get("role", "human")
                     
-                    # Add confidence score for model users
-                    if user_role == "model" and user_id in confidence_map:
-                        annotator_text += f"({confidence_map[user_id]:.2f})"
+                    # Add confidence score inside initials for model users
+                    if user_role == "model" and user_id_int in confidence_map:
+                        annotator_text = f"{initials} ({confidence_map[user_id_int]:.2f})"
                     elif user_role == "model":
-                        annotator_text += "(🤖)"
+                        annotator_text = f"{initials} (🤖)"
+                    else:
+                        annotator_text = initials
                     
                     annotators.append(annotator_text)
             
@@ -867,7 +851,6 @@ def _get_enhanced_options_for_reviewer(video_id: int, project_id: int, question_
         enhanced_options.append(option_text)
     
     return enhanced_options
-
 
 def _display_single_answer_elegant(answer, text_key, question_text, answer_reviews, video_id, project_id, question_id, session):
     """Display a single answer with elegant left-right layout"""

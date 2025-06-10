@@ -763,14 +763,8 @@ class ProjectService:
                 user_name = user.user_id_str
                 user_email = user.email or f"user_{user.id}@example.com"
                 
-                # Create display name with initials
-                name_parts = user_name.split()
-                if len(name_parts) >= 2:
-                    initials = f"{name_parts[0][0]}{name_parts[-1][0]}".upper()
-                else:
-                    initials = user_name[:2].upper()
-                
-                display_name = f"{user_name} ({initials})"
+                # Use the centralized function
+                display_name, initials = AuthService.get_user_display_name_with_initials(user_name)
                 
                 annotators[display_name] = {
                     'id': user_id,
@@ -1580,6 +1574,28 @@ class QuestionService:
 
 class AuthService:
     @staticmethod
+    def get_user_display_name_with_initials(user_name: str) -> tuple[str, str]:
+        """Get user display name with initials.
+        
+        Args:
+            user_name: The user's name/ID string
+            
+        Returns:
+            Tuple of (display_name_with_initials, initials_only)
+            
+        Example:
+            ("alice_annotator (AL)", "AL")
+        """
+        name_parts = user_name.split()
+        if len(name_parts) >= 2:
+            initials = f"{name_parts[0][0]}{name_parts[-1][0]}".upper()
+        else:
+            initials = user_name[:2].upper()
+        
+        display_name = f"{user_name} ({initials})"
+        return display_name, initials
+
+    @staticmethod
     def get_user_info_by_id(user_id: int, session: Session) -> Dict[str, Any]:
         """Get user information by numeric ID as a dictionary.
         
@@ -2108,7 +2124,7 @@ class AuthService:
             .join(ProjectUserRole, User.id == ProjectUserRole.user_id)
             .where(
                 ProjectUserRole.project_id == project_id,
-                ProjectUserRole.role.in_(["annotator", "reviewer", "admin"]),
+                ProjectUserRole.role.in_(["annotator", "reviewer", "model", "admin"]),
                 ProjectUserRole.is_archived == False,
                 User.is_archived == False
             )
@@ -4478,7 +4494,7 @@ class AutoSubmitService:
 
 class ReviewerAutoSubmitService:
     @staticmethod
-    def auto_submit_ground_truth_group(
+    def auto_submit_ground_truth_group_with_custom_weights(
         video_id: int,
         project_id: int,
         question_group_id: int, 
@@ -4487,15 +4503,17 @@ class ReviewerAutoSubmitService:
         virtual_responses_by_question: Dict[int, List[Dict]],
         thresholds: Dict[int, float],
         session: Session,
-        user_weights: Dict[int, float] = None
+        user_weights: Dict[int, float] = None,
+        custom_option_weights: Dict[int, Dict[str, float]] = None
     ) -> Dict[str, Any]:
-        """Auto-submit ground truth using weighted voting"""
+        """Auto-submit ground truth using weighted voting with custom option weights"""
         try:
-            # Calculate answers using same logic as annotator
-            calculation_results = AutoSubmitService.calculate_auto_submit_answers(
+            # Calculate what would be submitted
+            calculation_results = ReviewerAutoSubmitService.calculate_auto_submit_ground_truth_with_custom_weights(
                 video_id=video_id, project_id=project_id, question_group_id=question_group_id,
                 include_user_ids=include_user_ids, virtual_responses_by_question=virtual_responses_by_question,
-                thresholds=thresholds, session=session, user_weights=user_weights
+                thresholds=thresholds, session=session, user_weights=user_weights,
+                custom_option_weights=custom_option_weights
             )
             
             answers = calculation_results["answers"]
@@ -4510,7 +4528,7 @@ class ReviewerAutoSubmitService:
                     "details": calculation_results
                 }
             
-            # Run verification
+            # Run verification (unchanged)
             try:
                 group_details = QuestionGroupService.get_group_details_with_verification(
                     group_id=question_group_id, session=session
@@ -4537,7 +4555,7 @@ class ReviewerAutoSubmitService:
                     "details": calculation_results
                 }
             
-            # Submit ground truth
+            # Submit ground truth (unchanged)
             GroundTruthService.submit_ground_truth_to_question_group(
                 video_id=video_id, project_id=project_id, reviewer_id=reviewer_id,
                 question_group_id=question_group_id, answers=answers, session=session
@@ -4554,3 +4572,182 @@ class ReviewerAutoSubmitService:
             
         except Exception as e:
             raise ValueError(f"Error in reviewer auto-submit: {str(e)}")
+
+    @staticmethod
+    def calculate_auto_submit_ground_truth_with_custom_weights(
+        video_id: int,
+        project_id: int, 
+        question_group_id: int,
+        include_user_ids: List[int],
+        virtual_responses_by_question: Dict[int, List[Dict]],
+        thresholds: Dict[int, float],
+        session: Session,
+        user_weights: Dict[int, float] = None,
+        custom_option_weights: Dict[int, Dict[str, float]] = None
+    ) -> Dict[str, Any]:
+        """Calculate ground truth with custom option weights"""
+        try:
+            questions = QuestionService.get_questions_by_group_id(group_id=question_group_id, session=session)
+            results = {
+                "answers": {},
+                "skipped": [],
+                "threshold_failures": [],
+                "vote_details": {},
+                "voting_summary": {}
+            }
+            
+            # Check existing GROUND TRUTH answers
+            existing_answers = {}
+            try:
+                existing_answers = GroundTruthService.get_ground_truth_for_question_group(
+                    video_id=video_id, project_id=project_id, 
+                    question_group_id=question_group_id, session=session
+                )
+            except:
+                pass
+            
+            for question in questions:
+                question_id = question["id"]
+                question_text = question["text"]
+                
+                # Skip if GROUND TRUTH answer already exists
+                if question_text in existing_answers and existing_answers[question_text]:
+                    results["skipped"].append(question_text)
+                    continue
+                
+                virtual_responses = virtual_responses_by_question.get(question_id, [])
+                
+                # MINIMAL CHANGE: Use custom option weights for this question
+                question_custom_weights = None
+                if custom_option_weights and question_id in custom_option_weights:
+                    question_custom_weights = custom_option_weights[question_id]
+                
+                vote_weights = get_weighted_votes_for_question_with_custom_weights(
+                    video_id=video_id, project_id=project_id, question_id=question_id,
+                    include_user_ids=include_user_ids, virtual_responses=virtual_responses, 
+                    session=session, user_weights=user_weights,
+                    custom_option_weights=question_custom_weights
+                )
+                
+                results["vote_details"][question_text] = vote_weights
+                
+                if not vote_weights:
+                    continue
+                
+                total_weight = sum(vote_weights.values())
+                if total_weight == 0:
+                    continue
+                
+                winning_option = max(vote_weights.keys(), key=lambda k: vote_weights[k])
+                winning_weight = vote_weights[winning_option]
+                winning_percentage = (winning_weight / total_weight) * 100
+                
+                # Check threshold
+                threshold = thresholds.get(question_id, 100.0)
+                if winning_percentage >= threshold:
+                    results["answers"][question_text] = winning_option
+                else:
+                    results["threshold_failures"].append({
+                        "question": question_text,
+                        "percentage": winning_percentage,
+                        "threshold": threshold
+                    })
+            
+            return results
+            
+        except Exception as e:
+            raise ValueError(f"Error calculating auto-submit ground truth: {str(e)}")
+
+
+def get_weighted_votes_for_question_with_custom_weights(
+    video_id: int, 
+    project_id: int, 
+    question_id: int,
+    include_user_ids: List[int],
+    virtual_responses: List[Dict],
+    session: Session,
+    user_weights: Dict[int, float] = None,
+    custom_option_weights: Dict[str, float] = None
+) -> Dict[str, float]:
+    """
+    MINIMAL MODIFICATION of the original function to use custom option weights for reviewers.
+    """
+    try:
+        from models import User, ProjectUserRole
+        from sqlalchemy import select
+        
+        # Get question details
+        question = QuestionService.get_question_by_id(question_id=question_id, session=session)
+        if not question:
+            return {}
+        
+        user_weights = user_weights or {}
+        vote_weights = {}
+        
+        # Get real user answers
+        answers_df = AnnotatorService.get_question_answers(
+            question_id=question_id, project_id=project_id, session=session
+        )
+        
+        if not answers_df.empty:
+            video_answers = answers_df[
+                (answers_df["Video ID"] == video_id) & 
+                (answers_df["User ID"].isin(include_user_ids))
+            ]
+            
+            for _, answer_row in video_answers.iterrows():
+                user_id = int(answer_row["User ID"])
+                answer_value = str(answer_row["Answer Value"])
+                
+                # Get user weight - prioritize passed weights, then database, then default
+                user_weight = user_weights.get(user_id)
+                if user_weight is None:
+                    assignment = session.execute(
+                        select(ProjectUserRole).where(
+                            ProjectUserRole.user_id == user_id,
+                            ProjectUserRole.project_id == project_id,
+                            ProjectUserRole.role == "annotator"
+                        )
+                    ).first()
+                    user_weight = float(assignment[0].user_weight) if assignment else 1.0
+                
+                # MINIMAL CHANGE: Use custom option weights if provided (for reviewers)
+                option_weight = 1.0
+                if question["type"] == "single":
+                    if custom_option_weights and answer_value in custom_option_weights:
+                        option_weight = float(custom_option_weights[answer_value])
+                    elif question["option_weights"]:
+                        try:
+                            option_index = question["options"].index(answer_value)
+                            option_weight = float(question["option_weights"][option_index])
+                        except (ValueError, IndexError):
+                            option_weight = 1.0
+                
+                # Combined weight = user_weight * option_weight
+                combined_weight = user_weight * option_weight
+                vote_weights[answer_value] = vote_weights.get(answer_value, 0.0) + combined_weight
+        
+        # Add virtual responses (unchanged)
+        for virtual_response in virtual_responses:
+            answer_value = str(virtual_response["answer"])
+            user_weight = float(virtual_response["user_weight"])
+            
+            option_weight = 1.0
+            if question["type"] == "single":
+                if custom_option_weights and answer_value in custom_option_weights:
+                    option_weight = float(custom_option_weights[answer_value])
+                elif question["option_weights"]:
+                    try:
+                        option_index = question["options"].index(answer_value)
+                        option_weight = float(question["option_weights"][option_index])
+                    except (ValueError, IndexError):
+                        option_weight = 1.0
+            
+            # Combined weight = user_weight * option_weight
+            combined_weight = user_weight * option_weight
+            vote_weights[answer_value] = vote_weights.get(answer_value, 0.0) + combined_weight
+        
+        return vote_weights
+        
+    except Exception as e:
+        raise ValueError(f"Error calculating weighted votes: {str(e)}")

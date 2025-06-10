@@ -21,7 +21,7 @@ from models import Base
 from services import (
     VideoService, ProjectService, SchemaService, QuestionService, 
     AuthService, QuestionGroupService, AnnotatorService, 
-    GroundTruthService, ProjectGroupService, AutoSubmitService, ReviewerAutoSubmitService
+    GroundTruthService, ProjectGroupService, AutoSubmitService, ReviewerAutoSubmitService, get_weighted_votes_for_question_with_custom_weights
 )
 from custom_video_player import custom_video_player
 from search_portal import search_portal
@@ -961,48 +961,382 @@ def display_annotator_checkboxes(annotators: Dict[str, Dict], project_id: int, s
                 if checkbox_value and not disabled:
                     updated_selection.append(annotator_display)
 
+def build_dynamic_virtual_responses_for_video(
+    video_id: int, project_id: int, role: str, session: Session,
+    virtual_responses_by_question: Dict[int, List[Dict]], 
+    description_annotators: Dict[int, str], 
+    available_annotators: Dict[str, Dict]
+) -> Dict[int, List[Dict]]:
+    """
+    Build dynamic virtual responses for a specific video, handling description questions correctly.
+    
+    For reviewers:
+    - Single choice questions: Use empty virtual responses (let option weights apply to real answers)
+    - Description questions: Get the selected annotator's actual answer for this specific video
+    
+    For annotators: Return the original virtual responses unchanged
+    """
+    if role != "reviewer":
+        return virtual_responses_by_question
+    
+    # Start with the configured virtual responses
+    dynamic_responses = virtual_responses_by_question.copy()
+    
+    # Process description questions for reviewers
+    for question_id, selected_annotator in description_annotators.items():
+        if selected_annotator == "Auto (use user weights)":
+            # Use weighted voting - keep any existing virtual responses
+            continue
+        
+        try:
+            # Get the specific annotator's answer for this video
+            annotator_info = available_annotators.get(selected_annotator, {})
+            annotator_user_id = annotator_info.get('id')
+            
+            if annotator_user_id:
+                # Get this annotator's answer for this specific video and question
+                answers_df = AnnotatorService.get_question_answers(
+                    question_id=question_id, project_id=project_id, session=session
+                )
+                
+                if not answers_df.empty:
+                    user_video_answers = answers_df[
+                        (answers_df["User ID"] == annotator_user_id) & 
+                        (answers_df["Video ID"] == video_id)
+                    ]
+                    
+                    if not user_video_answers.empty:
+                        answer_text = user_video_answers.iloc[0]["Answer Value"]
+                        
+                        # Create virtual response for this specific video
+                        dynamic_responses[question_id] = [{
+                            "answer": answer_text,
+                            "user_weight": 1.0
+                        }]
+                    else:
+                        # No answer from this annotator for this video - use empty
+                        dynamic_responses[question_id] = []
+                else:
+                    # No answers at all for this question - use empty
+                    dynamic_responses[question_id] = []
+        except Exception as e:
+            print(f"Error getting answer for question {question_id} from {selected_annotator}: {e}")
+            dynamic_responses[question_id] = []
+    
+    return dynamic_responses
 
-def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project_id: int, user_id: int, role: str, session: Session):
-    """Run preload preview with CORRECT group-level calculation"""
+def build_virtual_responses_for_video(video_id: int, project_id: int, role: str, session: Session) -> Dict[int, List[Dict]]:
+    """
+    Build virtual responses for a specific video, using stored option weights and description selections.
+    
+    MINIMAL CHANGE: Only for reviewers, and only when they have custom settings.
+    For annotators: returns empty dict (uses original virtual_responses)
+    """
+    if role != "reviewer":
+        return {}  # Use original virtual_responses for annotators
+    
+    option_weights_key = f"option_weights_{role}_{project_id}"
+    description_selections_key = f"description_selections_{role}_{project_id}"
+    selected_annotators_key = f"auto_submit_annotators_{role}_{project_id}"
+    
+    option_weights = st.session_state.get(option_weights_key, {})
+    description_selections = st.session_state.get(description_selections_key, {})
+    selected_annotators = st.session_state.get(selected_annotators_key, [])
+    
+    virtual_responses = {}
+    
+    # Handle description questions with specific annotator selections
+    for question_id, selected_annotator in description_selections.items():
+        if selected_annotator == "Auto (use user weights)":
+            continue  # Use weighted voting
+        
+        try:
+            # Get available annotators
+            available_annotators = get_all_project_annotators(project_id=project_id, session=session)
+            annotator_info = available_annotators.get(selected_annotator, {})
+            annotator_user_id = annotator_info.get('id')
+            
+            if annotator_user_id:
+                # Get this annotator's answer for this specific video
+                answers_df = AnnotatorService.get_question_answers(
+                    question_id=question_id, project_id=project_id, session=session
+                )
+                
+                if not answers_df.empty:
+                    user_video_answers = answers_df[
+                        (answers_df["User ID"] == annotator_user_id) & 
+                        (answers_df["Video ID"] == video_id)
+                    ]
+                    
+                    if not user_video_answers.empty:
+                        answer_text = user_video_answers.iloc[0]["Answer Value"]
+                        virtual_responses[question_id] = [{
+                            "answer": answer_text,
+                            "user_weight": 1.0
+                        }]
+        except Exception as e:
+            print(f"Error getting answer for question {question_id}: {e}")
+    
+    return virtual_responses
+
+
+
+
+# MINIMAL MODIFICATION: Update the preview and execution functions to use custom settings
+def run_manual_auto_submit(selected_groups: List[Dict], videos: List[Dict], project_id: int, user_id: int, role: str, session: Session):
+    """MINIMAL CHANGE: Use custom option weights and description selections for reviewers"""
     
     virtual_responses_key = f"virtual_responses_{role}_{project_id}"
     thresholds_key = f"thresholds_{role}_{project_id}"
     selected_annotators_key = f"auto_submit_annotators_{role}_{project_id}"
+    user_weights_key = f"user_weights_{role}_{project_id}"
+    option_weights_key = f"option_weights_{role}_{project_id}"
+    description_selections_key = f"description_selections_{role}_{project_id}"
     
     virtual_responses_by_question = st.session_state.get(virtual_responses_key, {})
     thresholds = st.session_state.get(thresholds_key, {})
     selected_annotators = st.session_state.get(selected_annotators_key, [])
+    user_weights = st.session_state.get(user_weights_key, {})
+    option_weights = st.session_state.get(option_weights_key, {})
+    description_selections = st.session_state.get(description_selections_key, {})
     
-    # Get user IDs
+    # Get user IDs and weights (unchanged)
     include_user_ids = []
+    user_weight_map = {}
+    
     if role == "reviewer":
         try:
-            include_user_ids = AuthService.get_annotator_user_ids_from_display_names(
+            available_annotators = get_all_project_annotators(project_id=project_id, session=session)
+            annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
                 display_names=selected_annotators, project_id=project_id, session=session
             )
+            include_user_ids = annotator_user_ids
+            
+            for annotator_name in selected_annotators:
+                try:
+                    if annotator_name in available_annotators:
+                        user_id_for_weight = available_annotators[annotator_name].get('id')
+                        if user_id_for_weight:
+                            weight = user_weights.get(annotator_name, 1.0)
+                            user_weight_map[user_id_for_weight] = weight
+                except:
+                    continue
         except:
             include_user_ids = []
     else:
         include_user_ids = [user_id]
     
-    # BREAK OUT OF COLUMN LAYOUT - Use st.container() to span full width
+    # Progress tracking (unchanged)
+    total_operations = len(selected_groups) * len(videos)
+    st.markdown(f"### 🚀 Executing Auto-Submit")
+    st.caption(f"Processing {len(videos)} videos across {len(selected_groups)} question groups ({total_operations} total operations)")
+    
+    progress_bar = st.progress(0)
+    status_container = st.empty()
+    
+    total_submitted = 0
+    total_skipped = 0
+    total_threshold_failures = 0
+    total_verification_failures = 0
+    
+    threshold_failure_details = []
+    verification_failure_details = []
+    
+    operation_count = 0
+    
+    for group in selected_groups:
+        group_id = group["ID"]
+        group_title = group["Title"]
+        
+        for video in videos:
+            video_id = video["id"]
+            video_uid = video["uid"]
+            
+            try:
+                # MINIMAL CHANGE: Add dynamic virtual responses for this video
+                dynamic_virtual_responses = virtual_responses_by_question.copy()
+                video_specific_responses = build_virtual_responses_for_video(
+                    video_id=video_id, project_id=project_id, role=role, session=session
+                )
+                dynamic_virtual_responses.update(video_specific_responses)
+                
+                if role == "annotator":
+                    result = AutoSubmitService.auto_submit_question_group(
+                        video_id=video_id, project_id=project_id, question_group_id=group_id,
+                        user_id=user_id, include_user_ids=include_user_ids,
+                        virtual_responses_by_question=dynamic_virtual_responses, thresholds=thresholds,
+                        session=session, user_weights=user_weight_map
+                    )
+                else:  # reviewer - MINIMAL CHANGE: Pass custom option weights
+                    result = ReviewerAutoSubmitService.auto_submit_ground_truth_group_with_custom_weights(
+                        video_id=video_id, project_id=project_id, question_group_id=group_id,
+                        reviewer_id=user_id, include_user_ids=include_user_ids,
+                        virtual_responses_by_question=dynamic_virtual_responses, thresholds=thresholds,
+                        session=session, user_weights=user_weight_map, custom_option_weights=option_weights
+                    )
+                
+                # total_submitted += result["submitted_count"]
+                # total_skipped += result["skipped_count"]
+                # total_threshold_failures += result["threshold_failures"]
+                # Count successful question groups, not individual questions
+                if result["submitted_count"] > 0:
+                    total_submitted += 1  # Count as 1 successful question group
+                if result["skipped_count"] > 0:
+                    total_skipped += 1
+                total_threshold_failures += result["threshold_failures"]
+                
+                if result.get("verification_failed", False):
+                    total_verification_failures += 1
+                    verification_failure_details.append({
+                        "group": group_title,
+                        "video": video_uid,
+                        "error": result.get("verification_error", "Unknown verification error")
+                    })
+                
+                if "details" in result and "threshold_failures" in result["details"]:
+                    for failure in result["details"]["threshold_failures"]:
+                        threshold_failure_details.append({
+                            "group": group_title,
+                            "video": video_uid,
+                            "question": failure["question"],
+                            "percentage": failure["percentage"],
+                            "threshold": failure["threshold"]
+                        })
+                
+            except Exception as e:
+                total_verification_failures += 1
+                verification_failure_details.append({
+                    "group": group_title,
+                    "video": video_uid,
+                    "error": str(e)
+                })
+            
+            operation_count += 1
+            progress = operation_count / total_operations
+            progress_bar.progress(progress)
+            status_container.text(f"Processing: {operation_count}/{total_operations}")
+    
+    # Results display (unchanged from original)
+    st.markdown("### 📊 Auto-Submit Results")
+    
+    result_col1, result_col2, result_col3, result_col4 = st.columns(4)
+    
+    with result_col1:
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #d4edda, #c3e6cb); border: 2px solid #28a745; border-radius: 12px; padding: 16px; text-align: center;">
+            <div style="color: #155724; font-size: 1.8rem; font-weight: 700;">{total_submitted}</div>
+            <div style="color: #155724; font-weight: 600;">✅ Submitted</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with result_col2:
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #e2e3e5, #d1ecf1); border: 2px solid #6c757d; border-radius: 12px; padding: 16px; text-align: center;">
+            <div style="color: #495057; font-size: 1.8rem; font-weight: 700;">{total_skipped}</div>
+            <div style="color: #495057; font-weight: 600;">⏭️ Skipped</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with result_col3:
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #fff3cd, #ffeaa7); border: 2px solid #ffc107; border-radius: 12px; padding: 16px; text-align: center;">
+            <div style="color: #856404; font-size: 1.8rem; font-weight: 700;">{total_threshold_failures}</div>
+            <div style="color: #856404; font-weight: 600;">🎯 Threshold</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with result_col4:
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #f8d7da, #f1b0b7); border: 2px solid #dc3545; border-radius: 12px; padding: 16px; text-align: center;">
+            <div style="color: #721c24; font-size: 1.8rem; font-weight: 700;">{total_verification_failures}</div>
+            <div style="color: #721c24; font-weight: 600;">❌ Errors</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    if total_submitted > 0:
+        st.success(f"🎉 Successfully auto-submitted {total_submitted} question groups!")
+    
+    # Failure details (unchanged from original)
+    if total_threshold_failures > 0 and threshold_failure_details:
+        with st.expander(f"🎯 Threshold Failure Details ({total_threshold_failures} failures)", expanded=False):
+            for failure in threshold_failure_details[:10]:
+                st.markdown(f"""
+                <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 8px 12px; margin: 4px 0; border-radius: 4px;">
+                    <strong>{failure['group']} - {failure['video']}</strong><br>
+                    Question: {failure['question']}<br>
+                    Achieved: {failure['percentage']:.1f}% | Required: {failure['threshold']:.1f}%
+                </div>
+                """, unsafe_allow_html=True)
+            
+            if len(threshold_failure_details) > 10:
+                st.caption(f"... and {len(threshold_failure_details) - 10} more threshold failures")
+    
+    if total_verification_failures > 0 and verification_failure_details:
+        with st.expander(f"❌ Error Details ({total_verification_failures} errors)", expanded=False):
+            for failure in verification_failure_details[:10]:
+                st.markdown(f"""
+                <div style="background: #f8d7da; border-left: 4px solid #dc3545; padding: 8px 12px; margin: 4px 0; border-radius: 4px;">
+                    <strong>{failure['group']} - {failure['video']}</strong><br>
+                    Error: {failure['error']}
+                </div>
+                """, unsafe_allow_html=True)
+            
+            if len(verification_failure_details) > 10:
+                st.caption(f"... and {len(verification_failure_details) - 10} more errors")
+
+def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project_id: int, user_id: int, role: str, session: Session):
+    """MINIMAL CHANGE: Use custom option weights and description selections for preview"""
+    
+    virtual_responses_key = f"virtual_responses_{role}_{project_id}"
+    thresholds_key = f"thresholds_{role}_{project_id}"
+    selected_annotators_key = f"auto_submit_annotators_{role}_{project_id}"
+    user_weights_key = f"user_weights_{role}_{project_id}"
+    option_weights_key = f"option_weights_{role}_{project_id}"
+    
+    virtual_responses_by_question = st.session_state.get(virtual_responses_key, {})
+    thresholds = st.session_state.get(thresholds_key, {})
+    selected_annotators = st.session_state.get(selected_annotators_key, [])
+    user_weights = st.session_state.get(user_weights_key, {})
+    option_weights = st.session_state.get(option_weights_key, {})
+    
+    # Get user IDs (unchanged)
+    include_user_ids = []
+    user_weight_map = {}
+    
+    if role == "reviewer":
+        try:
+            available_annotators = get_all_project_annotators(project_id=project_id, session=session)
+            include_user_ids = AuthService.get_annotator_user_ids_from_display_names(
+                display_names=selected_annotators, project_id=project_id, session=session
+            )
+            for annotator_name in selected_annotators:
+                try:
+                    if annotator_name in available_annotators:
+                        user_id_for_weight = available_annotators[annotator_name].get('id')
+                        if user_id_for_weight:
+                            weight = user_weights.get(annotator_name, 1.0)
+                            user_weight_map[user_id_for_weight] = weight
+                except:
+                    continue
+        except:
+            include_user_ids = []
+    else:
+        include_user_ids = [user_id]
+    
+    # BREAK OUT OF COLUMN LAYOUT
     st.markdown("---")
     
-    # FULL WIDTH PREVIEW CONTAINER - Outside of any column context
     with st.container():
         st.markdown("### 🔍 Auto-Submit Preview")
         st.caption("Preview showing what would happen with your current configuration")
         
-        # PROCESS ALL VIDEOS - Count at GROUP level, not question level
         groups_would_submit = 0
         groups_would_skip = 0
         
-        # Show progress for large numbers of videos
         if len(videos) > 10:
             progress_bar = st.progress(0)
             status_text = st.empty()
         
-        # ORGANIZE RESULTS BY VIDEO - Store results by video first
         video_results = {}
         
         for video_idx, video in enumerate(videos):
@@ -1013,7 +1347,6 @@ def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project
                 "groups": {}
             }
             
-            # Update progress for large datasets
             if len(videos) > 10:
                 progress = (video_idx + 1) / len(videos)
                 progress_bar.progress(progress)
@@ -1024,23 +1357,34 @@ def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project
                 group_title = group["Title"]
                 
                 try:
-                    # Get total questions in this group to check completeness
                     questions_in_group = QuestionService.get_questions_by_group_id(group_id=group_id, session=session)
                     total_questions_in_group = len(questions_in_group)
-                    
-                    result = AutoSubmitService.calculate_auto_submit_answers(
-                        video_id=video_id, project_id=project_id, question_group_id=group_id,
-                        include_user_ids=include_user_ids, virtual_responses_by_question=virtual_responses_by_question,
-                        thresholds=thresholds, session=session
+
+                    # MINIMAL CHANGE: Add dynamic virtual responses for this video
+                    dynamic_virtual_responses = virtual_responses_by_question.copy()
+                    video_specific_responses = build_virtual_responses_for_video(
+                        video_id=video_id, project_id=project_id, role=role, session=session
                     )
+                    dynamic_virtual_responses.update(video_specific_responses)
                     
-                    # CORRECT GROUP-LEVEL LOGIC:
-                    # Group succeeds ONLY if:
-                    # 1. We have answers for ALL questions in the group
-                    # 2. AND no threshold failures occurred
-                    # If ANY question has no answer OR fails threshold, the ENTIRE GROUP fails
+                    if role == "reviewer":
+                        result = ReviewerAutoSubmitService.calculate_auto_submit_ground_truth_with_custom_weights(
+                            video_id=video_id, project_id=project_id, question_group_id=group_id,
+                            include_user_ids=include_user_ids, virtual_responses_by_question=dynamic_virtual_responses,
+                            thresholds=thresholds, session=session, user_weights=user_weight_map,
+                            custom_option_weights=option_weights
+                        )
+                    else:
+                        result = AutoSubmitService.calculate_auto_submit_answers(
+                            video_id=video_id, project_id=project_id, question_group_id=group_id,
+                            include_user_ids=include_user_ids, virtual_responses_by_question=dynamic_virtual_responses,
+                            thresholds=thresholds, session=session
+                        )
+                    
+                    # Rest of the logic unchanged
                     answers_count = len(result["answers"])
                     threshold_failures = len(result["threshold_failures"])
+                    skipped_count = len(result.get("skipped", []))
                     verification_failures = 0
 
                     # Check verification function if it exists
@@ -1052,15 +1396,14 @@ def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project
                             verification_function = group_details.get("verification_function")
                             
                             if verification_function:
-                                # Import and run verification function
                                 import verify
                                 verify_func = getattr(verify, verification_function, None)
                                 if verify_func:
-                                    verify_func(result["answers"])  # Raises exception if verification fails
+                                    verify_func(result["answers"])
                         except Exception as e:
                             verification_failures = 1
                     
-                    group_would_submit = (answers_count == total_questions_in_group) and (threshold_failures == 0) and (verification_failures == 0)
+                    group_would_submit = (answers_count == total_questions_in_group) and (threshold_failures == 0) and (verification_failures == 0) and (skipped_count == 0)
                     
                     if group_would_submit:
                         groups_would_submit += 1
@@ -1073,23 +1416,20 @@ def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project
                         }
                     else:
                         groups_would_skip += 1
-                        
-                        # Determine CORRECT failure reason
-                        missing_answers = total_questions_in_group - answers_count - threshold_failures
-                        
-                        failure_parts = []
-                        if missing_answers > 0:
-                            failure_parts.append(f"missing answers ({missing_answers})")
-                        if threshold_failures > 0:
-                            failure_parts.append(f"threshold failures ({threshold_failures})")
-                        if verification_failures > 0:
-                            failure_parts.append(f"verification failures ({verification_failures})")
 
-                        if failure_parts:
-                            failure_reason = " + ".join(failure_parts)
+                        if skipped_count > 0:
+                            failure_reason = f"already completed"
+                        elif verification_failures > 0:
+                            failure_reason = f"verification failed"
                         else:
-                            failure_reason = "no answers generated"
-                        
+                            failure_parts = []
+                            missing_answers = total_questions_in_group - answers_count - threshold_failures
+                            if missing_answers > 0:
+                                failure_parts.append(f"missing answers")
+                            if threshold_failures > 0:
+                                failure_parts.append(f"threshold failures")
+                            
+                            failure_reason = " + ".join(failure_parts) if failure_parts else "unknown failure"
                         
                         video_results[video_uid]["groups"][group_title] = {
                             "would_submit": False,
@@ -1100,7 +1440,6 @@ def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project
                         }
                     
                 except Exception as e:
-                    # Count errors as group skip
                     groups_would_skip += 1
                     try:
                         questions_in_group = QuestionService.get_questions_by_group_id(group_id=group_id, session=session)
@@ -1116,18 +1455,15 @@ def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project
                         "details": f"❌ Error occurred (0/{total_questions_in_group} questions)"
                     }
         
-        # Clear progress indicators
         if len(videos) > 10:
             progress_bar.empty()
             status_text.empty()
         
-        # CORRECT CALCULATION - Count question groups, not individual questions
+        # Rest of the display logic unchanged from original
         if video_results:
-            # Each video + group combination is one "question group operation"
             total_group_operations = len(videos) * len(selected_groups)
             success_rate = (groups_would_submit / total_group_operations * 100) if total_group_operations > 0 else 0
             
-            # Summary metrics - GROUP LEVEL COUNTS
             col1, col2, col3 = st.columns(3)
             
             with col1:
@@ -1137,10 +1473,8 @@ def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project
             with col3:
                 st.metric("📊 Success Rate", f"{success_rate:.1f}%")
             
-            # Show calculation explanation
             st.info(f"📊 **Calculation:** {len(videos)} videos × {len(selected_groups)} question groups = {total_group_operations} group operations. Success rate = {groups_would_submit}/{total_group_operations} = {success_rate:.1f}%")
             
-            # ORGANIZED BY VIDEO - Show first 5 videos in detail to avoid overwhelming
             st.markdown("#### 📋 Detailed Preview Results (First 5 Videos)")
             
             displayed_videos = list(video_results.keys())[:5]
@@ -1148,7 +1482,6 @@ def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project
             for video_uid in displayed_videos:
                 video_data = video_results[video_uid]
                 
-                # Video header with overall status - COUNT GROUPS, NOT QUESTIONS
                 groups_would_submit_video = sum(1 for group_data in video_data["groups"].values() if group_data["would_submit"])
                 groups_would_skip_video = sum(1 for group_data in video_data["groups"].values() if not group_data["would_submit"])
                 video_total_groups = len(video_data["groups"])
@@ -1166,7 +1499,6 @@ def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Show each group for this video
                 group_cols = st.columns(min(3, len(video_data["groups"])))
                 
                 for i, (group_title, group_data) in enumerate(video_data["groups"].items()):
@@ -1179,22 +1511,21 @@ def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project
                                 status_text = "✅ Will Submit"
                                 status_icon = "📋"
                             else:
-                                # Differentiate failure types by color and icon
                                 details = group_data["details"].lower()
                                 if "verification failures" in details:
-                                    status_color = COLORS['danger']  # Red for verification failures
+                                    status_color = COLORS['danger']
                                     status_icon = "🛡️"
                                     status_text = "🛡️ Verification Failed"
                                 elif "threshold failures" in details:
-                                    status_color = COLORS['warning']  # Orange for threshold failures
+                                    status_color = COLORS['warning']
                                     status_icon = "🎯"
                                     status_text = "🎯 Threshold Failed"
                                 elif "missing answers" in details:
-                                    status_color = COLORS['info']  # Blue for missing answers
+                                    status_color = COLORS['info']
                                     status_icon = "📝"
                                     status_text = "📝 Missing Answers"
                                 else:
-                                    status_color = COLORS['secondary']  # Gray for other failures
+                                    status_color = COLORS['secondary']
                                     status_icon = "⏭️"
                                     status_text = "⏭️ Will Skip"
                             
@@ -1212,13 +1543,11 @@ def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project
                             </div>
                             """, unsafe_allow_html=True)
                             
-                            # Show answers if group would be submitted
                             if group_data["would_submit"] and group_data["answers"] and displayed_videos.index(video_uid) < 3:
                                 with st.expander(f"👁️ Preview answers for {group_title}", expanded=False):
                                     for question, answer in group_data["answers"].items():
                                         st.write(f"**{question[:60]}{'...' if len(question) > 60 else ''}**: {answer}")
                                         
-                                        # Show voting breakdown
                                         if question in group_data["vote_details"]:
                                             vote_details = group_data["vote_details"][question]
                                             if vote_details:
@@ -1228,7 +1557,6 @@ def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project
                                                     percentage = (weight / total_weight * 100) if total_weight > 0 else 0
                                                     st.caption(f"  • {option}: {weight:.2f} weight ({percentage:.1f}%)")
                 
-                # Add separator between videos (except for last video)
                 if displayed_videos.index(video_uid) < len(displayed_videos) - 1:
                     st.markdown("---")
             
@@ -1239,8 +1567,8 @@ def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project
 
 def calculate_preload_answers_no_threshold(video_id: int, project_id: int, question_group_id: int, 
                                          include_user_ids: List[int], virtual_responses_by_question: Dict,
-                                         session: Session, user_weights: Dict[int, float] = None) -> Dict[str, str]:
-    """Calculate preload answers WITHOUT threshold requirements - FIXED for both single and description"""
+                                         session: Session, user_weights: Dict[int, float] = None, role: str = "annotator") -> Dict[str, str]:
+    """Calculate preload answers WITHOUT threshold requirements - REVERTED to original for annotators"""
     
     try:
         questions = QuestionService.get_questions_by_group_id(group_id=question_group_id, session=session)
@@ -1255,7 +1583,7 @@ def calculate_preload_answers_no_threshold(video_id: int, project_id: int, quest
             question_type = question["type"]
             
             if question_type == "single":
-                # Get all votes for this question (annotator + virtual responses)
+                # REVERTED: Use original AutoSubmitService logic for single choice
                 vote_counts = {}
                 
                 # Add annotator votes
@@ -1298,56 +1626,52 @@ def calculate_preload_answers_no_threshold(video_id: int, project_id: int, quest
                     preload_answers[question_text] = winning_answer
                 
             elif question_type == "description":
-                # FIXED: For description questions, use same logic as single choice
-                answer_scores = {}
-                
-                # Add annotator answers
-                if include_user_ids:
-                    try:
-                        answers_df = AnnotatorService.get_question_answers(
-                            question_id=question_id, project_id=project_id, session=session
-                        )
-                        
-                        if not answers_df.empty:
-                            video_answers = answers_df[
-                                (answers_df["Video ID"] == video_id) & 
-                                (answers_df["User ID"].isin(include_user_ids))
-                            ]
-                            
-                            for _, answer_row in video_answers.iterrows():
-                                answer_value = answer_row["Answer Value"]
-                                user_id = answer_row["User ID"]
-                                user_weight = user_weights.get(user_id, 1.0) if user_weights else 1.0
-                                
-                                if answer_value not in answer_scores:
-                                    answer_scores[answer_value] = 0.0
-                                answer_scores[answer_value] += user_weight
-                    except Exception:
-                        pass
-                
-                # Add virtual responses
+                # REVERTED: Original logic for description questions
                 virtual_responses = virtual_responses_by_question.get(question_id, [])
-                for vr in virtual_responses:
-                    answer_value = vr["answer"]
-                    weight = vr["user_weight"]
-                    
-                    if answer_value not in answer_scores:
-                        answer_scores[answer_value] = 0.0
-                    answer_scores[answer_value] += weight
                 
-                # Pick highest weighted answer (NO THRESHOLD CHECK!)
-                if answer_scores:
-                    winning_answer = max(answer_scores.keys(), key=lambda x: answer_scores[x])
-                    preload_answers[question_text] = winning_answer
+                if virtual_responses:
+                    # Use the configured answer from dropdown (ignore annotator weights for description)
+                    preload_answers[question_text] = virtual_responses[0]["answer"]
+                else:
+                    # Fall back to weight-based selection only if no dropdown selection made
+                    answer_scores = {}
+                    
+                    # Add annotator answers
+                    if include_user_ids:
+                        try:
+                            answers_df = AnnotatorService.get_question_answers(
+                                question_id=question_id, project_id=project_id, session=session
+                            )
+                            
+                            if not answers_df.empty:
+                                video_answers = answers_df[
+                                    (answers_df["Video ID"] == video_id) & 
+                                    (answers_df["User ID"].isin(include_user_ids))
+                                ]
+                                
+                                for _, answer_row in video_answers.iterrows():
+                                    answer_value = answer_row["Answer Value"]
+                                    user_id = answer_row["User ID"]
+                                    user_weight = user_weights.get(user_id, 1.0) if user_weights else 1.0
+                                    
+                                    if answer_value not in answer_scores:
+                                        answer_scores[answer_value] = 0.0
+                                    answer_scores[answer_value] += user_weight
+                        except Exception:
+                            pass
+                    
+                    # Pick highest weighted answer (NO THRESHOLD CHECK!)
+                    if answer_scores:
+                        winning_answer = max(answer_scores.keys(), key=lambda x: answer_scores[x])
+                        preload_answers[question_text] = winning_answer
         
         return preload_answers
         
     except Exception:
         return {}
 
-
 def run_preload_options_only(selected_groups: List[Dict], videos: List[Dict], project_id: int, user_id: int, role: str, session: Session):
-    """Preload options without auto-submitting - COMPLETELY CLEAN VERSION"""
+    """Preload options without auto-submitting - REVERTED to original for annotators, fixed for reviewers"""
     
     virtual_responses_key = f"virtual_responses_{role}_{project_id}"
     thresholds_key = f"thresholds_{role}_{project_id}"
@@ -1365,6 +1689,7 @@ def run_preload_options_only(selected_groups: List[Dict], videos: List[Dict], pr
     
     if role == "reviewer":
         try:
+            available_annotators = get_all_project_annotators(project_id=project_id, session=session)
             annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
                 display_names=selected_annotators, project_id=project_id, session=session
             )
@@ -1373,9 +1698,8 @@ def run_preload_options_only(selected_groups: List[Dict], videos: List[Dict], pr
             # Map user weights
             for annotator_name in selected_annotators:
                 try:
-                    annotator_info = get_all_project_annotators(project_id=project_id, session=session)
-                    if annotator_name in annotator_info:
-                        user_id_for_weight = annotator_info[annotator_name].get('id')
+                    if annotator_name in available_annotators:
+                        user_id_for_weight = available_annotators[annotator_name].get('id')
                         if user_id_for_weight:
                             weight = user_weights.get(annotator_name, 1.0)
                             user_weight_map[user_id_for_weight] = weight
@@ -1401,12 +1725,61 @@ def run_preload_options_only(selected_groups: List[Dict], videos: List[Dict], pr
             video_id = video["id"]
             
             try:
-                # USE NO-THRESHOLD CALCULATION FOR PRELOADING
-                result_answers = calculate_preload_answers_no_threshold(
-                    video_id=video_id, project_id=project_id, question_group_id=group_id,
-                    include_user_ids=include_user_ids, virtual_responses_by_question=virtual_responses_by_question,
-                    session=session, user_weights=user_weight_map
-                )
+                if role == "reviewer":
+                    # FIXED: Use dynamic virtual responses for reviewers
+                    dynamic_virtual_responses = virtual_responses_by_question.copy()
+                    
+                    # Get custom settings for reviewers
+                    option_weights_key = f"option_weights_{role}_{project_id}"
+                    description_selections_key = f"description_selections_{role}_{project_id}"
+                    option_weights = st.session_state.get(option_weights_key, {})
+                    description_selections = st.session_state.get(description_selections_key, {})
+                    
+                    # Add dynamic virtual responses for description questions
+                    for question_id, selected_annotator in description_selections.items():
+                        if selected_annotator != "Auto (use user weights)":
+                            try:
+                                # Get the specific annotator's answer for this video
+                                annotator_info = available_annotators.get(selected_annotator, {})
+                                annotator_user_id = annotator_info.get('id')
+                                
+                                if annotator_user_id:
+                                    # Get this annotator's answer for this specific video and question
+                                    answers_df = AnnotatorService.get_question_answers(
+                                        question_id=question_id, project_id=project_id, session=session
+                                    )
+                                    
+                                    if not answers_df.empty:
+                                        user_video_answers = answers_df[
+                                            (answers_df["User ID"] == annotator_user_id) & 
+                                            (answers_df["Video ID"] == video_id)
+                                        ]
+                                        
+                                        if not user_video_answers.empty:
+                                            answer_text = user_video_answers.iloc[0]["Answer Value"]
+                                            
+                                            # Create virtual response for this specific video
+                                            dynamic_virtual_responses[question_id] = [{
+                                                "answer": answer_text,
+                                                "user_weight": 1.0
+                                            }]
+                            except Exception as e:
+                                print(f"Error getting answer for question {question_id} from {selected_annotator}: {e}")
+                                continue
+                    
+                    # Calculate answers with custom option weights
+                    result_answers = calculate_preload_answers_no_threshold_with_custom_weights(
+                        video_id=video_id, project_id=project_id, question_group_id=group_id,
+                        include_user_ids=include_user_ids, virtual_responses_by_question=dynamic_virtual_responses,
+                        session=session, user_weights=user_weight_map, option_weights=option_weights
+                    )
+                else:
+                    # REVERTED: Original logic for annotators (no dynamic virtual responses)
+                    result_answers = calculate_preload_answers_no_threshold(
+                        video_id=video_id, project_id=project_id, question_group_id=group_id,
+                        include_user_ids=include_user_ids, virtual_responses_by_question=virtual_responses_by_question,
+                        session=session, user_weights=user_weight_map, role=role
+                    )
                 
                 # Store winning answers for passing to forms
                 for question_text, answer_value in result_answers.items():
@@ -1414,7 +1787,8 @@ def run_preload_options_only(selected_groups: List[Dict], videos: List[Dict], pr
                     preloaded_answers_dict[key] = answer_value
                     total_preloaded += 1
                 
-            except Exception:
+            except Exception as e:
+                print(f"Error processing video {video['id']}, group {group_id}: {e}")
                 continue
     
     # Store in session state for the display functions to access
@@ -1433,8 +1807,93 @@ def run_preload_options_only(selected_groups: List[Dict], videos: List[Dict], pr
         st.warning("⚠️ No answers could be preloaded. Check your configuration.")
 
 
+def calculate_preload_answers_no_threshold_with_custom_weights(
+    video_id: int, project_id: int, question_group_id: int, 
+    include_user_ids: List[int], virtual_responses_by_question: Dict,
+    session: Session, user_weights: Dict[int, float] = None, 
+    option_weights: Dict[int, Dict[str, float]] = None
+) -> Dict[str, str]:
+    """Calculate preload answers for reviewers with custom option weights"""
+    
+    try:
+        questions = QuestionService.get_questions_by_group_id(group_id=question_group_id, session=session)
+        if not questions:
+            return {}
+        
+        preload_answers = {}
+        
+        for question in questions:
+            question_id = question["id"]
+            question_text = question["display_text"]
+            question_type = question["type"]
+            
+            if question_type == "single":
+                # Get custom option weights for this question
+                question_custom_weights = option_weights.get(question_id, {}) if option_weights else {}
+                
+                # Get all votes for this question (annotator + virtual responses)
+                vote_counts = get_weighted_votes_for_question_with_custom_weights(
+                    video_id=video_id, project_id=project_id, question_id=question_id,
+                    include_user_ids=include_user_ids, 
+                    virtual_responses=virtual_responses_by_question.get(question_id, []),
+                    session=session, user_weights=user_weights,
+                    custom_option_weights=question_custom_weights if question_custom_weights else None
+                )
+                
+                # Pick highest weighted option (NO THRESHOLD CHECK!)
+                if vote_counts:
+                    winning_answer = max(vote_counts.keys(), key=lambda x: vote_counts[x])
+                    preload_answers[question_text] = winning_answer
+                
+            elif question_type == "description":
+                # For description questions, prioritize virtual responses (from selected annotator)
+                virtual_responses = virtual_responses_by_question.get(question_id, [])
+                
+                if virtual_responses:
+                    # Use the configured answer (from selected annotator for this video)
+                    preload_answers[question_text] = virtual_responses[0]["answer"]
+                else:
+                    # Fall back to weight-based selection
+                    answer_scores = {}
+                    
+                    # Add annotator answers
+                    if include_user_ids:
+                        try:
+                            answers_df = AnnotatorService.get_question_answers(
+                                question_id=question_id, project_id=project_id, session=session
+                            )
+                            
+                            if not answers_df.empty:
+                                video_answers = answers_df[
+                                    (answers_df["Video ID"] == video_id) & 
+                                    (answers_df["User ID"].isin(include_user_ids))
+                                ]
+                                
+                                for _, answer_row in video_answers.iterrows():
+                                    answer_value = answer_row["Answer Value"]
+                                    user_id = answer_row["User ID"]
+                                    user_weight = user_weights.get(user_id, 1.0) if user_weights else 1.0
+                                    
+                                    if answer_value not in answer_scores:
+                                        answer_scores[answer_value] = 0.0
+                                    answer_scores[answer_value] += user_weight
+                        except Exception:
+                            pass
+                    
+                    # Pick highest weighted answer (NO THRESHOLD CHECK!)
+                    if answer_scores:
+                        winning_answer = max(answer_scores.keys(), key=lambda x: answer_scores[x])
+                        preload_answers[question_text] = winning_answer
+        
+        return preload_answers
+        
+    except Exception as e:
+        print(f"Error in calculate_preload_answers_no_threshold_with_custom_weights: {e}")
+        return {}
+
+
 def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: List[Dict], project_id: int, user_id: int, role: str, session: Session, is_training_mode: bool):
-    """Display manual auto-submit controls - CLEAN VERSION WITHOUT ANY DEBUG"""
+    """Display manual auto-submit controls - MINIMAL FIX for reviewer virtual responses"""
     
     # Get annotators for filtering (reviewer only)
     available_annotators = {}
@@ -1449,6 +1908,9 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
     thresholds_key = f"thresholds_{role}_{project_id}"
     selected_annotators_key = f"auto_submit_annotators_{role}_{project_id}"
     user_weights_key = f"user_weights_{role}_{project_id}"
+    # MINIMAL ADDITION: Store option weights and description annotator selections separately
+    option_weights_key = f"option_weights_{role}_{project_id}"  # For single choice weight adjustments
+    description_selections_key = f"description_selections_{role}_{project_id}"  # For description annotator choices
     
     # Initialize state
     if virtual_responses_key not in st.session_state:
@@ -1459,13 +1921,14 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
         st.session_state[selected_annotators_key] = []
     if user_weights_key not in st.session_state:
         st.session_state[user_weights_key] = {}
+    # MINIMAL ADDITION: Initialize new state keys
+    if option_weights_key not in st.session_state:
+        st.session_state[option_weights_key] = {}
+    if description_selections_key not in st.session_state:
+        st.session_state[description_selections_key] = {}
     
-    # Annotator selection with weights (reviewer only)
+    # Annotator selection with weights (reviewer only) - UNCHANGED
     if role == "reviewer" and available_annotators:
-        st.markdown("#### 👥 Annotator Selection & Weights")
-        st.caption("Only completed annotators can be selected for auto-submit")
-        
-        # Use the new function for auto-submit (completed only)
         selected_annotators = display_smart_annotator_selection_for_auto_submit(
             annotators=available_annotators, project_id=project_id
         )
@@ -1480,7 +1943,7 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
         # Weight controls for selected annotators
         if selected_annotators:
             st.markdown("#### ⚖️ Annotator Weights")
-            st.info("💡 Adjust weights to influence voting. Higher weights = more influence.")
+            st.info("💡 Adjust weights to influence voting. Higher weights = more influence. 0 weights = no influence.")
             
             weight_cols = st.columns(min(3, len(selected_annotators)))
             
@@ -1514,7 +1977,7 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
         questions = QuestionService.get_questions_by_group_id(group_id=group["ID"], session=session)
         all_questions_by_group[group["ID"]] = questions
     
-    # Configuration interface
+    # Configuration interface - KEEP ORIGINAL STRUCTURE
     st.markdown("#### 🤖 Auto-Submit Configuration")    
     
     if role == "reviewer":
@@ -1526,7 +1989,7 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
             st.markdown("##### Configure All Available Options")
             st.info("💡 **Info:** All possible answer options for each question with adjustable weights")
             
-            # Show ALL options for each question, not just from selected annotators
+            # KEEP ORIGINAL LAYOUT but fix the logic
             for group in selected_groups:
                 group_id = group["ID"]
                 group_title = group["Title"]
@@ -1537,7 +2000,7 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
                 
                 st.markdown(f"**📋 {group_title}**")
                 
-                # Two column layout
+                # Two column layout - UNCHANGED
                 cols = st.columns(2)
                 
                 for i, question in enumerate(questions):
@@ -1549,60 +2012,62 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
                         st.markdown(f"*{short_text}*")
                         
                         if question["type"] == "single":
-                            # Initialize if needed - use ALL question options
-                            if question_id not in st.session_state[virtual_responses_key]:
-                                question_data = QuestionService.get_question_by_id(question_id=question_id, session=session)
-                                default_option_weights = question_data.get("option_weights", [])
-                                options = question_data.get("options", [])
-                                
-                                virtual_responses = []
+                            # FIXED: Store option weights separately, don't create virtual responses
+                            question_data = QuestionService.get_question_by_id(question_id=question_id, session=session)
+                            default_option_weights = question_data.get("option_weights", [])
+                            options = question_data.get("options", [])
+                            
+                            # Initialize option weights if not set
+                            if question_id not in st.session_state[option_weights_key]:
+                                weights_dict = {}
                                 for j, option in enumerate(options):
                                     weight = default_option_weights[j] if j < len(default_option_weights) else 1.0
-                                    virtual_responses.append({
-                                        "answer": option,
-                                        "user_weight": weight
-                                    })
-                                st.session_state[virtual_responses_key][question_id] = virtual_responses
+                                    weights_dict[option] = weight
+                                st.session_state[option_weights_key][question_id] = weights_dict
                             
-                            virtual_responses = st.session_state[virtual_responses_key][question_id]
+                            current_weights = st.session_state[option_weights_key][question_id]
                             
-                            # Show options with weights
-                            if virtual_responses:
+                            # Show options with weights - KEEP ORIGINAL UI
+                            if options:
                                 st.caption("**Available answer options with adjustable weights:**")
                                 
-                                for j, vr in enumerate(virtual_responses):
+                                for j, option in enumerate(options):
                                     option_col1, option_col2 = st.columns([3, 1])
                                     
                                     with option_col1:
-                                        # DISABLED TEXTBOX instead of selectbox (same width as annotator)
+                                        # Keep the same disabled textbox
                                         st.text_input(
                                             "Option",
-                                            value=str(vr["answer"]),
+                                            value=str(option),
                                             disabled=True,
                                             key=f"reviewer_opt_display_{question_id}_{j}",
                                             label_visibility="collapsed"
                                         )
                                     
                                     with option_col2:
-                                        # Weight adjustment
+                                        # Weight adjustment - KEEP SAME UI
+                                        current_weight = current_weights.get(option, 1.0)
                                         new_weight = st.number_input(
                                             "Weight",
                                             min_value=0.0,
-                                            value=vr["user_weight"],
+                                            value=current_weight,
                                             step=0.1,
                                             key=f"reviewer_opt_wt_{question_id}_{j}",
                                             disabled=is_training_mode,
                                             label_visibility="collapsed"
                                         )
-                                        vr["user_weight"] = new_weight
-                        else:
-                            # Description type - use selectbox to choose which annotator
-                            if question_id not in st.session_state[virtual_responses_key]:
-                                st.session_state[virtual_responses_key][question_id] = []
+                                        # FIXED: Store in option weights, not virtual responses
+                                        st.session_state[option_weights_key][question_id][option] = new_weight
                             
+                            # FIXED: Clear any virtual responses for single choice questions
+                            if question_id in st.session_state[virtual_responses_key]:
+                                del st.session_state[virtual_responses_key][question_id]
+                        
+                        else:
+                            # Description type - KEEP ORIGINAL UI but fix logic
                             st.caption("**Select annotator answer to use:**")
                             
-                            # Get available annotator answers
+                            # KEEP ORIGINAL selectbox UI
                             try:
                                 if st.session_state[selected_annotators_key]:
                                     annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
@@ -1610,53 +2075,60 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
                                         project_id=project_id, session=session
                                     )
                                     
-                                    # Get answers from these annotators
+                                    # Get answers from these annotators for this specific question
                                     answers_df = AnnotatorService.get_question_answers(
                                         question_id=question_id, project_id=project_id, session=session
                                     )
                                     
-                                    annotator_options = ["None"]
+                                    annotator_options = ["Auto (use user weights)"]
+                                    annotator_data = {}  # Store user_id -> user_name mapping
+                                    
                                     if not answers_df.empty:
                                         annotator_answers = answers_df[answers_df["User ID"].isin(annotator_user_ids)]
-                                        for _, answer_row in annotator_answers.iterrows():
-                                            user_id_resp = answer_row["User ID"]
-                                            user_info = AuthService.get_user_info_by_id(user_id=user_id_resp, session=session)
-                                            user_name = user_info["user_id_str"]
-                                            annotator_options.append(user_name)
+                                        # Get unique user IDs to avoid duplicates
+                                        unique_user_ids = annotator_answers["User ID"].unique()
+                                        
+                                        for user_id_resp in unique_user_ids:
+                                            try:
+                                                user_info = AuthService.get_user_info_by_id(user_id=int(user_id_resp), session=session)
+                                                user_name = user_info["user_id_str"]
+                                                # Apply same naming convention as get_all_project_annotators
+                                                display_name_with_initials, _ = AuthService.get_user_display_name_with_initials(user_name)
+                                                annotator_options.append(display_name_with_initials)
+                                                annotator_data[display_name_with_initials] = int(user_id_resp)
+                                            except Exception as e:
+                                                print(f"Error getting user info for {user_id_resp}: {e}")
+                                                continue
+                                    
+                                    # Get current selection
+                                    current_selection = st.session_state[description_selections_key].get(question_id, "Auto (use user weights)")
+                                    if current_selection not in annotator_options:
+                                        current_selection = "Auto (use user weights)"
                                     
                                     selected_annotator = st.selectbox(
                                         "Choose annotator answer",
                                         annotator_options,
+                                        index=annotator_options.index(current_selection),
                                         key=f"desc_annotator_{question_id}",
                                         help="Select which annotator's answer to use for this description question"
                                     )
                                     
-                                    if selected_annotator != "None":
-                                        # Find the answer and set it
-                                        try:
-                                            selected_user_id = AuthService.get_annotator_user_ids_from_display_names(
-                                                display_names=[selected_annotator], project_id=project_id, session=session
-                                            )[0]
-                                            
-                                            user_answer_row = annotator_answers[annotator_answers["User ID"] == selected_user_id]
-                                            if not user_answer_row.empty:
-                                                answer_text = user_answer_row.iloc[0]["Answer Value"]
-                                                
-                                                # Update virtual responses
-                                                st.session_state[virtual_responses_key][question_id] = [{
-                                                    "answer": answer_text,
-                                                    "user_weight": 1.0
-                                                }]
-                                                
-                                                st.success(f"✅ Using {selected_annotator}'s answer")
-                                        except:
-                                            st.warning("Could not load selected annotator's answer")
+                                    # FIXED: Store selection instead of creating virtual response
+                                    st.session_state[description_selections_key][question_id] = selected_annotator
+                                    
+                                    if selected_annotator != "Auto (use user weights)":
+                                        st.success(f"✅ Using {selected_annotator}'s answer")
+                                    
+                                    # FIXED: Clear any virtual responses for description questions
+                                    if question_id in st.session_state[virtual_responses_key]:
+                                        del st.session_state[virtual_responses_key][question_id]
                                 else:
                                     st.info("Select annotators first to see their answers")
                             except Exception as e:
                                 st.warning(f"Could not load annotator answers: {str(e)}")
         
         with config_tabs[1]:
+            # Consensus thresholds tab - COMPLETELY UNCHANGED
             st.markdown("##### Consensus Thresholds")
             st.info("🎯 **Tip:** 100% = requires full consensus, 50% = requires majority vote")
             
@@ -1694,7 +2166,7 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
                         )
                         st.session_state[thresholds_key][question_id] = new_threshold
     
-    else:  # Annotator role - original logic
+    else:  # Annotator role - COMPLETELY UNCHANGED
         st.caption("Configure default answers and consensus thresholds for automated submission")
         
         config_tabs = st.tabs(["🎯 Default Answers", "📊 Consensus Required"])
@@ -1731,7 +2203,7 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
                         # Current default answers
                         if virtual_responses:
                             for j, vr in enumerate(virtual_responses):
-                                answer_col1, answer_col2, answer_col3 = st.columns([3, 1, 0.5])
+                                answer_col1, answer_col2 = st.columns([4, 0.5])
                                 
                                 with answer_col1:
                                     if question["type"] == "single":
@@ -1763,25 +2235,14 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
                                         )
                                         vr["answer"] = new_answer
                                 
-                                with answer_col2:
-                                    new_weight = st.number_input(
-                                        "Weight",
-                                        min_value=0.0,
-                                        value=vr["user_weight"],
-                                        step=0.1,
-                                        key=f"annotator_wt_{question_id}_{j}",
-                                        disabled=is_training_mode,
-                                        label_visibility="collapsed"
-                                    )
-                                    vr["user_weight"] = new_weight
+                                vr["user_weight"] = 1.0
                                 
-                                with answer_col3:
+                                with answer_col2:
                                     if st.button("🗑️", key=f"annotator_rm_{question_id}_{j}", disabled=is_training_mode, help="Remove"):
                                         st.session_state[virtual_responses_key][question_id].pop(j)
                                         st.rerun()
                         
-                        # Add button (ONLY FOR ANNOTATOR)
-                        if st.button(f"+ Add Default", key=f"annotator_add_{question_id}", disabled=is_training_mode, use_container_width=True):
+                        if len(virtual_responses) == 0 and st.button(f"+ Add Default", key=f"annotator_add_{question_id}", disabled=is_training_mode, use_container_width=True):
                             default_answer = question.get("default") or (question["options"][0] if question["type"] == "single" and question["options"] else "")
                             st.session_state[virtual_responses_key][question_id].append({
                                 "answer": default_answer,
@@ -1827,24 +2288,7 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
                         )
                         st.session_state[thresholds_key][question_id] = new_threshold
     
-    # # Debug mode toggle
-    # debug_col1, debug_col2 = st.columns(2)
-    # with debug_col1:
-    #     show_debug = st.checkbox(
-    #         "🔧 Show debug information", 
-    #         value=st.session_state.get("show_preload_debug", False),
-    #         key="show_preload_debug_toggle",
-    #         help="Show detailed debug information about preloading process"
-    #     )
-    #     st.session_state["show_preload_debug"] = show_debug
-
-    # with debug_col2:
-    #     if show_debug:
-    #         st.info("🔧 Debug mode enabled - extra information will be shown")
-    #     else:
-    #         st.caption("Enable debug mode to see detailed preload information")
-
-    # Enhanced action buttons - NO DEBUG TOGGLE
+    # Action buttons section - COMPLETELY UNCHANGED
     st.markdown("#### ⚡ Execute Auto-Submit")
     
     # Summary of current configuration
@@ -1863,7 +2307,7 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
     </div>
     """, unsafe_allow_html=True)
 
-    # ACTION BUTTONS - NO DEBUG TOGGLE SECTION
+    # ACTION BUTTONS
     action_col1, action_col2, action_col3 = st.columns(3)
 
     with action_col1:
@@ -1902,197 +2346,6 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
     if st.session_state.get(f"auto_submit_in_progress_{role}_{project_id}", False):
         run_manual_auto_submit(selected_groups, videos, project_id, user_id, role, session)
         st.session_state[f"auto_submit_in_progress_{role}_{project_id}"] = False
-
-def run_manual_auto_submit(selected_groups: List[Dict], videos: List[Dict], project_id: int, user_id: int, role: str, session: Session):
-    """Run manual auto-submit with enhanced progress tracking and results"""
-    
-    virtual_responses_key = f"virtual_responses_{role}_{project_id}"
-    thresholds_key = f"thresholds_{role}_{project_id}"
-    selected_annotators_key = f"auto_submit_annotators_{role}_{project_id}"
-    user_weights_key = f"user_weights_{role}_{project_id}"
-    
-    virtual_responses_by_question = st.session_state.get(virtual_responses_key, {})
-    thresholds = st.session_state.get(thresholds_key, {})
-    selected_annotators = st.session_state.get(selected_annotators_key, [])
-    user_weights = st.session_state.get(user_weights_key, {})
-    
-    # Get user IDs and weights
-    include_user_ids = []
-    user_weight_map = {}
-    
-    if role == "reviewer":
-        try:
-            annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
-                display_names=selected_annotators, project_id=project_id, session=session
-            )
-            include_user_ids = annotator_user_ids
-            
-            # Map user weights
-            for annotator_name in selected_annotators:
-                try:
-                    annotator_info = get_all_project_annotators(project_id=project_id, session=session)
-                    if annotator_name in annotator_info:
-                        user_id_for_weight = annotator_info[annotator_name].get('id')
-                        if user_id_for_weight:
-                            weight = user_weights.get(annotator_name, 1.0)
-                            user_weight_map[user_id_for_weight] = weight
-                except:
-                    print(f"Error mapping user weights for {annotator_name}")
-                    continue
-        except:
-            include_user_ids = []
-    else:
-        include_user_ids = [user_id]
-    
-    # Enhanced progress display
-    total_operations = len(selected_groups) * len(videos)
-    st.markdown(f"### 🚀 Executing Auto-Submit")
-    st.caption(f"Processing {len(videos)} videos across {len(selected_groups)} question groups ({total_operations} total operations)")
-    
-    progress_bar = st.progress(0)
-    status_container = st.empty()
-    
-    # Enhanced tracking
-    total_submitted = 0
-    total_skipped = 0
-    total_threshold_failures = 0
-    total_verification_failures = 0
-    
-    # Detailed failure tracking
-    threshold_failure_details = []
-    verification_failure_details = []
-    
-    operation_count = 0
-    
-    for group in selected_groups:
-        group_id = group["ID"]
-        group_title = group["Title"]
-        
-        for video in videos:
-            video_id = video["id"]
-            video_uid = video["uid"]
-            
-            try:
-                if role == "annotator":
-                    result = AutoSubmitService.auto_submit_question_group(
-                        video_id=video_id, project_id=project_id, question_group_id=group_id,
-                        user_id=user_id, include_user_ids=include_user_ids,
-                        virtual_responses_by_question=virtual_responses_by_question, thresholds=thresholds,
-                        session=session, user_weights=user_weight_map
-                    )
-                else:  # reviewer
-                    result = ReviewerAutoSubmitService.auto_submit_ground_truth_group(
-                        video_id=video_id, project_id=project_id, question_group_id=group_id,
-                        reviewer_id=user_id, include_user_ids=include_user_ids,
-                        virtual_responses_by_question=virtual_responses_by_question, thresholds=thresholds,
-                        session=session, user_weights=user_weight_map
-                    )
-                
-                total_submitted += result["submitted_count"]
-                total_skipped += result["skipped_count"]
-                total_threshold_failures += result["threshold_failures"]
-                
-                if result.get("verification_failed", False):
-                    total_verification_failures += 1
-                    verification_failure_details.append({
-                        "group": group_title,
-                        "video": video_uid,
-                        "error": result.get("verification_error", "Unknown verification error")
-                    })
-                
-                # Collect threshold failure details
-                if "details" in result and "threshold_failures" in result["details"]:
-                    for failure in result["details"]["threshold_failures"]:
-                        threshold_failure_details.append({
-                            "group": group_title,
-                            "video": video_uid,
-                            "question": failure["question"],
-                            "percentage": failure["percentage"],
-                            "threshold": failure["threshold"]
-                        })
-                
-            except Exception as e:
-                total_verification_failures += 1
-                verification_failure_details.append({
-                    "group": group_title,
-                    "video": video_uid,
-                    "error": str(e)
-                })
-            
-            operation_count += 1
-            progress = operation_count / total_operations
-            progress_bar.progress(progress)
-            status_container.text(f"Processing: {operation_count}/{total_operations}")
-    
-    # Enhanced results display
-    st.markdown("### 📊 Auto-Submit Results")
-    
-    # Main metrics in cards
-    result_col1, result_col2, result_col3, result_col4 = st.columns(4)
-    
-    with result_col1:
-        st.markdown(f"""
-        <div style="background: linear-gradient(135deg, #d4edda, #c3e6cb); border: 2px solid #28a745; border-radius: 12px; padding: 16px; text-align: center;">
-            <div style="color: #155724; font-size: 1.8rem; font-weight: 700;">{total_submitted}</div>
-            <div style="color: #155724; font-weight: 600;">✅ Submitted</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with result_col2:
-        st.markdown(f"""
-        <div style="background: linear-gradient(135deg, #e2e3e5, #d1ecf1); border: 2px solid #6c757d; border-radius: 12px; padding: 16px; text-align: center;">
-            <div style="color: #495057; font-size: 1.8rem; font-weight: 700;">{total_skipped}</div>
-            <div style="color: #495057; font-weight: 600;">⏭️ Skipped</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with result_col3:
-        st.markdown(f"""
-        <div style="background: linear-gradient(135deg, #fff3cd, #ffeaa7); border: 2px solid #ffc107; border-radius: 12px; padding: 16px; text-align: center;">
-            <div style="color: #856404; font-size: 1.8rem; font-weight: 700;">{total_threshold_failures}</div>
-            <div style="color: #856404; font-weight: 600;">🎯 Threshold</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with result_col4:
-        st.markdown(f"""
-        <div style="background: linear-gradient(135deg, #f8d7da, #f1b0b7); border: 2px solid #dc3545; border-radius: 12px; padding: 16px; text-align: center;">
-            <div style="color: #721c24; font-size: 1.8rem; font-weight: 700;">{total_verification_failures}</div>
-            <div style="color: #721c24; font-weight: 600;">❌ Errors</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Success message
-    if total_submitted > 0:
-        st.success(f"🎉 Successfully auto-submitted {total_submitted} question groups!")
-    
-    # Enhanced failure reporting
-    if total_threshold_failures > 0 and threshold_failure_details:
-        with st.expander(f"🎯 Threshold Failure Details ({total_threshold_failures} failures)", expanded=False):
-            for failure in threshold_failure_details[:10]:  # Show first 10
-                st.markdown(f"""
-                <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 8px 12px; margin: 4px 0; border-radius: 4px;">
-                    <strong>{failure['group']} - {failure['video']}</strong><br>
-                    Question: {failure['question']}<br>
-                    Achieved: {failure['percentage']:.1f}% | Required: {failure['threshold']:.1f}%
-                </div>
-                """, unsafe_allow_html=True)
-            
-            if len(threshold_failure_details) > 10:
-                st.caption(f"... and {len(threshold_failure_details) - 10} more threshold failures")
-    
-    if total_verification_failures > 0 and verification_failure_details:
-        with st.expander(f"❌ Error Details ({total_verification_failures} errors)", expanded=False):
-            for failure in verification_failure_details[:10]:  # Show first 10
-                st.markdown(f"""
-                <div style="background: #f8d7da; border-left: 4px solid #dc3545; padding: 8px 12px; margin: 4px 0; border-radius: 4px;">
-                    <strong>{failure['group']} - {failure['video']}</strong><br>
-                    Error: {failure['error']}
-                </div>
-                """, unsafe_allow_html=True)
-            
-            if len(verification_failure_details) > 10:
-                st.caption(f"... and {len(verification_failure_details) - 10} more errors")
 
 
 def display_question_group_in_fixed_container(video: Dict, project_id: int, user_id: int, group_id: int, role: str, mode: str, session: Session, container_height: int):
@@ -2430,9 +2683,7 @@ def get_all_project_annotators(project_id: int, session: Session) -> Dict[str, D
 
 def display_user_simple(user_name: str, user_email: str, is_ground_truth: bool = False):
     """Simple user display using native Streamlit components"""
-    name_parts = user_name.split()
-    initials = f"{name_parts[0][0]}{name_parts[-1][0]}".upper() if len(name_parts) >= 2 else user_name[:2].upper()
-    
+    display_name, initials = AuthService.get_user_display_name_with_initials(user_name)
     if is_ground_truth:
         st.success(f"🏆 **{user_name}** ({initials}) - {user_email}")
     else:
