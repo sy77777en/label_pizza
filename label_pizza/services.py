@@ -4210,7 +4210,6 @@ class ProjectGroupService:
         # Remove empty groups
         return {name: projects for name, projects in grouped_projects.items() if projects}
 
-    
 class AutoSubmitService:
     @staticmethod
     def get_weighted_votes_for_question(
@@ -4219,9 +4218,10 @@ class AutoSubmitService:
         question_id: int,
         include_user_ids: List[int],
         virtual_responses: List[Dict],
-        session: Session
+        session: Session,
+        user_weights: Dict[int, float] = None
     ) -> Dict[str, float]:
-        """Calculate weighted votes for a single question"""
+        """Calculate weighted votes for a single question with user and option weights"""
         try:
             from models import User, ProjectUserRole
             from sqlalchemy import select
@@ -4231,6 +4231,7 @@ class AutoSubmitService:
             if not question:
                 return {}
             
+            user_weights = user_weights or {}
             vote_weights = {}
             
             # Get real user answers
@@ -4248,16 +4249,17 @@ class AutoSubmitService:
                     user_id = int(answer_row["User ID"])
                     answer_value = str(answer_row["Answer Value"])
                     
-                    # Get user weight from project assignment - FIXED
-                    assignment = session.execute(
-                        select(ProjectUserRole).where(
-                            ProjectUserRole.user_id == user_id,
-                            ProjectUserRole.project_id == project_id,
-                            ProjectUserRole.role == "annotator"
-                        )
-                    ).first()
-                    
-                    user_weight = float(assignment[0].user_weight) if assignment else 1.0
+                    # Get user weight - prioritize passed weights, then database, then default
+                    user_weight = user_weights.get(user_id)
+                    if user_weight is None:
+                        assignment = session.execute(
+                            select(ProjectUserRole).where(
+                                ProjectUserRole.user_id == user_id,
+                                ProjectUserRole.project_id == project_id,
+                                ProjectUserRole.role == "annotator"
+                            )
+                        ).first()
+                        user_weight = float(assignment[0].user_weight) if assignment else 1.0
                     
                     # Get option weight
                     option_weight = 1.0
@@ -4268,6 +4270,7 @@ class AutoSubmitService:
                         except (ValueError, IndexError):
                             option_weight = 1.0
                     
+                    # Combined weight = user_weight * option_weight
                     combined_weight = user_weight * option_weight
                     vote_weights[answer_value] = vote_weights.get(answer_value, 0.0) + combined_weight
             
@@ -4284,6 +4287,7 @@ class AutoSubmitService:
                     except (ValueError, IndexError):
                         option_weight = 1.0
                 
+                # Combined weight = user_weight * option_weight
                 combined_weight = user_weight * option_weight
                 vote_weights[answer_value] = vote_weights.get(answer_value, 0.0) + combined_weight
             
@@ -4300,7 +4304,8 @@ class AutoSubmitService:
         include_user_ids: List[int],
         virtual_responses_by_question: Dict[int, List[Dict]],
         thresholds: Dict[int, float],
-        session: Session
+        session: Session,
+        user_weights: Dict[int, float] = None
     ) -> Dict[str, Any]:
         """Calculate which answers would be auto-submitted"""
         try:
@@ -4309,7 +4314,8 @@ class AutoSubmitService:
                 "answers": {},
                 "skipped": [],
                 "threshold_failures": [],
-                "vote_details": {}
+                "vote_details": {},
+                "voting_summary": {}
             }
             
             # Check existing answers
@@ -4321,6 +4327,12 @@ class AutoSubmitService:
                 )
             except:
                 pass
+            
+            total_votes = 0
+            annotator_count = len(include_user_ids)
+            total_confidence = 0.0
+            confidence_count = 0
+            consensus_scores = []
             
             for question in questions:
                 question_id = question["id"]
@@ -4334,7 +4346,8 @@ class AutoSubmitService:
                 virtual_responses = virtual_responses_by_question.get(question_id, [])
                 vote_weights = AutoSubmitService.get_weighted_votes_for_question(
                     video_id=video_id, project_id=project_id, question_id=question_id,
-                    include_user_ids=include_user_ids, virtual_responses=virtual_responses, session=session
+                    include_user_ids=include_user_ids, virtual_responses=virtual_responses, 
+                    session=session, user_weights=user_weights
                 )
                 
                 results["vote_details"][question_text] = vote_weights
@@ -4342,8 +4355,16 @@ class AutoSubmitService:
                 if not vote_weights:
                     continue
                 
-                # Find winning option
+                total_votes += sum(vote_weights.values())
+                
+                # Calculate consensus score for this question
                 total_weight = sum(vote_weights.values())
+                if total_weight > 0:
+                    max_weight = max(vote_weights.values())
+                    consensus_score = (max_weight / total_weight) * 100
+                    consensus_scores.append(consensus_score)
+                
+                # Find winning option
                 if total_weight == 0:
                     continue
                 
@@ -4362,6 +4383,14 @@ class AutoSubmitService:
                         "threshold": threshold
                     })
             
+            # Add voting summary
+            results["voting_summary"] = {
+                "total_votes": total_votes,
+                "annotator_count": annotator_count,
+                "avg_confidence": total_confidence / confidence_count if confidence_count > 0 else 0,
+                "consensus_score": sum(consensus_scores) / len(consensus_scores) if consensus_scores else 0
+            }
+            
             return results
             
         except Exception as e:
@@ -4376,7 +4405,8 @@ class AutoSubmitService:
         include_user_ids: List[int],
         virtual_responses_by_question: Dict[int, List[Dict]],
         thresholds: Dict[int, float],
-        session: Session
+        session: Session,
+        user_weights: Dict[int, float] = None
     ) -> Dict[str, Any]:
         """Actually submit the auto-calculated answers"""
         try:
@@ -4384,7 +4414,7 @@ class AutoSubmitService:
             calculation_results = AutoSubmitService.calculate_auto_submit_answers(
                 video_id=video_id, project_id=project_id, question_group_id=question_group_id,
                 include_user_ids=include_user_ids, virtual_responses_by_question=virtual_responses_by_question,
-                thresholds=thresholds, session=session
+                thresholds=thresholds, session=session, user_weights=user_weights
             )
             
             answers = calculation_results["answers"]
@@ -4407,7 +4437,6 @@ class AutoSubmitService:
                 verification_function = group_details.get("verification_function")
                 
                 if verification_function:
-                    # Import the group to access verification - FIXED
                     from models import QuestionGroup
                     from sqlalchemy import select
                     
@@ -4415,7 +4444,6 @@ class AutoSubmitService:
                         select(QuestionGroup).where(QuestionGroup.id == question_group_id)
                     ).scalar_one()
                     
-                    # Use existing verification method
                     AnnotatorService._run_verification(group, answers)
                     
             except ValueError as verification_error:
@@ -4458,7 +4486,8 @@ class ReviewerAutoSubmitService:
         include_user_ids: List[int],
         virtual_responses_by_question: Dict[int, List[Dict]],
         thresholds: Dict[int, float],
-        session: Session
+        session: Session,
+        user_weights: Dict[int, float] = None
     ) -> Dict[str, Any]:
         """Auto-submit ground truth using weighted voting"""
         try:
@@ -4466,7 +4495,7 @@ class ReviewerAutoSubmitService:
             calculation_results = AutoSubmitService.calculate_auto_submit_answers(
                 video_id=video_id, project_id=project_id, question_group_id=question_group_id,
                 include_user_ids=include_user_ids, virtual_responses_by_question=virtual_responses_by_question,
-                thresholds=thresholds, session=session
+                thresholds=thresholds, session=session, user_weights=user_weights
             )
             
             answers = calculation_results["answers"]
