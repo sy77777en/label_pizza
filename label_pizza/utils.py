@@ -448,6 +448,7 @@ def _display_clean_sticky_description_question(
     
     question_id = question["id"]
     question_text = question["display_text"]
+    question_key = question["text"]
     
     # Get preloaded answer
     preloaded_value = ""
@@ -538,7 +539,7 @@ def _display_clean_sticky_description_question(
         if show_annotators or (role in ["meta_reviewer", "reviewer_resubmit"] and existing_value):
             _display_enhanced_helper_text_answers(
                 video_id=video_id, project_id=project_id, question_id=question_id, 
-                question_text=question_text, text_key=text_key,
+                question_text=question_key, text_key=text_key,
                 gt_value=existing_value if role in ["meta_reviewer", "reviewer_resubmit"] else "",
                 role=role, answer_reviews=answer_reviews, session=session,
                 selected_annotators=selected_annotators or []
@@ -569,6 +570,99 @@ def _display_clean_sticky_description_question(
             """, unsafe_allow_html=True)
     
     return result
+
+def get_weighted_votes_for_question_with_custom_weights(
+    video_id: int, 
+    project_id: int, 
+    question_id: int,
+    include_user_ids: List[int],
+    virtual_responses: List[Dict],
+    session: Session,
+    user_weights: Dict[int, float] = None,
+    custom_option_weights: Dict[str, float] = None
+) -> Dict[str, float]:
+    """
+    MINIMAL MODIFICATION of the original function to use custom option weights for reviewers.
+    """
+    try:
+        from models import User, ProjectUserRole
+        from sqlalchemy import select
+        
+        # Get question details
+        question = QuestionService.get_question_by_id(question_id=question_id, session=session)
+        if not question:
+            return {}
+        
+        user_weights = user_weights or {}
+        vote_weights = {}
+        
+        # Get real user answers
+        answers_df = AnnotatorService.get_question_answers(
+            question_id=question_id, project_id=project_id, session=session
+        )
+        
+        if not answers_df.empty:
+            video_answers = answers_df[
+                (answers_df["Video ID"] == video_id) & 
+                (answers_df["User ID"].isin(include_user_ids))
+            ]
+            
+            for _, answer_row in video_answers.iterrows():
+                user_id = int(answer_row["User ID"])
+                answer_value = str(answer_row["Answer Value"])
+                
+                # Get user weight - prioritize passed weights, then database, then default
+                user_weight = user_weights.get(user_id)
+                if user_weight is None:
+                    assignment = session.execute(
+                        select(ProjectUserRole).where(
+                            ProjectUserRole.user_id == user_id,
+                            ProjectUserRole.project_id == project_id,
+                            ProjectUserRole.role == "annotator"
+                        )
+                    ).first()
+                    user_weight = float(assignment[0].user_weight) if assignment else 1.0
+                
+                # MINIMAL CHANGE: Use custom option weights if provided (for reviewers)
+                option_weight = 1.0
+                if question["type"] == "single":
+                    if custom_option_weights and answer_value in custom_option_weights:
+                        option_weight = float(custom_option_weights[answer_value])
+                    elif question["option_weights"]:
+                        try:
+                            option_index = question["options"].index(answer_value)
+                            option_weight = float(question["option_weights"][option_index])
+                        except (ValueError, IndexError):
+                            option_weight = 1.0
+                
+                # Combined weight = user_weight * option_weight
+                combined_weight = user_weight * option_weight
+                vote_weights[answer_value] = vote_weights.get(answer_value, 0.0) + combined_weight
+        
+        # Add virtual responses (unchanged)
+        for virtual_response in virtual_responses:
+            answer_value = str(virtual_response["answer"])
+            user_weight = float(virtual_response["user_weight"])
+            
+            option_weight = 1.0
+            if question["type"] == "single":
+                if custom_option_weights and answer_value in custom_option_weights:
+                    option_weight = float(custom_option_weights[answer_value])
+                elif question["option_weights"]:
+                    try:
+                        option_index = question["options"].index(answer_value)
+                        option_weight = float(question["option_weights"][option_index])
+                    except (ValueError, IndexError):
+                        option_weight = 1.0
+            
+            # Combined weight = user_weight * option_weight
+            combined_weight = user_weight * option_weight
+            vote_weights[answer_value] = vote_weights.get(answer_value, 0.0) + combined_weight
+        
+        return vote_weights
+        
+    except Exception as e:
+        raise ValueError(f"Error calculating weighted votes: {str(e)}")
 
 
 # ALSO UPDATE display_manual_auto_submit_controls TO REMOVE DEBUG TOGGLE:

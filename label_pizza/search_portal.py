@@ -10,7 +10,6 @@ from utils import (
     get_card_style, COLORS, handle_database_errors, get_db_session,
     _display_unified_status, _display_clean_sticky_single_choice_question,
     _display_clean_sticky_description_question, _get_enhanced_options_for_reviewer,
-    _display_enhanced_helper_text_answers, _display_single_answer_elegant,
     _submit_answer_reviews, _load_existing_answer_reviews, get_schema_question_groups
 )
 
