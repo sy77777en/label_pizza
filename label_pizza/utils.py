@@ -4,12 +4,14 @@ from typing import Dict, Optional, List, Any
 from datetime import datetime
 from sqlalchemy.orm import Session
 from contextlib import contextmanager
+import hashlib
 
 # Import database
 from db import SessionLocal
 from services import (
     AuthService, AnnotatorService, GroundTruthService, 
-    QuestionService, QuestionGroupService, SchemaService
+    QuestionService, QuestionGroupService, SchemaService,
+    ProjectService
 )
 
 ###############################################################################
@@ -38,16 +40,181 @@ def get_card_style(color, opacity=0.15):
     """
 
 ###############################################################################
-# HELPER FUNCTIONS - ALL USING SERVICE LAYER
+# CACHING UTILITIES
+###############################################################################
+
+def get_cache_key(*args):
+    """Generate a cache key from arguments"""
+    key_str = "_".join(str(arg) for arg in args)
+    return hashlib.md5(key_str.encode()).hexdigest()[:16]
+
+def clear_project_cache(project_id: int):
+    """Clear all cached data for a specific project"""
+    cache_keys_to_clear = []
+    for key in st.session_state.keys():
+        if f"cache_project_{project_id}" in key:
+            cache_keys_to_clear.append(key)
+    
+    for key in cache_keys_to_clear:
+        del st.session_state[key]
+
+###############################################################################
+# CACHED DATA LOADERS
+###############################################################################
+
+@st.cache_data(ttl=3600)  # Cache for 1 hour
+def get_cached_all_users(session_id: str) -> pd.DataFrame:
+    """Cache all users data - changes infrequently"""
+    with SessionLocal() as session:  # Use SessionLocal directly
+        try:
+            return AuthService.get_all_users(session=session)
+        except Exception as e:
+            print(f"Error in get_cached_all_users: {e}")
+            return pd.DataFrame()
+
+@st.cache_data(ttl=3600)  # Cache for 1 hour  
+def get_cached_project_questions(project_id: int, session_id: str) -> List[Dict]:
+    """Cache project questions - changes infrequently"""
+    with SessionLocal() as session:  # Use SessionLocal directly
+        try:
+            return ProjectService.get_project_questions(project_id=project_id, session=session)
+        except Exception as e:
+            print(f"Error in get_cached_project_questions: {e}")
+            return []
+
+@st.cache_data(ttl=1800)  # Cache for 30 minutes
+def get_cached_question_answers(project_id: int, session_id: str) -> pd.DataFrame:
+    """Cache ALL annotator answers for a project - annotator answers rarely change"""
+    with SessionLocal() as session:  # Use SessionLocal directly
+        try:
+            # Get all questions for the project first
+            questions = ProjectService.get_project_questions(project_id=project_id, session=session)
+            
+            all_answers = []
+            for question in questions:
+                try:
+                    question_answers = AnnotatorService.get_question_answers(
+                        question_id=question["id"], project_id=project_id, session=session
+                    )
+                    if not question_answers.empty:
+                        # ADD THE MISSING QUESTION ID COLUMN!
+                        question_answers["Question ID"] = question["id"]
+                        all_answers.append(question_answers)
+                except Exception as e:
+                    print(f"Error getting answers for question {question.get('id', 'unknown')}: {e}")
+                    continue
+            
+            if all_answers:
+                return pd.concat(all_answers, ignore_index=True)
+            else:
+                return pd.DataFrame()
+        except Exception as e:
+            print(f"Error in get_cached_question_answers: {e}")
+            return pd.DataFrame()
+@st.cache_data(ttl=1800)  # Cache for 30 minutes
+def get_cached_project_annotators(project_id: int, session_id: str) -> Dict[str, Dict]:
+    """Cache project annotators info - changes infrequently"""
+    with SessionLocal() as session:  # Use SessionLocal directly
+        try:
+            # Get project assignments to determine project-specific roles
+            assignments_df = AuthService.get_project_assignments(session=session)
+            project_assignments = assignments_df[assignments_df["Project ID"] == project_id]
+            
+            # Get all users
+            users_df = AuthService.get_all_users(session=session)
+            user_lookup = {row["ID"]: row for _, row in users_df.iterrows()}
+            
+            # Build user role mapping with priority: admin > reviewer > model > annotator
+            user_roles = {}
+            role_priority = {"admin": 4, "reviewer": 3, "model": 2, "annotator": 1}
+            
+            for _, assignment in project_assignments.iterrows():
+                user_id = assignment["User ID"]
+                role = assignment["Role"]
+                
+                if user_id not in user_roles or role_priority.get(role, 0) > role_priority.get(user_roles[user_id], 0):
+                    user_roles[user_id] = role
+            
+            # Get annotators who have actually submitted answers
+            annotators = ProjectService.get_project_annotators(project_id=project_id, session=session)
+            
+            # Enhance with correct project roles and user info
+            enhanced_annotators = {}
+            for display_name, annotator_info in annotators.items():
+                user_id = annotator_info.get('id')
+                if user_id and user_id in user_lookup:
+                    user_data = user_lookup[user_id]
+                    project_role = user_roles.get(user_id, 'annotator')  # Default to annotator if not found
+                    
+                    enhanced_annotators[display_name] = {
+                        'id': user_id,
+                        'email': user_data["Email"],
+                        'Role': project_role,  # Use project-specific role
+                        'role': project_role,  # Backup key
+                        'system_role': user_data["Role"],  # Keep system role for reference
+                        'display_name': display_name
+                    }
+            
+            return enhanced_annotators
+            
+        except Exception as e:
+            print(f"Error in get_cached_project_annotators: {e}")
+            return {}
+
+def get_session_cache_key():
+    """Generate a session-based cache key that changes when user logs in/out"""
+    user_id = st.session_state.get('user', {}).get('id', 'anonymous')
+    return f"session_{user_id}"
+
+###############################################################################
+# OPTIMIZED HELPER FUNCTIONS
 ###############################################################################
 
 def get_schema_question_groups(schema_id: int, session: Session) -> List[Dict]:
-    """Get question groups in a schema"""
-    try:
-        return SchemaService.get_schema_question_groups_list(schema_id=schema_id, session=session)
-    except ValueError as e:
-        st.error(f"Error loading schema question groups: {str(e)}")
+    """Get question groups in a schema - with caching"""
+    cache_key = f"schema_groups_{schema_id}"
+    
+    if cache_key not in st.session_state:
+        try:
+            st.session_state[cache_key] = SchemaService.get_schema_question_groups_list(schema_id=schema_id, session=session)
+        except ValueError as e:
+            st.error(f"Error loading schema question groups: {str(e)}")
+            return []
+    
+    return st.session_state[cache_key]
+
+def get_optimized_all_project_annotators(project_id: int, session: Session) -> Dict[str, Dict]:
+    """Optimized version of get_all_project_annotators using caching"""
+    session_id = get_session_cache_key()
+    return get_cached_project_annotators(project_id, session_id)
+
+def get_optimized_question_answers(question_id: int, project_id: int, session: Session) -> pd.DataFrame:
+    """Get answers for a specific question from cached project answers"""
+    session_id = get_session_cache_key()
+    all_answers_df = get_cached_question_answers(project_id, session_id)
+    
+    if all_answers_df.empty:
+        return pd.DataFrame()
+    
+    # Filter for the specific question
+    question_answers = all_answers_df[all_answers_df["Question ID"] == question_id]
+    return question_answers
+
+def get_optimized_annotator_user_ids(display_names: List[str], project_id: int, session: Session) -> List[int]:
+    """Optimized version using cached annotator data"""
+    if not display_names:
         return []
+    
+    annotators = get_optimized_all_project_annotators(project_id, session)
+    user_ids = []
+    
+    for display_name in display_names:
+        if display_name in annotators:
+            user_id = annotators[display_name].get('id')
+            if user_id:
+                user_ids.append(user_id)
+    
+    return user_ids
 
 ###############################################################################
 # DATABASE UTILITIES
@@ -129,22 +296,20 @@ def calculate_per_question_accuracy(accuracy_data: Dict[int, Dict[int, Dict[str,
     
     return per_question_accuracy
 
-
 ###############################################################################
-# UTILITY FUNCTIONS
+# OPTIMIZED DISPLAY FUNCTIONS
 ###############################################################################
-
 
 def _display_enhanced_helper_text_answers(video_id: int, project_id: int, question_id: int, question_text: str, text_key: str, gt_value: str, role: str, answer_reviews: Optional[Dict], session: Session, selected_annotators: List[str] = None):
-    """Display helper text showing other annotator answers"""
+    """OPTIMIZED: Display helper text showing other annotator answers"""
     
     try:
         annotator_user_ids = []
         text_answers = []
         
-        # Get annotator answers if annotators are selected
+        # Get annotator answers if annotators are selected - OPTIMIZED
         if selected_annotators:
-            annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
+            annotator_user_ids = get_optimized_annotator_user_ids(
                 display_names=selected_annotators, project_id=project_id, session=session
             )
             
@@ -239,9 +404,6 @@ def _display_enhanced_helper_text_answers(video_id: int, project_id: int, questi
     except Exception as e:
         st.caption(f"⚠️ Could not load answer information: {str(e)}")
 
-
-
-
 def _display_clean_sticky_single_choice_question(
     question: Dict, 
     video_id: int, 
@@ -259,7 +421,7 @@ def _display_clean_sticky_single_choice_question(
     key_prefix: str = "", 
     preloaded_answers: Dict = None
 ) -> str:
-    """Display a single choice question with preloaded answer support - CLEAN VERSION"""
+    """OPTIMIZED: Display a single choice question with preloaded answer support"""
     question_id = question["id"]
     question_text = question["display_text"]
     options = question["options"]
@@ -311,7 +473,7 @@ def _display_clean_sticky_single_choice_question(
                 </div>
             """, unsafe_allow_html=True)
     
-    # Show unified status for reviewers/meta-reviewers
+    # Show unified status for reviewers/meta-reviewers - OPTIMIZED
     if role in ["reviewer", "meta_reviewer", "reviewer_resubmit"]:
         show_annotators = selected_annotators is not None and len(selected_annotators) > 0
         _display_unified_status(
@@ -355,7 +517,7 @@ def _display_clean_sticky_single_choice_question(
         result = current_value
         
     elif role in ["reviewer", "meta_reviewer", "reviewer_resubmit"]:
-        # ALWAYS get enhanced options for reviewer/meta-reviewer/reviewer_resubmit roles
+        # OPTIMIZED: Use cached enhanced options
         enhanced_options = _get_enhanced_options_for_reviewer(
             video_id=video_id, project_id=project_id, question_id=question_id, 
             options=options, display_values=display_values, session=session,
@@ -425,7 +587,6 @@ def _display_clean_sticky_single_choice_question(
     
     return result
 
-
 def _display_clean_sticky_description_question(
     question: Dict, 
     video_id: int, 
@@ -444,7 +605,7 @@ def _display_clean_sticky_description_question(
     key_prefix: str = "", 
     preloaded_answers: Dict = None
 ) -> str:
-    """Display a description question with preloaded answer support - CLEAN VERSION"""
+    """OPTIMIZED: Display a description question with preloaded answer support"""
     
     question_id = question["id"]
     question_text = question["display_text"]
@@ -524,7 +685,7 @@ def _display_clean_sticky_description_question(
             label_visibility="collapsed"
         )
         
-        # Show unified status
+        # Show unified status - OPTIMIZED
         show_annotators = selected_annotators is not None and len(selected_annotators) > 0
         _display_unified_status(
             video_id=video_id, 
@@ -571,276 +732,20 @@ def _display_clean_sticky_description_question(
     
     return result
 
-def get_weighted_votes_for_question_with_custom_weights(
-    video_id: int, 
-    project_id: int, 
-    question_id: int,
-    include_user_ids: List[int],
-    virtual_responses: List[Dict],
-    session: Session,
-    user_weights: Dict[int, float] = None,
-    custom_option_weights: Dict[str, float] = None
-) -> Dict[str, float]:
-    """
-    MINIMAL MODIFICATION of the original function to use custom option weights for reviewers.
-    """
-    try:
-        from models import User, ProjectUserRole
-        from sqlalchemy import select
-        
-        # Get question details
-        question = QuestionService.get_question_by_id(question_id=question_id, session=session)
-        if not question:
-            return {}
-        
-        user_weights = user_weights or {}
-        vote_weights = {}
-        
-        # Get real user answers
-        answers_df = AnnotatorService.get_question_answers(
-            question_id=question_id, project_id=project_id, session=session
-        )
-        
-        if not answers_df.empty:
-            video_answers = answers_df[
-                (answers_df["Video ID"] == video_id) & 
-                (answers_df["User ID"].isin(include_user_ids))
-            ]
-            
-            for _, answer_row in video_answers.iterrows():
-                user_id = int(answer_row["User ID"])
-                answer_value = str(answer_row["Answer Value"])
-                
-                # Get user weight - prioritize passed weights, then database, then default
-                user_weight = user_weights.get(user_id)
-                if user_weight is None:
-                    assignment = session.execute(
-                        select(ProjectUserRole).where(
-                            ProjectUserRole.user_id == user_id,
-                            ProjectUserRole.project_id == project_id,
-                            ProjectUserRole.role == "annotator"
-                        )
-                    ).first()
-                    user_weight = float(assignment[0].user_weight) if assignment else 1.0
-                
-                # MINIMAL CHANGE: Use custom option weights if provided (for reviewers)
-                option_weight = 1.0
-                if question["type"] == "single":
-                    if custom_option_weights and answer_value in custom_option_weights:
-                        option_weight = float(custom_option_weights[answer_value])
-                    elif question["option_weights"]:
-                        try:
-                            option_index = question["options"].index(answer_value)
-                            option_weight = float(question["option_weights"][option_index])
-                        except (ValueError, IndexError):
-                            option_weight = 1.0
-                
-                # Combined weight = user_weight * option_weight
-                combined_weight = user_weight * option_weight
-                vote_weights[answer_value] = vote_weights.get(answer_value, 0.0) + combined_weight
-        
-        # Add virtual responses (unchanged)
-        for virtual_response in virtual_responses:
-            answer_value = str(virtual_response["answer"])
-            user_weight = float(virtual_response["user_weight"])
-            
-            option_weight = 1.0
-            if question["type"] == "single":
-                if custom_option_weights and answer_value in custom_option_weights:
-                    option_weight = float(custom_option_weights[answer_value])
-                elif question["option_weights"]:
-                    try:
-                        option_index = question["options"].index(answer_value)
-                        option_weight = float(question["option_weights"][option_index])
-                    except (ValueError, IndexError):
-                        option_weight = 1.0
-            
-            # Combined weight = user_weight * option_weight
-            combined_weight = user_weight * option_weight
-            vote_weights[answer_value] = vote_weights.get(answer_value, 0.0) + combined_weight
-        
-        return vote_weights
-        
-    except Exception as e:
-        raise ValueError(f"Error calculating weighted votes: {str(e)}")
-
-
-# ALSO UPDATE display_manual_auto_submit_controls TO REMOVE DEBUG TOGGLE:
-
-def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: List[Dict], project_id: int, user_id: int, role: str, session: Session, is_training_mode: bool):
-    """Display manual auto-submit controls - CLEAN VERSION WITHOUT DEBUG TOGGLE"""
-    
-    # ... [Keep all the existing code until the action buttons] ...
-    
-    # Enhanced action buttons - REORDERED (REMOVE DEBUG TOGGLE SECTION)
-    st.markdown("#### ⚡ Execute Auto-Submit")
-    
-    # Summary of current configuration
-    total_selected_annotators = len(st.session_state.get(f"auto_submit_annotators_{role}_{project_id}", [])) if role == "reviewer" else 0
-    
-    # Get total questions
-    total_questions = 0
-    for group in selected_groups:
-        questions = QuestionService.get_questions_by_group_id(group_id=group["ID"], session=session)
-        total_questions += len(questions)
-
-    summary_text = f"📊 Configuration: {total_questions} questions"
-    if role == "reviewer":
-        summary_text += f" • {total_selected_annotators} annotators selected"
-
-    st.markdown(f"""
-    <div style="background: linear-gradient(135deg, #e8f5e8, #d4f1d4); border: 2px solid #28a745; border-radius: 12px; padding: 16px; margin: 16px 0; text-align: center;">
-        <div style="color: #155724; font-weight: 600; font-size: 1rem;">
-            {summary_text}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # REORDERED ACTION BUTTONS
-    action_col1, action_col2, action_col3 = st.columns(3)
-
-    with action_col1:
-        if st.button("⚙️ Preload Options", 
-                    key=f"preload_options_{role}_{project_id}",
-                    use_container_width=True,
-                    disabled=is_training_mode,
-                    help="Preload options without auto-submitting"):
-            run_preload_options_only(selected_groups, videos, project_id, user_id, role, session)
-
-    with action_col2:
-        if st.button("🔍 Preview Auto-Submit", 
-                    key=f"preview_{role}_{project_id}",
-                    use_container_width=True,
-                    disabled=is_training_mode,
-                    help="Preview what would be auto-submitted"):
-            st.session_state[f"show_preview_{role}_{project_id}"] = True
-            st.rerun()
-
-    with action_col3:
-        if st.button("🚀 Execute Auto-Submit", 
-                    key=f"auto_submit_{role}_{project_id}",
-                    use_container_width=True,
-                    disabled=is_training_mode,
-                    type="primary",
-                    help="Run auto-submit with current configuration"):
-            run_manual_auto_submit(selected_groups, videos, project_id, user_id, role, session)
-
-    # Check if preview button was clicked and show preview outside of columns for full width
-    if st.session_state.get(f"show_preview_{role}_{project_id}", False):
-        run_preload_preview(selected_groups, videos, project_id, user_id, role, session)
-        st.session_state[f"show_preview_{role}_{project_id}"] = False
-
-def _display_unified_status(video_id: int, project_id: int, question_id: int, session: Session, show_annotators: bool = False, selected_annotators: List[str] = None):
-    """Display ground truth status and optionally annotator status with clean user display names"""
-    
-    status_parts = []
-    
-    # Get annotator status first if requested
-    if show_annotators and selected_annotators:
-        try:
-            annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
-                display_names=selected_annotators, project_id=project_id, session=session
-            )
-            
-            # Get answers for this question/video
-            answers_df = AnnotatorService.get_question_answers(
-                question_id=question_id, project_id=project_id, session=session
-            )
-            
-            # Get user info consistently using system roles
-            users_df = AuthService.get_all_users(session=session)
-            user_lookup = {row["ID"]: {"role": row["Role"], "name": row["User ID"]} for _, row in users_df.iterrows()}
-            
-            # Find which annotators have answered this specific question/video
-            annotators_with_answers = set()
-            annotators_missing = set()
-            
-            if not answers_df.empty:
-                video_answers = answers_df[answers_df["Video ID"] == video_id]
-                answered_user_ids = set(video_answers["User ID"].tolist())
-                
-                for user_id in annotator_user_ids:
-                    user_info = user_lookup.get(user_id, {})
-                    user_name = user_info.get("name", f"User {user_id}")
-                    
-                    if user_id in answered_user_ids:
-                        annotators_with_answers.add(user_name)
-                    else:
-                        annotators_missing.add(user_name)
-            else:
-                # No answers at all - all are missing
-                for user_id in annotator_user_ids:
-                    user_info = user_lookup.get(user_id, {})
-                    user_name = user_info.get("name", f"User {user_id}")
-                    annotators_missing.add(user_name)
-            
-            # Add annotator status parts with initials, no truncation
-            if annotators_with_answers:
-                display_names = []
-                for user_name in annotators_with_answers:
-                    display_name, _ = AuthService.get_user_display_name_with_initials(user_name)
-                    display_names.append(display_name)
-                status_parts.append(f"📊 Answered: {', '.join(display_names)}")
-            
-            if annotators_missing:
-                display_names = []
-                for user_name in annotators_missing:
-                    display_name, _ = AuthService.get_user_display_name_with_initials(user_name)
-                    display_names.append(display_name)
-                status_parts.append(f"⚠️ Missing: {', '.join(display_names)}")
-                
-        except Exception as e:
-            print(f"Error getting annotator status: {e}")
-            status_parts.append("⚠️ Could not load annotator status")
-    
-    # Ground truth status (existing code remains the same)
-    try:
-        gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
-        
-        if not gt_df.empty:
-            question_id_int = int(question_id)
-            question_gt = gt_df[gt_df["Question ID"] == question_id_int]
-            
-            if not question_gt.empty:
-                gt_row = question_gt.iloc[0]
-                
-                try:
-                    reviewer_info = AuthService.get_user_info_by_id(user_id=int(gt_row["Reviewer ID"]), session=session)
-                    reviewer_name = reviewer_info["user_id_str"]
-                    
-                    modified_by_admin = gt_row["Modified By Admin"] is not None
-                    
-                    if modified_by_admin:
-                        status_parts.append(f"🏆 GT by: {reviewer_name} (Admin)")
-                    else:
-                        status_parts.append(f"🏆 GT by: {reviewer_name}")
-                except Exception:
-                    status_parts.append("🏆 GT exists")
-            else:
-                status_parts.append("📭 No GT")
-        else:
-            status_parts.append("📭 No GT")
-            
-    except Exception:
-        status_parts.append("📭 No GT")
-    
-    # Display single combined status line
-    if status_parts:
-        st.caption(" | ".join(status_parts))
-
 def _get_enhanced_options_for_reviewer(video_id: int, project_id: int, question_id: int, options: List[str], display_values: List[str], session: Session, selected_annotators: List[str] = None) -> List[str]:
-    """Get enhanced options showing who selected what for reviewers with model confidence scores"""
+    """OPTIMIZED: Get enhanced options showing who selected what for reviewers with model confidence scores"""
     
     try:
-        # Get annotator selections if annotators are provided
+        # Get annotator selections if annotators are provided - OPTIMIZED
         annotator_user_ids = []
         if selected_annotators:
-            annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
+            annotator_user_ids = get_optimized_annotator_user_ids(
                 display_names=selected_annotators, project_id=project_id, session=session
             )
         
-        # Get user info consistently using system roles
-        users_df = AuthService.get_all_users(session=session)
+        # Get user info from cached data - OPTIMIZED
+        session_id = get_session_cache_key()
+        users_df = get_cached_all_users(session_id)
         user_lookup = {row["ID"]: {"role": row["Role"], "name": row["User ID"]} for _, row in users_df.iterrows()}
         
         # Create reverse lookup: user_name -> user_info
@@ -851,10 +756,8 @@ def _get_enhanced_options_for_reviewer(video_id: int, project_id: int, question_
             annotator_user_ids=annotator_user_ids, session=session
         )
         
-        # Get answers with confidence scores for models
-        answers_df = AnnotatorService.get_question_answers(
-            question_id=question_id, project_id=project_id, session=session
-        )
+        # Get answers with confidence scores for models - OPTIMIZED
+        answers_df = get_optimized_question_answers(question_id=question_id, project_id=project_id, session=session)
         
         confidence_map = {}
         if not answers_df.empty:
@@ -946,6 +849,209 @@ def _get_enhanced_options_for_reviewer(video_id: int, project_id: int, question_
     
     return enhanced_options
 
+def _display_unified_status(video_id: int, project_id: int, question_id: int, session: Session, show_annotators: bool = False, selected_annotators: List[str] = None):
+    """OPTIMIZED: Display ground truth status and optionally annotator status with clean user display names"""
+    
+    status_parts = []
+    
+    # Get annotator status first if requested - OPTIMIZED
+    if show_annotators and selected_annotators:
+        try:
+            # Step 1: Get annotator user IDs
+            annotator_user_ids = get_optimized_annotator_user_ids(
+                display_names=selected_annotators, project_id=project_id, session=session
+            )
+            
+            if not annotator_user_ids:
+                status_parts.append("⚠️ No annotator IDs found")
+            else:
+                # Step 2: Get answers for this question/video - OPTIMIZED
+                answers_df = get_optimized_question_answers(question_id=question_id, project_id=project_id, session=session)
+                
+                # Step 3: Get user info from cached data - OPTIMIZED
+                session_id = get_session_cache_key()
+                users_df = get_cached_all_users(session_id)
+                
+                if users_df.empty:
+                    status_parts.append("⚠️ No user data available")
+                else:
+                    user_lookup = {row["ID"]: {"role": row["Role"], "name": row["User ID"]} for _, row in users_df.iterrows()}
+                    
+                    # Find which annotators have answered this specific question/video
+                    annotators_with_answers = set()
+                    annotators_missing = set()
+                    
+                    if not answers_df.empty:
+                        video_answers = answers_df[answers_df["Video ID"] == video_id]
+                        answered_user_ids = set(video_answers["User ID"].tolist())
+                        
+                        for user_id in annotator_user_ids:
+                            user_info = user_lookup.get(user_id, {})
+                            user_name = user_info.get("name", f"User {user_id}")
+                            
+                            if user_id in answered_user_ids:
+                                annotators_with_answers.add(user_name)
+                            else:
+                                annotators_missing.add(user_name)
+                    else:
+                        # No answers at all - all are missing
+                        for user_id in annotator_user_ids:
+                            user_info = user_lookup.get(user_id, {})
+                            user_name = user_info.get("name", f"User {user_id}")
+                            annotators_missing.add(user_name)
+                    
+                    # Add annotator status parts with initials, no truncation
+                    if annotators_with_answers:
+                        display_names = []
+                        for user_name in annotators_with_answers:
+                            display_name, _ = AuthService.get_user_display_name_with_initials(user_name)
+                            display_names.append(display_name)
+                        status_parts.append(f"📊 Answered: {', '.join(display_names)}")
+                    
+                    if annotators_missing:
+                        display_names = []
+                        for user_name in annotators_missing:
+                            display_name, _ = AuthService.get_user_display_name_with_initials(user_name)
+                            display_names.append(display_name)
+                        status_parts.append(f"⚠️ Missing: {', '.join(display_names)}")
+                        
+        except Exception as e:
+            print(f"Detailed error in annotator status: {e}")
+            import traceback
+            traceback.print_exc()  # This will help debug the exact issue
+            status_parts.append(f"⚠️ Annotator status error: {str(e)[:50]}")
+    
+    # Ground truth status (existing code remains the same)
+    try:
+        gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
+        
+        if not gt_df.empty:
+            question_id_int = int(question_id)
+            question_gt = gt_df[gt_df["Question ID"] == question_id_int]
+            
+            if not question_gt.empty:
+                gt_row = question_gt.iloc[0]
+                
+                try:
+                    reviewer_info = AuthService.get_user_info_by_id(user_id=int(gt_row["Reviewer ID"]), session=session)
+                    reviewer_name = reviewer_info["user_id_str"]
+                    
+                    modified_by_admin = gt_row["Modified By Admin"] is not None
+                    
+                    if modified_by_admin:
+                        status_parts.append(f"🏆 GT by: {reviewer_name} (Admin)")
+                    else:
+                        status_parts.append(f"🏆 GT by: {reviewer_name}")
+                except Exception:
+                    status_parts.append("🏆 GT exists")
+            else:
+                status_parts.append("📭 No GT")
+        else:
+            status_parts.append("📭 No GT")
+            
+    except Exception as e:
+        print(f"Error getting ground truth status: {e}")
+        status_parts.append("📭 GT error")
+    
+    # Display single combined status line
+    if status_parts:
+        st.caption(" | ".join(status_parts))
+
+def get_weighted_votes_for_question_with_custom_weights(
+    video_id: int, 
+    project_id: int, 
+    question_id: int,
+    include_user_ids: List[int],
+    virtual_responses: List[Dict],
+    session: Session,
+    user_weights: Dict[int, float] = None,
+    custom_option_weights: Dict[str, float] = None
+) -> Dict[str, float]:
+    """
+    OPTIMIZED: MINIMAL MODIFICATION of the original function to use custom option weights for reviewers.
+    """
+    try:
+        from models import User, ProjectUserRole
+        from sqlalchemy import select
+        
+        # Get question details
+        question = QuestionService.get_question_by_id(question_id=question_id, session=session)
+        if not question:
+            return {}
+        
+        user_weights = user_weights or {}
+        vote_weights = {}
+        
+        # Get real user answers - OPTIMIZED
+        answers_df = get_optimized_question_answers(question_id=question_id, project_id=project_id, session=session)
+        
+        if not answers_df.empty:
+            video_answers = answers_df[
+                (answers_df["Video ID"] == video_id) & 
+                (answers_df["User ID"].isin(include_user_ids))
+            ]
+            
+            for _, answer_row in video_answers.iterrows():
+                user_id = int(answer_row["User ID"])
+                answer_value = str(answer_row["Answer Value"])
+                
+                # Get user weight - prioritize passed weights, then database, then default
+                user_weight = user_weights.get(user_id)
+                if user_weight is None:
+                    assignment = session.execute(
+                        select(ProjectUserRole).where(
+                            ProjectUserRole.user_id == user_id,
+                            ProjectUserRole.project_id == project_id,
+                            ProjectUserRole.role == "annotator"
+                        )
+                    ).first()
+                    user_weight = float(assignment[0].user_weight) if assignment else 1.0
+                
+                # MINIMAL CHANGE: Use custom option weights if provided (for reviewers)
+                option_weight = 1.0
+                if question["type"] == "single":
+                    if custom_option_weights and answer_value in custom_option_weights:
+                        option_weight = float(custom_option_weights[answer_value])
+                    elif question["option_weights"]:
+                        try:
+                            option_index = question["options"].index(answer_value)
+                            option_weight = float(question["option_weights"][option_index])
+                        except (ValueError, IndexError):
+                            option_weight = 1.0
+                
+                # Combined weight = user_weight * option_weight
+                combined_weight = user_weight * option_weight
+                vote_weights[answer_value] = vote_weights.get(answer_value, 0.0) + combined_weight
+        
+        # Add virtual responses (unchanged)
+        for virtual_response in virtual_responses:
+            answer_value = str(virtual_response["answer"])
+            user_weight = float(virtual_response["user_weight"])
+            
+            option_weight = 1.0
+            if question["type"] == "single":
+                if custom_option_weights and answer_value in custom_option_weights:
+                    option_weight = float(custom_option_weights[answer_value])
+                elif question["option_weights"]:
+                    try:
+                        option_index = question["options"].index(answer_value)
+                        option_weight = float(question["option_weights"][option_index])
+                    except (ValueError, IndexError):
+                        option_weight = 1.0
+            
+            # Combined weight = user_weight * option_weight
+            combined_weight = user_weight * option_weight
+            vote_weights[answer_value] = vote_weights.get(answer_value, 0.0) + combined_weight
+        
+        return vote_weights
+        
+    except Exception as e:
+        raise ValueError(f"Error calculating weighted votes: {str(e)}")
+
+###############################################################################
+# REMAINING UNCHANGED UTILITY FUNCTIONS
+###############################################################################
+
 def _display_single_answer_elegant(answer, text_key, question_text, answer_reviews, video_id, project_id, question_id, session):
     """Display a single answer with elegant left-right layout"""
     desc_col, controls_col = st.columns([2.6, 1.4])
@@ -1011,7 +1117,6 @@ def _display_single_answer_elegant(answer, text_key, question_text, answer_revie
                 else:
                     st.caption("📝 Click submit to save your review.")
 
-
 def _submit_answer_reviews(answer_reviews: Dict, video_id: int, project_id: int, user_id: int, session: Session):
     """Submit answer reviews for annotators using proper service API"""
     for question_text, reviews in answer_reviews.items():
@@ -1020,12 +1125,16 @@ def _submit_answer_reviews(answer_reviews: Dict, video_id: int, project_id: int,
             
             if review_status in ["approved", "rejected", "pending"]:
                 try:
-                    annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
-                        display_names=[annotator_display], project_id=project_id, session=session
-                    )
+                    # OPTIMIZED: Use cached annotator lookup
+                    annotators = get_optimized_all_project_annotators(project_id=project_id, session=session)
+                    annotator_user_id = None
                     
-                    if annotator_user_ids:
-                        annotator_user_id = int(annotator_user_ids[0])
+                    for display_name, annotator_info in annotators.items():
+                        if display_name == annotator_display:
+                            annotator_user_id = annotator_info.get('id')
+                            break
+                    
+                    if annotator_user_id:
                         question = QuestionService.get_question_by_text(text=question_text, session=session)
                         answers_df = AnnotatorService.get_answers(video_id=video_id, project_id=project_id, session=session)
                         
@@ -1045,14 +1154,13 @@ def _submit_answer_reviews(answer_reviews: Dict, video_id: int, project_id: int,
                     print(f"Error submitting review for {annotator_display}: {e}")
                     continue
 
-
 def _load_existing_answer_reviews(video_id: int, project_id: int, question_id: int, session: Session) -> Dict[str, Dict]:
-    """Load existing answer reviews for a description question from the database"""
+    """OPTIMIZED: Load existing answer reviews for a description question from the database"""
     reviews = {}
     
     try:
         selected_annotators = st.session_state.get("selected_annotators", [])
-        annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
+        annotator_user_ids = get_optimized_annotator_user_ids(
             display_names=selected_annotators, project_id=project_id, session=session
         )
         

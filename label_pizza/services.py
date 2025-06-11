@@ -1,12 +1,12 @@
-# services.py
-from sqlalchemy import select, insert, update, func, delete, exists
-from sqlalchemy.orm import Session
+from sqlalchemy import select, insert, update, func, delete, exists, join, distinct, and_, or_, case, text
+from sqlalchemy.orm import Session, selectinload, joinedload, contains_eager  
+from sqlalchemy.sql import literal_column
+from typing import List, Optional, Dict, Any, Tuple
 from label_pizza.models import (
     Video, Project, ProjectVideo, Schema, QuestionGroup,
     Question, ProjectUserRole, AnnotatorAnswer, ReviewerGroundTruth, User, AnswerReview,
     QuestionGroupQuestion, SchemaQuestionGroup, ProjectGroup, ProjectGroupProject
 )
-from typing import List, Optional, Dict, Any
 import pandas as pd
 from datetime import datetime, timezone
 import hashlib
@@ -95,6 +95,7 @@ class VideoService:
         video.is_archived = True
         session.commit()
 
+    
     @staticmethod
     def get_all_videos(session: Session) -> pd.DataFrame:
         """Get all videos.
@@ -122,6 +123,7 @@ class VideoService:
             for v in videos
         ])
 
+    
     @staticmethod
     def get_videos_with_project_status(session: Session) -> pd.DataFrame:
         """Get all videos with their project assignments and ground truth status.
@@ -260,6 +262,7 @@ class VideoService:
         session.add(video)
         session.commit()
     
+    
     @staticmethod
     def get_project_videos(project_id: int, session: Session) -> List[Dict[str, Any]]:
         """Get all non-archived videos in a project.
@@ -341,9 +344,67 @@ class ProjectService:
         if not project:
             raise ValueError(f"Project with name '{name}' not found")
         return project
-
+    
     @staticmethod
     def get_all_projects(session: Session) -> pd.DataFrame:
+        """Get all non-archived projects with their video counts and ground truth percentages."""
+        
+        # Single optimized query using subqueries and joins
+        query = select(
+            Project.id,
+            Project.name,
+            Project.schema_id,
+            # Count videos in project
+            func.coalesce(
+                select(func.count(ProjectVideo.video_id))
+                .select_from(ProjectVideo)
+                .where(ProjectVideo.project_id == Project.id)
+                .scalar_subquery(), 0
+            ).label('video_count'),
+            # Count total questions in schema
+            func.coalesce(
+                select(func.count(Question.id))
+                .select_from(Question)
+                .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
+                .join(SchemaQuestionGroup, QuestionGroupQuestion.question_group_id == SchemaQuestionGroup.question_group_id)
+                .where(SchemaQuestionGroup.schema_id == Project.schema_id)
+                .scalar_subquery(), 0
+            ).label('total_questions'),
+            # Count ground truth answers
+            func.coalesce(
+                select(func.count(ReviewerGroundTruth.project_id))
+                .select_from(ReviewerGroundTruth)
+                .where(ReviewerGroundTruth.project_id == Project.id)
+                .scalar_subquery(), 0
+            ).label('gt_answers')
+        ).select_from(
+            Project
+        ).join(
+            Schema, Project.schema_id == Schema.id
+        ).where(
+            and_(Project.is_archived == False, Schema.is_archived == False)
+        )
+        
+        result = session.execute(query).all()
+        
+        rows = []
+        for row in result:
+            # Calculate GT percentage
+            total_possible = row.video_count * row.total_questions
+            gt_percentage = (row.gt_answers / total_possible * 100) if total_possible > 0 else 0.0
+            
+            rows.append({
+                "ID": row.id,
+                "Name": row.name,
+                "Videos": row.video_count,
+                "Schema ID": row.schema_id,
+                "GT %": gt_percentage
+            })
+        
+        return pd.DataFrame(rows)
+
+    @staticmethod
+    def get_all_projects_old(session: Session) -> pd.DataFrame:
         """Get all non-archived projects with their video counts and ground truth percentages."""
         rows = []
         for p in session.scalars(select(Project).where(Project.is_archived == False)).all():
@@ -476,6 +537,7 @@ class ProjectService:
         project.is_archived = True
         session.commit()
 
+    
     @staticmethod
     def get_project_reviewers(project_id: int, session: Session) -> List[Dict[str, Any]]:
         """Get all reviewers who have submitted ground truth in a project.
@@ -514,6 +576,7 @@ class ProjectService:
         
         return reviewers
 
+    
     @staticmethod
     def get_project_questions(project_id: int, session: Session) -> List[Dict[str, Any]]:
         """Get all questions in a project's schema.
@@ -729,6 +792,7 @@ class ProjectService:
             
         session.commit()
     
+    
     @staticmethod
     def get_project_annotators(project_id: int, session: Session) -> Dict[str, Dict[str, Any]]:
         """Get all annotators who have submitted answers in a project.
@@ -839,6 +903,7 @@ class ProjectService:
 
 
 class SchemaService:
+    
     @staticmethod
     def get_all_schemas(session: Session) -> pd.DataFrame:
         """Get all schemas with their question groups.
@@ -1139,6 +1204,7 @@ class SchemaService:
             raise ValueError(f"Schema with ID {schema_id} not found")
         return schema
 
+    
     @staticmethod
     def get_schema_question_groups(schema_id: int, session: Session) -> pd.DataFrame:
         """Get all question groups in a schema.
@@ -1237,6 +1303,7 @@ class SchemaService:
         } for g in groups]
 
 class QuestionService:
+    
     @staticmethod
     def get_all_questions(session: Session) -> pd.DataFrame:
         """Get all questions with their group information.
@@ -1895,6 +1962,48 @@ class AuthService:
     @staticmethod
     def get_project_assignments(session: Session) -> pd.DataFrame:
         """Get all project assignments in a DataFrame format."""
+        
+        # Single query with joins instead of individual gets
+        query = select(
+            ProjectUserRole.project_id,
+            Project.name.label('project_name'),
+            ProjectUserRole.user_id,
+            User.user_id_str.label('user_name'),
+            ProjectUserRole.role,
+            ProjectUserRole.is_archived,
+            ProjectUserRole.assigned_at,
+            ProjectUserRole.completed_at,
+            ProjectUserRole.user_weight
+        ).select_from(
+            ProjectUserRole
+        ).join(
+            Project, ProjectUserRole.project_id == Project.id
+        ).join(
+            User, ProjectUserRole.user_id == User.id
+        ).where(
+            ProjectUserRole.is_archived == False
+        )
+        
+        result = session.execute(query).all()
+        
+        return pd.DataFrame([
+            {
+                "Project ID": row.project_id,
+                "Project Name": row.project_name,
+                "User ID": row.user_id,
+                "User Name": row.user_name,
+                "Role": row.role,
+                "Archived": row.is_archived,
+                "Assigned At": row.assigned_at,
+                "Completed At": row.completed_at,
+                "User Weight": row.user_weight
+            }
+            for row in result
+        ])
+
+    @staticmethod
+    def get_project_assignments_old(session: Session) -> pd.DataFrame:
+        """Get all project assignments in a DataFrame format."""
         assignments = session.scalars(
             select(ProjectUserRole)
             .join(Project, ProjectUserRole.project_id == Project.id)
@@ -2226,6 +2335,7 @@ class QuestionGroupService:
             "verification_function": group.verification_function
         }
     
+    
     @staticmethod
     def get_all_groups(session: Session) -> pd.DataFrame:
         """Get all question groups with their questions and schema usage.
@@ -2291,6 +2401,7 @@ class QuestionGroupService:
             })
         return pd.DataFrame(rows)
 
+    
     @staticmethod
     def get_group_questions(group_id: int, session: Session) -> pd.DataFrame:
         """Get all questions in a group.
@@ -2332,6 +2443,7 @@ class QuestionGroupService:
             for q in questions
         ])
 
+    
     @staticmethod
     def get_group_details(group_id: int, session: Session) -> dict:
         """Get details of a question group.
@@ -4092,6 +4204,7 @@ class ProjectGroupService:
             raise ValueError(f"Project group with name '{name}' not found")
         return group
 
+    
     @staticmethod
     def list_project_groups(session: Session):
         groups = session.scalars(select(ProjectGroup)).all()
@@ -4160,6 +4273,7 @@ class ProjectGroupService:
                     
                     raise ValueError(error_msg)
 
+    
     @staticmethod
     def get_grouped_projects_for_user(user_id: int, role: str, session: Session) -> Dict[str, List[Dict[str, Any]]]:
         """Get project groups with their projects for a user.

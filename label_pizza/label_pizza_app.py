@@ -1051,7 +1051,7 @@ def build_virtual_responses_for_video(video_id: int, project_id: int, role: str,
         
         try:
             # Get available annotators
-            available_annotators = get_all_project_annotators(project_id=project_id, session=session)
+            available_annotators = get_optimized_all_project_annotators(project_id=project_id, session=session)
             annotator_info = available_annotators.get(selected_annotator, {})
             annotator_user_id = annotator_info.get('id')
             
@@ -1105,7 +1105,7 @@ def run_manual_auto_submit(selected_groups: List[Dict], videos: List[Dict], proj
     
     if role == "reviewer":
         try:
-            available_annotators = get_all_project_annotators(project_id=project_id, session=session)
+            available_annotators = get_optimized_all_project_annotators(project_id=project_id, session=session)
             annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
                 display_names=selected_annotators, project_id=project_id, session=session
             )
@@ -1304,7 +1304,7 @@ def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project
     
     if role == "reviewer":
         try:
-            available_annotators = get_all_project_annotators(project_id=project_id, session=session)
+            available_annotators = get_optimized_all_project_annotators(project_id=project_id, session=session)
             include_user_ids = AuthService.get_annotator_user_ids_from_display_names(
                 display_names=selected_annotators, project_id=project_id, session=session
             )
@@ -1688,7 +1688,7 @@ def run_preload_options_only(selected_groups: List[Dict], videos: List[Dict], pr
     
     if role == "reviewer":
         try:
-            available_annotators = get_all_project_annotators(project_id=project_id, session=session)
+            available_annotators = get_optimized_all_project_annotators(project_id=project_id, session=session)
             annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
                 display_names=selected_annotators, project_id=project_id, session=session
             )
@@ -1898,7 +1898,7 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
     available_annotators = {}
     if role == "reviewer":
         try:
-            available_annotators = get_all_project_annotators(project_id=project_id, session=session)
+            available_annotators = get_optimized_all_project_annotators(project_id=project_id, session=session)
         except:
             available_annotators = {}
     
@@ -2091,7 +2091,7 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
                                             try:
                                                 user_info = AuthService.get_user_info_by_id(user_id=int(user_id_resp), session=session)
                                                 user_name = user_info["user_id_str"]
-                                                # Apply same naming convention as get_all_project_annotators
+                                                # Apply same naming convention as get_optimized_all_project_annotators
                                                 display_name_with_initials, _ = AuthService.get_user_display_name_with_initials(user_name)
                                                 annotator_options.append(display_name_with_initials)
                                                 annotator_data[display_name_with_initials] = int(user_id_resp)
@@ -2631,7 +2631,7 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
 # SHARED UTILITY FUNCTIONS
 ###############################################################################
 
-def get_all_project_annotators(project_id: int, session: Session) -> Dict[str, Dict]:
+def get_optimized_all_project_annotators(project_id: int, session: Session) -> Dict[str, Dict]:
     """Get all annotators who have answered questions in this project with correct project-specific roles"""
     try:
         # Get project assignments to determine project-specific roles
@@ -3978,6 +3978,14 @@ def display_project_view(user_id: int, role: str, session: Session):
         st.error(f"Error loading project: {str(e)}")
         return
     
+    # 🔥 ADD THE CACHE CLEARING CODE HERE - RIGHT AFTER PROJECT LOADS SUCCESSFULLY
+    # Clear cache when entering a new project for fresh data
+    if st.session_state.get('last_project_id') != project_id:
+        from utils import clear_project_cache  # Import the function
+        clear_project_cache(project_id)
+        st.session_state.last_project_id = project_id
+    
+    
     mode = "Training" if check_project_has_full_ground_truth(project_id=project_id, session=session) else "Annotation"
     
     st.markdown(f"## 📁 {project.name}")
@@ -4053,7 +4061,7 @@ def display_project_view(user_id: int, role: str, session: Session):
             """, unsafe_allow_html=True)
             
             try:
-                annotators = get_all_project_annotators(project_id=project_id, session=session)
+                annotators = get_optimized_all_project_annotators(project_id=project_id, session=session)
                 display_smart_annotator_selection(annotators=annotators, project_id=project_id)
             except Exception as e:
                 st.error(f"Error loading annotators: {str(e)}")
@@ -4202,7 +4210,7 @@ def display_project_view(user_id: int, role: str, session: Session):
             """, unsafe_allow_html=True)
             
             try:
-                annotators = get_all_project_annotators(project_id=project_id, session=session)
+                annotators = get_optimized_all_project_annotators(project_id=project_id, session=session)
                 display_smart_annotator_selection(annotators=annotators, project_id=project_id)
             except Exception as e:
                 st.error(f"Error loading annotators: {str(e)}")
