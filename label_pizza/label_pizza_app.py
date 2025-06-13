@@ -30,7 +30,7 @@ from utils import (
     _display_unified_status, _display_clean_sticky_single_choice_question,
     _display_clean_sticky_description_question, _get_enhanced_options_for_reviewer,
     _submit_answer_reviews, _load_existing_answer_reviews, calculate_overall_accuracy, calculate_per_question_accuracy,
-    get_schema_question_groups
+    get_schema_question_groups, get_project_videos
 )
 
 Base.metadata.create_all(engine)
@@ -6740,13 +6740,13 @@ def admin_project_groups():
                 st.error(f"Error loading groups for editing: {str(e)}")
 
 
-def get_project_videos(project_id: int, session: Session) -> List[Dict]:
-    """Get videos in a project"""
-    try:
-        return VideoService.get_project_videos(project_id=project_id, session=session)
-    except ValueError as e:
-        st.error(f"Error getting project videos: {str(e)}")
-        return []
+# def get_project_videos(project_id: int, session: Session) -> List[Dict]:
+#     """Get videos in a project"""
+#     try:
+#         return VideoService.get_project_videos(project_id=project_id, session=session)
+#     except ValueError as e:
+#         st.error(f"Error getting project videos: {str(e)}")
+#         return []
 
 def calculate_user_overall_progress(user_id: int, project_id: int, session: Session) -> float:
     """Calculate user's overall progress"""

@@ -11,7 +11,7 @@ from db import SessionLocal
 from services import (
     AuthService, AnnotatorService, GroundTruthService, 
     QuestionService, QuestionGroupService, SchemaService,
-    ProjectService
+    ProjectService, VideoService
 )
 
 ###############################################################################
@@ -111,6 +111,7 @@ def get_cached_question_answers(project_id: int, session_id: str) -> pd.DataFram
         except Exception as e:
             print(f"Error in get_cached_question_answers: {e}")
             return pd.DataFrame()
+
 @st.cache_data(ttl=1800)  # Cache for 30 minutes
 def get_cached_project_annotators(project_id: int, session_id: str) -> Dict[str, Dict]:
     """Cache project annotators info - changes infrequently"""
@@ -165,6 +166,21 @@ def get_session_cache_key():
     """Generate a session-based cache key that changes when user logs in/out"""
     user_id = st.session_state.get('user', {}).get('id', 'anonymous')
     return f"session_{user_id}"
+
+@st.cache_data(ttl=1800)  # Cache for 30 minutes
+def get_cached_project_videos(project_id: int, session_id: str) -> List[Dict]:
+    """Cache project videos - changes infrequently"""
+    with SessionLocal() as session:  # Use SessionLocal directly
+        try:
+            return VideoService.get_project_videos(project_id=project_id, session=session)
+        except Exception as e:
+            print(f"Error in get_cached_project_videos: {e}")
+            return []
+
+def get_project_videos(project_id: int, session: Session) -> List[Dict]:
+    """Get videos in a project - with caching"""
+    session_id = get_session_cache_key()
+    return get_cached_project_videos(project_id, session_id)
 
 ###############################################################################
 # OPTIMIZED HELPER FUNCTIONS
