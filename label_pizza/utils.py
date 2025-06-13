@@ -438,6 +438,12 @@ def _display_clean_sticky_single_choice_question(
     
     # Use preloaded value if available, otherwise use existing value
     current_value = preloaded_value if preloaded_value else existing_value
+
+    if not current_value:
+        # Try both possible field names for default option
+        default_option = question.get("default_option")
+        if default_option and default_option in options:
+            current_value = default_option
     
     # Calculate default index using current_value (which includes preloaded)
     default_idx = 0

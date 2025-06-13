@@ -2242,7 +2242,7 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
                                         st.rerun()
                         
                         if len(virtual_responses) == 0 and st.button(f"+ Add Default", key=f"annotator_add_{question_id}", disabled=is_training_mode, use_container_width=True):
-                            default_answer = question.get("default") or (question["options"][0] if question["type"] == "single" and question["options"] else "")
+                            default_answer = question.get("default_option") or (question["options"][0] if question["type"] == "single" and question["options"] else "")
                             st.session_state[virtual_responses_key][question_id].append({
                                 "answer": default_answer,
                                 "user_weight": 1.0
