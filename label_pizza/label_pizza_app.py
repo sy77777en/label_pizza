@@ -30,7 +30,7 @@ from utils import (
     _display_unified_status, _display_clean_sticky_single_choice_question,
     _display_clean_sticky_description_question, _get_enhanced_options_for_reviewer,
     _submit_answer_reviews, _load_existing_answer_reviews, calculate_overall_accuracy, calculate_per_question_accuracy,
-    get_schema_question_groups, get_project_videos
+    get_schema_question_groups, get_project_videos, get_questions_by_group_cached
 )
 
 Base.metadata.create_all(engine)
@@ -1356,7 +1356,7 @@ def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project
                 group_title = group["Title"]
                 
                 try:
-                    questions_in_group = QuestionService.get_questions_by_group_id(group_id=group_id, session=session)
+                    questions_in_group = get_questions_by_group_cached(group_id=group_id, session=session)
                     total_questions_in_group = len(questions_in_group)
 
                     # MINIMAL CHANGE: Add dynamic virtual responses for this video
@@ -1441,7 +1441,7 @@ def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project
                 except Exception as e:
                     groups_would_skip += 1
                     try:
-                        questions_in_group = QuestionService.get_questions_by_group_id(group_id=group_id, session=session)
+                        questions_in_group = get_questions_by_group_cached(group_id=group_id, session=session)
                         total_questions_in_group = len(questions_in_group)
                     except:
                         total_questions_in_group = 0
@@ -1570,7 +1570,7 @@ def calculate_preload_answers_no_threshold(video_id: int, project_id: int, quest
     """Calculate preload answers WITHOUT threshold requirements - REVERTED to original for annotators"""
     
     try:
-        questions = QuestionService.get_questions_by_group_id(group_id=question_group_id, session=session)
+        questions = get_questions_by_group_cached(group_id=question_group_id, session=session)
         if not questions:
             return {}
         
@@ -1815,7 +1815,7 @@ def calculate_preload_answers_no_threshold_with_custom_weights(
     """Calculate preload answers for reviewers with custom option weights"""
     
     try:
-        questions = QuestionService.get_questions_by_group_id(group_id=question_group_id, session=session)
+        questions = get_questions_by_group_cached(group_id=question_group_id, session=session)
         if not questions:
             return {}
         
@@ -1973,7 +1973,7 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
     # Get all questions for the selected groups
     all_questions_by_group = {}
     for group in selected_groups:
-        questions = QuestionService.get_questions_by_group_id(group_id=group["ID"], session=session)
+        questions = get_questions_by_group_cached(group_id=group["ID"], session=session)
         all_questions_by_group[group["ID"]] = questions
     
     # Configuration interface - KEEP ORIGINAL STRUCTURE
@@ -2351,7 +2351,7 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
     """Display question group content with preloaded answers support"""
 
     try:
-        questions = QuestionService.get_questions_by_group_id(group_id=group_id, session=session)
+        questions = get_questions_by_group_cached(group_id=group_id, session=session)
         
         if not questions:
             st.info("No questions in this group.")
@@ -3703,7 +3703,7 @@ def run_project_wide_auto_submit_on_entry(project_id: int, user_id: int, session
                             continue
                         
                         # Get questions once per group
-                        questions = QuestionService.get_questions_by_group_id(group_id=group["ID"], session=session)
+                        questions = get_questions_by_group_cached(group_id=group["ID"], session=session)
                         if not questions:
                             continue
                         
@@ -4602,7 +4602,7 @@ def show_reviewer_completion():
 def check_all_questions_have_ground_truth(video_id: int, project_id: int, question_group_id: int, session: Session) -> bool:
     """Check if all questions in a group have ground truth answers for this specific video"""
     try:
-        questions = QuestionService.get_questions_by_group_id(group_id=question_group_id, session=session)
+        questions = get_questions_by_group_cached(group_id=question_group_id, session=session)
         if not questions:
             return False
         
@@ -4618,7 +4618,7 @@ def check_all_questions_have_ground_truth(video_id: int, project_id: int, questi
 def check_ground_truth_exists_for_group(video_id: int, project_id: int, question_group_id: int, session: Session) -> bool:
     """Check if ANY ground truth exists for questions in this group"""
     try:
-        questions = QuestionService.get_questions_by_group_id(group_id=question_group_id, session=session)
+        questions = get_questions_by_group_cached(group_id=question_group_id, session=session)
         if not questions:
             return False
         
@@ -4636,7 +4636,7 @@ def check_ground_truth_exists_for_group(video_id: int, project_id: int, question
 
 def _get_question_display_data(video_id: int, project_id: int, user_id: int, group_id: int, role: str, mode: str, session: Session, has_any_admin_modified_questions: bool) -> Dict:
     """Get all the data needed to display a question group"""
-    questions = QuestionService.get_questions_by_group_id(group_id=group_id, session=session)
+    questions = get_questions_by_group_cached(group_id=group_id, session=session)
     
     if not questions:
         return {"questions": [], "error": "No questions in this group."}
@@ -6760,7 +6760,7 @@ def show_training_feedback(video_id: int, project_id: int, group_id: int, user_a
     """Show training feedback comparing user answers to ground truth"""
     try:
         gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
-        questions = QuestionService.get_questions_by_group_id(group_id=group_id, session=session)
+        questions = get_questions_by_group_cached(group_id=group_id, session=session)
         question_map = {q["id"]: q for q in questions}
         
         st.subheader("📊 Training Feedback")

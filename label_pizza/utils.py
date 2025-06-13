@@ -182,6 +182,20 @@ def get_project_videos(project_id: int, session: Session) -> List[Dict]:
     session_id = get_session_cache_key()
     return get_cached_project_videos(project_id, session_id)
 
+@st.cache_data(ttl=3600)  # Cache for 1 hour - questions rarely change
+def get_cached_questions_by_group(group_id: int, session_id: str) -> List[Dict]:
+    """Cache questions by group - questions rarely change once project is running"""
+    with SessionLocal() as session:
+        try:
+            return QuestionService.get_questions_by_group_id(group_id=group_id, session=session)
+        except Exception as e:
+            print(f"Error in get_cached_questions_by_group: {e}")
+            return []
+
+def get_questions_by_group_cached(group_id: int, session: Session) -> List[Dict]:
+    """Get questions by group with caching"""
+    session_id = get_session_cache_key()
+    return get_cached_questions_by_group(group_id, session_id)
 ###############################################################################
 # OPTIMIZED HELPER FUNCTIONS
 ###############################################################################
