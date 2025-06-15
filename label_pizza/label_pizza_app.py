@@ -6947,7 +6947,7 @@ def main():
         }
         
         .stButton > button:disabled {
-            background: linear-gradient(135deg, #6c757d, #adb5bd);
+            background: #e4e4e4;
             transform: none;
             box-shadow: 0 1px 3px rgba(0,0,0,0.15);
             opacity: 0.6;
