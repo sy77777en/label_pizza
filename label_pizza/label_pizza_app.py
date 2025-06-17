@@ -6491,7 +6491,7 @@ def admin_assignments():
                 
                 # Display in card format
                 for i, user_data in enumerate(display_data):
-                    status_color = COLORS['danger'] if "Archived" in user_data["Status"] else COLORS['success']
+                    status_color = COLORS['danger'] if "Archived" in user_data["Status"] else COLORS['primary']
                     
                     sample_projects = user_data["Projects Data"][:3] if user_data["Projects Data"] else []
                     sample_text = ""
@@ -6507,7 +6507,7 @@ def admin_assignments():
                         <div style="border: 2px solid {status_color}; border-radius: 10px; padding: 15px; margin: 10px 0; background: linear-gradient(135deg, #ffffff, #f8f9fa); box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <div style="flex: 1;">
-                                    <h4 style="margin: 0; color: #1f77b4;">👤 {user_data['User Name']}</h4>
+                                    <h4 style="margin: 0; color: #9553FE;">👤 {user_data['User Name']}</h4>
                                     <p style="margin: 5px 0; color: #6c757d;">📧 {user_data['Email']}</p>
                                     <p style="margin: 5px 0; color: #6c757d; font-size: 0.9rem; font-style: italic;">{sample_text}</p>
                                 </div>
@@ -6677,7 +6677,7 @@ def admin_project_groups():
                     selected_group_name = st.selectbox(
                         "Select Group to Edit", 
                         list(group_options.keys()),
-                        key="admin_edit_group_select"
+                        key="admin_edit_project_group_select"
                     )
                     
                     if selected_group_name:
@@ -7045,25 +7045,6 @@ def main():
             box-shadow: 0 2px 6px rgba(31, 119, 180, 0.2);
         }
         
-        /* Enhanced text areas */
-        .stTextArea > div > div > textarea {
-            border-radius: 8px;
-            border: 1px solid #e9ecef;
-            font-size: 0.9rem;
-            background: linear-gradient(135deg, #ffffff, #f8f9fa);
-            padding: 12px;
-            transition: all 0.2s ease;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            line-height: 1.4;
-        }
-        
-        .stTextArea > div > div > textarea:focus {
-            border-color: #1f77b4;
-            box-shadow: 0 0 0 2px rgba(31, 119, 180, 0.1), 0 2px 8px rgba(31, 119, 180, 0.15);
-            background: #ffffff;
-        }
-        
         /* Enhanced button styling */
         .stButton > button {
             border-radius: 8px;
@@ -7269,105 +7250,6 @@ def main():
         .stMultiSelect > div > div:focus-within {
             border-color: #1f77b4;
             box-shadow: 0 0 0 2px rgba(31, 119, 180, 0.1);
-        }
-        
-        /* Modern sidebar styling */
-        .css-1d391kg {
-            padding-top: 1rem;
-            background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
-        }
-        
-        .css-1d391kg h3 {
-            font-size: 1.2rem;
-            margin-bottom: 0.8rem;
-            color: #2c3e50;
-            font-weight: 700;
-            text-align: center;
-            padding: 10px;
-            background: linear-gradient(135deg, #ecf0f1, #bdc3c7);
-            border-radius: 12px;
-            border: 1px solid #bdc3c7;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        
-        .css-1d391kg .element-container {
-            margin-bottom: 0.8rem;
-        }
-        
-        /* Enhanced sidebar radio buttons */
-        .css-1d391kg .stRadio > div > label {
-            padding: 12px 16px;
-            margin-bottom: 8px;
-            font-size: 0.95rem;
-            background: linear-gradient(135deg, #ffffff, #f8f9fa);
-            border: 2px solid #e1e5e9;
-            border-radius: 12px;
-            transition: all 0.3s ease;
-            font-weight: 600;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        }
-        
-        .css-1d391kg .stRadio > div > label:hover {
-            background: linear-gradient(135deg, #e3f2fd, #bbdefb);
-            border-color: #2196f3;
-            transform: translateX(5px) translateY(-2px);
-            box-shadow: 0 4px 15px rgba(33, 150, 243, 0.2);
-        }
-        
-        .css-1d391kg .stRadio > div > label[data-checked="true"] {
-            background: linear-gradient(135deg, #1976d2, #42a5f5);
-            color: white;
-            border-color: #1976d2;
-            transform: translateX(5px) translateY(-2px);
-            box-shadow: 0 6px 20px rgba(25, 118, 210, 0.4);
-        }
-        
-        /* Enhanced sidebar button styling */
-        .css-1d391kg .stButton > button {
-            padding: 12px 20px;
-            font-size: 0.9rem;
-            margin-top: 1rem;
-            background: linear-gradient(135deg, #9553FE, #7C3AED);
-            border: none;
-            border-radius: 12px;
-            color: white;
-            font-weight: 700;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 12px rgba(149, 83, 254, 0.3);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .css-1d391kg .stButton > button:hover {
-            background: linear-gradient(135deg, #7C3AED, #6D28D9);
-            transform: translateY(-3px);
-            box-shadow: 0 6px 20px rgba(149, 83, 254, 0.4);
-        }
-        
-        .css-1d391kg .stMarkdown {
-            margin-bottom: 0.8rem;
-        }
-        
-        /* Enhanced user info cards */
-        .css-1d391kg .stSuccess,
-        .css-1d391kg .stInfo {
-            border-radius: 12px;
-            padding: 12px 16px;
-            margin: 10px 0;
-            border: none;
-            box-shadow: 0 3px 12px rgba(0,0,0,0.12);
-            font-size: 0.9rem;
-            font-weight: 600;
-        }
-        
-        .css-1d391kg .stSuccess {
-            background: linear-gradient(135deg, #2ecc71, #27ae60);
-            color: white;
-        }
-        
-        .css-1d391kg .stInfo {
-            background: linear-gradient(135deg, #3498db, #2980b9);
-            color: white;
         }
         
         /* Enhanced metrics styling */

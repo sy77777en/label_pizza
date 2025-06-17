@@ -2,6 +2,7 @@
 primaryColor = "#9553FE"
 borderColor = "#B180FF"
 secondaryBackgroundColor="lavender"
+codeBackgroundColor = "lavender"
 
 [theme.sidebar]
 backgroundColor = "#EAE1F9"
