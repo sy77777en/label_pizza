@@ -3541,7 +3541,7 @@ def display_enhanced_sort_tab(project_id: int, session: Session):
                 custom_info(msg)
     
     # Action buttons in a compact row
-    action_col1, action_col2, action_col3 = st.columns([1, 1, 1])
+    action_col1, action_col2 = st.columns([1, 1])
     
     with action_col1:
         if st.button("🔄 Apply", 
@@ -3564,17 +3564,17 @@ def display_enhanced_sort_tab(project_id: int, session: Session):
             st.success("✅ Reset!")
             st.rerun()
     
-    with action_col3:
-        # Status indicator
-        current_sort = st.session_state.get(f"video_sort_by_{project_id}", "Default")
-        sort_applied = st.session_state.get(f"sort_applied_{project_id}", False)
-        
-        if current_sort != "Default" and sort_applied:
-            st.success("✅ Active")
-        elif current_sort != "Default":
-            st.warning("⏳ Ready")
-        else:
-            custom_info("📋 Default")
+    # with action_col3:
+    # Status indicator
+    current_sort = st.session_state.get(f"video_sort_by_{project_id}", "Default")
+    sort_applied = st.session_state.get(f"sort_applied_{project_id}", False)
+    
+    if current_sort != "Default" and sort_applied:
+        custom_info("Status: ✅ Active")
+    elif current_sort != "Default":
+        custom_info("Status: ⏳ Ready")
+    else:
+        custom_info("Status: Default")
     
     # st.markdown(f"""
     # <div style="background: linear-gradient(135deg, #f0f8ff, #e6f3ff); border-left: 4px solid {COLORS['primary']}; border-radius: 8px; padding: 12px 16px; margin-top: 16px; font-size: 0.9rem; color: #2c3e50;">
@@ -4018,18 +4018,18 @@ def display_order_tab(project_id: int, role: str, project: Any, session: Session
                             st.session_state[order_key][i+1], st.session_state[order_key][i]
                         st.rerun()
         
-        order_action_col1, order_action_col2 = st.columns(2)
-        with order_action_col1:
-            if st.button("🔄 Reset to Default", key=f"reset_group_order_{project_id}"):
-                st.session_state[order_key] = [group["ID"] for group in question_groups]
-                st.rerun()
-        
-        with order_action_col2:
-            original_order = [group["ID"] for group in question_groups]
-            if working_order != original_order:
-                custom_info("⚠️ Order changed from default")
-            else:
-                custom_info("✅ Default order")
+        # order_action_col1, order_action_col2 = st.columns(2)
+        # with order_action_col1:
+        if st.button("🔄 Reset to Default", key=f"reset_group_order_{project_id}"):
+            st.session_state[order_key] = [group["ID"] for group in question_groups]
+            st.rerun()
+    
+        # with order_action_col2:
+        original_order = [group["ID"] for group in question_groups]
+        if working_order != original_order:
+            custom_info("⚠️ Order changed from default")
+        else:
+            custom_info("✅ Default order")
     else:
         custom_info("No question groups found for this project.")
     
@@ -4540,7 +4540,7 @@ def display_video_answer_pair(video: Dict, project_id: int, user_id: int, role: 
         st.markdown(f"""
         <div style="{get_card_style('#B180FF')}text-align: center;">
             <div style="color: #5C00BF; font-weight: 500; font-size: 0.95rem;">
-                📋 {video['uid']} - {' | '.join(completion_details)} - Progress: {completed_count}/{total_count} Complete
+                {video['uid']} - {' | '.join(completion_details)} - Progress: {completed_count}/{total_count} Complete
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -5123,13 +5123,13 @@ def admin_questions():
             with group_management_tabs[0]:
                 st.markdown("### 🆕 Create New Question Group")
                 
-                basic_col1, basic_col2, basic_col3 = st.columns(3)
+                # with basic_col1:
+                title = st.text_input("Group Title", key="admin_group_title", placeholder="Enter group title...")
+                basic_col1, basic_col2 = st.columns(2)
                 with basic_col1:
-                    title = st.text_input("Group Title", key="admin_group_title", placeholder="Enter group title...")
-                with basic_col2:
                     is_reusable = st.checkbox("Reusable across schemas", key="admin_group_reusable", 
                                             help="Allow this group to be used in multiple schemas")
-                with basic_col3:
+                with basic_col2:
                     is_auto_submit = st.checkbox("Auto Submit", key="admin_group_auto_submit", 
                                             help="Automatically submit answers for this group")
                 description = st.text_area("Description", key="admin_group_description", 
@@ -7047,14 +7047,14 @@ def main():
         
         /* Enhanced button styling */
         .stButton > button {
-            border-radius: 8px;
-            border: none;
+            # border-radius: 8px;
+            # border: none;
             transition: all 0.2s ease;
             font-weight: 600;
             background: linear-gradient(135deg, #9553FE, #7C3AED);
             color: white;
-            padding: 10px 20px;
-            font-size: 0.9rem;
+            # padding: 10px 20px;
+            # font-size: 0.9rem;
             box-shadow: 0 2px 6px rgba(149, 83, 254, 0.2);
             position: relative;
             z-index: 100;
@@ -7133,13 +7133,13 @@ def main():
         }
         
         ::-webkit-scrollbar-thumb {
-            background: linear-gradient(180deg, #1f77b4, #4a90e2);
+            background-color: linear-gradient(180deg, #1a6ca8, #4088d4);
             border-radius: 4px;
             border: 1px solid #f1f1f1;
         }
         
         ::-webkit-scrollbar-thumb:hover {
-            background: linear-gradient(180deg, #1a6ca8, #4088d4);
+            background-color: #9553FE;
         }
         
         /* Enhanced success styling */
@@ -7254,7 +7254,7 @@ def main():
         
         /* Enhanced metrics styling */
         .stMetric {
-            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            background: #F3F2F4;
             padding: 12px;
             border-radius: 8px;
             border: 1px solid #dee2e6;
