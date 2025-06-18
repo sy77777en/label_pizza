@@ -3313,6 +3313,117 @@ def apply_video_sorting_and_filtering_enhanced(videos: List[Dict], sort_by: str,
         st.error(f"Error applying sorting and filtering: {str(e)}")
         return videos
 
+
+def apply_annotator_video_sorting(videos: List[Dict], sort_by: str, sort_order: str, 
+                                project_id: int, user_id: int, session: Session) -> List[Dict]:
+    """Apply sorting for annotators - only completion rate and accuracy rate vs ground truth"""
+    try:
+        if sort_by == "Default":
+            reverse = (sort_order == "Descending")
+            videos.sort(key=lambda x: x.get("id", 0), reverse=reverse)
+            return videos
+        
+        # Get selected questions for sorting
+        if sort_by == "Completion Rate":
+            question_key = f"annotator_completion_rate_questions_{project_id}"
+        else:  # Accuracy Rate
+            question_key = f"annotator_accuracy_rate_questions_{project_id}"
+        
+        selected_questions = st.session_state.get(question_key, [])
+        if not selected_questions:
+            return videos
+        
+        # Extract question IDs
+        question_ids = []
+        for q_display in selected_questions:
+            try:
+                q_id = int(q_display.split("(ID: ")[1].split(")")[0])
+                question_ids.append(q_id)
+            except:
+                continue
+        
+        if not question_ids:
+            return videos
+        
+        # Calculate scores for each video
+        video_scores = {}
+        
+        for video in videos:
+            video_id = video["id"]
+            
+            if sort_by == "Completion Rate":
+                # Calculate completion rate for this user
+                completed_questions = 0
+                for question_id in question_ids:
+                    try:
+                        answers_df = AnnotatorService.get_question_answers(
+                            question_id=question_id, project_id=project_id, session=session
+                        )
+                        if not answers_df.empty:
+                            user_answers = answers_df[
+                                (answers_df["User ID"] == user_id) & 
+                                (answers_df["Video ID"] == video_id)
+                            ]
+                            if not user_answers.empty:
+                                completed_questions += 1
+                    except:
+                        continue
+                
+                video_scores[video_id] = (completed_questions / len(question_ids)) * 100 if question_ids else 0
+                
+            else:  # Accuracy Rate
+                # Calculate accuracy rate vs ground truth for this user
+                correct_count = 0
+                total_count = 0
+                
+                try:
+                    gt_df = GroundTruthService.get_ground_truth(
+                        video_id=video_id, project_id=project_id, session=session
+                    )
+                    
+                    if not gt_df.empty:
+                        for question_id in question_ids:
+                            # Get ground truth for this question
+                            question_gt = gt_df[gt_df["Question ID"] == question_id]
+                            if question_gt.empty:
+                                continue
+                            
+                            gt_answer = question_gt.iloc[0]["Answer Value"]
+                            
+                            # Get user's answer
+                            answers_df = AnnotatorService.get_question_answers(
+                                question_id=question_id, project_id=project_id, session=session
+                            )
+                            
+                            if not answers_df.empty:
+                                user_answers = answers_df[
+                                    (answers_df["User ID"] == user_id) & 
+                                    (answers_df["Video ID"] == video_id)
+                                ]
+                                
+                                if not user_answers.empty:
+                                    user_answer = user_answers.iloc[0]["Answer Value"]
+                                    total_count += 1
+                                    if user_answer == gt_answer:
+                                        correct_count += 1
+                    
+                    video_scores[video_id] = (correct_count / total_count) * 100 if total_count > 0 else 0
+                except:
+                    video_scores[video_id] = 0
+        
+        # Add scores to videos and sort
+        for video in videos:
+            video["sort_score"] = video_scores.get(video["id"], 0)
+        
+        reverse = (sort_order == "Descending")
+        videos.sort(key=lambda x: x.get("sort_score", 0), reverse=reverse)
+        
+        return videos
+        
+    except Exception as e:
+        st.error(f"Error applying annotator sorting: {str(e)}")
+        return videos
+
 def display_project_progress(user_id: int, project_id: int, role: str, session: Session):
     """Display project progress in a refreshable fragment"""
     if role == "annotator":
@@ -3581,6 +3692,127 @@ def display_enhanced_sort_tab(project_id: int, session: Session):
     #     💡 <strong>Tip:</strong> Configure your sorting options above, then click "Apply Sorting" to sort the videos accordingly.
     # </div>
     # """, unsafe_allow_html=True)
+    custom_info("💡 Configure your sorting options above, then click <strong>Apply</strong> to sort the videos accordingly.")
+
+def display_enhanced_sort_tab_annotator(project_id: int, session: Session):
+    """Enhanced sort tab for annotators - only relevant options"""
+    st.markdown("#### 🔄 Video Sorting Options")
+    
+    # Check if this is training mode
+    is_training_mode = check_project_has_full_ground_truth(project_id=project_id, session=session)
+    
+    if not is_training_mode:
+        st.markdown(f"""
+        <div style="{get_card_style('#B180FF')}text-align: center;">
+            <div style="color: #5C00BF; font-weight: 500; font-size: 0.95rem;">
+                📝 Annotation Mode - Only default sorting available.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Only show default sorting in annotation mode
+        sort_options = ["Default"]
+    else:
+        st.markdown(f"""
+        <div style="{get_card_style('#B180FF')}text-align: center;">
+            <div style="color: #5C00BF; font-weight: 500; font-size: 0.95rem;">
+                🎓 Training Mode - Sort videos by your completion status or accuracy
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        sort_options = ["Default", "Completion Rate", "Accuracy Rate"]
+    
+    # Main configuration
+    config_col1, config_col2 = st.columns([2, 1])
+    
+    with config_col1:
+        sort_by = st.selectbox(
+            "Sort method",
+            sort_options,
+            key=f"annotator_video_sort_by_{project_id}",
+            help="Choose sorting criteria"
+        )
+    
+    with config_col2:
+        sort_order = st.selectbox(
+            "Order",
+            ["Ascending", "Descending"],
+            key=f"annotator_video_sort_order_{project_id}",
+            help="Sort direction"
+        )
+    
+    config_valid = True
+    config_messages = []
+    
+    # Only show configuration for training mode sorts
+    if sort_by != "Default" and is_training_mode:
+        st.markdown("**Configuration:**")
+        
+        if sort_by in ["Completion Rate", "Accuracy Rate"]:
+            questions = ProjectService.get_project_questions(project_id=project_id, session=session)
+            single_choice_questions = [q for q in questions if q["type"] == "single"]
+            
+            if not single_choice_questions:
+                config_messages.append(("error", "No single-choice questions available."))
+                config_valid = False
+            else:
+                selected_questions = st.multiselect(
+                    "Questions:",
+                    [f"{q['text']} (ID: {q['id']})" for q in single_choice_questions],
+                    default=[f"{q['text']} (ID: {q['id']})" for q in single_choice_questions],
+                    key=f"annotator_{sort_by.lower().replace(' ', '_')}_questions_{project_id}",
+                    help=f"Select questions for {sort_by.lower()} calculation"
+                )
+                
+                if not selected_questions:
+                    config_messages.append(("warning", "Select at least one question."))
+                    config_valid = False
+    
+    # Show configuration messages
+    if config_messages:
+        for msg_type, msg in config_messages:
+            if msg_type == "error":
+                st.error(msg)
+            elif msg_type == "warning":
+                st.warning(msg)
+            else:
+                custom_info(msg)
+    
+    # Action buttons
+    action_col1, action_col2 = st.columns([1, 1])
+    
+    with action_col1:
+        if st.button("🔄 Apply", 
+                    key=f"apply_annotator_sort_{project_id}", 
+                    disabled=not config_valid,
+                    use_container_width=True,
+                    type="primary"):
+            # Store sort configuration for annotators
+            st.session_state[f"annotator_sort_applied_{project_id}"] = True
+            st.success("✅ Applied!")
+            st.rerun()
+    
+    with action_col2:
+        if st.button("🔄 Reset", 
+                    key=f"reset_annotator_sort_{project_id}",
+                    use_container_width=True):
+            st.session_state[f"annotator_video_sort_by_{project_id}"] = "Default"
+            st.session_state[f"annotator_sort_applied_{project_id}"] = False
+            st.success("✅ Reset!")
+            st.rerun()
+    
+    # Status indicator
+    current_sort = st.session_state.get(f"annotator_video_sort_by_{project_id}", "Default")
+    sort_applied = st.session_state.get(f"annotator_sort_applied_{project_id}", False)
+    
+    if current_sort != "Default" and sort_applied:
+        custom_info("Status: ✅ Active")
+    elif current_sort != "Default":
+        custom_info("Status: ⏳ Ready")
+    else:
+        custom_info("Status: Default")
+    
     custom_info("💡 Configure your sorting options above, then click <strong>Apply</strong> to sort the videos accordingly.")
 
 def display_enhanced_filter_tab(project_id: int, session: Session):
@@ -4264,7 +4496,7 @@ def display_project_view(user_id: int, role: str, session: Session):
     else:  # Annotator role
         # st.markdown("---")
         
-        layout_tab, auto_submit_tab = st.tabs(["🎛️ Layout Settings", "⚡ Auto-Submit"])
+        layout_tab, sort_tab, auto_submit_tab = st.tabs(["🎛️ Layout Settings", "🔄 Sort", "⚡ Auto-Submit"])
         
         with layout_tab:
             st.markdown("#### 🎛️ Video Layout Settings")
@@ -4285,6 +4517,9 @@ def display_project_view(user_id: int, role: str, session: Session):
             # """, unsafe_allow_html=True)
             custom_info("💡 Adjust layout to optimize your annotation workflow.")
         
+        with sort_tab:
+            display_enhanced_sort_tab_annotator(project_id=project_id, session=session)
+    
         with auto_submit_tab:
             display_auto_submit_tab(project_id=project_id, user_id=user_id, role=role, videos=videos, session=session)
     
@@ -4302,6 +4537,16 @@ def display_project_view(user_id: int, role: str, session: Session):
             selected_annotators=selected_annotators, session=session,
             sort_config=sort_config
         )
+    elif role == "annotator":
+        sort_by = st.session_state.get(f"annotator_video_sort_by_{project_id}", "Default")
+        sort_order = st.session_state.get(f"annotator_video_sort_order_{project_id}", "Ascending")
+        sort_applied = st.session_state.get(f"annotator_sort_applied_{project_id}", False)
+        
+        if sort_by != "Default" and sort_applied:
+            videos = apply_annotator_video_sorting(
+                videos=videos, sort_by=sort_by, sort_order=sort_order,
+                project_id=project_id, user_id=user_id, session=session
+            )
     
     # Get layout settings
     video_pairs_per_row = st.session_state.get(f"{role}_pairs_per_row", 1)
@@ -4330,7 +4575,18 @@ def display_project_view(user_id: int, role: str, session: Session):
         
         if summary_parts:
             custom_info(" • ".join(summary_parts))
-    
+    elif role == "annotator":
+        sort_by = st.session_state.get(f"annotator_video_sort_by_{project_id}", "Default")
+        sort_applied = st.session_state.get(f"annotator_sort_applied_{project_id}", False)
+        
+        if sort_by != "Default" and sort_applied:
+            sort_order = st.session_state.get(f"annotator_video_sort_order_{project_id}", "Ascending")
+            custom_info(f"🔄 {sort_by} ({sort_order})")
+        elif sort_by != "Default" and not sort_applied:
+            custom_info(f"⚙️ {sort_by} configured")
+        else:
+            sort_order = st.session_state.get(f"annotator_video_sort_order_{project_id}", "Ascending")
+            custom_info(f"📋 Default order ({sort_order})")
     # Calculate pagination
     total_pages = (len(videos) - 1) // videos_per_page + 1 if videos else 1
     
