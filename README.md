@@ -45,7 +45,7 @@ Because training happens directly within the same UI they'll use for real tasks,
 
 ---
 
-### 2 · **Tiered Quality Control**—Three Sets of Eyes per Frame
+### 2 · **Tiered Quality Control** for Accurate Annotations
 
 Unlike pre-training datasets, post-training datasets are used to evaluate or fine-tune models—so even small labeling errors can lead to misleading results. As such, Label Pizza enforces a tiered quality check process to ensure every answer is reliable.
 
