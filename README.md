@@ -2,7 +2,9 @@
 
 *A training-aware annotation platform for high-quality video-language data curation*
 
-Label Pizza lets you upload video collections, teach annotators the exact policy you care about, and run two quality-control passes before admins export the answers—all inside one Streamlit interface. Use the same workspace to **coach new annotators**, **collect fresh ground truth**, **audit reviewer decisions**, and **inspect accuracy analytics** without exporting a single CSV.
+Label Pizza lets you upload video collections, teach annotators the exact policy you care about, and run two quality-control passes before admins export the answers—all inside one Streamlit interface. 
+
+> Use the same workspace to **coach new annotators**, **collect fresh ground truth**, **audit reviewer decisions**, and **inspect accuracy analytics**.
 
 ---
 
