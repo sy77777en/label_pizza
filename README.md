@@ -59,7 +59,7 @@ Unlike pre-training datasets, post-training datasets are used to evaluate or fin
 
 ## Life of a Video 📽️
 
-1. **Annotator** (or **model**) submits answers for videos in a project.
+1. **Annotator** (**human** or **model**) submits answers for videos in a project.
 2. **Reviewer** preloads the most likely answers and, if satisfied, commits them with **Auto-Submit** or edit manually.
 3. **Meta-Reviewer / Admin** overrides reviewer decisions where needed.
 4. When every question has ground truth, the project flips to **Training** for future annotators.
