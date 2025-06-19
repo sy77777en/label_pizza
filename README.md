@@ -148,7 +148,7 @@ streamlit run label_pizza/label_pizza_app.py --server.port 8000  --server.addres
 Visit **[http://localhost:8000](http://localhost:8000)** to log in.
 
 > **Want to share the site externally?**
-> Pipe the local port through **[pinggy.io](https://pinggy.io/)** (≈ US \$3 per static URL per month):
+> Pipe the local port through **[pinggy.io](https://pinggy.io/)** (≈ US \$3 per static URL per month)
 
 
 ## Folder Layout
