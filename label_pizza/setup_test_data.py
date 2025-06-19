@@ -103,7 +103,7 @@ class TestDataSetup:
                 print("\nYou can now test the application with:")
                 print("👥 Annotators: alice@example.com, bob@example.com (password: password123)")
                 print("🔍 Reviewer: carol@example.com (password: password123)")
-                print("⚙️ Admin: zhiqiulin98@gmail.com (password: zhiqiulin98)")
+                print("⚙️ Admin: admin@example.com (password: password123)")
                 
                 return True
                 
@@ -150,6 +150,13 @@ class TestDataSetup:
                 "password": "password123",
                 "user_type": "human", 
                 "description": "Video Annotation Reviewer"
+            },
+            {
+                "user_id": "admin_user",
+                "email": "admin@example.com",
+                "password": "password123",
+                "user_type": "admin",
+                "description": "Admin User"
             }
         ]
         
@@ -293,7 +300,7 @@ class TestDataSetup:
                         default=q_data["default"],
                         session=session
                     )
-                    question_ids.append(question.id)
+                    question_ids.append(question["id"])
                     self.created_items["questions"].append({
                         "text": q_data["text"][:50] + "...",
                         "type": q_data["type"],

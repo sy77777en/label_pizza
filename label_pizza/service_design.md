@@ -149,8 +149,8 @@ Service-Layer API Spec
 | -------------------------------------------------------- | ------ | ---------- | ------- | -------------- |
 | `get_all_questions(session)`                             | ✔︎     | —          | `DataFrame` | — |
 | `add_question(text, qtype, options, default, session, display_values=None, display_text=None, option_weights=None)` | ✔︎ | — | `Question` | • Default in options 🛡️<br>• Unique text 🛡️<br>• display_text is UI-only, text is immutable after creation 🛡️ |
-| `get_question_by_text(text, session)`                    | ✔︎     | —          | `Question` | — |
-| `get_question_by_id(question_id, session)`               | ✔︎     | —          | `Question` | — |
+| `get_question_by_text(text, session)`                    | ✔︎     | —          | `Dict` | — |
+| `get_question_by_id(question_id, session)`               | ✔︎     | —          | `Dict` | — |
 | `edit_question(question_id, new_display_text, new_opts, new_default, session, new_display_values=None, new_option_weights=None)` | ✔︎ | — | `None` | • Cannot change type 🛡️<br>• Cannot change text 🛡️<br>• Default in options 🛡️ |
 | `archive_question(question_id, session)`                 | ✔︎     | —          | `None` | — |
 | `unarchive_question(question_id, session)`               | ✔︎     | —          | `None` | — |
@@ -171,11 +171,11 @@ Service-Layer API Spec
 
 | Function                                                        | Status | Parameters | Returns | Rules enforced |
 | --------------------------------------------------------------- | ------ | ---------- | ------- | -------------- |
-| `seed_admin(session)`                                           | ✔︎     | —          | `None` | — |
+| `seed_admin(session, email, pwd, user_id)`                                           | ✔︎     | —          | `None` | — |
 | `authenticate(email, pwd, role, session)`                       | ✔︎     | —          | `Optional[dict]` | • Disabled = reject 🛡️ |
 | `get_all_users(session)`                                        | ✔︎     | —          | `DataFrame` | — |
 | `get_users_by_type(user_type, session)`                         | ✔︎     | —          | `list[User]` | — |
-| `create_user(user_id, email, pwd_hash, user_type, session, is_archived)` | ✔︎ | — | `User` | • Unique id/email 🛡️ |
+| `create_user(user_id, email, pwd, user_type, session, is_archived)` | ✔︎ | — | `User` | • Unique id/email 🛡️ |
 | `update_user_id(user_id, new_user_id, session)`                 | ✔︎     | —          | `None` | • Unique id 🛡️ |
 | `update_user_email(user_id, new_email, session)`                | ✔︎     | —          | `None` | • Unique email 🛡️ |
 | `update_user_password(user_id, new_password, session)`          | ✔︎     | —          | `None` | — |
@@ -277,9 +277,3 @@ label_pizza/
 ├ db.py
 └ services.py
 ```
-
----
-
-### TODO
-
-1. **Implement** the pending services (MetricsService, NotificationService).

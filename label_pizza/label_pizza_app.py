@@ -35,13 +35,6 @@ from utils import (
 
 Base.metadata.create_all(engine)
 
-# Seed admin
-def _seed_admin():
-    with SessionLocal() as session:
-        AuthService.seed_admin(session)
-_seed_admin()
-
-
 ###############################################################################
 # ACCURACY DISPLAY FUNCTIONS
 ###############################################################################
@@ -4762,6 +4755,7 @@ def display_video_answer_pair(video: Dict, project_id: int, user_id: int, role: 
         except Exception as qg_error:
             # Try to recover by creating a new session
             st.error(f"Database error occurred. Refreshing...")
+            print(f"Database error occurred: {qg_error}")
             st.rerun()
             return
         
@@ -5357,7 +5351,7 @@ def admin_videos():
                         custom_info("👆 Select a video from the dropdown above to edit")
                 else:
                     if edit_search:
-                        custom_infoing(f"No videos found matching '{edit_search}'")
+                        custom_info(f"No videos found matching '{edit_search}'")
                     else:
                         custom_info("Use the search box to find videos to edit")
             else:
@@ -5433,7 +5427,7 @@ def admin_questions():
                     )
                 else:
                     selected_questions = []
-                    custom_infoing("No questions available.")
+                    custom_info("No questions available.")
                 
                 if st.button("🚀 Create Question Group", key="admin_create_group_btn", type="primary", use_container_width=True):
                     if title and selected_questions:
@@ -5990,7 +5984,7 @@ def display_assignment_management(session: Session):
     try:
         projects_df = ProjectService.get_all_projects(session=session)
         if projects_df.empty:
-            custom_infoing("No projects available.")
+            custom_info("No projects available.")
             return
     except Exception as e:
         st.error(f"Error loading projects: {str(e)}")
@@ -6004,7 +5998,7 @@ def display_assignment_management(session: Session):
     ]
     
     if not filtered_projects:
-        custom_infoing("No projects match the search criteria.")
+        custom_info("No projects match the search criteria.")
         return
     
     custom_info(f"Found {len(filtered_projects)} projects")
@@ -6057,7 +6051,7 @@ def display_assignment_management(session: Session):
     try:
         users_df = AuthService.get_all_users(session=session)
         if users_df.empty:
-            custom_infoing("No users available.")
+            custom_info("No users available.")
             return
     except Exception as e:
         st.error(f"Error loading users: {str(e)}")
@@ -6083,7 +6077,7 @@ def display_assignment_management(session: Session):
         filtered_users.append(user_row)
     
     if not filtered_users:
-        custom_infoing("No users match the search criteria.")
+        custom_info("No users match the search criteria.")
         return
     
     custom_info(f"Found {len(filtered_users)} users")
@@ -6388,7 +6382,7 @@ def admin_users():
                     except Exception as e:
                         st.error(f"Error: {str(e)}")
                 else:
-                    custom_infoing("Please fill in all required fields (User ID, Email, Password)")
+                    custom_info("Please fill in all required fields (User ID, Email, Password)")
         
         with edit_tab:
             if not users_df.empty:
@@ -6472,7 +6466,7 @@ def admin_users():
                                 except Exception as e:
                                     st.error(f"Error updating user: {str(e)}")
                             else:
-                                custom_infoing("User ID and Email are required")
+                                custom_info("User ID and Email are required")
                     
                     with archive_col:
                         archive_status = "Archived" if current_user['Archived'] else "Active"
@@ -6851,7 +6845,7 @@ def admin_assignments():
                             else:
                                 custom_info("No project assignments")
             else:
-                custom_infoing("No users match the current filters.")
+                custom_info("No users match the current filters.")
         else:
             custom_info("No project assignments found in the database.")
         
@@ -6911,7 +6905,7 @@ def admin_project_groups():
                 )
             else:
                 selected_projects = []
-                custom_infoing("No projects available to add to group.")
+                custom_info("No projects available to add to group.")
             
             if st.button("Create Project Group", key="admin_create_pgroup_btn"):
                 if group_name:
@@ -6994,7 +6988,7 @@ def admin_project_groups():
                         else:
                             add_projects = []
                             remove_projects = []
-                            custom_infoing("No projects available in the system")
+                            custom_info("No projects available in the system")
                         
                         if st.button("Update Project Group", key="admin_update_pgroup_btn"):
                             try:
@@ -7849,7 +7843,7 @@ def main():
     
     # Route to selected portal
     if not available_portals:
-        custom_infoing("No portals available. You may not be assigned to any projects or your account may not have the necessary permissions. Please contact an administrator.")
+        custom_info("No portals available. You may not be assigned to any projects or your account may not have the necessary permissions. Please contact an administrator.")
         return
     
     selected_portal = st.session_state.get("selected_portal", available_portals[0])

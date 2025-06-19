@@ -1,16 +1,23 @@
 #!/usr/bin/env python3
 """
-Database Reset Script for Label Pizza
-=====================================
-This script will:
-1. Drop all existing tables
-2. Recreate fresh tables
-3. Seed the admin user
-4. Optionally load sample data
+Database Initialization/Reset Script for Label Pizza
+====================================================
+This script can:
+1. INIT mode: Create missing tables and seed admin user (safe for existing databases)
+2. RESET mode: Drop all tables, recreate them, and seed admin user (DESTRUCTIVE!)
 
-WARNING: This will DELETE ALL DATA in your database!
+Usage:
+    # Initialize database (safe, won't affect existing tables)
+    python init_or_reset_db.py --mode init --email admin@example.com --password mypass --user-id "Admin"
+    
+    # Full reset (DESTRUCTIVE!)
+    python init_or_reset_db.py --mode reset --email admin@example.com --password mypass --user-id "Admin"
+    
+    # Quick init with defaults
+    python init_or_reset_db.py --mode init
 """
 
+import argparse
 import os
 import sys
 from typing import Optional
@@ -30,6 +37,28 @@ except ImportError as e:
     print(f"❌ Error importing modules: {e}")
     print("Make sure you're running this from the correct directory.")
     sys.exit(1)
+
+def seed_admin_user(email: str, password: str, user_id: str) -> bool:
+    """Create an admin user with specified credentials"""
+    try:
+        with SessionLocal() as session:
+            AuthService.seed_admin(
+                session=session,
+                email=email,
+                password=password,
+                user_id=user_id
+            )
+            
+            print(f"✅ Admin user created successfully!")
+            print(f"   📧 Email: {email}")
+            print(f"   👤 User ID: {user_id}")
+            print(f"   🔑 Password: {'*' * len(password)}")
+            
+            return True
+            
+    except Exception as e:
+        print(f"❌ Failed to create admin user: {e}")
+        return False
 
 def confirm_reset() -> bool:
     """Ask user to confirm database reset"""
@@ -76,44 +105,24 @@ def drop_all_tables(engine):
     metadata.drop_all(bind=engine)
     print(f"   ✅ Dropped {len(metadata.tables)} tables")
 
-def create_all_tables(engine):
+def create_all_tables(engine, mode="reset"):
     """Create all tables from models"""
-    print("🏗️  Creating fresh tables...")
+    if mode == "init":
+        print("🏗️  Creating missing tables (safe mode)...")
+    else:
+        print("🏗️  Creating fresh tables...")
     
     # Create all tables defined in models
+    # checkfirst=True by default, so safe for existing tables
     Base.metadata.create_all(bind=engine)
     
     # Count created tables
     metadata = MetaData()
     metadata.reflect(bind=engine)
-    print(f"   ✅ Created {len(metadata.tables)} tables")
-
-def seed_admin_user():
-    """Create the default admin user"""
-    print("👤 Seeding admin user...")
-    
-    with SessionLocal() as session:
-        # Check if admin already exists
-        existing_admin = session.execute(
-            text("SELECT COUNT(*) FROM users WHERE email = 'zhiqiulin98@gmail.com'")
-        ).scalar()
-        
-        if existing_admin == 0:
-            AuthService.seed_admin(session)
-            print("   ✅ Admin user created")
-            print("   📧 Email: zhiqiulin98@gmail.com")
-            print("   🔑 Password: zhiqiulin98")
-        else:
-            print("   ℹ️  Admin user already exists")
+    print(f"   ✅ Created/verified {len(metadata.tables)} tables")
 
 def seed_sample_data():
-    """Optionally seed some sample data for testing"""
-    print()
-    response = input("Would you like to seed sample data for testing? (y/N): ")
-    
-    if response.lower() not in ['y', 'yes']:
-        return
-    
+    """Seed some sample data for testing"""
     print("🌱 Seeding sample data...")
     
     with SessionLocal() as session:
@@ -213,9 +222,9 @@ def seed_sample_data():
         except ImportError as e:
             print(f"   ⚠️  Could not seed sample data: {e}")
 
-def verify_reset():
-    """Verify the reset was successful"""
-    print("🔍 Verifying reset...")
+def verify_database(email: str):
+    """Verify the database setup was successful"""
+    print("🔍 Verifying database...")
     
     with SessionLocal() as session:
         try:
@@ -253,10 +262,167 @@ def verify_reset():
         except Exception as e:
             print(f"   ❌ Verification failed: {e}")
 
-def main():
-    """Main reset function"""
-    print("🍕 Label Pizza Database Reset Script")
+def init_database(email: str, password: str, user_id: str, force: bool = False, seed_sample: bool = False):
+    """Initialize database safely (won't affect existing tables)"""
+    print("🍕 Label Pizza Database Initialization")
     print("=" * 40)
+    print("Mode: INIT (safe for existing databases)")
+    print()
+    
+    if not force:
+        print(f"📧 Email: {email}")
+        print(f"👤 User ID: {user_id}")
+        print(f"🔑 Password: {'*' * len(password)}")
+        print()
+        response = input("Initialize database with these settings? (y/N): ")
+        if response.lower() not in ['y', 'yes']:
+            print("❌ Initialization cancelled")
+            return False
+    
+    try:
+        print("\n🚀 Starting database initialization...")
+        
+        # Create missing tables (safe operation)
+        create_all_tables(engine, mode="init")
+        
+        # Seed admin user
+        seed_admin_user(email, password, user_id)
+        
+        # Optional sample data
+        if seed_sample:
+            seed_sample_data()
+        
+        # Verify setup
+        verify_database(email)
+        
+        print("\n🎉 Database initialization completed successfully!")
+        print()
+        print("You can now run your Streamlit app:")
+        print("  streamlit run app.py")
+        print()
+        print("Login credentials:")
+        print(f"  Email: {email}")
+        print(f"  Password: {password}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"\n❌ Initialization failed: {e}")
+        return False
+
+def reset_database(email: str, password: str, user_id: str, force: bool = False, seed_sample: bool = False):
+    """Reset database completely (DESTRUCTIVE!)"""
+    print("🍕 Label Pizza Database Reset")
+    print("=" * 40)
+    print("Mode: RESET (DESTRUCTIVE - will delete all data!)")
+    print()
+    
+    # Confirm reset
+    if not force and not confirm_reset():
+        print("❌ Reset cancelled")
+        return False
+    
+    # Final confirmation
+    if not force and not backup_before_reset():
+        print("❌ Reset cancelled")
+        return False
+    
+    try:
+        print("\n🚀 Starting database reset...")
+        
+        # Drop and recreate all tables
+        drop_all_tables(engine)
+        create_all_tables(engine, mode="reset")
+        
+        # Seed admin user
+        seed_admin_user(email, password, user_id)
+        
+        # Optional sample data
+        if seed_sample:
+            seed_sample_data()
+        
+        # Verify setup
+        verify_database(email)
+        
+        print("\n🎉 Database reset completed successfully!")
+        print()
+        print("You can now run your Streamlit app:")
+        print("  streamlit run app.py")
+        print()
+        print("Login credentials:")
+        print(f"  Email: {email}")
+        print(f"  Password: {password}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"\n❌ Reset failed: {e}")
+        print("Your database may be in an inconsistent state.")
+        print("Consider restoring from backup or contact support.")
+        return False
+
+def main():
+    """Main function"""
+    parser = argparse.ArgumentParser(
+        description="Initialize or reset Label Pizza database",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Safe initialization (recommended for first-time setup)
+  python init_or_reset_db.py --mode init
+  
+  # Safe initialization with custom admin credentials
+  python init_or_reset_db.py --mode init --email admin@mycompany.com --password SecurePass123 --user-id "My Admin"
+  
+  # Initialize with sample data for testing
+  python init_or_reset_db.py --mode init --seed-sample-data
+  
+  # Full reset (DESTRUCTIVE!)
+  python init_or_reset_db.py --mode reset --email admin@example.com --password mypass
+  
+  # Skip all confirmations
+  python init_or_reset_db.py --mode init --force
+        """
+    )
+    
+    parser.add_argument(
+        "--mode",
+        choices=["init", "reset"],
+        default="init",
+        help="Operation mode: 'init' (safe, creates missing tables) or 'reset' (destructive, drops all tables first)"
+    )
+    
+    parser.add_argument(
+        "--email",
+        default="admin@example.com",
+        help="Email address for the admin user (default: admin@example.com)"
+    )
+    
+    parser.add_argument(
+        "--password",
+        default="password123",
+        help="Password for the admin user (default: password123)"
+    )
+    
+    parser.add_argument(
+        "--user-id",
+        default="Admin User",
+        help="User ID for the admin user (default: Admin User)"
+    )
+    
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Skip all confirmation prompts"
+    )
+    
+    parser.add_argument(
+        "--seed-sample-data",
+        action="store_true",
+        help="Seed sample data for testing (disabled by default)"
+    )
+    
+    args = parser.parse_args()
     
     # Check database connection
     try:
@@ -268,40 +434,13 @@ def main():
         print("Check your DBURL in .env file")
         sys.exit(1)
     
-    # Confirm reset
-    if not confirm_reset():
-        print("❌ Reset cancelled")
-        sys.exit(0)
+    # Run the appropriate mode
+    if args.mode == "init":
+        success = init_database(args.email, args.password, args.user_id, args.force, args.seed_sample_data)
+    else:  # reset
+        success = reset_database(args.email, args.password, args.user_id, args.force, args.seed_sample_data)
     
-    # Final confirmation
-    if not backup_before_reset():
-        print("❌ Reset cancelled")
-        sys.exit(0)
-    
-    try:
-        # Perform reset
-        print("\n🚀 Starting database reset...")
-        
-        drop_all_tables(engine)
-        create_all_tables(engine)
-        seed_admin_user()
-        seed_sample_data()
-        verify_reset()
-        
-        print("\n🎉 Database reset completed successfully!")
-        print()
-        print("You can now run your Streamlit app:")
-        print("  streamlit run app.py")
-        print()
-        print("Login credentials:")
-        print("  Email: zhiqiulin98@gmail.com")
-        print("  Password: zhiqiulin98")
-        
-    except Exception as e:
-        print(f"\n❌ Reset failed: {e}")
-        print("Your database may be in an inconsistent state.")
-        print("Consider restoring from backup or contact support.")
-        sys.exit(1)
+    sys.exit(0 if success else 1)
 
 if __name__ == "__main__":
     main()

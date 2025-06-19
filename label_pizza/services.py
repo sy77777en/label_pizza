@@ -1765,17 +1765,27 @@ class AuthService:
         return {"id": u.id, "name": u.user_id_str, "role": u.user_type}
 
     @staticmethod
-    def seed_admin(session: Session) -> None:
-        """Create hard‑coded admin if not present."""
-        if not session.scalar(select(User).where(User.email == "zhiqiulin98@gmail.com")):
-            session.add(User(
-                user_id_str="admin", 
-                email="zhiqiulin98@gmail.com",
-                password_hash="zhiqiulin98", 
-                user_type="admin", 
-                is_archived=False
-            ))
-            session.commit()
+    def seed_admin(session: Session, email: str = "admin@example.com", password: str = "password123", user_id: str = "Admin") -> None:
+        """Create admin user with specified credentials if not present.
+        
+        Args:
+            session: Database session
+            email: Admin email address
+            password: Admin password  
+            user_id: Admin user ID string
+        """
+        try:
+            # Use create_user which handles all validation and duplicate checking
+            AuthService.create_user(
+                user_id=user_id,
+                email=email,
+                password_hash=password,
+                user_type="admin",
+                session=session
+            )
+        except ValueError:
+            # User already exists, that's fine for seeding
+            pass
 
     @staticmethod
     def get_all_users(session: Session) -> pd.DataFrame:
