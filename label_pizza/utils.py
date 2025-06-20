@@ -62,7 +62,10 @@ def clear_project_cache(project_id: int):
     """Clear all cached data for a specific project"""
     cache_keys_to_clear = []
     for key in st.session_state.keys():
-        if f"cache_project_{project_id}" in key:
+        if (f"cache_project_{project_id}" in key or 
+            f"cached_annotators_{project_id}" in key or
+            f"completion_progress_{project_id}" in key or
+            f"question_groups_{project_id}" in key):
             cache_keys_to_clear.append(key)
     
     for key in cache_keys_to_clear:
@@ -210,6 +213,98 @@ def get_questions_by_group_cached(group_id: int, session: Session) -> List[Dict]
 ###############################################################################
 # OPTIMIZED HELPER FUNCTIONS
 ###############################################################################
+
+def get_session_cached_project_annotators(project_id: int, session: Session) -> Dict[str, Dict]:
+    """Get project annotators with session state caching"""
+    cache_key = f"cached_annotators_{project_id}"
+    
+    if cache_key not in st.session_state:
+        st.session_state[cache_key] = get_optimized_all_project_annotators(project_id=project_id, session=session)
+    
+    return st.session_state[cache_key]
+
+def get_optimized_all_project_annotators(project_id: int, session: Session) -> Dict[str, Dict]:
+    """Get all annotators who have answered questions in this project with correct project-specific roles"""
+    try:
+        # Get project assignments to determine project-specific roles
+        assignments_df = AuthService.get_project_assignments(session=session)
+        project_assignments = assignments_df[assignments_df["Project ID"] == project_id]
+        
+        # Get all users
+        users_df = AuthService.get_all_users(session=session)
+        user_lookup = {row["ID"]: row for _, row in users_df.iterrows()}
+        
+        # Build user role mapping with priority: admin > reviewer > model > annotator
+        user_roles = {}
+        role_priority = {"admin": 4, "reviewer": 3, "model": 2, "annotator": 1}
+        
+        for _, assignment in project_assignments.iterrows():
+            user_id = assignment["User ID"]
+            role = assignment["Role"]
+            
+            if user_id not in user_roles or role_priority.get(role, 0) > role_priority.get(user_roles[user_id], 0):
+                user_roles[user_id] = role
+        
+        # Get annotators who have actually submitted answers
+        annotators = ProjectService.get_project_annotators(project_id=project_id, session=session)
+        
+        # Enhance with correct project roles and user info
+        enhanced_annotators = {}
+        for display_name, annotator_info in annotators.items():
+            user_id = annotator_info.get('id')
+            if user_id and user_id in user_lookup:
+                user_data = user_lookup[user_id]
+                project_role = user_roles.get(user_id, 'annotator')  # Default to annotator if not found
+                
+                enhanced_annotators[display_name] = {
+                    'id': user_id,
+                    'email': user_data["Email"],
+                    'Role': project_role,  # Use project-specific role
+                    'role': project_role,  # Backup key
+                    'system_role': user_data["Role"],  # Keep system role for reference
+                    'display_name': display_name
+                }
+        
+        return enhanced_annotators
+        
+    except ValueError as e:
+        st.error(f"Error getting project annotators: {str(e)}")
+        return {}
+
+
+def calculate_user_overall_progress(user_id: int, project_id: int, session: Session) -> float:
+    """Calculate user's overall progress"""
+    try:
+        return AnnotatorService.calculate_user_overall_progress(user_id=user_id, project_id=project_id, session=session)
+    except ValueError as e:
+        st.error(f"Error calculating user progress: {str(e)}")
+        return 0.0
+
+def get_cached_user_completion_progress(project_id: int, session: Session) -> Dict[int, float]:
+    """Cache completion progress for all users in a project"""
+    cache_key = f"completion_progress_{project_id}"
+    
+    if cache_key not in st.session_state:
+        try:
+            annotators = get_session_cached_project_annotators(project_id=project_id, session=session)
+            progress_map = {}
+            
+            for annotator_display, annotator_info in annotators.items():
+                user_id = annotator_info.get('id')
+                if user_id:
+                    try:
+                        progress = calculate_user_overall_progress(user_id=user_id, project_id=project_id, session=session)
+                        progress_map[user_id] = progress
+                    except:
+                        print(f"Error calculating progress for user {user_id}: {e}")
+                        progress_map[user_id] = 0.0
+            
+            st.session_state[cache_key] = progress_map
+        except:
+            print(f"Error caching completion progress for project {project_id}: {e}")
+            st.session_state[cache_key] = {}
+    
+    return st.session_state[cache_key]
 
 def get_schema_question_groups(schema_id: int, session: Session) -> List[Dict]:
     """Get question groups in a schema - with caching"""

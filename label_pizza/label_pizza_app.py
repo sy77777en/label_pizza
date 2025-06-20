@@ -30,7 +30,8 @@ from utils import (
     _display_unified_status, _display_clean_sticky_single_choice_question,
     _display_clean_sticky_description_question, _get_enhanced_options_for_reviewer,
     _submit_answer_reviews, _load_existing_answer_reviews, calculate_overall_accuracy, calculate_per_question_accuracy,
-    get_schema_question_groups, get_project_videos, get_questions_by_group_cached
+    get_schema_question_groups, get_project_videos, get_questions_by_group_cached,
+    get_cached_user_completion_progress, get_session_cached_project_annotators, calculate_user_overall_progress
 )
 
 Base.metadata.create_all(engine)
@@ -686,7 +687,6 @@ def get_available_portals(user: Dict, user_projects: Dict) -> List[str]:
     return available_portals
 
 
-
 def display_auto_submit_tab(project_id: int, user_id: int, role: str, videos: List[Dict], session: Session):
     """Display auto-submit interface - different logic for annotator vs reviewer"""
     
@@ -800,14 +800,18 @@ def display_auto_submit_tab(project_id: int, user_id: int, role: str, videos: Li
             selected_group_names = st.multiselect(
                 "Select question groups for manual auto-submit:",
                 [group["Title"] for group in manual_groups],
+                default=[group["Title"] for group in manual_groups],  # ADD THIS LINE
                 key=f"manual_groups_{role}_{project_id}",
-                disabled=is_training_mode
+                disabled=is_training_mode,
+                help="All groups are preselected. Deselect any you don't want to configure."  # ADD THIS LINE
             )
             
             selected_groups = [group for group in manual_groups if group["Title"] in selected_group_names]
             
             if selected_groups:
                 display_manual_auto_submit_controls(selected_groups, target_videos, project_id, user_id, role, session, is_training_mode)
+            else:
+                custom_info("💡 All question groups were deselected. Select groups above to configure auto-submit settings.")
     
     else:  # reviewer role - NO AUTO-SUBMIT GROUPS
         st.markdown(f"""
@@ -868,7 +872,9 @@ def display_auto_submit_tab(project_id: int, user_id: int, role: str, videos: Li
         selected_group_names = st.multiselect(
             "Select question groups for ground truth auto-submit:",
             [group["Title"] for group in question_groups],
-            key=f"manual_groups_{role}_{project_id}"
+            default=[group["Title"] for group in question_groups],  # ADD THIS LINE
+            key=f"manual_groups_{role}_{project_id}",
+            help="All groups are preselected. Deselect any you don't want to configure."  # ADD THIS LINE
         )
         
         selected_groups = [group for group in question_groups if group["Title"] in selected_group_names]
@@ -1045,7 +1051,7 @@ def build_virtual_responses_for_video(video_id: int, project_id: int, role: str,
         
         try:
             # Get available annotators
-            available_annotators = get_optimized_all_project_annotators(project_id=project_id, session=session)
+            available_annotators = get_session_cached_project_annotators(project_id=project_id, session=session)
             annotator_info = available_annotators.get(selected_annotator, {})
             annotator_user_id = annotator_info.get('id')
             
@@ -1099,7 +1105,7 @@ def run_manual_auto_submit(selected_groups: List[Dict], videos: List[Dict], proj
     
     if role == "reviewer":
         try:
-            available_annotators = get_optimized_all_project_annotators(project_id=project_id, session=session)
+            available_annotators = get_session_cached_project_annotators(project_id=project_id, session=session)
             annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
                 display_names=selected_annotators, project_id=project_id, session=session
             )
@@ -1298,7 +1304,7 @@ def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project
     
     if role == "reviewer":
         try:
-            available_annotators = get_optimized_all_project_annotators(project_id=project_id, session=session)
+            available_annotators = get_session_cached_project_annotators(project_id=project_id, session=session)
             include_user_ids = AuthService.get_annotator_user_ids_from_display_names(
                 display_names=selected_annotators, project_id=project_id, session=session
             )
@@ -1682,7 +1688,7 @@ def run_preload_options_only(selected_groups: List[Dict], videos: List[Dict], pr
     
     if role == "reviewer":
         try:
-            available_annotators = get_optimized_all_project_annotators(project_id=project_id, session=session)
+            available_annotators = get_session_cached_project_annotators(project_id=project_id, session=session)
             annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
                 display_names=selected_annotators, project_id=project_id, session=session
             )
@@ -1892,7 +1898,7 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
     available_annotators = {}
     if role == "reviewer":
         try:
-            available_annotators = get_optimized_all_project_annotators(project_id=project_id, session=session)
+            available_annotators = get_session_cached_project_annotators(project_id=project_id, session=session)
         except:
             available_annotators = {}
     
@@ -2085,7 +2091,7 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
                                             try:
                                                 user_info = AuthService.get_user_info_by_id(user_id=int(user_id_resp), session=session)
                                                 user_name = user_info["user_id_str"]
-                                                # Apply same naming convention as get_optimized_all_project_annotators
+                                                # Apply same naming convention as get_session_cached_project_annotators
                                                 display_name_with_initials, _ = AuthService.get_user_display_name_with_initials(user_name)
                                                 annotator_options.append(display_name_with_initials)
                                                 annotator_data[display_name_with_initials] = int(user_id_resp)
@@ -2624,54 +2630,6 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
 ###############################################################################
 # SHARED UTILITY FUNCTIONS
 ###############################################################################
-
-def get_optimized_all_project_annotators(project_id: int, session: Session) -> Dict[str, Dict]:
-    """Get all annotators who have answered questions in this project with correct project-specific roles"""
-    try:
-        # Get project assignments to determine project-specific roles
-        assignments_df = AuthService.get_project_assignments(session=session)
-        project_assignments = assignments_df[assignments_df["Project ID"] == project_id]
-        
-        # Get all users
-        users_df = AuthService.get_all_users(session=session)
-        user_lookup = {row["ID"]: row for _, row in users_df.iterrows()}
-        
-        # Build user role mapping with priority: admin > reviewer > model > annotator
-        user_roles = {}
-        role_priority = {"admin": 4, "reviewer": 3, "model": 2, "annotator": 1}
-        
-        for _, assignment in project_assignments.iterrows():
-            user_id = assignment["User ID"]
-            role = assignment["Role"]
-            
-            if user_id not in user_roles or role_priority.get(role, 0) > role_priority.get(user_roles[user_id], 0):
-                user_roles[user_id] = role
-        
-        # Get annotators who have actually submitted answers
-        annotators = ProjectService.get_project_annotators(project_id=project_id, session=session)
-        
-        # Enhance with correct project roles and user info
-        enhanced_annotators = {}
-        for display_name, annotator_info in annotators.items():
-            user_id = annotator_info.get('id')
-            if user_id and user_id in user_lookup:
-                user_data = user_lookup[user_id]
-                project_role = user_roles.get(user_id, 'annotator')  # Default to annotator if not found
-                
-                enhanced_annotators[display_name] = {
-                    'id': user_id,
-                    'email': user_data["Email"],
-                    'Role': project_role,  # Use project-specific role
-                    'role': project_role,  # Backup key
-                    'system_role': user_data["Role"],  # Keep system role for reference
-                    'display_name': display_name
-                }
-        
-        return enhanced_annotators
-        
-    except ValueError as e:
-        st.error(f"Error getting project annotators: {str(e)}")
-        return {}
 
 
 def display_user_simple(user_name: str, user_email: str, is_ground_truth: bool = False):
@@ -4048,26 +4006,26 @@ def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: i
     # Check completion status for each annotator
     try:
         with get_db_session() as session:
-            completed_annotators = {}
-            incomplete_annotators = {}
-            
-            for annotator_display, annotator_info in annotators.items():
-                user_id = annotator_info.get('id')
-                if user_id:
-                    try:
-                        progress = calculate_user_overall_progress(user_id=user_id, project_id=project_id, session=session)
-                        if progress >= 100:
-                            completed_annotators[annotator_display] = annotator_info
-                        else:
-                            incomplete_annotators[annotator_display] = annotator_info
-                    except:
-                        incomplete_annotators[annotator_display] = annotator_info
+            completion_progress = get_cached_user_completion_progress(project_id=project_id, session=session)
+    
+        completed_annotators = {}
+        incomplete_annotators = {}
+        
+        for annotator_display, annotator_info in annotators.items():
+            user_id = annotator_info.get('id')
+            if user_id and user_id in completion_progress:
+                progress = completion_progress[user_id]
+                if progress >= 100:
+                    completed_annotators[annotator_display] = annotator_info
                 else:
                     incomplete_annotators[annotator_display] = annotator_info
+            else:
+                incomplete_annotators[annotator_display] = annotator_info
     except:
-        # Fallback: treat all as completed if we can't check
-        completed_annotators = annotators
-        incomplete_annotators = {}
+        # Fallback: treat none as completed if we can't check
+        print("Error checking completion status for annotators")
+        completed_annotators = {}
+        incomplete_annotators = annotators
     
     if "selected_annotators" not in st.session_state:
         # Only select completed annotators by default
@@ -4178,19 +4136,18 @@ def display_smart_annotator_selection_for_auto_submit(annotators: Dict[str, Dict
         return []
     
     # Check completion status for each annotator
+    # Use cached completion progress instead of individual calls
     try:
         with get_db_session() as session:
-            completed_annotators = {}
+            completion_progress = get_cached_user_completion_progress(project_id=project_id, session=session)
             
+            completed_annotators = {}
             for annotator_display, annotator_info in annotators.items():
                 user_id = annotator_info.get('id')
-                if user_id:
-                    try:
-                        progress = calculate_user_overall_progress(user_id=user_id, project_id=project_id, session=session)
-                        if progress >= 100:
-                            completed_annotators[annotator_display] = annotator_info
-                    except:
-                        pass  # Skip if can't check progress
+                if user_id and user_id in completion_progress:
+                    progress = completion_progress[user_id]
+                    if progress >= 100:
+                        completed_annotators[annotator_display] = annotator_info
     except:
         completed_annotators = {}
     
@@ -4428,7 +4385,7 @@ def display_project_view(user_id: int, role: str, session: Session):
             """, unsafe_allow_html=True)
             
             try:
-                annotators = get_optimized_all_project_annotators(project_id=project_id, session=session)
+                annotators = get_session_cached_project_annotators(project_id=project_id, session=session)
                 display_smart_annotator_selection(annotators=annotators, project_id=project_id)
             except Exception as e:
                 st.error(f"Error loading annotators: {str(e)}")
@@ -4512,7 +4469,7 @@ def display_project_view(user_id: int, role: str, session: Session):
             """, unsafe_allow_html=True)
             
             try:
-                annotators = get_optimized_all_project_annotators(project_id=project_id, session=session)
+                annotators = get_session_cached_project_annotators(project_id=project_id, session=session)
                 display_smart_annotator_selection(annotators=annotators, project_id=project_id)
             except Exception as e:
                 st.error(f"Error loading annotators: {str(e)}")
@@ -5648,20 +5605,20 @@ def admin_questions():
                                 
                                 current_verification = group_details.get("verification_function")
                                 
-                                edit_basic_col1, edit_basic_col2, edit_basic_col3 = st.columns(3)
+                                # with edit_basic_col1:
+                                st.text_input(
+                                    "Group Title",
+                                    value=group_details["title"],
+                                    key="admin_edit_group_title"
+                                )
+                                edit_basic_col1, edit_basic_col2 = st.columns(2)
                                 with edit_basic_col1:
-                                    new_title = st.text_input(
-                                        "Group Title",
-                                        value=group_details["title"],
-                                        key="admin_edit_group_title"
-                                    )
-                                with edit_basic_col2:
                                     new_is_reusable = st.checkbox(
                                         "Reusable across schemas",
                                         value=group_details["is_reusable"],
                                         key="admin_edit_group_reusable"
                                     )
-                                with edit_basic_col3:
+                                with edit_basic_col2:
                                     new_is_auto_submit = st.checkbox(
                                         "Auto Submit",
                                         value=group_details["is_auto_submit"],
@@ -5801,7 +5758,7 @@ def admin_questions():
                                 if st.button("💾 Update Question Group", key="admin_update_group_btn", type="primary", use_container_width=True):
                                     try:
                                         QuestionGroupService.edit_group(
-                                            group_id=selected_group_id, new_title=new_title,
+                                            group_id=selected_group_id, new_title=group_details["title"],
                                             new_description=new_description, is_reusable=new_is_reusable,
                                             verification_function=new_verification_function, is_auto_submit=new_is_auto_submit, session=session
                                         )
@@ -7183,14 +7140,6 @@ def admin_project_groups():
 #     except ValueError as e:
 #         st.error(f"Error getting project videos: {str(e)}")
 #         return []
-
-def calculate_user_overall_progress(user_id: int, project_id: int, session: Session) -> float:
-    """Calculate user's overall progress"""
-    try:
-        return AnnotatorService.calculate_user_overall_progress(user_id=user_id, project_id=project_id, session=session)
-    except ValueError as e:
-        st.error(f"Error calculating user progress: {str(e)}")
-        return 0.0
 
 def show_training_feedback(video_id: int, project_id: int, group_id: int, user_answers: Dict[str, str], session: Session):
     """Show training feedback comparing user answers to ground truth"""
