@@ -3442,6 +3442,7 @@ def display_project_progress(user_id: int, project_id: int, role: str, session: 
         except ValueError as e:
             st.error(f"Error loading project progress: {str(e)}")
 
+@st.fragment
 def display_enhanced_sort_tab(project_id: int, session: Session):
     """Enhanced sort tab with improved UI/UX and proper validation"""
     st.markdown("#### 🔄 Video Sorting Options")
@@ -3687,6 +3688,7 @@ def display_enhanced_sort_tab(project_id: int, session: Session):
     # """, unsafe_allow_html=True)
     custom_info("💡 Configure your sorting options above, then click <strong>Apply</strong> to sort the videos accordingly.")
 
+@st.fragment
 def display_enhanced_sort_tab_annotator(project_id: int, session: Session):
     """Enhanced sort tab for annotators - only relevant options"""
     st.markdown("#### 🔄 Video Sorting Options")
@@ -3808,6 +3810,7 @@ def display_enhanced_sort_tab_annotator(project_id: int, session: Session):
     
     custom_info("💡 Configure your sorting options above, then click <strong>Apply</strong> to sort the videos accordingly.")
 
+@st.fragment
 def display_enhanced_filter_tab(project_id: int, session: Session):
     """Enhanced filter tab with proper ground truth detection and full question text"""
     st.markdown("#### 🔍 Video Filtering Options")
@@ -3829,48 +3832,92 @@ def display_enhanced_filter_tab(project_id: int, session: Session):
         questions = ProjectService.get_project_questions(project_id=project_id, session=session)
         question_lookup = {q["id"]: q["text"] for q in questions}
         
-        selected_filters = {}
+        # Get current filters to show current state
+        current_filters = st.session_state.get(f"video_filters_{project_id}", {})
+        
+        # Collect new filter selections (don't store in session state yet)
+        new_filters = {}
         
         for question_id, available_answers in gt_options.items():
             question_text = question_lookup.get(question_id, f"Question {question_id}")
-            
-            # Don't truncate - show full question text
             display_question = question_text
+            
+            # Get current selection for this question
+            current_selection = current_filters.get(question_id, "Any")
+            
+            # Make sure current selection is still valid
+            if current_selection not in ["Any"] + available_answers:
+                current_selection = "Any"
             
             filter_key = f"video_filter_q_{question_id}_{project_id}"
             selected_answer = st.selectbox(
                 f"**{display_question}**",
                 ["Any"] + sorted(available_answers),
+                index=(["Any"] + sorted(available_answers)).index(current_selection) if current_selection in ["Any"] + sorted(available_answers) else 0,
                 key=filter_key,
                 help=f"Filter videos where this question has the selected ground truth answer"
             )
             
             if selected_answer != "Any":
-                selected_filters[question_id] = selected_answer
+                new_filters[question_id] = selected_answer
         
-        if selected_filters:
+        # Show what filters would be applied
+        if new_filters:
             filter_summary = []
-            for q_id, answer in selected_filters.items():
+            for q_id, answer in new_filters.items():
                 q_text = question_lookup.get(q_id, f"Q{q_id}")
-                # Show more of the question text in summary
                 display_text = q_text[:80] + "..." if len(q_text) > 80 else q_text
                 filter_summary.append(f"{display_text} = {answer}")
             
-            st.success(f"🔍 **Active Filters:** {' | '.join(filter_summary)}")
+            custom_info(f"🔍 **Ready to apply:** {' | '.join(filter_summary)}")
         else:
-            custom_info("ℹ️ No filters active - showing all videos")
+            custom_info("ℹ️ No filters selected - will show all videos")
         
-        # Store filters in session state
-        st.session_state[f"video_filters_{project_id}"] = selected_filters
+        # Check if filters have changed
+        filters_changed = new_filters != current_filters
+        
+        # Apply button
+        apply_col1, apply_col2 = st.columns([1, 1])
+        
+        with apply_col1:
+            if st.button("🔍 Apply Filters", 
+                        type="primary", 
+                        use_container_width=True,
+                        disabled=not filters_changed,
+                        help="Apply the selected filters to videos"):
+                st.session_state[f"video_filters_{project_id}"] = new_filters
+                st.rerun()  # This triggers a rerun of the parent page
+        
+        with apply_col2:
+            if st.button("🗑️ Clear All Filters", 
+                        use_container_width=True,
+                        disabled=not current_filters,
+                        help="Remove all active filters"):
+                st.session_state[f"video_filters_{project_id}"] = {}
+                st.rerun()
+        
+        # Show current active filters if any
+        if current_filters:
+            st.markdown("**Currently Active Filters:**")
+            active_summary = []
+            for q_id, answer in current_filters.items():
+                q_text = question_lookup.get(q_id, f"Q{q_id}")
+                display_text = q_text[:60] + "..." if len(q_text) > 60 else q_text
+                active_summary.append(f"• {display_text} = **{answer}**")
+            
+            st.markdown("\n".join(active_summary))
+            
+            if filters_changed:
+                st.warning("⚠️ **Filters have been modified** - click 'Apply Filters' to update the video list")
+            else:
+                st.success("✅ **Filters are active** - video list is filtered")
+        
     else:
         custom_info("No ground truth data available for filtering yet. Complete ground truth annotation to enable filtering.")
-        st.session_state[f"video_filters_{project_id}"] = {}
+        # Still ensure the session state key exists
+        if f"video_filters_{project_id}" not in st.session_state:
+            st.session_state[f"video_filters_{project_id}"] = {}
     
-    # st.markdown(f"""
-    # <div style="background: linear-gradient(135deg, #fff3cd, #ffeaa7); border-left: 4px solid {COLORS['warning']}; border-radius: 8px; padding: 12px 16px; margin-top: 16px; font-size: 0.9rem; color: #2c3e50;">
-    #     💡 <strong>Tip:</strong> Filters only work on questions that have ground truth answers. Complete annotation first to see more filter options.
-    # </div>
-    # """, unsafe_allow_html=True)
     custom_info("💡 Filters only work on questions that have ground truth answers. Complete annotation first to see more filter options.")
 
 def run_project_wide_auto_submit_on_entry(project_id: int, user_id: int, session: Session):
@@ -4263,6 +4310,18 @@ def display_order_tab(project_id: int, role: str, project: Any, session: Session
 
 def display_project_view(user_id: int, role: str, session: Session):
     """Display the selected project with modern, compact layout and enhanced sorting/filtering"""
+    # 🔍 DEBUG: Let's see what's happening
+    # import time
+    # current_time = time.time()
+    # if 'last_render_time' not in st.session_state:
+    #     st.session_state.last_render_time = current_time
+    #     print(f"🔍 FIRST RENDER of project view")
+    # else:
+    #     time_diff = current_time - st.session_state.last_render_time
+    #     st.session_state.last_render_time = current_time
+    #     print(f"🔍 RE-RENDER of project view (after {time_diff:.2f}s)")
+    
+
     project_id = st.session_state.selected_project_id
     
     if st.button("← Back to Dashboard", key="back_to_dashboard"):
@@ -4324,7 +4383,10 @@ def display_project_view(user_id: int, role: str, session: Session):
     # Role-specific control panels - NO AUTO-SUBMIT FOR META-REVIEWER
     if role == "reviewer":
         # st.markdown("---")
-        
+        # 🔍 DEBUG: Let's see what's happening with tab state
+        # print(f"🔍 About to create reviewer tabs")
+        # print(f"🔍 Session state keys with project_id: {[k for k in st.session_state.keys() if str(project_id) in k]}")
+    
         if mode == "Training":
             analytics_tab, annotator_tab, sort_tab, filter_tab, order_tab, layout_tab, auto_submit_tab = st.tabs([
                 "📊 Analytics", "👥 Annotators", "🔄 Sort", "🔍 Filter", "📋 Order", "🎛️ Layout", "⚡ Auto-Submit"
@@ -4687,60 +4749,164 @@ def display_project_view(user_id: int, role: str, session: Session):
         
         st.markdown(f"<div style='text-align: center; color: #6c757d; margin-top: 1rem;'>Page {current_page + 1} of {total_pages}</div>", unsafe_allow_html=True)
 
+@st.fragment
 def _display_video_layout_controls(videos: List[Dict], role: str):
     """Display video layout controls"""
+    
+    # Get current settings from session state
+    current_pairs_per_row = st.session_state.get(f"{role}_pairs_per_row", 1)
+    current_autoplay = st.session_state.get(f"{role}_autoplay", True)
+    current_loop = st.session_state.get(f"{role}_loop", True)
+    
+    # Calculate current videos per page settings
+    min_videos_per_page = current_pairs_per_row
+    max_videos_per_page = max(min(20, len(videos)), min_videos_per_page + 1)
+    default_videos_per_page = min(min(4, len(videos)), max_videos_per_page)
+    current_per_page = st.session_state.get(f"{role}_per_page", default_videos_per_page)
+    
+    # Collect new settings (don't store in session state yet)
     col1, col2 = st.columns(2)
     
     with col1:
         st.markdown("**🔄 Video Pairs Per Row**")
-        st.slider(
+        new_pairs_per_row = st.slider(
             "Choose layout", 
             1, 2, 
-            st.session_state.get(f"{role}_pairs_per_row", 1), 
-            key=f"{role}_pairs_per_row",
+            current_pairs_per_row, 
+            key=f"temp_{role}_pairs_per_row",
             help="Choose how many video-answer pairs to display side by side"
         )
     
     with col2:
         st.markdown("**📄 Videos Per Page**")
         
-        min_videos_per_page = st.session_state.get(f"{role}_pairs_per_row", 1)
-        max_videos_per_page = max(min(20, len(videos)), min_videos_per_page + 1)
-        default_videos_per_page = min(min(4, len(videos)), max_videos_per_page)
+        # Recalculate based on new pairs per row
+        new_min_videos_per_page = new_pairs_per_row
+        new_max_videos_per_page = max(min(20, len(videos)), new_min_videos_per_page + 1)
+        new_default_videos_per_page = min(min(4, len(videos)), new_max_videos_per_page)
+        
+        # Adjust current per page if it's now invalid
+        adjusted_per_page = max(new_min_videos_per_page, min(current_per_page, new_max_videos_per_page))
         
         if len(videos) == 1:
             st.write("**1** (only video in project)")
-        elif max_videos_per_page > min_videos_per_page:
-            st.slider(
+            new_per_page = 1
+        elif new_max_videos_per_page > new_min_videos_per_page:
+            new_per_page = st.slider(
                 "Pagination setting", 
-                min_videos_per_page, 
-                max_videos_per_page, 
-                st.session_state.get(f"{role}_per_page", default_videos_per_page),
-                key=f"{role}_per_page",
+                new_min_videos_per_page, 
+                new_max_videos_per_page, 
+                adjusted_per_page,
+                key=f"temp_{role}_per_page",
                 help="Set how many videos to show on each page"
             )
         else:
             st.write(f"**{len(videos)}** (showing all videos)")
+            new_per_page = len(videos)
     
     st.markdown("**🎬 Video Playback Settings**")
     col3, col4 = st.columns(2)
     
     with col3:
-        st.checkbox(
+        new_autoplay = st.checkbox(
             "🚀 Auto-play videos on load",
-            value=st.session_state.get(f"{role}_autoplay", True),
-            key=f"{role}_autoplay",
+            value=current_autoplay,
+            key=f"temp_{role}_autoplay",
             help="Automatically start playing videos when they load"
         )
     
     with col4:
-        st.checkbox(
+        new_loop = st.checkbox(
             "🔄 Loop videos",
-            value=st.session_state.get(f"{role}_loop", True),
-            key=f"{role}_loop",
+            value=current_loop,
+            key=f"temp_{role}_loop",
             help="Automatically restart videos when they finish"
         )
-
+    
+    # Check if any settings have changed
+    settings_changed = (
+        new_pairs_per_row != current_pairs_per_row or
+        new_per_page != current_per_page or
+        new_autoplay != current_autoplay or
+        new_loop != current_loop
+    )
+    
+    # Show pending changes if any
+    if settings_changed:
+        st.markdown("**📋 Pending Changes:**")
+        changes = []
+        
+        if new_pairs_per_row != current_pairs_per_row:
+            changes.append(f"• Pairs per row: {current_pairs_per_row} → **{new_pairs_per_row}**")
+        
+        if new_per_page != current_per_page:
+            changes.append(f"• Videos per page: {current_per_page} → **{new_per_page}**")
+        
+        if new_autoplay != current_autoplay:
+            autoplay_text = "enabled" if new_autoplay else "disabled"
+            changes.append(f"• Auto-play: **{autoplay_text}**")
+        
+        if new_loop != current_loop:
+            loop_text = "enabled" if new_loop else "disabled"
+            changes.append(f"• Loop videos: **{loop_text}**")
+        
+        st.markdown("\n".join(changes))
+        st.warning("⚠️ **Settings modified** - click 'Apply Layout Settings' to update the interface")
+    else:
+        st.success("✅ **Current layout settings** - no changes pending")
+    
+    # Apply and Reset buttons
+    apply_col1, apply_col2 = st.columns([1, 1])
+    
+    with apply_col1:
+        if st.button("🎛️ Apply Layout Settings", 
+                    type="primary", 
+                    use_container_width=True,
+                    disabled=not settings_changed,
+                    help="Apply the selected layout settings"):
+            # Update all session state values
+            st.session_state[f"{role}_pairs_per_row"] = new_pairs_per_row
+            st.session_state[f"{role}_per_page"] = new_per_page
+            st.session_state[f"{role}_autoplay"] = new_autoplay
+            st.session_state[f"{role}_loop"] = new_loop
+            st.rerun()  # Trigger parent page rerun
+    
+    with apply_col2:
+        # Check if we can reset (any current settings differ from defaults)
+        default_settings = {
+            "pairs_per_row": 1,
+            "per_page": min(4, len(videos)),
+            "autoplay": True,
+            "loop": True
+        }
+        
+        can_reset = (
+            current_pairs_per_row != default_settings["pairs_per_row"] or
+            current_per_page != default_settings["per_page"] or
+            current_autoplay != default_settings["autoplay"] or
+            current_loop != default_settings["loop"]
+        )
+        
+        if st.button("🔄 Reset to Defaults", 
+                    use_container_width=True,
+                    disabled=not can_reset,
+                    help="Reset all layout settings to default values"):
+            st.session_state[f"{role}_pairs_per_row"] = default_settings["pairs_per_row"]
+            st.session_state[f"{role}_per_page"] = default_settings["per_page"]
+            st.session_state[f"{role}_autoplay"] = default_settings["autoplay"]
+            st.session_state[f"{role}_loop"] = default_settings["loop"]
+            st.rerun()
+    
+    # Show current active settings summary
+    st.markdown("**📊 Current Settings:**")
+    current_summary = [
+        f"• **{current_pairs_per_row}** video pair(s) per row",
+        f"• **{current_per_page}** videos per page",
+        f"• Auto-play: **{'enabled' if current_autoplay else 'disabled'}**",
+        f"• Loop videos: **{'enabled' if current_loop else 'disabled'}**"
+    ]
+    
+    st.markdown("\n".join(current_summary))
 # Update display_video_answer_pair function to handle transaction errors
 
 @st.fragment
