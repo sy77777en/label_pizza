@@ -33,6 +33,7 @@ from utils import (
     get_schema_question_groups, get_project_videos, get_questions_by_group_cached,
     get_cached_user_completion_progress, get_session_cached_project_annotators, calculate_user_overall_progress
 )
+import export as export_module
 
 Base.metadata.create_all(engine)
 
@@ -686,7 +687,7 @@ def get_available_portals(user: Dict, user_projects: Dict) -> List[str]:
     
     return available_portals
 
-
+@st.fragment
 def display_auto_submit_tab(project_id: int, user_id: int, role: str, videos: List[Dict], session: Session):
     """Display auto-submit interface - different logic for annotator vs reviewer"""
     
@@ -5154,7 +5155,7 @@ def admin_portal():
     
     tabs = st.tabs([
         "📹 Videos", "📁 Projects", "📋 Schemas", 
-        "❓ Questions", "👥 Users", "🔗 Assignments", "📊 Project Groups"
+        "❓ Questions", "👥 Users", "🔗 Assignments", "📊 Project Groups", "📤 Export"
     ])
     
     with tabs[0]:
@@ -5171,6 +5172,520 @@ def admin_portal():
         admin_assignments()
     with tabs[6]:
         admin_project_groups()
+    with tabs[7]:
+        admin_export()
+
+def validate_projects_for_export(project_ids: List[int], session: Session) -> Dict:
+    """
+    Validate projects for export and return structured results.
+    
+    Returns:
+        Dict with keys: success, reusable_error, non_reusable_error, failing_videos, 
+                       reusable_details, non_reusable_details, excel_report_data
+    """
+    reusable_error = None
+    non_reusable_error = None
+    
+    # Check reusable question groups
+    try:
+        export_module.GroundTruthExportService._validate_reusable_question_groups(project_ids, session)
+    except ValueError as e:
+        reusable_error = str(e)
+    
+    # Check non-reusable question groups  
+    try:
+        export_module.GroundTruthExportService._validate_non_reusable_question_groups(project_ids, session)
+    except ValueError as e:
+        non_reusable_error = str(e)
+    
+    # If no errors, return success
+    if not reusable_error and not non_reusable_error:
+        return {"success": True}
+    
+    # Parse errors
+    all_failing_videos = set()
+    reusable_details = []
+    non_reusable_details = []
+    
+    # Parse reusable errors
+    if reusable_error:
+        if "Failing videos:" in reusable_error:
+            videos_section = reusable_error.split("Failing videos:")[1].split("Details:")[0].strip()
+            failing_videos = [v.strip() for v in videos_section.replace("...", "").split(",") if v.strip()]
+            all_failing_videos.update(failing_videos)
+        
+        if "Details:" in reusable_error:
+            details_section = reusable_error.split("Details:")[1].strip()
+            current_group = None
+            
+            for line in details_section.split("\n"):
+                line = line.strip()
+                if "Reusable question group" in line and "failing videos" in line:
+                    current_group = line.split("'")[1] if "'" in line else "Unknown Group"
+                elif "Question '" in line and current_group:
+                    question = line.split("Question '")[1].split("':")[0] if "Question '" in line else "Unknown Question"
+                    reusable_details.append({
+                        "Type": "Reusable Group Conflict",
+                        "Group": current_group,
+                        "Question": question,
+                        "Issue": "Inconsistent answers across projects"
+                    })
+    
+    # Parse non-reusable errors
+    if non_reusable_error:
+        if "Total videos affected:" in non_reusable_error:
+            lines = non_reusable_error.split("\n")
+            for line in lines:
+                if "Overlapping videos" in line and "):" in line:
+                    videos_part = line.split("):")[1] if "):" in line else ""
+                    failing_videos = [v.strip() for v in videos_part.replace("...", "").split(",") if v.strip()]
+                    all_failing_videos.update(failing_videos)
+        
+        if "Violations:" in non_reusable_error:
+            violations_section = non_reusable_error.split("Violations:")[1].strip()
+            current_group = None
+            
+            for line in violations_section.split("\n"):
+                line = line.strip()
+                if "Non-reusable question group" in line:
+                    current_group = line.split("'")[1] if "'" in line else "Unknown Group"
+                elif "Projects:" in line and current_group:
+                    projects_part = line.split("Projects:")[1].strip()
+                    current_projects = [p.strip() for p in projects_part.split(",")]
+                    non_reusable_details.append({
+                        "Type": "Non-Reusable Group Violation", 
+                        "Group": current_group,
+                        "Question": "N/A",
+                        "Issue": f"Group used in multiple projects: {', '.join(current_projects)}"
+                    })
+    
+    # Create Excel report data
+    excel_report_data = None
+    all_failing_videos = list(all_failing_videos)
+    
+    if (reusable_details or non_reusable_details) and all_failing_videos:
+        try:
+            import pandas as pd
+            
+            # Group errors by video
+            video_errors = {}
+            for video in all_failing_videos:
+                video_errors[video] = {"reusable": [], "non_reusable": []}
+            
+            # Add reusable errors
+            for detail in reusable_details:
+                error_msg = f"Group '{detail['Group']}' → Question '{detail['Question']}': {detail['Issue']}"
+                for video in all_failing_videos:
+                    video_errors[video]["reusable"].append(error_msg)
+            
+            # Add non-reusable errors
+            for detail in non_reusable_details:
+                error_msg = f"Group '{detail['Group']}': {detail['Issue']}"
+                for video in all_failing_videos:
+                    video_errors[video]["non_reusable"].append(error_msg)
+            
+            # Create report rows
+            report_data = []
+            for video, errors in video_errors.items():
+                reusable_errors = errors["reusable"]
+                non_reusable_errors = errors["non_reusable"]
+                
+                # Combine all errors
+                all_errors = []
+                if reusable_errors:
+                    all_errors.append("REUSABLE GROUP CONFLICTS:")
+                    all_errors.extend([f"• {err}" for err in reusable_errors])
+                if non_reusable_errors:
+                    if all_errors:
+                        all_errors.append("\nNON-REUSABLE GROUP VIOLATIONS:")
+                    else:
+                        all_errors.append("NON-REUSABLE GROUP VIOLATIONS:")
+                    all_errors.extend([f"• {err}" for err in non_reusable_errors])
+                
+                combined_errors = "\n".join(all_errors)
+                
+                # Determine issue types
+                issue_types = []
+                if reusable_errors:
+                    issue_types.append("Reusable Group Conflicts")
+                if non_reusable_errors:
+                    issue_types.append("Non-Reusable Group Violations")
+                
+                # Create resolution guidance
+                resolution_steps = []
+                if reusable_errors:
+                    resolution_steps.append("1. Review conflicting answers in reusable question groups across projects")
+                    resolution_steps.append("2. Align answers to be consistent for the same reusable groups")
+                if non_reusable_errors:
+                    resolution_steps.append("3. Move non-reusable question groups to separate projects")
+                    resolution_steps.append("4. Or convert to reusable groups if they should be shared")
+                
+                report_data.append({
+                    "Video ID": video,
+                    "Issue Types": " + ".join(issue_types),
+                    "Detailed Errors": combined_errors,
+                    "Resolution Steps": "\n".join(resolution_steps),
+                    "Reusable Conflicts": len(reusable_errors),
+                    "Non-Reusable Violations": len(non_reusable_errors),
+                    "Total Issues": len(reusable_errors) + len(non_reusable_errors)
+                })
+            
+            excel_report_data = pd.DataFrame(report_data)
+            
+        except Exception as e:
+            print(f"Error creating Excel report data: {e}")
+    
+    return {
+        "success": False,
+        "reusable_error": reusable_error,
+        "non_reusable_error": non_reusable_error,
+        "failing_videos": all_failing_videos,
+        "reusable_details": reusable_details,
+        "non_reusable_details": non_reusable_details,
+        "excel_report_data": excel_report_data
+    }
+
+@st.fragment
+def admin_export():
+    st.subheader("📤 Ground Truth Export")
+    
+    with get_db_session() as session:
+        # Get all project groups
+        try:
+            grouped_projects = get_project_groups_with_projects(user_id=st.session_state.user["id"], role="admin", session=session)
+        except Exception as e:
+            st.error(f"Error loading project groups: {str(e)}")
+            return
+        
+        if not grouped_projects:
+            st.warning("No projects available for export.")
+            return
+        
+        # Initialize selection state
+        if "export_selected_projects" not in st.session_state:
+            st.session_state.export_selected_projects = set()
+        
+        # Search and filter
+        st.markdown("### 🔍 Search & Filter")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            search_term = st.text_input("🔍 Search projects", placeholder="Enter project name...")
+        with col2:
+            sort_by = st.selectbox("Sort by", ["Completion Rate", "Name"])
+        with col3:
+            sort_order = st.selectbox("Order", ["Ascending", "Descending"])
+        
+        st.markdown("---")
+        
+        # Track selections for batch updates (avoid individual reruns)
+        current_selections = set(st.session_state.export_selected_projects)
+        
+        # Display project groups
+        for group_index, (group_name, projects) in enumerate(grouped_projects.items()):
+            if not projects:
+                continue
+            
+            # Filter and enhance projects
+            filtered_projects = [p for p in projects if not search_term or search_term.lower() in p["name"].lower()]
+            if not filtered_projects:
+                continue
+            
+            # Add completion info
+            for project in filtered_projects:
+                try:
+                    project["has_full_gt"] = check_project_has_full_ground_truth(project_id=project["id"], session=session)
+                    try:
+                        project_progress = ProjectService.progress(project_id=project["id"], session=session)
+                        project["completion_rate"] = project_progress['completion_percentage']
+                    except:
+                        project["completion_rate"] = 0.0
+                except:
+                    project["has_full_gt"] = False
+                    project["completion_rate"] = 0.0
+            
+            # Sort projects
+            if sort_by == "Completion Rate":
+                filtered_projects.sort(key=lambda x: x["completion_rate"], reverse=(sort_order == "Descending"))
+            else:
+                filtered_projects.sort(key=lambda x: x["name"], reverse=(sort_order == "Descending"))
+            
+            # Pagination
+            total_projects = len(filtered_projects)
+            projects_per_page = 6
+            total_pages = (total_projects - 1) // projects_per_page + 1 if total_projects > 0 else 1
+            
+            page_key = f"export_group_page_{group_name}"
+            if search_term:
+                current_page = 0
+            else:
+                if page_key not in st.session_state:
+                    st.session_state[page_key] = 0
+                current_page = st.session_state[page_key]
+                if current_page >= total_pages:
+                    current_page = 0
+                    st.session_state[page_key] = 0
+            
+            # Group header
+            group_color = "#9553FE"
+            selected_in_group = len([p for p in filtered_projects if p["id"] in current_selections])
+            
+            st.markdown(f"""
+            <div style="{get_card_style(group_color)}position: relative;">
+                <div style="position: absolute; top: -8px; left: 20px; background: {group_color}; color: white; padding: 4px 12px; border-radius: 10px; font-size: 0.8rem; font-weight: bold;">
+                    EXPORT GROUP
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+                    <div>
+                        <h2 style="margin: 0; color: {group_color}; font-size: 1.8rem;">📁 {group_name}</h2>
+                        <p style="margin: 8px 0 0 0; color: #34495e; font-size: 1.1rem; font-weight: 500;">
+                            {selected_in_group}/{total_projects} selected {f"• Page {current_page + 1} of {total_pages}" if total_pages > 1 else ""}
+                        </p>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="background: {group_color}; color: white; padding: 10px 18px; border-radius: 20px; font-weight: bold;">{total_projects} Projects</span>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Four selection buttons - batch update to avoid multiple reruns
+            btn_col1, btn_col2, btn_col3, btn_col4 = st.columns(4)
+            start_idx = current_page * projects_per_page
+            end_idx = min(start_idx + projects_per_page, total_projects)
+            current_page_projects = filtered_projects[start_idx:end_idx]
+            
+            with btn_col1:
+                if st.button("✅ Select Page", key=f"sel_pg_{group_name}_{current_page}", use_container_width=True):
+                    for p in current_page_projects:
+                        current_selections.add(p["id"])
+            with btn_col2:
+                if st.button("❌ Deselect Page", key=f"desel_pg_{group_name}_{current_page}", use_container_width=True):
+                    for p in current_page_projects:
+                        current_selections.discard(p["id"])
+            with btn_col3:
+                if st.button("✅ Select Group", key=f"sel_grp_{group_name}", use_container_width=True):
+                    for p in filtered_projects:
+                        current_selections.add(p["id"])
+            with btn_col4:
+                if st.button("❌ Deselect Group", key=f"desel_grp_{group_name}", use_container_width=True):
+                    for p in filtered_projects:
+                        current_selections.discard(p["id"])
+            
+            # Pagination controls
+            if total_pages > 1 and not search_term:
+                page_col1, page_col2, page_col3 = st.columns([1, 2, 1])
+                with page_col1:
+                    if st.button("◀ Previous", disabled=(current_page == 0), key=f"prev_exp_{group_name}", use_container_width=True):
+                        st.session_state[page_key] = max(0, current_page - 1)
+                with page_col2:
+                    page_options = [f"Page {i+1}" for i in range(total_pages)]
+                    selected_page = st.selectbox(f"Page for {group_name}", page_options, index=current_page, 
+                                               key=f"pg_sel_exp_{group_name}", label_visibility="collapsed")
+                    new_page = page_options.index(selected_page)
+                    if new_page != current_page:
+                        st.session_state[page_key] = new_page
+                with page_col3:
+                    if st.button("Next ▶", disabled=(current_page == total_pages - 1), key=f"next_exp_{group_name}", use_container_width=True):
+                        st.session_state[page_key] = min(total_pages - 1, current_page + 1)
+            
+            # Display projects with checkboxes (much simpler!)
+            if current_page_projects:
+                cols = st.columns(3)
+                for i, project in enumerate(current_page_projects):
+                    with cols[i % 3]:
+                        mode = "🎓 Training" if project["has_full_gt"] else "📝 Annotation"
+                        completion_rate = project.get("completion_rate", 0.0)
+                        status_text = "✅ Ready" if project["has_full_gt"] else "⚠️ Incomplete"
+                        
+                        # Simple card without style changes
+                        st.markdown(f"""
+                        <div style="border: 2px solid #9553FE; border-radius: 12px; padding: 18px; margin: 8px 0; 
+                             background: linear-gradient(135deg, white, #f8f9fa); box-shadow: 0 4px 8px rgba(0,0,0,0.1); min-height: 200px;">
+                            <h4 style="margin: 0 0 8px 0; color: black; font-size: 1.1rem;">{project['name']}</h4>
+                            <p style="margin: 8px 0; color: #666; font-size: 0.9rem; min-height: 50px;">
+                                {project.get("description", "") or 'No description'}
+                            </p>
+                            <div style="margin: 12px 0;">
+                                <p style="margin: 4px 0;"><strong>Mode:</strong> {mode}</p>
+                                <p style="margin: 4px 0;"><strong>Progress:</strong> {completion_rate:.1f}%</p>
+                                <p style="margin: 4px 0; font-weight: bold;">{status_text}</p>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # Simple checkbox - no rerun needed!
+                        is_selected = st.checkbox(
+                            "Select for export",
+                            value=project["id"] in current_selections,
+                            key=f"export_cb_{project['id']}",
+                            label_visibility="visible"
+                        )
+                        
+                        if is_selected:
+                            current_selections.add(project["id"])
+                        else:
+                            current_selections.discard(project["id"])
+            
+            # Group separator
+            if group_index < len(grouped_projects) - 1:
+                st.markdown("""<div style="height: 2px; background: linear-gradient(90deg, transparent, #ddd, transparent); margin: 30px 0;"></div>""", unsafe_allow_html=True)
+        
+        # Update session state only once at the end (much faster!)
+        if current_selections != st.session_state.export_selected_projects:
+            st.session_state.export_selected_projects = current_selections
+        
+        # Move export configuration to bottom
+        st.markdown("---")
+        st.markdown("### ⚙️ Export Configuration")
+        
+        selected_count = len(current_selections)
+        if selected_count == 0:
+            st.warning("No projects selected for export.")
+        else:
+            st.success(f"✅ {selected_count} projects selected")
+            
+            config_col1, config_col2 = st.columns(2)
+            with config_col1:
+                export_format = st.selectbox("Format", ["json", "excel"], key="export_format")
+            with config_col2:
+                filename = st.text_input("Filename", value="ground_truth_export", key="export_filename")
+            
+            action_col1, action_col2, action_col3 = st.columns(3)
+            
+            with action_col1:
+                if st.button("🔍 Validate", key="validate_btn", use_container_width=True):
+                    project_ids = list(current_selections)
+                    
+                    with st.spinner("Validating..."):
+                        validation_result = validate_projects_for_export(project_ids, session)
+                    
+                    if validation_result["success"]:
+                        st.success("✅ Validation passed! Ready to export.")
+                    else:
+                        st.error("❌ **Validation Failed**: Found conflicts in question group usage")
+                        
+                        # Display reusable errors
+                        if validation_result["reusable_error"]:
+                            st.markdown("**🔄 Reusable Question Group Conflicts:**")
+                            reusable_groups = list(set([d["Group"] for d in validation_result["reusable_details"]]))
+                            st.markdown(f"• **{len(reusable_groups)} reusable groups** with conflicting answers")
+                            for group in reusable_groups[:3]:
+                                questions_in_group = [d["Question"] for d in validation_result["reusable_details"] if d["Group"] == group]
+                                st.markdown(f"  - **{group}**: {len(questions_in_group)} questions")
+                            if len(reusable_groups) > 3:
+                                st.markdown(f"  - ... and {len(reusable_groups) - 3} more groups")
+                        
+                        # Display non-reusable errors
+                        if validation_result["non_reusable_error"]:
+                            st.markdown("**🚫 Non-Reusable Question Group Violations:**")
+                            non_reusable_groups = list(set([d["Group"] for d in validation_result["non_reusable_details"]]))
+                            st.markdown(f"• **{len(non_reusable_groups)} non-reusable groups** used in multiple projects")
+                            for group in non_reusable_groups[:3]:
+                                st.markdown(f"  - **{group}**: Should only be used in one project")
+                            if len(non_reusable_groups) > 3:
+                                st.markdown(f"  - ... and {len(non_reusable_groups) - 3} more groups")
+                        
+                        # Overall summary
+                        if validation_result["failing_videos"]:
+                            failing_videos = validation_result["failing_videos"]
+                            st.markdown(f"**📹 Total Affected Videos ({len(failing_videos)}):**")
+                            video_display = ", ".join(failing_videos[:5])
+                            if len(failing_videos) > 5:
+                                video_display += f" ... and {len(failing_videos) - 5} more"
+                            st.markdown(f"`{video_display}`")
+                        
+                        # Excel download
+                        if validation_result["excel_report_data"] is not None:
+                            try:
+                                import io
+                                buffer = io.BytesIO()
+                                
+                                with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                                    validation_result["excel_report_data"].to_excel(writer, sheet_name='Validation Errors', index=False)
+                                    
+                                    worksheet = writer.sheets['Validation Errors']
+                                    
+                                    # Set column widths
+                                    worksheet.column_dimensions['A'].width = 25
+                                    worksheet.column_dimensions['B'].width = 35
+                                    worksheet.column_dimensions['C'].width = 100
+                                    worksheet.column_dimensions['D'].width = 70
+                                    worksheet.column_dimensions['E'].width = 18
+                                    worksheet.column_dimensions['F'].width = 20
+                                    worksheet.column_dimensions['G'].width = 15
+                                    
+                                    # Set row heights
+                                    for row in range(2, len(validation_result["excel_report_data"]) + 2):
+                                        worksheet.row_dimensions[row].height = 120
+                                    
+                                    # Style headers
+                                    from openpyxl.styles import Font, PatternFill, Alignment
+                                    header_font = Font(bold=True, color="FFFFFF")
+                                    header_fill = PatternFill(start_color="9553FE", end_color="9553FE", fill_type="solid")
+                                    
+                                    for cell in worksheet[1]:
+                                        cell.font = header_font
+                                        cell.fill = header_fill
+                                        cell.alignment = Alignment(horizontal="center", vertical="center")
+                                    
+                                    # Style data cells
+                                    wrap_alignment = Alignment(wrap_text=True, vertical="top")
+                                    for row in worksheet.iter_rows(min_row=2, max_row=len(validation_result["excel_report_data"]) + 1):
+                                        for cell in row:
+                                            cell.alignment = wrap_alignment
+                                
+                                buffer.seek(0)
+                                
+                                st.markdown("---")
+                                st.download_button(
+                                    "📥 Download Comprehensive Error Report (Excel)",
+                                    buffer.getvalue(),
+                                    "validation_errors_comprehensive.xlsx", 
+                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                    use_container_width=True,
+                                    type="secondary"
+                                )
+                                
+                                resolution_text = []
+                                if validation_result["reusable_details"]:
+                                    resolution_text.append("**Reusable conflicts**: Align answers across projects")
+                                if validation_result["non_reusable_details"]:
+                                    resolution_text.append("**Non-reusable violations**: Separate into different projects")
+                                
+                                st.info(f"💡 **Next Steps**: {' and '.join(resolution_text)}. Download the comprehensive error report above for detailed guidance.")
+                                
+                            except Exception as excel_error:
+                                st.warning(f"Could not generate Excel report: {str(excel_error)}")
+
+            with action_col2:
+                if st.button("📤 Export", key="export_btn", use_container_width=True, type="primary"):
+                    try:
+                        project_ids = list(current_selections)
+                        with st.spinner("Exporting..."):
+                            export_data = export_module.GroundTruthExportService.export_ground_truth_data(project_ids, session)
+                            
+                            file_ext = ".json" if export_format == "json" else ".xlsx"
+                            final_filename = f"{filename}{file_ext}" if not filename.endswith(file_ext) else filename
+                            
+                            if export_format == "json":
+                                import json
+                                json_str = json.dumps(export_data, indent=2, ensure_ascii=False)
+                                st.download_button("📥 Download JSON", json_str, final_filename, "application/json", use_container_width=True)
+                            else:
+                                import io
+                                buffer = io.BytesIO()
+                                export_module.save_export_as_excel(export_data, buffer)
+                                buffer.seek(0)
+                                st.download_button("📥 Download Excel", buffer.getvalue(), final_filename, 
+                                                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+                        
+                        st.success(f"✅ Exported {len(export_data)} videos!")
+                    except ValueError as e:
+                        st.error(f"❌ Export failed:\n\n{str(e)}")
+            
+            with action_col3:
+                if st.button("🗑️ Clear All", key="clear_btn", use_container_width=True):
+                    st.session_state.export_selected_projects.clear()
 
 @st.fragment
 def admin_videos():

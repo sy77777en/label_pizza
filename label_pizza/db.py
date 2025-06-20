@@ -19,7 +19,7 @@ engine = create_engine(
     echo=False,
     future=True,
     pool_pre_ping=True,
-    pool_recycle=300,
+    pool_recycle=3600,
     # CRITICAL: Supabase connection limits
     pool_size=5,           # Max 5 persistent connections
     max_overflow=10,       # Max 10 additional connections

@@ -4875,3 +4875,439 @@ def get_weighted_votes_for_question_with_custom_weights(
         
     except Exception as e:
         raise ValueError(f"Error calculating weighted votes: {str(e)}")
+
+
+class GroundTruthExportService:
+    @staticmethod
+    def export_ground_truth_data(project_ids: List[int], session: Session) -> List[Dict[str, Any]]:
+        """Export ground truth data from a list of projects.
+        
+        Args:
+            project_ids: List of project IDs to export from
+            session: Database session
+            
+        Returns:
+            List of video dictionaries with video_uid, url, and answers
+            
+        Raises:
+            ValueError: If projects not found or reusable question groups have inconsistent answers
+        """
+        # Validate all projects exist
+        for project_id in project_ids:
+            project = session.get(Project, project_id)
+            if not project:
+                raise ValueError(f"Project with ID {project_id} not found")
+            if project.is_archived:
+                raise ValueError(f"Project with ID {project_id} is archived")
+        
+        # Check reusable question group consistency before proceeding
+        GroundTruthExportService._validate_reusable_question_groups(project_ids, session)
+
+        # Check non-reusable question group constraints
+        GroundTruthExportService._validate_non_reusable_question_groups(project_ids, session)
+        
+        # Get all unique videos across projects
+        all_videos = set()
+        for project_id in project_ids:
+            from label_pizza.models import ProjectVideo
+            videos = session.scalars(
+                select(ProjectVideo.video_id)
+                .where(ProjectVideo.project_id == project_id)
+            ).all()
+            all_videos.update(videos)
+        
+        # Export data for each video
+        export_data = []
+        for video_id in sorted(all_videos):  # Sort for consistent ordering
+            video = session.get(Video, video_id)
+            if not video or video.is_archived:
+                continue
+                
+            video_data = {
+                "video_uid": video.video_uid,
+                "url": video.url,
+                "answers": {}
+            }
+            
+            # Get all ground truth answers for this video across all projects
+            # Use a set to track which questions we've already processed to avoid duplicates
+            processed_questions = set()
+            
+            for project_id in project_ids:
+                gts = session.scalars(
+                    select(ReviewerGroundTruth)
+                    .where(
+                        ReviewerGroundTruth.video_id == video_id,
+                        ReviewerGroundTruth.project_id == project_id
+                    )
+                ).all()
+                
+                for gt in gts:
+                    question = session.get(Question, gt.question_id)
+                    if question and not question.is_archived:
+                        # For reusable groups, we've already validated consistency,
+                        # so we can safely take the first answer we encounter
+                        if question.text not in processed_questions:
+                            video_data["answers"][question.text] = gt.answer_value
+                            processed_questions.add(question.text)
+            
+            if video_data["answers"]:  # Only include videos with answers
+                export_data.append(video_data)
+        
+        return export_data
+    
+    @staticmethod
+    def _validate_reusable_question_groups(project_ids: List[int], session: Session) -> None:
+        """Validate that reusable question groups have consistent answers across projects.
+        
+        Raises:
+            ValueError: If inconsistencies are found
+        """
+        # Get all reusable question groups used in these projects
+        reusable_groups = session.scalars(
+            select(QuestionGroup)
+            .join(SchemaQuestionGroup, QuestionGroup.id == SchemaQuestionGroup.question_group_id)
+            .join(Project, SchemaQuestionGroup.schema_id == Project.schema_id)
+            .where(
+                Project.id.in_(project_ids),
+                QuestionGroup.is_reusable == True,
+                QuestionGroup.is_archived == False
+            )
+            .distinct()
+        ).all()
+        
+        if not reusable_groups:
+            return  # No reusable groups to validate
+        
+        # Check consistency for each reusable group
+        group_inconsistencies = {}
+        
+        for group in reusable_groups:
+            # Get all questions in this group
+            questions = session.scalars(
+                select(Question)
+                .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
+                .where(
+                    QuestionGroupQuestion.question_group_id == group.id,
+                    Question.is_archived == False
+                )
+            ).all()
+            
+            # Find which projects use this reusable group
+            projects_using_group = session.scalars(
+                select(Project.id)
+                .join(SchemaQuestionGroup, Project.schema_id == SchemaQuestionGroup.schema_id)
+                .where(
+                    SchemaQuestionGroup.question_group_id == group.id,
+                    Project.id.in_(project_ids),
+                    Project.is_archived == False
+                )
+            ).all()
+            
+            if len(projects_using_group) < 2:
+                continue  # No conflict possible with only one project
+            
+            # For each question, check consistency across projects
+            for question in questions:
+                # Get all videos that have answers for this question across the relevant projects
+                video_answer_map = {}  # video_id -> {project_id -> answer_value}
+                
+                for project_id in projects_using_group:
+                    gts = session.scalars(
+                        select(ReviewerGroundTruth)
+                        .where(
+                            ReviewerGroundTruth.question_id == question.id,
+                            ReviewerGroundTruth.project_id == project_id
+                        )
+                    ).all()
+                    
+                    for gt in gts:
+                        video_id = gt.video_id
+                        if video_id not in video_answer_map:
+                            video_answer_map[video_id] = {}
+                        video_answer_map[video_id][project_id] = gt.answer_value
+                
+                # Check for inconsistencies - videos that appear in multiple projects with different answers
+                inconsistent_videos = []
+                for video_id, project_answers in video_answer_map.items():
+                    if len(project_answers) > 1:  # Video appears in multiple projects
+                        unique_answers = set(project_answers.values())
+                        if len(unique_answers) > 1:  # Different answers across projects
+                            video = session.get(Video, video_id)
+                            if video:
+                                inconsistent_videos.append(video.video_uid)
+                
+                if inconsistent_videos:
+                    if group.title not in group_inconsistencies:
+                        group_inconsistencies[group.title] = []
+                    group_inconsistencies[group.title].append({
+                        "question": question.text,
+                        "videos": inconsistent_videos
+                    })
+        
+        if group_inconsistencies:
+            error_parts = []
+            total_failing_videos = set()
+            
+            for group_name, inconsistencies in group_inconsistencies.items():
+                group_videos = set()
+                question_details = []
+                
+                for inc in inconsistencies:
+                    group_videos.update(inc['videos'])
+                    question_details.append(f"    Question '{inc['question']}': {len(inc['videos'])} videos")
+                
+                total_failing_videos.update(group_videos)
+                
+                error_parts.append(
+                    f"Reusable question group '{group_name}' ({len(group_videos)} failing videos):\n" +
+                    "\n".join(question_details)
+                )
+            
+            failing_video_list = sorted(list(total_failing_videos))
+            
+            raise ValueError(
+                f"Cannot export due to inconsistent answers in reusable question groups.\n"
+                f"Total videos with inconsistencies: {len(failing_video_list)}\n"
+                f"Failing videos: {', '.join(failing_video_list[:10])}"
+                f"{'...' if len(failing_video_list) > 10 else ''}\n\n"
+                f"Details:\n" + "\n\n".join(error_parts)
+            )
+
+    @staticmethod
+    def _validate_non_reusable_question_groups(project_ids: List[int], session: Session) -> None:
+        """Validate that non-reusable question groups don't have videos appearing in multiple projects.
+        
+        Raises:
+            ValueError: If any video appears in multiple projects sharing non-reusable question groups
+        """
+        # Get all non-reusable question groups used in these projects
+        non_reusable_groups = session.scalars(
+            select(QuestionGroup)
+            .join(SchemaQuestionGroup, QuestionGroup.id == SchemaQuestionGroup.question_group_id)
+            .join(Project, SchemaQuestionGroup.schema_id == Project.schema_id)
+            .where(
+                Project.id.in_(project_ids),
+                QuestionGroup.is_reusable == False,
+                QuestionGroup.is_archived == False
+            )
+            .distinct()
+        ).all()
+        
+        if not non_reusable_groups:
+            return  # No non-reusable groups to validate
+        
+        # Check for violations for each non-reusable group
+        group_violations = {}
+        
+        for group in non_reusable_groups:
+            # Find which projects use this non-reusable group
+            projects_using_group = session.scalars(
+                select(Project.id)
+                .join(SchemaQuestionGroup, Project.schema_id == SchemaQuestionGroup.schema_id)
+                .where(
+                    SchemaQuestionGroup.question_group_id == group.id,
+                    Project.id.in_(project_ids),
+                    Project.is_archived == False
+                )
+            ).all()
+            
+            if len(projects_using_group) < 2:
+                continue  # No violation possible with only one project
+            
+            # Get all videos for each project using this group
+            project_videos = {}  # project_id -> set of video_ids
+            for project_id in projects_using_group:
+                videos = set(session.scalars(
+                    select(ProjectVideo.video_id)
+                    .where(ProjectVideo.project_id == project_id)
+                ).all())
+                project_videos[project_id] = videos
+            
+            # Check for overlapping videos between projects
+            overlapping_videos = set()
+            project_list = list(projects_using_group)
+            
+            for i in range(len(project_list)):
+                for j in range(i + 1, len(project_list)):
+                    project1_id = project_list[i]
+                    project2_id = project_list[j]
+                    
+                    overlap = project_videos[project1_id] & project_videos[project2_id]
+                    if overlap:
+                        overlapping_videos.update(overlap)
+            
+            if overlapping_videos:
+                # Get video UIDs for better error messages
+                video_uids = []
+                for video_id in overlapping_videos:
+                    video = session.get(Video, video_id)
+                    if video:
+                        video_uids.append(video.video_uid)
+                
+                group_violations[group.title] = {
+                    "videos": sorted(video_uids),
+                    "projects": projects_using_group
+                }
+        
+        if group_violations:
+            error_parts = []
+            total_failing_videos = set()
+            
+            for group_name, violation in group_violations.items():
+                total_failing_videos.update(violation['videos'])
+                
+                # Get project names for better error messages
+                project_names = []
+                for project_id in violation['projects']:
+                    project = session.get(Project, project_id)
+                    if project:
+                        project_names.append(f"'{project.name}' (ID: {project_id})")
+                
+                error_parts.append(
+                    f"Non-reusable question group '{group_name}' is used in multiple projects:\n"
+                    f"    Projects: {', '.join(project_names)}\n"
+                    f"    Overlapping videos ({len(violation['videos'])}): {', '.join(violation['videos'][:10])}"
+                    f"{'...' if len(violation['videos']) > 10 else ''}"
+                )
+            
+            raise ValueError(
+                f"Cannot export due to non-reusable question groups being shared across projects.\n"
+                f"Non-reusable groups should only be used in one project each.\n"
+                f"Total videos affected: {len(total_failing_videos)}\n\n"
+                f"Violations:\n" + "\n\n".join(error_parts)
+            )
+
+def save_export_as_json(export_data: List[Dict[str, Any]], filepath: str) -> None:
+    """Save export data as JSON file with pretty formatting."""
+    with open(filepath, 'w', encoding='utf-8') as f:
+        import json
+        json.dump(export_data, f, indent=2, ensure_ascii=False)
+
+
+def save_export_as_excel(export_data: List[Dict[str, Any]], filepath_or_buffer) -> None:
+    """Save export data as Excel file with pretty formatting."""
+    if not export_data:
+        # Create empty Excel file
+        pd.DataFrame({"Message": ["No data to export"]}).to_excel(filepath_or_buffer, index=False)
+        return
+    
+    # Collect all unique question texts
+    all_questions = set()
+    for video in export_data:
+        all_questions.update(video["answers"].keys())
+    
+    all_questions = sorted(list(all_questions))
+    
+    # Prepare data for DataFrame
+    rows = []
+    for video in export_data:
+        row = {
+            "Video UID": video["video_uid"],
+            "URL": video["url"]
+        }
+        
+        # Add answers for each question
+        for question in all_questions:
+            row[question] = video["answers"].get(question, "")
+        
+        rows.append(row)
+    
+    # Create DataFrame
+    df = pd.DataFrame(rows)
+    
+    # Save to Excel with formatting
+    try:
+        with pd.ExcelWriter(filepath_or_buffer, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='Ground Truth Export', index=False)
+            
+            # Get the workbook and worksheet
+            workbook = writer.book
+            worksheet = writer.sheets['Ground Truth Export']
+            
+            # Auto-adjust column widths
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                
+                # Set width with some padding, cap at reasonable size
+                adjusted_width = min(max_length + 2, 50)
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+            
+            # Style the header row
+            try:
+                from openpyxl.styles import Font, PatternFill, Alignment
+                
+                header_font = Font(bold=True)
+                header_fill = PatternFill(start_color="CCCCCC", end_color="CCCCCC", fill_type="solid")
+                center_alignment = Alignment(horizontal="center", vertical="center")
+                
+                for cell in worksheet[1]:  # First row
+                    cell.font = header_font
+                    cell.fill = header_fill
+                    cell.alignment = center_alignment
+                    
+                # Freeze the header row
+                worksheet.freeze_panes = "A2"
+                
+            except ImportError:
+                # If openpyxl styling modules aren't available, skip formatting
+                pass
+                
+    except Exception as e:
+        # Fallback to basic Excel export if formatting fails
+        df.to_excel(filepath_or_buffer, index=False)
+        if hasattr(filepath_or_buffer, 'write'):  # It's a buffer, not a file path
+            pass  # Don't print for buffers
+        else:
+            print(f"Warning: Excel formatting failed ({e}), saved with basic formatting")
+
+
+# Example usage function
+def export_projects_ground_truth(project_ids: List[int], output_path: str, format_type: str = "json", session: Session = None):
+    """Convenience function to export ground truth data.
+    
+    Args:
+        project_ids: List of project IDs to export
+        output_path: Path for output file
+        format_type: "json" or "excel"
+        session: Database session
+    """
+    if session is None:
+        raise ValueError("Database session is required")
+    
+    try:
+        # Export the data
+        export_data = GroundTruthExportService.export_ground_truth_data(project_ids, session)
+        
+        # Ensure correct file extension
+        output_path = Path(output_path)
+        if format_type == "json" and not output_path.suffix.lower() == ".json":
+            output_path = output_path.with_suffix(".json")
+        elif format_type == "excel" and not output_path.suffix.lower() in [".xlsx", ".xls"]:
+            output_path = output_path.with_suffix(".xlsx")
+        
+        # Save the data
+        if format_type == "json":
+            save_export_as_json(export_data, str(output_path))
+        elif format_type == "excel":
+            save_export_as_excel(export_data, str(output_path))
+        else:
+            raise ValueError(f"Unsupported format: {format_type}")
+        
+        print(f"Successfully exported {len(export_data)} videos to {output_path}")
+        return str(output_path)
+        
+    except ValueError as e:
+        print(f"Export failed: {e}")
+        raise
+    except Exception as e:
+        print(f"Unexpected error during export: {e}")
+        raise

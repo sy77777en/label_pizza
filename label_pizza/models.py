@@ -119,7 +119,7 @@ class Project(Base):
     """A project = schema + video subset + roles; archiving hides it while retaining history."""
     __tablename__ = "projects"
     id = Column(Integer, primary_key=True)
-    name = Column(Text, nullable=False)  # Changed from String to Text to match design
+    name = Column(Text, unique=True, nullable=False)  # Changed from String to Text to match design
     schema_id = Column(Integer, nullable=False)
     description = Column(Text)
     created_at = Column(DateTime(timezone=True), default=now)

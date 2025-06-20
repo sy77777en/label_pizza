@@ -9,6 +9,8 @@
 .Python
 build/
 develop-eggs/
+*/.egg-info/
+label_pizza.egg-info/
 dist/
 downloads/
 eggs/

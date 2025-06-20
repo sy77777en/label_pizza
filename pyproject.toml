@@ -23,7 +23,8 @@ dependencies = [
     "psycopg2-binary",
     "python-dotenv",
     "pytest",
-    "reflex"
+    "reflex",
+    "openpyxl"
 ]
 
 # This section tells setuptools to find packages automatically
