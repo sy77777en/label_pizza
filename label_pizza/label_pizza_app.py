@@ -1961,7 +1961,7 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
                     new_weight = st.number_input(
                         f"Weight for {display_name}",
                         min_value=0.0,
-                        value=current_weight,
+                        value=float(current_weight),
                         step=0.1,
                         key=f"auto_submit_weight_{annotator_name}_{project_id}",
                         disabled=is_training_mode,
@@ -2013,8 +2013,10 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
                         if question["type"] == "single":
                             # FIXED: Store option weights separately, don't create virtual responses
                             question_data = QuestionService.get_question_by_id(question_id=question_id, session=session)
-                            default_option_weights = question_data.get("option_weights", [])
                             options = question_data.get("options", [])
+                            default_option_weights = question_data.get("option_weights")
+                            if not default_option_weights:
+                                default_option_weights = [1.0] * len(options)
                             
                             # Initialize option weights if not set
                             if question_id not in st.session_state[option_weights_key]:
@@ -2049,7 +2051,7 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
                                         new_weight = st.number_input(
                                             "Weight",
                                             min_value=0.0,
-                                            value=current_weight,
+                                            value=float(current_weight),
                                             step=0.1,
                                             key=f"reviewer_opt_wt_{question_id}_{j}",
                                             disabled=is_training_mode,
@@ -6029,7 +6031,7 @@ def admin_questions():
                                                 new_weight = st.number_input(
                                                     f"Weight {i+1}",
                                                     min_value=0.0,
-                                                    value=reordered_weights[i],
+                                                    value=float(reordered_weights[i]),
                                                     step=0.1,
                                                     key=f"admin_edit_question_opt_weight_{i}",
                                                     help="Weight for scoring"
@@ -6280,7 +6282,7 @@ def display_assignment_management(session: Session):
         user_weight = st.number_input(
             "User Weight", 
             min_value=0.0, 
-            value=st.session_state.assignment_user_weight, 
+            value=float(st.session_state.assignment_user_weight), 
             step=0.1,
             key="assign_user_weight_mgmt",
             help="Weight for user's answers in scoring (default: 1.0)"
