@@ -6005,15 +6005,244 @@ def admin_questions():
         q_tab1, q_tab2 = st.tabs(["📁 Question Groups", "❓ Individual Questions"])
         
         with q_tab1:
+            # Get all groups data
             groups_df = QuestionGroupService.get_all_groups(session=session)
-            st.dataframe(groups_df, use_container_width=True)
             
+            if not groups_df.empty:
+                # Summary stats
+                total_groups = len(groups_df)
+                archived_groups = len(groups_df[groups_df["Archived"]])
+                active_groups = total_groups - archived_groups
+                groups_with_schemas = len(groups_df[groups_df["Used in Schemas"] != "None"])
+                
+                # Display summary
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("📁 Total Groups", total_groups)
+                with col2:
+                    st.metric("✅ Active Groups", active_groups)
+                with col3:
+                    st.metric("🗄️ Archived Groups", archived_groups)
+                with col4:
+                    st.metric("📋 Used in Schemas", groups_with_schemas)
+                
+                st.markdown("---")
+                
+                # Search and filter
+                search_col1, search_col2 = st.columns([2, 1])
+                with search_col1:
+                    search_term = st.text_input("🔍 Search question groups", placeholder="Group name, description, or schema...")
+                with search_col2:
+                    show_archived = st.checkbox("Show archived groups", value=False)
+                
+                # Filter groups
+                filtered_groups = groups_df.copy()
+                
+                if not show_archived:
+                    filtered_groups = filtered_groups[~filtered_groups["Archived"]]
+                
+                if search_term:
+                    mask = (
+                        filtered_groups["Name"].str.contains(search_term, case=False, na=False) |
+                        filtered_groups["Description"].str.contains(search_term, case=False, na=False) |
+                        filtered_groups["Used in Schemas"].str.contains(search_term, case=False, na=False)
+                    )
+                    filtered_groups = filtered_groups[mask]
+                
+                # Show filter results
+                if search_term or not show_archived:
+                    filters_applied = []
+                    if search_term:
+                        filters_applied.append(f"search: '{search_term}'")
+                    if not show_archived:
+                        filters_applied.append("active only")
+                    
+                    custom_info(f"Showing {len(filtered_groups)} of {total_groups} groups ({', '.join(filters_applied)})")
+                
+                # Sort groups by name
+                filtered_groups = filtered_groups.sort_values("Name")
+                
+                # Display groups in collapsible format
+                for _, group_row in filtered_groups.iterrows():
+                    group_id = group_row["ID"]
+                    group_name = group_row["Name"]
+                    description = group_row["Description"]
+                    is_archived = group_row["Archived"]
+                    is_reusable = group_row["Reusable"]
+                    is_auto_submit = group_row["Auto Submit"]
+                    question_count = group_row["Question Count"]
+                    archived_questions = group_row["Archived Questions"]
+                    used_in_schemas = group_row["Used in Schemas"]
+                    
+                    # Build status indicators
+                    status_indicators = []
+                    if is_archived:
+                        status_indicators.append("🗄️ Archived")
+                    else:
+                        status_indicators.append("✅ Active")
+                    
+                    if is_reusable:
+                        status_indicators.append("🔄 Reusable")
+                    else:
+                        status_indicators.append("🔒 Non-reusable")
+                    
+                    if is_auto_submit:
+                        status_indicators.append("⚡ Auto-submit")
+                    
+                    # Schema usage - show count instead of names in title
+                    if used_in_schemas and used_in_schemas != "None":
+                        # Count the number of schemas (assuming comma-separated)
+                        schema_count = len([s.strip() for s in used_in_schemas.split(",") if s.strip()])
+                        status_indicators.append(f"📋 Used in {schema_count} schemas")
+                    else:
+                        status_indicators.append("❌ Not used")
+                    
+                    # Question count with archived info
+                    if archived_questions > 0:
+                        question_info = f"📝 {question_count} questions ({archived_questions} archived)"
+                    else:
+                        question_info = f"📝 {question_count} questions"
+                    
+                    # Create header
+                    header = f"**{group_name}** • {' • '.join(status_indicators)} • {question_info}"
+                    
+                    with st.expander(header, expanded=False):
+                        # Group metadata section
+                        st.markdown("### 📋 Group Information")
+                        
+                        info_col1, info_col2 = st.columns(2)
+                        
+                        with info_col1:
+                            st.markdown(f"**ID:** {group_id}")
+                            st.markdown(f"**Name:** {group_name}")
+                            st.markdown(f"**Description:** {description or 'No description provided'}")
+                            st.markdown(f"**Question Count:** {question_count} total")
+                            if archived_questions > 0:
+                                st.markdown(f"**Archived Questions:** {archived_questions}")
+                        
+                        with info_col2:
+                            st.markdown(f"**Status:** {'🗄️ Archived' if is_archived else '✅ Active'}")
+                            st.markdown(f"**Reusable:** {'🔄 Yes' if is_reusable else '🔒 No'}")
+                            st.markdown(f"**Auto-submit:** {'⚡ Yes' if is_auto_submit else '❌ No'}")
+                            
+                            if used_in_schemas and used_in_schemas != "None":
+                                st.markdown("**Used in Schemas:**")
+                                # Display schema names in a clean list
+                                schema_names = [s.strip() for s in used_in_schemas.split(",") if s.strip()]
+                                for schema_name in schema_names:
+                                    st.markdown(f"  • {schema_name}")
+                            else:
+                                st.markdown("**Used in Schemas:** ❌ Not used in any schema")
+                        
+                        # Questions section
+                        st.markdown("### 📝 Questions in Group")
+                        
+                        try:
+                            questions_in_group = QuestionService.get_questions_by_group_id(
+                                group_id=group_id, session=session
+                            )
+                            
+                            if questions_in_group:
+                                for i, question in enumerate(questions_in_group, 1):
+                                    question_id = question["id"]
+                                    question_text = question["text"]
+                                    display_text = question["display_text"]
+                                    question_type = question["type"]
+                                    
+                                    # Question header with type indicator
+                                    type_emoji = "🔘" if question_type == "single" else "📝"
+                                    st.markdown(f"**{i}. {type_emoji} {display_text}** (ID: {question_id})")
+                                    
+                                    # Show internal text if different from display text
+                                    if question_text != display_text:
+                                        st.caption(f"Internal text: {question_text}")
+                                    
+                                    # FIXED: Only show options for single-choice questions
+                                    if question_type == "single":
+                                        options = question.get("options")
+                                        if options:  # Check if options exist before processing
+                                            # FIXED: Handle None option_weights by defaulting to 1.0
+                                            option_weights = question.get("option_weights")
+                                            if option_weights is None:
+                                                weights = [1.0] * len(options)
+                                            else:
+                                                weights = option_weights
+                                            
+                                            display_values = question.get("display_values", options)
+                                            default_option = question.get("default_option")
+                                            
+                                            # Show options in a clean list format
+                                            st.markdown("   **Options:**")
+                                            for opt, disp_val, weight in zip(options, display_values, weights):
+                                                default_marker = " 🌟" if opt == default_option else ""
+                                                # Show display value (and value if different)
+                                                if opt != disp_val:
+                                                    opt_display = f"{disp_val} ({opt})"
+                                                else:
+                                                    opt_display = opt
+                                                st.markdown(f"   • {opt_display} [weight: {weight}]{default_marker}")
+                                        else:
+                                            st.caption("   No options configured for this single-choice question")
+                                    elif question_type == "description":
+                                        # FIXED: Clarify this is a description type question
+                                        default_option = question.get("default_option")
+                                        if default_option:
+                                            st.markdown(f"   **Default response (description question):** {default_option}")
+                                        else:
+                                            st.caption("   Description question - no default response configured")
+                                    
+                                    # Add spacing between questions
+                                    if i < len(questions_in_group):
+                                        st.markdown("")
+                            else:
+                                custom_info("No questions found in this group")
+                                
+                        except Exception as e:
+                            st.error(f"Error loading questions: {str(e)}")
+                        
+                        # Verification function section (moved after questions)
+                        try:
+                            group_details = QuestionGroupService.get_group_details_with_verification(
+                                group_id=group_id, session=session
+                            )
+                            verification_function = group_details.get("verification_function")
+                            
+                            if verification_function:
+                                st.markdown("### 🔧 Verification Function")
+                                st.markdown(f"**Function:** `{verification_function}`")
+                                
+                                # Show full function source code in disabled text area
+                                try:
+                                    import inspect
+                                    import verify
+                                    func = getattr(verify, verification_function)
+                                    source_code = inspect.getsource(func)
+                                    
+                                    st.markdown("**Source Code:**")
+                                    # FIXED: Use disabled text area instead of st.code to avoid purple background
+                                    st.text_area(
+                                        "Verification Function Source",
+                                        value=source_code,
+                                        height=300,
+                                        disabled=True,
+                                        label_visibility="collapsed"
+                                    )
+                                    
+                                except Exception as e:
+                                    st.error(f"Could not retrieve function source: {str(e)}")
+                        except Exception as e:
+                            st.error(f"Error loading verification function: {str(e)}")
+            else:
+                custom_info("No question groups found in the database.")
+            
+            st.markdown("---")
+            
+            # Management section
             group_management_tabs = st.tabs(["➕ Create Group", "✏️ Edit Group"])
             
             with group_management_tabs[0]:
                 st.markdown("### 🆕 Create New Question Group")
                 
-                # with basic_col1:
                 title = st.text_input("Group Title", key="admin_group_title", placeholder="Enter group title...")
                 basic_col1, basic_col2 = st.columns(2)
                 with basic_col1:
@@ -6122,7 +6351,6 @@ def admin_questions():
                                 
                                 current_verification = group_details.get("verification_function")
                                 
-                                # with edit_basic_col1:
                                 st.text_input(
                                     "Group Title",
                                     value=group_details["title"],
@@ -6172,7 +6400,8 @@ def admin_questions():
                                         if current_verification:
                                             try:
                                                 current_func_info = QuestionGroupService.get_verification_function_info(current_verification)
-                                                st.code(f"{current_func_info['name']}{current_func_info['signature']}")
+                                                # Use simple text display for function signature
+                                                st.text(f"{current_func_info['name']}{current_func_info['signature']}")
                                                 if current_func_info['docstring']:
                                                     st.caption(f"**Doc:** {current_func_info['docstring']}")
                                             except Exception as e:
@@ -6185,7 +6414,8 @@ def admin_questions():
                                         if new_verification_function != "None":
                                             try:
                                                 new_func_info = QuestionGroupService.get_verification_function_info(new_verification_function)
-                                                st.code(f"{new_func_info['name']}{new_func_info['signature']}")
+                                                # Use simple text display for function signature
+                                                st.text(f"{new_func_info['name']}{new_func_info['signature']}")
                                                 if new_func_info['docstring']:
                                                     st.caption(f"**Doc:** {new_func_info['docstring']}")
                                             except Exception as e:
@@ -6356,13 +6586,20 @@ def admin_questions():
                                              help="Option selected by default")
                         if default == "":
                             default = None
+                elif q_type == "description":
+                    # For description questions, allow setting a default response
+                    default = st.text_input("Default response (optional)", key="admin_question_default_desc",
+                                           placeholder="Default text response...", 
+                                           help="Optional default response for description questions")
+                    if not default.strip():
+                        default = None
                 
                 if st.button("🚀 Create Question", key="admin_create_question_btn", type="primary", use_container_width=True):
                     if text:
                         try:
                             QuestionService.add_question(
                                 text=text, qtype=q_type, options=options if q_type == "single" else None,
-                                default=default if q_type == "single" else None, session=session,
+                                default=default, session=session,
                                 display_text=display_text, option_weights=option_weights if q_type == "single" else None
                             )
                             st.success("✅ Question created successfully!")
@@ -6418,7 +6655,10 @@ def admin_questions():
                                     
                                     current_options = current_question["options"] or []
                                     current_display_values = current_question["display_values"] or current_options
-                                    current_option_weights = current_question["option_weights"] or [1.0] * len(current_options)
+                                    # FIXED: Handle None option_weights by defaulting to 1.0
+                                    current_option_weights = current_question["option_weights"]
+                                    if current_option_weights is None:
+                                        current_option_weights = [1.0] * len(current_options)
                                     current_default = current_question["default_option"] or ""
                                     
                                     # Current options display
@@ -6573,17 +6813,38 @@ def admin_questions():
                                         if new_default == "":
                                             new_default = None
                                 
+                                elif current_question["type"] == "description":
+                                    # FIXED: Handle description questions properly
+                                    st.markdown("**📝 Description Question Settings:**")
+                                    current_default = current_question.get("default_option", "")
+                                    
+                                    new_default = st.text_input(
+                                        "Default response (optional)",
+                                        value=current_default or "",
+                                        key="admin_edit_question_default_desc",
+                                        placeholder="Default text response...",
+                                        help="Optional default response for description questions"
+                                    )
+                                    if not new_default.strip():
+                                        new_default = None
+                                
                                 if st.button("💾 Update Question", key="admin_update_question_btn", type="primary", use_container_width=True):
                                     try:
-                                        # Apply option reordering if changed
-                                        final_options = new_options
-                                        final_display_values = new_display_values
-                                        final_option_weights = new_option_weights
-                                        
-                                        # Clear option order state after update
-                                        option_order_key = f"edit_question_option_order_{selected_question_id}"
-                                        if option_order_key in st.session_state:
-                                            del st.session_state[option_order_key]
+                                        # Apply option reordering if changed and we have options
+                                        if current_question["type"] == "single":
+                                            final_options = new_options
+                                            final_display_values = new_display_values
+                                            final_option_weights = new_option_weights
+                                            
+                                            # Clear option order state after update
+                                            option_order_key = f"edit_question_option_order_{selected_question_id}"
+                                            if option_order_key in st.session_state:
+                                                del st.session_state[option_order_key]
+                                        else:
+                                            # For description questions, don't pass option-related parameters
+                                            final_options = None
+                                            final_display_values = None
+                                            final_option_weights = None
                                         
                                         QuestionService.edit_question(
                                             question_id=selected_question_id, new_display_text=new_display_text,
@@ -6602,7 +6863,7 @@ def admin_questions():
                         custom_info("No non-archived questions available to edit.")
                 else:
                     custom_info("No questions available to edit.")
-
+                    
 @st.fragment 
 def display_assignment_management(session: Session):
     """Optimized assignment management with fragments and user weight support"""
