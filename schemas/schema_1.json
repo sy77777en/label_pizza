@@ -1,0 +1,6 @@
+{
+  "schema_name": "Schema_1_syc_test",
+  "question_group_names": [
+    "Subjects", "Weather", "Color"
+  ]
+}
