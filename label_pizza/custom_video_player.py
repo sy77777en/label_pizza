@@ -144,6 +144,7 @@ def custom_video_player(video_url, aspect_ratio="16:9", autoplay=True, loop=True
                         <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="100" title="Volume">
                     </div>
                     <div class="time-display" id="timeDisplay">0:00 / 0:00</div>
+                    <button class="control-btn" id="downloadBtn" title="Download">📥</button>
                     <button class="control-btn" id="fullscreenBtn" title="Fullscreen">⛶</button>
                 </div>
             </div>
@@ -158,6 +159,7 @@ def custom_video_player(video_url, aspect_ratio="16:9", autoplay=True, loop=True
             const progressBar = document.getElementById('progressBar');
             const progressHandle = document.getElementById('progressHandle');
             const timeDisplay = document.getElementById('timeDisplay');
+            const downloadBtn = document.getElementById('downloadBtn');
             const fullscreenBtn = document.getElementById('fullscreenBtn');
 
             let isDragging = false;
@@ -265,6 +267,30 @@ def custom_video_player(video_url, aspect_ratio="16:9", autoplay=True, loop=True
                     document.exitFullscreen();
                 }} else {{
                     document.querySelector('.video-wrapper').requestFullscreen();
+                }}
+            }});
+
+            downloadBtn.addEventListener('click', async () => {{
+                try {{
+                    const response = await fetch('{video_url}');
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = '{video_url}'.split('/').pop();
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                }} catch (error) {{
+                    console.error('Download failed:', error);
+                    // Fallback to direct link
+                    const a = document.createElement('a');
+                    a.href = '{video_url}';
+                    a.download = '{video_url}'.split('/').pop();
+                    a.target = '_blank';
+                    a.click();
                 }}
             }});
 
