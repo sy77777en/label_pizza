@@ -1,0 +1,145 @@
+{
+    "title": "Cinematic Motion",
+    "description": "Detect and describe all cinematic motion-related effects, including cinematic motion, cinematic motion patterns, and cinematic motion dynamics in the shot.",
+    "is_reusable": false,
+    "is_auto_submit": true,
+    "verification_function": "",
+    "questions": [
+        {
+            "text": "Revealing shot?",
+            "qtype": "single",
+            "required": true,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Revealing shot?"  
+        },
+        {
+            "text": "Transformation or morphing?",
+            "qtype": "single",
+            "required": true,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Transformation or morphing?"
+        },
+        {
+            "text": "Levitation or floating?",
+            "qtype": "single",
+            "required": true,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Levitation or floating?"
+        },
+        {
+            "text": "Explosion?",
+            "qtype": "single",
+            "required": true,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Explosion?"
+        },
+        {
+            "text": "Shattering or breaking?",
+            "qtype": "single",
+            "required": true,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Shattering or breaking?"
+        },
+        {
+            "text": "Are there any diffusion dynamic?",
+            "qtype": "single",
+            "required": true,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Are there any diffusion dynamic?"
+        },
+        {
+            "text": "Splashing or waves?",
+            "qtype": "single",
+            "required": true,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Splashing or waves?"
+        },
+        {
+            "text": "Wave light or water caustics?",
+            "qtype": "single",
+            "required": true,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Wave light or water caustics?"
+        }
+    ]
+}

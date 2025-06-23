@@ -1,0 +1,253 @@
+{
+    "title": "Subject Light",
+    "description": "Identify lighting directions on the subject, special lighting setups, overall lighting consistency, and contrast. Add free-text notes if needed.",
+    "is_reusable": false,
+    "is_auto_submit": false,
+    "verification_function": "",
+    "questions": [
+        {
+            "text": "Is there back light on the subject?",
+            "qtype": "single",
+            "required": false,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Is there back light on the subject?"
+        },
+        {
+            "text": "Is there front light on the subject?",
+            "qtype": "single",
+            "required": false,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Is there front light on the subject?"
+        },
+        {
+            "text": "Is there top light on the subject?",
+            "qtype": "single",
+            "required": false,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Is there top light on the subject?"
+        },
+        {
+            "text": "Is there bottom light on the subject?",
+            "qtype": "single",
+            "required": false,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Is there bottom light on the subject?"
+        },
+        {
+            "text": "Is there right-side light on the subject?",
+            "qtype": "single",
+            "required": false,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Is there right-side light on the subject?"
+        },
+        {
+            "text": "Is there left-side light on the subject?",
+            "qtype": "single",
+            "required": false,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Is there left-side light on the subject?"
+        },
+        {
+            "text": "Is lighting direction ambient / no dominant side?",
+            "qtype": "single",
+            "required": false,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Is lighting direction ambient / no dominant side?"
+        },
+        {
+            "text": "Dominant Light Direction on Subject(s) is?",
+            "qtype": "single",
+            "required": true,
+            "options": [
+                "Unclear",
+                "Changing (temporal)",
+                "Mixed (spatial)",
+                "Changing + Mixed",
+                "Consistent"
+            ],
+            "display_values": [
+                "Unclear",
+                "Changing (temporal)",
+                "Mixed (spatial)",
+                "Changing + Mixed",
+                "Consistent"
+            ],
+            "default_option": "Consistent",
+            "display_text": "Dominant Light Direction on Subject(s) is?"
+        },
+        {
+            "text": "Is rembrandt lighting used on the subject?",
+            "qtype": "single",
+            "required": false,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Is rembrandt lighting used on the subject?"
+        },
+        {
+            "text": "Is the subject lit as a silhouette?",
+            "qtype": "single",
+            "required": false,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Is the subject lit as a silhouette?"
+        },
+        {
+            "text": "Is rim lighting present on the subject?",
+            "qtype": "single",
+            "required": false,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Is rim lighting present on the subject?"
+        },
+        {
+            "text": "Describe the subject lighting",
+            "qtype": "description",
+            "required": false,
+            "options": null,
+            "display_values": null,
+            "default_option": null,
+            "display_text": "Describe the subject lighting"
+        },
+        {
+            "text": "Does subject lighting apply?",
+            "qtype": "single",
+            "required": true,
+            "options": [
+                "Unclear or light-emitting subject",
+                "Unclear lighting",
+                "Inconsistent subject",
+                "Consistent subject"
+            ],
+            "display_values": [
+                "Unclear or light-emitting subject",
+                "Unclear lighting",
+                "Inconsistent subject",
+                "Consistent subject"
+            ],
+            "default_option": "Consistent subject",
+            "display_text": "Does subject lighting apply?"
+        },
+        {
+            "text": "Light contrast on subject(s) is?",
+            "qtype": "single",
+            "required": true,
+            "options": [
+                "Unclear",
+                "Changing (temporal)",
+                "Mixed (spatial)",
+                "Changing + Mixed",
+                "High contrast",
+                "Normal contrast",
+                "Low contrast"
+            ],
+            "display_values": [
+                "Unclear",
+                "Changing (temporal)",
+                "Mixed (spatial)",
+                "Changing + Mixed",
+                "High contrast",
+                "Normal contrast",
+                "Low contrast"
+            ],
+            "default_option": "Normal contrast",
+            "display_text": "Light contrast on subject(s) is?"
+        }
+    ]
+}

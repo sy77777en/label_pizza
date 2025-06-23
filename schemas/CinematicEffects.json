@@ -1,0 +1,6 @@
+{
+  "schema_name": "Cinematic Effects",
+  "question_group_names": [
+    "Cinematic Motion", "Lens Flares", "Reflection", "Atmospheric Effects", "Shot Transition"
+  ]
+}

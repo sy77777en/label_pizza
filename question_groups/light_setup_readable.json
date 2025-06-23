@@ -1,0 +1,195 @@
+{
+    "title": "Light Setup",
+    "description": "Identify overall scene lighting type, dominant source, sunlight level, global light quality, and provide free-text notes.",
+    "is_reusable": false,
+    "is_auto_submit": false,
+    "questions": [
+        {
+            "text": "Is the scene indoors or outdoors?",
+            "qtype": "single",
+            "required": true,
+            "options": [
+                "Interior",
+                "Exterior",
+                "Synthetic / Unrealistic",
+                "Complex (others)"
+            ],
+            "display_values": [
+                "Interior",
+                "Exterior",
+                "Synthetic / Unrealistic",
+                "Complex (others)"
+            ],
+            "default_option": "Complex (others)",
+            "display_text": "Is the scene indoors or outdoors?"
+        },
+        {
+            "text": "Is sunlight the major light source?",
+            "qtype": "single",
+            "required": false,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Is sunlight the major light source?"
+        },
+        {
+            "text": "Is moonlight / starlight the major light source?",
+            "qtype": "single",
+            "required": false,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Is moonlight / starlight the major light source?"
+        },
+        {
+            "text": "Is firelight the major light source?",
+            "qtype": "single",
+            "required": false,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Is firelight the major light source?"
+        },
+        {
+            "text": "Is a practical / visible artificial light the major source?",
+            "qtype": "single",
+            "required": false,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Is a practical / visible artificial light the major source?"
+        },
+        {
+            "text": "Is a non-visible light source the major source?",
+            "qtype": "single",
+            "required": false,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Is a non-visible light source the major source?"
+        },
+        {
+            "text": "Is the lighting abstract / N/A?",
+            "qtype": "single",
+            "required": false,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Is the lighting abstract / N/A?"
+        },
+        {
+            "text": "Is the major light source complex / other type?",
+            "qtype": "single",
+            "required": false,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure"
+            ],
+            "default_option": "No",
+            "display_text": "Is the major light source complex / other type?"
+        },
+        {
+            "text": "What is the sunlight level?",
+            "qtype": "single",
+            "required": true,
+            "options": [
+                "Normal Sunlight",
+                "Hard Sunlight (e.g., Sunny)",
+                "Soft Sunlight (e.g., Overcast / Dusk / Dawn)",
+                "Sunset / Sunrise",
+                "N/A (indoors or changing sunlight conditions)"
+            ],
+            "display_values": [
+                "Normal Sunlight",
+                "Hard Sunlight (e.g., Sunny)",
+                "Soft Sunlight (e.g., Overcast / Dusk / Dawn)",
+                "Sunset / Sunrise",
+                "N/A (indoors or changing sunlight conditions)"
+            ],
+            "default_option": "N/A (indoors or changing sunlight conditions)",
+            "display_text": "What is the sunlight level?"
+        },
+        {
+            "text": "What is the light quality across the entire scene?",
+            "qtype": "single",
+            "required": true,
+            "options": [
+                "Unclear",
+                "Changing (temporal)",
+                "Hard Light",
+                "Soft Light"
+            ],
+            "display_values": [
+                "Unclear",
+                "Changing (temporal)",
+                "Hard Light",
+                "Soft Light"
+            ],
+            "default_option": "Hard Light",
+            "display_text": "What is the light quality across the entire scene?"
+        },
+        {
+            "text": "Describe the scene and lighting setup",
+            "qtype": "description",
+            "required": false,
+            "options": null,
+            "display_values": null,
+            "default_option": null,
+            "display_text": "Describe the scene and lighting setup"
+        }
+    ]
+}

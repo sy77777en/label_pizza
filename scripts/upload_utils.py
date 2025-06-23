@@ -23,7 +23,7 @@ from typing import List, Dict, Optional, Any, Set
 def add_videos(videos_data: list[dict]) -> None:
     """
     Add new videos from an in-memory list of dicts.  
-    Raises ValueError if any video already exists or the metadata is invalid.
+    Skips videos that already exist and prints info.
 
     Args:
         videos_data: A list of dictionaries, each with keys
@@ -36,43 +36,62 @@ def add_videos(videos_data: list[dict]) -> None:
     with Session(engine) as session:
         # 1️⃣ Pre-check for duplicates or other validation errors
         duplicate_urls = []
-        for video in videos_data:
+        valid_videos = []
+        
+        for video in tqdm(videos_data, desc="Verifying videos"):
             try:
                 VideoService.verify_add_video(
                     url=video["url"],
                     session=session,
                     metadata=video.get("metadata")
                 )
+                valid_videos.append(video)
             except ValueError as e:
-                # Collect “already exists” errors, propagate the rest
+                # Collect "already exists" errors, propagate the rest
                 if "already exists" in str(e):
                     duplicate_urls.append(video["url"])
+                    print(f"⏭️  Skipped existing video: {video['url']}")
                 else:
                     raise ValueError(
                         f"Validation failed for {video['url']}: {e}"
                     ) from None
 
         if duplicate_urls:
-            raise ValueError(
-                "Videos already exist: " + ", ".join(duplicate_urls)
-            )
+            print(f"ℹ️  Skipped {len(duplicate_urls)} existing videos")
 
-        # 2️⃣ No duplicates → add everything
-        for video in tqdm(videos_data, desc="Adding videos", unit="video"):
-            VideoService.add_video(
-                url=video["url"],
-                session=session,
-                metadata=video.get("metadata")
-            )
-            print(f"✓ Added new video: {video['url']}")
+        # 2️⃣ Add only valid videos
+        if valid_videos:
+            for video in tqdm(valid_videos, desc="Adding videos", unit="video"):
+                VideoService.add_video(
+                    url=video["url"],
+                    session=session,
+                    metadata=video.get("metadata")
+                )
+                print(f"✓ Added new video: {video['url']}")
 
-        # 3️⃣ Commit once at the end
-        try:
-            session.commit()
-            print("✔ All videos processed and committed!")
-        except Exception as e:
-            session.rollback()
-            raise RuntimeError(f"Error committing changes: {e}") from None
+            # 3️⃣ Commit once at the end
+            try:
+                session.commit()
+                print(f"✔ Successfully added {len(valid_videos)} new videos!")
+            except Exception as e:
+                session.rollback()
+                raise RuntimeError(f"Error committing changes: {e}") from None
+        else:
+            print("ℹ️  No new videos to add - all videos already exist")
+
+def upload_videos() -> None:
+    import glob
+    with Session(engine) as session:
+        video_paths = glob.glob('./videos/*.json')
+        for video_path in tqdm(video_paths, desc="Uploading videos"):
+            print(video_path)
+            with open(video_path, 'rb') as f:
+                video_data = json.load(f)
+            try:
+                add_videos(video_data)
+                print(f"✓ Uploaded video: {video_path}")
+            except Exception as e:
+                print(f"❌ Failed to upload video: {video_path}: {e}")
 
 def update_videos(videos_data: list[dict]) -> None:
     """
@@ -527,15 +546,21 @@ def create_schema(schema_data: dict) -> int:
 def create_schemas() -> None:
     import glob
     with Session(engine) as session:
-        group_paths = glob.glob('./question_groups/*.json')
         import_question_groups()
         schema_paths = glob.glob('./schemas/*.json')
         for schema_path in tqdm(schema_paths, desc="Importing schemas"):
             with open(schema_path, 'r') as f:
                 schema_data = json.load(f)
-            create_schema(schema_data)
+            schema_name = schema_data.get('schema_name', None)
+            try:
+                SchemaService.get_schema_id_by_name(schema_name, session)
+            except ValueError as e:
+                if "not found" in str(e):
+                    create_schema(schema_data)
+                else:
+                    pass
 
-def upload_users_from_json(json_path: str = None):
+def upload_users():
     """
     Batch upload users from a JSON file.
 
@@ -554,39 +579,41 @@ def upload_users_from_json(json_path: str = None):
         ]
     """
     import json
+    import glob
+    paths = glob.glob('./users/*.json')
+    for path in paths:
+        with open(json_path, 'r') as f:
+            users = json.load(f)
 
-    with open(json_path, 'r') as f:
-        users = json.load(f)
+        with SessionLocal() as session:
+            existing_users = AuthService.get_all_users(session)
+            existing_emails = set(existing_users['Email'].tolist())
+            existing_user_ids = set(existing_users['User ID'].tolist())
 
-    with SessionLocal() as session:
-        existing_users = AuthService.get_all_users(session)
-        existing_emails = set(existing_users['Email'].tolist())
-        existing_user_ids = set(existing_users['User ID'].tolist())
+            for user in users:
+                user_id = user.get('user_id', None)
+                email = user.get('email', None)
+                password = user['password']
+                user_type = user.get('user_type', 'human')
 
-        for user in users:
-            user_id = user['user_id']
-            email = user['email']
-            password = user['password']
-            user_type = user.get('user_type', 'human')
+                if email in existing_emails or user_id in existing_user_ids:
+                    print(f"User {email} or user_id {user_id} already exists, skipping.")
+                    continue
 
-            if email in existing_emails or user_id in existing_user_ids:
-                print(f"User {email} or user_id {user_id} already exists, skipping.")
-                continue
+                # Hash the password (sha256)
+                password_hash = password
 
-            # Hash the password (sha256)
-            password_hash = hashlib.sha256(password.encode()).hexdigest()
-
-            try:
-                AuthService.create_user(
-                    user_id=user_id,
-                    email=email,
-                    password_hash=password_hash,
-                    user_type=user_type,
-                    session=session
-                )
-                print(f"Successfully created user {email}")
-            except Exception as e:
-                print(f"Failed to create user {email}: {e}")
+                try:
+                    AuthService.create_user(
+                        user_id=user_id,
+                        email=email,
+                        password_hash=password_hash,
+                        user_type=user_type,
+                        session=session
+                    )
+                    print(f"Successfully created user {user_id}")
+                except Exception as e:
+                    print(f"Failed to create user {user_id}: {e}")
 
 # ---------------------------------------------------------------------------
 # 0. helper – assert that all UIDs exist in DB
@@ -797,13 +824,181 @@ def create_projects_from_annotations_json(
         finally:
             session.close()
 
-if __name__ == "__main__":
+def bulk_assign_users(json_file_path: str = './assignments/user_project_assignments.json'):
+    """
+    Bulk assign users to projects using only service functions.
+    """
+    with SessionLocal() as session:
+        try:
+            with open(json_file_path, 'r') as f:
+                assignments = json.load(f)
+            
+            for assignment in assignments:
+                try:
+                    user = AuthService.get_user_by_email(assignment["user_email"], session)
+                    project = ProjectService.get_project_by_name(assignment["project_name"], session)
+                    
+                    # Skip global admin users
+                    if user.user_type == "admin":
+                        print(f"⚠️ Skipped: {assignment['user_email']} is a global admin, cannot assign non-admin role")
+                        continue
+                    
+                    # Get user's projects by role using service function
+                    user_projects = AuthService.get_user_projects_by_role(user.id, session)
+                    
+                    # Check if user has any role in this project
+                    user_has_role = False
+                    current_role = None
+                    
+                    for role_type, projects in user_projects.items():
+                        for proj in projects:
+                            if proj["id"] == project.id:
+                                user_has_role = True
+                                current_role = role_type
+                                break
+                        if user_has_role:
+                            break
+                    
+                    new_role = assignment["role"]
+                    
+                    # Apply business logic
+                    if not user_has_role:
+                        # No existing role - assign new role
+                        ProjectService.add_user_to_project(
+                            project_id=project.id,
+                            user_id=user.id, 
+                            role=new_role,
+                            session=session
+                        )
+                        print(f"✓ Assigned {assignment['user_email']} to {assignment['project_name']} as {new_role}")
+                        
+                    elif current_role == "annotator" and new_role == "reviewer":
+                        # annotator -> reviewer: Update
+                        ProjectService.add_user_to_project(
+                            project_id=project.id,
+                            user_id=user.id, 
+                            role=new_role,
+                            session=session
+                        )
+                        print(f"✓ Updated {assignment['user_email']} from annotator to reviewer in {assignment['project_name']}")
+                        
+                    elif current_role == "reviewer" and new_role == "annotator":
+                        # reviewer -> annotator: Ignore
+                        print(f"⚠️ Ignored: {assignment['user_email']} already reviewer, not downgrading to annotator in {assignment['project_name']}")
+                        
+                    else:
+                        # Other cases: Update role
+                        ProjectService.add_user_to_project(
+                            project_id=project.id,
+                            user_id=user.id, 
+                            role=new_role,
+                            session=session
+                        )
+                        print(f"✓ Updated {assignment['user_email']} role to {new_role} in {assignment['project_name']}")
+                    
+                except Exception as e:
+                    print(f"✗ Failed: {e}")
+                    session.rollback()
+                    continue
+            
+            session.commit()
+            print("🎉 Bulk assignment completed!")
+            
+        except Exception as e:
+            print(f"❌ Error: {e}")
+            session.rollback()
+
+# def bulk_assign_users(json_file_path: str = './assignments/user_project_assignments.json'):
+#     """
+#     Bulk assign users to projects using only service functions.
+    
+#     Logic:
+#     - If annotator -> reviewer: Update
+#     - If reviewer -> annotator: Ignore
+#     - If no existing role: Assign new role
+#     """
+#     with SessionLocal() as session:
+#         try:
+#             with open(json_file_path, 'r') as f:
+#                 assignments = json.load(f)
+            
+#             for assignment in assignments:
+#                 try:
+#                     user = AuthService.get_user_by_email(assignment["user_email"], session)
+#                     project = ProjectService.get_project_by_name(assignment["project_name"], session)
+                    
+#                     # Get user's projects by role using service function
+#                     user_projects = AuthService.get_user_projects_by_role(user.id, session)
+                    
+#                     # Check if user has any role in this project
+#                     user_has_role = False
+#                     current_role = None
+                    
+#                     for role_type, projects in user_projects.items():
+#                         for proj in projects:
+#                             if proj["id"] == project.id:
+#                                 user_has_role = True
+#                                 current_role = role_type
+#                                 break
+#                         if user_has_role:
+#                             break
+                    
+#                     new_role = assignment["role"]
+                    
+#                     # Apply business logic
+#                     if not user_has_role:
+#                         # No existing role - assign new role
+#                         AuthService.assign_user_to_project(
+#                             user_id=user.id,
+#                             project_id=project.id, 
+#                             role=new_role,
+#                             session=session
+#                         )
+#                         print(f"✓ Assigned {assignment['user_email']} to {assignment['project_name']} as {new_role}")
+                        
+#                     elif current_role == "annotator" and new_role == "reviewer":
+#                         # annotator -> reviewer: Update
+#                         AuthService.assign_user_to_project(
+#                             user_id=user.id,
+#                             project_id=project.id, 
+#                             role=new_role,
+#                             session=session
+#                         )
+#                         print(f"✓ Updated {assignment['user_email']} from annotator to reviewer in {assignment['project_name']}")
+                        
+#                     elif current_role == "reviewer" and new_role == "annotator":
+#                         # reviewer -> annotator: Ignore
+#                         print(f"⚠️ Ignored: {assignment['user_email']} already reviewer, not downgrading to annotator in {assignment['project_name']}")
+                        
+#                     else:
+#                         # Other cases: Update role
+#                         AuthService.assign_user_to_project(
+#                             user_id=user.id,
+#                             project_id=project.id, 
+#                             role=new_role,
+#                             session=session
+#                         )
+#                         print(f"✓ Updated {assignment['user_email']} role to {new_role} in {assignment['project_name']}")
+                    
+#                 except Exception as e:
+#                     print(f"✗ Failed: {e}")
+#                     session.rollback()
+#                     continue
+            
+#             session.commit()
+#             print("🎉 Bulk assignment completed!")
+            
+#         except Exception as e:
+#             print(f"❌ Error: {e}")
+#             session.rollback()
+
+# if __name__ == "__main__":
     # Example usage:
     # update_or_add_videos()
     # import_schemas()
     # create_project_with_videos("../new_video_metadata.json", "CamLight", "CameraLightSetup")
     # create_projects_from_ndjson(ndjson_path='./test_ndjson/new_motion_485_cm899n7xl0gaw074g7cadewhk.ndjson', base_project_name='motion_attributes_test', schema_name='CameraMovementAttributes')
-    create_projects_from_annotations_json(
-        json_path='./test_json/motion_attributes.json',
-        schema_name='CameraMovementAttributes',
-    )
+    # create_projects_from_annotations_json(
+    #     json_path='./test_json/motion_attributes.json',
+    #     schema_name='CameraMovementAttributes',
+    # )
