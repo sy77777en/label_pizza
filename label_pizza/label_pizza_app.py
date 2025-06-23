@@ -2469,7 +2469,7 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
         with st.form(form_key):
             answers = {}
             
-            content_height = max(350, container_height - 150)
+            content_height = max(350, container_height - 121)
             
             # Ensure we always display content even if questions fail to load
             try:
@@ -2492,7 +2492,7 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                                 )
                         
                         if i > 0:
-                            st.markdown('<div style="margin: 32px 0;"></div>', unsafe_allow_html=True)
+                            st.markdown('<div style="margin: 8px 0;"></div>', unsafe_allow_html=True)
                         
                         # FIXED: Pass group_id directly to avoid lookup issues
                         if question["type"] == "single":
@@ -2535,7 +2535,7 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                 # Still provide empty answers dict for form submission
                 answers = {}
             
-            st.markdown('<div style="margin: 8px 0;"></div>', unsafe_allow_html=True)
+            # st.markdown('<div style="margin: 0px 0;"></div>', unsafe_allow_html=True)
             
             # ALWAYS include a submit button
             submitted = st.form_submit_button(button_text, use_container_width=True, disabled=button_disabled)
@@ -8143,7 +8143,7 @@ def main():
         
         /* Sleek radio button styling */
         .stRadio > div {
-            gap: 0.5rem;
+            gap: 0.25rem;
             background: transparent !important;
             padding: 0 !important;
             border: none !important;
@@ -8153,13 +8153,15 @@ def main():
             flex-direction: row !important;
             flex-wrap: wrap !important;
             align-items: flex-start !important;
+            justify-content: flex-start !important;
         }
         
         .stRadio > div > label {
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.25rem;
+            margin-right: 0.25rem;
             font-size: 0.85rem;
             background: linear-gradient(135deg, #ffffff, #f8f9fa);
-            padding: 6px 12px;
+            padding: 6px 10px;
             border-radius: 6px;
             border: 1px solid #e9ecef;
             cursor: pointer;
