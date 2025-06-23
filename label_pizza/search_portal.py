@@ -7,7 +7,7 @@ from contextlib import contextmanager
 
 # Import from utils.py
 from utils import (
-    get_card_style, COLORS, handle_database_errors, get_db_session,
+    get_card_style, COLORS, handle_database_errors, get_db_session, custom_info,
     _display_unified_status, _display_clean_sticky_single_choice_question,
     _display_clean_sticky_description_question, _get_enhanced_options_for_reviewer,
     _submit_answer_reviews, _load_existing_answer_reviews, get_schema_question_groups
@@ -31,6 +31,15 @@ from custom_video_player import custom_video_player
 def search_portal():
     """Advanced Search Portal for Admins - Clean, Organized, Functional"""
     st.title("🔍 Advanced Search Portal")
+    # Handle URL parameters for direct video links
+    query_params = st.query_params
+    if "video_uid" in query_params:
+        video_uid_from_url = query_params["video_uid"]
+        custom_info(f"🔗 **Shared link loaded** - Searching for video: `{video_uid_from_url}`")
+        # Auto-populate the search
+        if "auto_search_video_uid" not in st.session_state:
+            st.session_state.auto_search_video_uid = video_uid_from_url
+
     st.markdown("**Comprehensive search and editing capabilities across all projects**")
     
     # Clean tab design with clear separation
@@ -88,12 +97,20 @@ def display_improved_video_selection_section(session: Session) -> Optional[Dict[
     col1, col2, col3 = st.columns([3, 2, 2])
     
     with col1:
+        # Handle auto-search from URL
+        auto_video_uid = st.session_state.get("auto_search_video_uid", "")
         search_term = st.text_input(
             "🔍 Search videos by UID", 
+            value=auto_video_uid,
             placeholder="Type video UID to filter...",
             key="admin_video_search",
             help="Search through video UIDs to find the one you want"
         )
+
+        # Clear auto-search after first use
+        if auto_video_uid and search_term == auto_video_uid:
+            if "auto_search_video_uid" in st.session_state:
+                del st.session_state.auto_search_video_uid
     
     with col2:
         # Use selectbox to match height with text input
@@ -174,14 +191,39 @@ def display_improved_video_selection_section(session: Session) -> Optional[Dict[
         st.error("❌ Error loading video information")
         return None
     
-    # Improved selected video display
-    st.markdown(f"""
-    <div style="{get_card_style('#28a745')}text-align: center;">
-        <div style="color: #155724; font-weight: 600; font-size: 1rem;">
-            ✅ Selected: <strong>{video_info['uid']}</strong>
+    # # Improved selected video display
+    # st.markdown(f"""
+    # <div style="{get_card_style('#28a745')}text-align: center;">
+    #     <div style="color: #155724; font-weight: 600; font-size: 1rem;">
+    #         ✅ Selected: <strong>{video_info['uid']}</strong>
+    #     </div>
+    # </div>
+    # """, unsafe_allow_html=True)
+    # Improved selected video display with share button
+    share_col, info_col = st.columns([0.15, 0.85])
+
+    with share_col:
+        # Create share URL for search portal
+        current_url = str(st.query_params.get_current_url()).split('?')[0]
+        share_url = f"{current_url}?video_uid={video_info['uid']}"
+        
+        if st.button("🔗", key=f"share_video_{video_info['uid']}", help="Copy shareable link"):
+            # Update URL params and copy to clipboard
+            st.query_params.update({"video_uid": video_info['uid']})
+            st.components.v1.html(f"""
+            <script>
+            navigator.clipboard.writeText('{share_url}').catch(e => console.log('Copy failed:', e));
+            </script>
+            """, height=0)
+
+    with info_col:
+        st.markdown(f"""
+        <div style="{get_card_style('#28a745')}text-align: center;">
+            <div style="color: #155724; font-weight: 600; font-size: 1rem;">
+                ✅ Selected: <strong>{video_info['uid']}</strong>
+            </div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
     
     return video_info
 
@@ -324,7 +366,7 @@ def display_improved_video_player_section(video_info: Dict[str, Any]):
     """, unsafe_allow_html=True)
     
     # Video player
-    custom_video_player(video_info["url"], autoplay=False, loop=True)
+    custom_video_player(video_info["url"], autoplay=False, loop=True, show_share_button=True)
 
 def display_improved_project_groups_section(gt_data: Dict, video_info: Dict[str, Any], session: Session):
     """Improved project groups display with better organization"""

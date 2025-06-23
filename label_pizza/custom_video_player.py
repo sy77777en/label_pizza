@@ -4,7 +4,7 @@ import streamlit.components.v1 as components
 # VIDEO PLAYER WITH HEIGHT RETURN
 ###############################################################################
 
-def custom_video_player(video_url, aspect_ratio="16:9", autoplay=True, loop=True):
+def custom_video_player(video_url, aspect_ratio="16:9", autoplay=True, loop=True, show_share_button=False):
     """Custom video player with responsive design"""
     ratio_parts = aspect_ratio.split(":")
     aspect_ratio_decimal = float(ratio_parts[0]) / float(ratio_parts[1])
@@ -15,6 +15,26 @@ def custom_video_player(video_url, aspect_ratio="16:9", autoplay=True, loop=True
         video_attributes += ' autoplay muted'
     if loop:
         video_attributes += ' loop'
+
+    # Extract video UID from URL and prepare share button HTML/JS
+    share_button_html = ""
+    share_button_js = ""
+
+    if show_share_button:
+        video_uid = video_url.split('/').pop()  # Extract filename from URL
+        
+        share_button_html = '''<button class="control-btn" id="shareBtn" title="Copy search link">🔗</button>'''
+        
+        share_button_js = f'''
+        const shareBtn = document.getElementById('shareBtn');
+        if (shareBtn) {{
+            shareBtn.addEventListener('click', () => {{
+                const currentUrl = window.location.href.split('?')[0];
+                const searchPortalUrl = currentUrl + '?video_uid={video_uid}';
+                navigator.clipboard.writeText(searchPortalUrl).catch(e => console.log('Copy failed:', e));
+            }});
+        }}
+        '''
     
     html_code = f"""
     <!DOCTYPE html>
@@ -144,6 +164,7 @@ def custom_video_player(video_url, aspect_ratio="16:9", autoplay=True, loop=True
                         <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="100" title="Volume">
                     </div>
                     <div class="time-display" id="timeDisplay">0:00 / 0:00</div>
+                    {share_button_html}
                     <button class="control-btn" id="downloadBtn" title="Download">📥</button>
                     <button class="control-btn" id="fullscreenBtn" title="Fullscreen">⛶</button>
                 </div>
@@ -309,6 +330,9 @@ def custom_video_player(video_url, aspect_ratio="16:9", autoplay=True, loop=True
                 const duration = formatTime(video.duration);
                 timeDisplay.textContent = `0:00 / ${{duration}}`;
             }});
+
+            // ADD THIS at the end of the JavaScript section:
+            {share_button_js}
         </script>
     </body>
     </html>

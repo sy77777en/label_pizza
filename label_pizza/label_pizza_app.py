@@ -4927,7 +4927,7 @@ def display_video_answer_pair(video: Dict, project_id: int, user_id: int, role: 
         with video_col:
             autoplay = st.session_state.get(f"{role}_autoplay", True)
             loop = st.session_state.get(f"{role}_loop", True)
-            video_height = custom_video_player(video["url"], autoplay=autoplay, loop=loop)
+            video_height = custom_video_player(video["url"], autoplay=autoplay, loop=loop, show_share_button=True)
         
         with answer_col:
             tab_names = [group['Title'] for group in question_groups]
@@ -8710,7 +8710,13 @@ def main():
             }
             
             if "selected_portal" not in st.session_state:
-                if user["role"] == "admin":
+                # CHECK FOR QUERY PARAMETERS TO AUTO-ROUTE
+                query_params = st.query_params
+                
+                if "video_uid" in query_params and "search" in available_portals:
+                    # Auto-route to search portal if video_uid is in URL
+                    st.session_state.selected_portal = "search"
+                elif user["role"] == "admin":
                     st.session_state.selected_portal = "admin"
                 else:
                     st.session_state.selected_portal = available_portals[0]
