@@ -21,7 +21,7 @@ from sqlalchemy.orm import sessionmaker
 load_dotenv()
 
 # Import all the services
-from services import (
+from label_pizza.services import (
     QuestionService, QuestionGroupService, SchemaService, 
     VideoService, ProjectService, AuthService, AnnotatorService
 )

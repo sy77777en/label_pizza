@@ -144,7 +144,8 @@ create_schemas()
 ```
 from scripts.upload_utils import create_projects_from_annotations_json
 
-create_projects_from_annotations_json(json_path='./annotations/lighting/Lightingtest_0_color.json', schema_name='Color Grading')
+    create_projects_from_annotations_json(json_path='./annotations/subjects/subject_annotations.json', schema_name='Subjects in Video')
+    create_projects_from_annotations_json(json_path='./annotations/weathers/weather_annotations.json', schema_name='Weathers in Video')
 ```
 
 **`.json` file format should be:**
