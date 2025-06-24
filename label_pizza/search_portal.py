@@ -93,27 +93,28 @@ def display_improved_video_selection_section(session: Session) -> Optional[Dict[
         st.warning("🚫 No videos available in the system")
         return None
     
-    # Improved filter controls with consistent heights - ALL using st.selectbox for uniform styling
+    # Restore search term from session state or URL parameter
+    stored_search = st.session_state.get("search_portal_search_term", "")
+    auto_video_uid = st.session_state.get("auto_search_video_uid", "")
+    initial_search = auto_video_uid if auto_video_uid else stored_search
+    
+    # Improved filter controls
     col1, col2, col3 = st.columns([3, 2, 2])
     
     with col1:
-        # Handle auto-search from URL
-        auto_video_uid = st.session_state.get("auto_search_video_uid", "")
         search_term = st.text_input(
             "🔍 Search videos by UID", 
-            value=auto_video_uid,
+            value=initial_search,
             placeholder="Type video UID to filter...",
             key="admin_video_search",
             help="Search through video UIDs to find the one you want"
         )
-
-        # Clear auto-search after first use
-        if auto_video_uid and search_term == auto_video_uid:
-            if "auto_search_video_uid" in st.session_state:
-                del st.session_state.auto_search_video_uid
+        
+        # Store search term to preserve across reruns
+        if search_term:
+            st.session_state["search_portal_search_term"] = search_term
     
     with col2:
-        # Use selectbox to match height with text input
         include_archived = st.selectbox(
             "📦 Archive Filter",
             ["Active videos only", "Include archived videos"],
@@ -125,7 +126,6 @@ def display_improved_video_selection_section(session: Session) -> Optional[Dict[
         total_videos = len(videos_df)
         active_videos = len(videos_df[~videos_df["Archived"]])
         
-        # Use selectbox for consistent height - display as info
         if include_archived:
             info_display = st.selectbox(
                 "📊 Video Count",
@@ -155,17 +155,60 @@ def display_improved_video_selection_section(session: Session) -> Optional[Dict[
     
     if filtered_videos.empty:
         st.warning("🔍 No videos match your search criteria")
+        # Clear auto-search if video not found
+        if auto_video_uid:
+            custom_info(f"🔍 Video '{auto_video_uid}' not found in this project")
+            if "auto_search_video_uid" in st.session_state:
+                del st.session_state.auto_search_video_uid
         return None
     
-    # Improved video selection
+    # Improved video selection with simplified format
     st.markdown("**📋 Select Video:**")
     
+    # Build video options with simplified format
     video_options = {}
     for _, row in filtered_videos.iterrows():
-        created_date = row["Created At"].strftime("%m/%d/%Y") if pd.notna(row["Created At"]) else "Unknown"
-        status_emoji = "📦" if row["Archived"] else "📹"
-        display_name = f"{status_emoji} {row['Video UID']} • {created_date}"
-        video_options[display_name] = row["Video UID"]
+        video_uid = row["Video UID"]
+        # Simple format: just the video UID, with archive status if needed
+        if row["Archived"]:
+            display_name = f"{video_uid} (archived)"
+        else:
+            display_name = video_uid
+        video_options[display_name] = video_uid
+    
+    # Auto-select logic - prioritize stored selection over URL parameter
+    options_list = [""] + list(video_options.keys())
+    default_index = 0
+    
+    # First check if we have a stored selection from previous interaction
+    stored_selection = st.session_state.get("search_portal_selected_video")
+    if stored_selection and stored_selection["display"] in options_list:
+        try:
+            default_index = options_list.index(stored_selection["display"])
+        except ValueError:
+            pass
+    
+    # Only use auto_video_uid if no stored selection
+    if default_index == 0 and auto_video_uid:
+        # Look for exact match in video_options values
+        matching_display_name = None
+        for display_name, video_uid in video_options.items():
+            if video_uid == auto_video_uid:
+                matching_display_name = display_name
+                break
+        
+        if matching_display_name:
+            try:
+                default_index = options_list.index(matching_display_name)
+                # Clear auto-search state after using it
+                if "auto_search_video_uid" in st.session_state:
+                    del st.session_state.auto_search_video_uid
+            except ValueError:
+                pass
+        else:
+            custom_info(f"🔍 Video '{auto_video_uid}' not found in this project")
+            if "auto_search_video_uid" in st.session_state:
+                del st.session_state.auto_search_video_uid
     
     # Better selectbox presentation
     if len(video_options) > 20:
@@ -173,7 +216,8 @@ def display_improved_video_selection_section(session: Session) -> Optional[Dict[
     
     selected_video_display = st.selectbox(
         "Choose from available videos:",
-        [""] + list(video_options.keys()),
+        options_list,
+        index=default_index,
         key="selected_video_admin",
         help=f"Select from {len(video_options)} available videos",
         label_visibility="collapsed"
@@ -183,47 +227,29 @@ def display_improved_video_selection_section(session: Session) -> Optional[Dict[
         st.info("👆 Please select a video from the dropdown above to continue")
         return None
     
-    # Get video info
+    # Get video info and store selection
     selected_video_uid = video_options[selected_video_display]
-    video_info = get_video_info_by_uid(selected_video_uid, session)
+    
+    # Store the selected video in session state to preserve across reruns
+    st.session_state["search_portal_selected_video"] = {
+        "uid": selected_video_uid,
+        "display": selected_video_display
+    }
+    
+    video_info = get_video_info_by_uid(video_uid=selected_video_uid, session=session)
     
     if not video_info:
         st.error("❌ Error loading video information")
         return None
     
-    # # Improved selected video display
-    # st.markdown(f"""
-    # <div style="{get_card_style('#28a745')}text-align: center;">
-    #     <div style="color: #155724; font-weight: 600; font-size: 1rem;">
-    #         ✅ Selected: <strong>{video_info['uid']}</strong>
-    #     </div>
-    # </div>
-    # """, unsafe_allow_html=True)
-    # Improved selected video display with share button
-    share_col, info_col = st.columns([0.15, 0.85])
-
-    with share_col:
-        # Create share URL for search portal
-        current_url = str(st.query_params.get_current_url()).split('?')[0]
-        share_url = f"{current_url}?video_uid={video_info['uid']}"
-        
-        if st.button("🔗", key=f"share_video_{video_info['uid']}", help="Copy shareable link"):
-            # Update URL params and copy to clipboard
-            st.query_params.update({"video_uid": video_info['uid']})
-            st.components.v1.html(f"""
-            <script>
-            navigator.clipboard.writeText('{share_url}').catch(e => console.log('Copy failed:', e));
-            </script>
-            """, height=0)
-
-    with info_col:
-        st.markdown(f"""
-        <div style="{get_card_style('#28a745')}text-align: center;">
-            <div style="color: #155724; font-weight: 600; font-size: 1rem;">
-                ✅ Selected: <strong>{video_info['uid']}</strong>
-            </div>
+    # Simple selected video display
+    st.markdown(f"""
+    <div style="{get_card_style('#28a745')}text-align: center;">
+        <div style="color: #155724; font-weight: 600; font-size: 1rem;">
+            ✅ Selected: <strong>{video_info['uid']}</strong>
         </div>
-        """, unsafe_allow_html=True)
+    </div>
+    """, unsafe_allow_html=True)
     
     return video_info
 
@@ -235,24 +261,41 @@ def display_improved_project_group_filter_section(session: Session) -> List[int]
     try:
         project_groups = ProjectGroupService.list_project_groups(session=session)
         
-        if not project_groups:
-            st.warning("🚫 No project groups found")
+        # Check for unassigned projects
+        all_projects = ProjectService.get_all_projects(session=session)
+        unassigned_project_count = 0
+        if not all_projects.empty:
+            assigned_project_ids = set()
+            for group in project_groups:
+                try:
+                    group_info = ProjectGroupService.get_project_group_by_id(group_id=group.id, session=session)
+                    assigned_project_ids.update(p.id for p in group_info["projects"])
+                except:
+                    continue
+            
+            unassigned_projects = all_projects[~all_projects["ID"].isin(assigned_project_ids)]
+            unassigned_project_count = len(unassigned_projects)
+        
+        if not project_groups and unassigned_project_count == 0:
+            st.warning("🚫 No project groups or projects found")
             return []
         
-        # Initialize with all groups selected
+        # Initialize selections
         if "admin_selected_groups" not in st.session_state:
             st.session_state.admin_selected_groups = [g.id for g in project_groups]
+        if "admin_include_unassigned" not in st.session_state:
+            st.session_state.admin_include_unassigned = unassigned_project_count > 0
         
-        # Improved quick actions
+        # Quick actions for project groups only
         action_col1, action_col2, action_col3 = st.columns([1, 1, 2])
         
         with action_col1:
-            if st.button("✅ Select All", key="admin_select_all_groups", use_container_width=True):
+            if st.button("✅ Select All Groups", key="admin_select_all_groups", use_container_width=True):
                 st.session_state.admin_selected_groups = [g.id for g in project_groups]
                 st.rerun(scope="fragment")
         
         with action_col2:
-            if st.button("❌ Clear All", key="admin_clear_all_groups", use_container_width=True):
+            if st.button("❌ Clear All Groups", key="admin_clear_all_groups", use_container_width=True):
                 st.session_state.admin_selected_groups = []
                 st.rerun(scope="fragment")
         
@@ -260,62 +303,78 @@ def display_improved_project_group_filter_section(session: Session) -> List[int]
             selected_count = len(st.session_state.admin_selected_groups)
             total_count = len(project_groups)
             
-            # Use metric for consistent display
+            # Include unassigned projects in total if selected
+            total_selected = selected_count
+            if st.session_state.admin_include_unassigned and unassigned_project_count > 0:
+                total_selected += 1
+            
             st.metric(
-                label="📊 Selected Groups", 
-                value=f"{selected_count}/{total_count}",
-                delta="All selected" if selected_count == total_count else f"{total_count - selected_count} remaining"
+                label="📊 Selected", 
+                value=f"{total_selected}",
+                delta=f"{total_count} groups + {unassigned_project_count} unassigned"
             )
         
-        st.markdown("**📋 Select Project Groups:**")
+        # Unassigned projects checkbox (if any exist)
+        if unassigned_project_count > 0:
+            st.markdown("**📄 Individual Projects:**")
+            include_unassigned = st.checkbox(
+                f"Include {unassigned_project_count} unassigned projects",
+                value=st.session_state.admin_include_unassigned,
+                key="admin_unassigned_checkbox",
+                help="Include projects that are not assigned to any project group"
+            )
+            if include_unassigned != st.session_state.admin_include_unassigned:
+                st.session_state.admin_include_unassigned = include_unassigned
+                st.rerun(scope="fragment")
         
-        # Improved group selection grid
-        num_cols = min(2, len(project_groups))  # Use 2 columns for better readability
-        cols = st.columns(num_cols)
-        
-        updated_selections = []
-        
-        for i, group in enumerate(project_groups):
-            with cols[i % num_cols]:
-                # Get project count
-                try:
-                    group_info = ProjectGroupService.get_project_group_by_id(group_id=group.id, session=session)
-                    project_count = len(group_info["projects"])
-                except:
-                    project_count = 0
-                
-                is_selected = group.id in st.session_state.admin_selected_groups
-                
-                # Improved checkbox design
-                checkbox_value = st.checkbox(
-                    f"**{group.name}**",
-                    value=is_selected,
-                    key=f"admin_group_cb_{group.id}",
-                    help=f"Description: {group.description or 'No description'}"
-                )
-                
-                # Better project group info card
-                card_color = "#e7f3ff" if is_selected else "#f8f9fa"
-                border_color = "#2196f3" if is_selected else "#e9ecef"
-                
-                st.markdown(f"""
-                <div style="background: {card_color}; border: 1px solid {border_color}; border-radius: 8px; padding: 12px; margin: 8px 0;">
-                    <div style="color: #1976d2; font-weight: 600; font-size: 0.9rem; margin-bottom: 6px;">
-                        📁 {project_count} project{'s' if project_count != 1 else ''}
+        # Project groups selection
+        if project_groups:
+            st.markdown("**📋 Select Project Groups:**")
+            
+            num_cols = min(2, len(project_groups))
+            cols = st.columns(num_cols)
+            
+            updated_selections = []
+            
+            for i, group in enumerate(project_groups):
+                with cols[i % num_cols]:
+                    # Get project count
+                    try:
+                        group_info = ProjectGroupService.get_project_group_by_id(group_id=group.id, session=session)
+                        project_count = len(group_info["projects"])
+                    except:
+                        project_count = 0
+                    
+                    is_selected = group.id in st.session_state.admin_selected_groups
+                    
+                    checkbox_value = st.checkbox(
+                        f"**{group.name}**",
+                        value=is_selected,
+                        key=f"admin_group_cb_{group.id}",
+                        help=f"Description: {group.description or 'No description'}"
+                    )
+                    
+                    # Project group info card
+                    card_color = "#EAE1F9" if is_selected else "#f8f9fa"
+                    border_color = "#B180FF" if is_selected else "#e9ecef"
+                    
+                    st.markdown(f"""
+                    <div style="background: {card_color}; border: 1px solid {border_color}; border-radius: 8px; padding: 12px; margin: 8px 0;">
+                        <div style="color: #5C00BF; font-weight: 600; font-size: 0.9rem; margin-bottom: 6px;">
+                            📁 {project_count} project{'s' if project_count != 1 else ''}
+                        </div>
+                        <div style="color: #424242; font-size: 0.85rem; line-height: 1.4;">
+                            {group.description if group.description else '<em>No description provided</em>'}
+                        </div>
                     </div>
-                    <div style="color: #424242; font-size: 0.85rem; line-height: 1.4;">
-                        {group.description if group.description else '<em>No description provided</em>'}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                if checkbox_value:
-                    updated_selections.append(group.id)
-        
-        # Update selections if changed
-        if set(updated_selections) != set(st.session_state.admin_selected_groups):
-            st.session_state.admin_selected_groups = updated_selections
-            st.rerun(scope="fragment")
+                    """, unsafe_allow_html=True)
+                    
+                    if checkbox_value:
+                        updated_selections.append(group.id)
+            
+            if set(updated_selections) != set(st.session_state.admin_selected_groups):
+                st.session_state.admin_selected_groups = updated_selections
+                st.rerun(scope="fragment")
         
         return st.session_state.admin_selected_groups
         
@@ -352,7 +411,7 @@ def display_improved_video_player_section(video_info: Dict[str, Any]):
     created_at = video_info["created_at"].strftime('%Y-%m-%d %H:%M') if video_info["created_at"] else 'Unknown'
     
     st.markdown(f"""
-    <div style="{get_card_style('#2196f3')}">
+    <div style="{get_card_style('#B180FF')}">
         <div style="color: #1565c0; font-weight: 700; font-size: 1.1rem; margin-bottom: 8px;">
             📹 {video_info["uid"]}
         </div>
@@ -404,11 +463,11 @@ def display_improved_project_groups_section(gt_data: Dict, video_info: Dict[str,
         
         # Improved project group header
         st.markdown(f"""
-        <div style="{get_card_style('#3498db')}text-align: center; margin: 20px 0;">
-            <div style="color: #2980b9; font-weight: 700; font-size: 1.2rem; margin-bottom: 4px;">
+        <div style="{get_card_style('#B180FF')}text-align: center; margin: 20px 0;">
+            <div style="color: #5C00BF; font-weight: 700; font-size: 1.2rem; margin-bottom: 4px;">
                 📁 {group_name}
             </div>
-            <div style="color: #2980b9; font-size: 0.9rem;">
+            <div style="color: #5C00BF; font-size: 0.9rem;">
                 {project_count} project{'s' if project_count != 1 else ''} with questions
             </div>
         </div>
@@ -776,6 +835,47 @@ def get_video_ground_truth_across_groups(video_id: int, selected_group_ids: List
     """Get only ground truth for a video across selected project groups"""
     
     results = {}
+
+    # Handle unassigned projects if checkbox is selected
+    include_unassigned = st.session_state.get("admin_include_unassigned", False)
+    if include_unassigned:
+        # Get all projects and find unassigned ones
+        all_projects = ProjectService.get_all_projects(session=session)
+        if not all_projects.empty:
+            assigned_project_ids = set()
+            for group_id in selected_group_ids:
+                try:
+                    group_info = ProjectGroupService.get_project_group_by_id(group_id=group_id, session=session)
+                    assigned_project_ids.update(p.id for p in group_info["projects"])
+                except:
+                    continue
+            
+            unassigned_projects = all_projects[~all_projects["ID"].isin(assigned_project_ids)]
+            
+            if not unassigned_projects.empty:
+                # Process unassigned projects
+                unassigned_results = {"group_name": "Unassigned Projects", "projects": {}}
+                
+                for _, project_row in unassigned_projects.iterrows():
+                    project_id = project_row["ID"]
+                    project_name = project_row["Name"]
+                    
+                    # Check if video is in this project
+                    project_videos = VideoService.get_project_videos(project_id=project_id, session=session)
+                    video_in_project = any(v["id"] == video_id for v in project_videos)
+                    
+                    if video_in_project:
+                        project_results = get_project_ground_truth_for_video(video_id, project_id, session)
+                        
+                        if project_results["has_data"]:
+                            unassigned_results["projects"][project_id] = {
+                                "project_name": project_name,
+                                "project_description": project_row.get("Description", ""),
+                                **project_results
+                            }
+                
+                if unassigned_results["projects"]:
+                    results[-1] = unassigned_results  # Use -1 as special key for unassigned
     
     for group_id in selected_group_ids:
         try:

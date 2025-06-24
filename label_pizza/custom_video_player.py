@@ -26,14 +26,15 @@ def custom_video_player(video_url, aspect_ratio="16:9", autoplay=True, loop=True
         share_button_html = '''<button class="control-btn" id="shareBtn" title="Copy search link">🔗</button>'''
         
         share_button_js = f'''
-        const shareBtn = document.getElementById('shareBtn');
-        if (shareBtn) {{
-            shareBtn.addEventListener('click', () => {{
-                const currentUrl = window.location.href.split('?')[0];
-                const searchPortalUrl = currentUrl + '?video_uid={video_uid}';
-                navigator.clipboard.writeText(searchPortalUrl).catch(e => console.log('Copy failed:', e));
-            }});
-        }}
+            const shareBtn = document.getElementById('shareBtn');
+            if (shareBtn) {{
+                shareBtn.addEventListener('click', () => {{
+                    // Use parent window URL instead of iframe URL
+                    const currentUrl = window.parent.location.href.split('?')[0];
+                    const searchPortalUrl = currentUrl + '?video_uid={video_uid}';
+                    navigator.clipboard.writeText(searchPortalUrl).catch(e => console.log('Copy failed:', e));
+                }});
+            }}
         '''
     
     html_code = f"""
