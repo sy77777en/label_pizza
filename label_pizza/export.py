@@ -24,17 +24,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
 
-# Import the services from your existing services file
-try:
-    from label_pizza.services import GroundTruthExportService, ProjectService, save_export_as_json, save_export_as_excel
-except ImportError:
-    # If the service is in the same directory
-    try:
-        from services import GroundTruthExportService, ProjectService, save_export_as_json, save_export_as_excel
-    except ImportError:
-        print("Error: Cannot import services. Please ensure services.py is available in your Python path.")
-        sys.exit(1)
-
+from label_pizza.services import GroundTruthExportService, ProjectService, save_export_as_json, save_export_as_excel
+from label_pizza.db import init_database
 
 def resolve_projects_to_ids(projects, session):
     """Convert project names/IDs to a list of project IDs.
@@ -114,8 +105,9 @@ should be quoted.
     )
     
     parser.add_argument(
-        "--database-url",
-        help="Database URL (overrides .env file DBURL)"
+        "--database-url-name",
+        default="DBURL",
+        help="Environment variable name for database URL (default: DBURL)"
     )
     
     parser.add_argument(
@@ -126,16 +118,19 @@ should be quoted.
     
     args = parser.parse_args()
     
-    # Load environment variables - use .env file as default
-    if not args.database_url:
-        load_dotenv(".env")  # loads DBURL
+
+    load_dotenv(".env")  # loads DBURL
+    if args.verbose:
+        print("Loading database URL from .env file")
+
+    # Initialize database
+    try:
+        init_database(args.database_url_name)
         if args.verbose:
-            print("Loading database URL from .env file")
-    
-    # Get database URL
-    db_url = args.database_url or os.environ.get("DBURL")
-    if not db_url:
-        print("Error: Database URL not provided. Set DBURL in .env file or use --database-url")
+            print(f"Database initialized using {args.database_url_name}")
+        from label_pizza.db import SessionLocal
+    except Exception as e:
+        print(f"Error initializing database: {e}")
         return 1
     
     # Validate and prepare output path
@@ -152,17 +147,9 @@ should be quoted.
     # Create output directory if it doesn't exist
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
-    # Connect to database
-    try:
-        engine = create_engine(db_url, echo=args.verbose)
-        if args.verbose:
-            print(f"Connected to database: {db_url}")
-    except Exception as e:
-        print(f"Error connecting to database: {e}")
-        return 1
     
     try:
-        with Session(engine) as session:
+        with SessionLocal() as session:
             # Parse projects - can be IDs (integers) or names (strings)
             projects = []
             for proj in args.projects:
@@ -237,27 +224,29 @@ should be quoted.
     return 0
 
 
-def validate_projects_only(projects, db_url=None, verbose=False):
+def validate_projects_only(projects, database_url_name="DBURL", verbose=False):
     """Utility function to only validate reusable question groups without exporting.
     
     Args:
         projects: List of project IDs (int) or project names (str) to validate
-        db_url: Database URL (optional, will use environment if not provided)
+        database_url_name: Environment variable name for database URL (default: DBURL)
         verbose: Enable verbose output
         
     Returns:
         True if validation passes, False otherwise
     """
-    if not db_url:
-        load_dotenv(".env")  # loads DBURL
-        db_url = os.environ.get("DBURL")
-        if not db_url:
-            print("Error: Database URL not provided. Set DBURL in .env file")
-            return False
+    load_dotenv(".env")
+    try:
+        init_database(database_url_name)
+        if verbose:
+            print(f"Database initialized using {database_url_name}")
+        from label_pizza.db import SessionLocal
+    except Exception as e:
+        print(f"Error: Database initialization failed: {e}")
+        return False
     
     try:
-        engine = create_engine(db_url, echo=verbose)
-        with Session(engine) as session:
+        with SessionLocal() as session:
             if verbose:
                 project_display = []
                 for proj in projects:
