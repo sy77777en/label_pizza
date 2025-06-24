@@ -14,8 +14,6 @@ import os
 import random
 from datetime import datetime, timezone
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 # Load environment variables
 load_dotenv()
@@ -25,16 +23,17 @@ from label_pizza.services import (
     QuestionService, QuestionGroupService, SchemaService, 
     VideoService, ProjectService, AuthService, AnnotatorService
 )
+from label_pizza.db import init_database
+import label_pizza.db as db
 
-def setup_database():
+def setup_database(database_url_name="DBURL"):
     """Setup database connection"""
-    db_url = os.getenv("DBURL")
-    if not db_url:
-        raise ValueError("DBURL not found in environment variables")
-    
-    engine = create_engine(db_url)
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    return SessionLocal()
+    try:
+        init_database(database_url_name)
+        print(f"✓ Database initialized using {database_url_name}")
+        return db.SessionLocal()
+    except Exception as e:
+        raise ValueError(f"Database initialization failed: {e}")
 
 def create_questions(session):
     """Create questions for all three groups"""
@@ -398,13 +397,22 @@ def generate_stress_test_answers(session, project_id, model_user_id, group_ids, 
 
 def main():
     """Main execution function"""
+    parser = argparse.ArgumentParser(description="Set up cinematography analysis test data")
+    parser.add_argument(
+        "--database-url-name",
+        default="DBURL",
+        help="Environment variable name for database URL (default: DBURL)"
+    )
+    
+    args = parser.parse_args()
+    
     print("=" * 60)
     print("🎬 VIDEO CINEMATOGRAPHY ANALYSIS SETUP")
     print("=" * 60)
     
     try:
         # Setup database
-        session = setup_database()
+        session = setup_database(args.database_url_name)
         print("✓ Database connection established")
         
         # Create questions
