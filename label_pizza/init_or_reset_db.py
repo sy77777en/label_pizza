@@ -22,7 +22,7 @@ import os
 import sys
 from typing import Optional
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, text, MetaData
+from sqlalchemy import text, MetaData, Engine
 from sqlalchemy.orm import Session
 
 # Load environment variables
@@ -32,16 +32,16 @@ load_dotenv()
 try:
     from label_pizza.models import Base, User
     from label_pizza.services import AuthService
-    from label_pizza.db import init_database
+    from label_pizza.db import init_database as init_db
 except ImportError as e:
     print(f"❌ Error importing modules: {e}")
     print("Make sure you're running this from the correct directory.")
     sys.exit(1)
 
-def seed_admin_user(email: str, password: str, user_id: str) -> bool:
+def seed_admin_user(email: str, password: str, user_id: str, session_local: Session) -> bool:
     """Create an admin user with specified credentials"""
     try:
-        with SessionLocal() as session:
+        with session_local() as session:
             AuthService.seed_admin(
                 session=session,
                 email=email,
@@ -121,11 +121,11 @@ def create_all_tables(engine, mode="reset"):
     metadata.reflect(bind=engine)
     print(f"   ✅ Created/verified {len(metadata.tables)} tables")
 
-def seed_sample_data():
+def seed_sample_data(session_local: Session):
     """Seed some sample data for testing"""
     print("🌱 Seeding sample data...")
     
-    with SessionLocal() as session:
+    with session_local() as session:
         try:
             # Import services
             from label_pizza.services import (
@@ -222,11 +222,11 @@ def seed_sample_data():
         except ImportError as e:
             print(f"   ⚠️  Could not seed sample data: {e}")
 
-def verify_database(email: str):
+def verify_database(email: str, session_local: Session):
     """Verify the database setup was successful"""
     print("🔍 Verifying database...")
     
-    with SessionLocal() as session:
+    with session_local() as session:
         try:
             # Check that admin user exists
             admin_count = session.execute(
@@ -262,7 +262,7 @@ def verify_database(email: str):
         except Exception as e:
             print(f"   ❌ Verification failed: {e}")
 
-def init_database(email: str, password: str, user_id: str, force: bool = False, seed_sample: bool = False):
+def init_database(email: str, password: str, user_id: str, force: bool = False, seed_sample: bool = False, engine: Engine = None, session_local: Session = None):
     """Initialize database safely (won't affect existing tables)"""
     print("🍕 Label Pizza Database Initialization")
     print("=" * 40)
@@ -286,14 +286,14 @@ def init_database(email: str, password: str, user_id: str, force: bool = False, 
         create_all_tables(engine, mode="init")
         
         # Seed admin user
-        seed_admin_user(email, password, user_id)
+        seed_admin_user(email, password, user_id, session_local)
         
         # Optional sample data
         if seed_sample:
-            seed_sample_data()
+            seed_sample_data(session_local)
         
         # Verify setup
-        verify_database(email)
+        verify_database(email, session_local)
         
         print("\n🎉 Database initialization completed successfully!")
         print()
@@ -310,7 +310,7 @@ def init_database(email: str, password: str, user_id: str, force: bool = False, 
         print(f"\n❌ Initialization failed: {e}")
         return False
 
-def reset_database(email: str, password: str, user_id: str, force: bool = False, seed_sample: bool = False):
+def reset_database(email: str, password: str, user_id: str, force: bool = False, seed_sample: bool = False, engine: Engine = None, session_local: Session = None):
     """Reset database completely (DESTRUCTIVE!)"""
     print("🍕 Label Pizza Database Reset")
     print("=" * 40)
@@ -335,14 +335,14 @@ def reset_database(email: str, password: str, user_id: str, force: bool = False,
         create_all_tables(engine, mode="reset")
         
         # Seed admin user
-        seed_admin_user(email, password, user_id)
+        seed_admin_user(email, password, user_id, session_local)
         
         # Optional sample data
         if seed_sample:
-            seed_sample_data()
+            seed_sample_data(session_local)
         
         # Verify setup
-        verify_database(email)
+        verify_database(email, session_local)
         
         print("\n🎉 Database reset completed successfully!")
         print()
@@ -431,7 +431,7 @@ Examples:
     args = parser.parse_args()
 
     try:
-        init_database(args.database_url_name)
+        init_db(args.database_url_name)
         print(f"✅ Database initialized using {args.database_url_name}")
         from label_pizza.db import engine, SessionLocal
     except Exception as e:
@@ -450,9 +450,9 @@ Examples:
     
     # Run the appropriate mode
     if args.mode == "init":
-        success = init_database(args.email, args.password, args.user_id, args.force, args.seed_sample_data)
+        success = init_database(args.email, args.password, args.user_id, args.force, args.seed_sample_data, engine, SessionLocal)
     else:  # reset
-        success = reset_database(args.email, args.password, args.user_id, args.force, args.seed_sample_data)
+        success = reset_database(args.email, args.password, args.user_id, args.force, args.seed_sample_data, engine, SessionLocal)
     
     sys.exit(0 if success else 1)
 
