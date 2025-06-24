@@ -14,28 +14,39 @@ from sqlalchemy import text
 from contextlib import contextmanager
 import json
 import re
+import atexit
 
 # Import modules (adjust paths as needed)
-from db import SessionLocal, engine
-from models import Base
-from services import (
+# from db import SessionLocal, engine
+import argparse
+    
+parser = argparse.ArgumentParser(add_help=False)
+parser.add_argument("--database-url-name", default="DBURL")
+args, _ = parser.parse_known_args()
+
+# Initialize database (Important to do this before importing utils which uses the database session)
+from label_pizza.db import init_database, cleanup_connections
+init_database(args.database_url_name) # This will call Base.metadata.create_all(engine)
+
+
+from label_pizza.models import Base
+from label_pizza.services import (
     VideoService, ProjectService, SchemaService, QuestionService, 
     AuthService, QuestionGroupService, AnnotatorService, 
     GroundTruthService, ProjectGroupService, AutoSubmitService, ReviewerAutoSubmitService, get_weighted_votes_for_question_with_custom_weights
 )
-from custom_video_player import custom_video_player
-from search_portal import search_portal
-from utils import (
-    get_card_style, custom_info, COLORS, handle_database_errors, get_db_session,
+from label_pizza.custom_video_player import custom_video_player
+from label_pizza.search_portal import search_portal
+from label_pizza.utils import (
+    get_card_style, custom_info, COLORS, handle_database_errors, get_db_session, clear_project_cache,
     _display_unified_status, _display_clean_sticky_single_choice_question,
     _display_clean_sticky_description_question, _get_enhanced_options_for_reviewer,
     _submit_answer_reviews, _load_existing_answer_reviews, calculate_overall_accuracy, calculate_per_question_accuracy,
     get_schema_question_groups, get_project_videos, get_questions_by_group_cached,
     get_cached_user_completion_progress, get_session_cached_project_annotators, calculate_user_overall_progress
 )
-import export as export_module
+import label_pizza.export as export_module
 
-Base.metadata.create_all(engine)
 
 ###############################################################################
 # ACCURACY DISPLAY FUNCTIONS
@@ -4304,7 +4315,6 @@ def display_project_view(user_id: int, role: str, session: Session):
     # 🔥 ADD THE CACHE CLEARING CODE HERE - RIGHT AFTER PROJECT LOADS SUCCESSFULLY
     # Clear cache when entering a new project for fresh data
     if st.session_state.get('last_project_id') != project_id:
-        from utils import clear_project_cache  # Import the function
         clear_project_cache(project_id)
         st.session_state.last_project_id = project_id
     
@@ -7163,16 +7173,17 @@ def admin_projects():
         if not projects_df.empty:
             enhanced_projects = []
             for _, project in projects_df.iterrows():
+                schema_name = SchemaService.get_schema_name_by_id(schema_id=project["Schema ID"], session=session)
                 try:
                     progress = ProjectService.progress(project_id=project["ID"], session=session)
                     has_full_gt = check_project_has_full_ground_truth(project_id=project["ID"], session=session)
                     mode = "🎓 Training" if has_full_gt else "📝 Annotation"
-                    
+
                     enhanced_projects.append({
                         "ID": project["ID"],
                         "Name": project["Name"],
                         "Videos": project["Videos"],
-                        "Schema ID": project["Schema ID"],
+                        "Schema Name": schema_name,
                         "Mode": mode,
                         "GT Progress": f"{progress['completion_percentage']:.1f}%",
                         "GT Answers": f"{progress['ground_truth_answers']}/{progress['total_videos'] * progress['total_questions']}"
@@ -7182,11 +7193,12 @@ def admin_projects():
                         "ID": project["ID"],
                         "Name": project["Name"],
                         "Videos": project["Videos"],
-                        "Schema ID": project["Schema ID"],
+                        "Schema Name": schema_name,
                         "Mode": "Error",
                         "GT Progress": "Error",
                         "GT Answers": "Error"
                     })
+                    print(f"Error processing project {project['ID']}: {e}")
             
             enhanced_df = pd.DataFrame(enhanced_projects)
             st.dataframe(enhanced_df, use_container_width=True)
@@ -7961,9 +7973,6 @@ def main():
         layout="wide",
         initial_sidebar_state="expanded"
     )
-
-    import atexit
-    from db import cleanup_connections
     
     # Ensure cleanup happens
     if 'cleanup_registered' not in st.session_state:

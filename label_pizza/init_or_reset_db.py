@@ -30,9 +30,9 @@ load_dotenv()
 
 # Import your models and services
 try:
-    from models import Base, User
-    from services import AuthService
-    from db import engine, SessionLocal
+    from label_pizza.models import Base, User
+    from label_pizza.services import AuthService
+    from label_pizza.db import init_database
 except ImportError as e:
     print(f"❌ Error importing modules: {e}")
     print("Make sure you're running this from the correct directory.")
@@ -128,7 +128,7 @@ def seed_sample_data():
     with SessionLocal() as session:
         try:
             # Import services
-            from services import (
+            from label_pizza.services import (
                 VideoService, QuestionService, QuestionGroupService, 
                 SchemaService, ProjectService
             )
@@ -421,8 +421,22 @@ Examples:
         action="store_true",
         help="Seed sample data for testing (disabled by default)"
     )
+
+    parser.add_argument(
+        "--database-url-name",
+        default="DBURL", 
+        help="Environment variable name for database URL (default: DBURL)"
+    )
     
     args = parser.parse_args()
+
+    try:
+        init_database(args.database_url_name)
+        print(f"✅ Database initialized using {args.database_url_name}")
+        from label_pizza.db import engine, SessionLocal
+    except Exception as e:
+        print(f"❌ Database initialization failed: {e}")
+        sys.exit(1)
     
     # Check database connection
     try:

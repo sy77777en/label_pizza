@@ -19,11 +19,12 @@ from pathlib import Path
 load_dotenv()
 
 # Import verify module
-verify_path = Path(__file__).parent / "verify.py"
-spec = importlib.util.spec_from_file_location("verify", verify_path)
-verify = importlib.util.module_from_spec(spec)
-sys.modules["verify"] = verify
-spec.loader.exec_module(verify)
+# verify_path = Path(__file__).parent / "verify.py"
+# spec = importlib.util.spec_from_file_location("verify", verify_path)
+# verify = importlib.util.module_from_spec(spec)
+# sys.modules["verify"] = verify
+# spec.loader.exec_module(verify)
+from label_pizza import verify
 
 
 class VideoService:
@@ -997,6 +998,27 @@ class SchemaService:
         if not schema:
             raise ValueError(f"Schema '{name}' not found")
         return schema.id
+    
+    @staticmethod
+    def get_schema_name_by_id(schema_id: int, session: Session) -> str:
+        """Get schema name by ID.
+        
+        Args:
+            schema_id: The ID of the schema
+            session: Database session
+            
+        Returns:
+            Schema name
+            
+        Raises:
+            ValueError: If schema not found or if schema is archived
+        """
+        schema = session.get(Schema, schema_id)
+        if not schema:
+            raise ValueError(f"Schema with ID {schema_id} not found")
+        if schema.is_archived:
+            raise ValueError(f"Schema with ID {schema_id} is archived")
+        return schema.name
 
     @staticmethod
     def create_schema(name: str, question_group_ids: List[int], session: Session) -> Schema:
@@ -4363,7 +4385,7 @@ class AutoSubmitService:
     ) -> Dict[str, float]:
         """Calculate weighted votes for a single question with user and option weights"""
         try:
-            from models import User, ProjectUserRole
+            from label_pizza.models import User, ProjectUserRole
             from sqlalchemy import select
             
             # Get question details
@@ -4577,7 +4599,7 @@ class AutoSubmitService:
                 verification_function = group_details.get("verification_function")
                 
                 if verification_function:
-                    from models import QuestionGroup
+                    from label_pizza.models import QuestionGroup
                     from sqlalchemy import select
                     
                     group = session.execute(
@@ -4660,7 +4682,7 @@ class ReviewerAutoSubmitService:
                 verification_function = group_details.get("verification_function")
                 
                 if verification_function:
-                    from models import QuestionGroup
+                    from label_pizza.models import QuestionGroup
                     from sqlalchemy import select
                     
                     group = session.execute(
@@ -4797,7 +4819,7 @@ def get_weighted_votes_for_question_with_custom_weights(
     MINIMAL MODIFICATION of the original function to use custom option weights for reviewers.
     """
     try:
-        from models import User, ProjectUserRole
+        from label_pizza.models import User, ProjectUserRole
         from sqlalchemy import select
         
         # Get question details

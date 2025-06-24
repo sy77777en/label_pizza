@@ -18,9 +18,9 @@ current_dir = Path(__file__).parent
 sys.path.insert(0, str(current_dir))
 
 try:
-    from db import SessionLocal, engine
-    from models import Base
-    from services import (
+    from label_pizza.db import init_database
+    from label_pizza.models import Base
+    from label_pizza.services import (
         VideoService, QuestionService, QuestionGroupService, 
         SchemaService, ProjectService, AuthService, ProjectGroupService
     )
@@ -28,6 +28,18 @@ try:
 except ImportError as e:
     print(f"❌ Import error: {e}")
     print("Make sure all required files (db.py, services.py, models.py) are in the same directory")
+    sys.exit(1)
+
+args = argparse.ArgumentParser(add_help=False)
+args.add_argument("--database-url-name", default="DBURL")
+args, _ = args.parse_known_args()
+
+try:
+    init_database(args.database_url_name)
+    print(f"✅ Database initialized using {args.database_url_name}")
+    from label_pizza.db import engine, SessionLocal
+except Exception as e:
+    print(f"❌ Database initialization failed: {e}")
     sys.exit(1)
 
 class TestDataSetup:

@@ -24,16 +24,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
 
-# Import the services from your existing services file
-try:
-    from label_pizza.services import GroundTruthExportService, ProjectService, save_export_as_json, save_export_as_excel
-except ImportError:
-    # If the service is in the same directory
-    try:
-        from services import GroundTruthExportService, ProjectService, save_export_as_json, save_export_as_excel
-    except ImportError:
-        print("Error: Cannot import services. Please ensure services.py is available in your Python path.")
-        sys.exit(1)
+from label_pizza.services import GroundTruthExportService, ProjectService, save_export_as_json, save_export_as_excel
 
 
 def resolve_projects_to_ids(projects, session):
@@ -114,8 +105,9 @@ should be quoted.
     )
     
     parser.add_argument(
-        "--database-url",
-        help="Database URL (overrides .env file DBURL)"
+        "--database-url-name",
+        default="DBURL",
+        help="Environment variable name for database URL (default: DBURL)"
     )
     
     parser.add_argument(

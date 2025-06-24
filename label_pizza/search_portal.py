@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from contextlib import contextmanager
 
 # Import from utils.py
-from utils import (
+from label_pizza.utils import (
     get_card_style, COLORS, handle_database_errors, get_db_session, custom_info,
     _display_unified_status, _display_clean_sticky_single_choice_question,
     _display_clean_sticky_description_question, _get_enhanced_options_for_reviewer,
@@ -14,14 +14,14 @@ from utils import (
 )
 
 # Import services
-from services import (
+from label_pizza.services import (
     VideoService, ProjectService, SchemaService, QuestionService, 
     AuthService, QuestionGroupService, AnnotatorService, 
     GroundTruthService, ProjectGroupService
 )
 
 # Import custom components
-from custom_video_player import custom_video_player
+from label_pizza.custom_video_player import custom_video_player
 
 ###############################################################################
 # SEARCH PORTAL
