@@ -7,8 +7,11 @@ from contextlib import contextmanager
 import hashlib
 
 # Import database
-from db import SessionLocal
-from services import (
+from label_pizza.db import SessionLocal
+if SessionLocal is None:
+    raise ValueError("SessionLocal is not initialized. Please initialize the database first.")
+
+from label_pizza.services import (
     AuthService, AnnotatorService, GroundTruthService, 
     QuestionService, QuestionGroupService, SchemaService,
     ProjectService, VideoService
@@ -1113,7 +1116,7 @@ def get_weighted_votes_for_question_with_custom_weights(
     OPTIMIZED: MINIMAL MODIFICATION of the original function to use custom option weights for reviewers.
     """
     try:
-        from models import User, ProjectUserRole
+        from label_pizza.models import User, ProjectUserRole
         from sqlalchemy import select
         
         # Get question details

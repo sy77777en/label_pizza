@@ -135,6 +135,7 @@ echo 'DBURL=postgresql://<user>:<password>@<host>:<port>/<database>' > .env
 # create the first Admin account (change the args to your own)
 python label_pizza/init_or_reset_db.py \
   --mode init \
+  --database-url-name DBURL \
   --email admin@example.com \
   --password MyPassword! \
   --user-id "Admin User"
@@ -142,7 +143,7 @@ python label_pizza/init_or_reset_db.py \
 
 ```bash
 # start Streamlit; feel free to change the port
-streamlit run label_pizza/label_pizza_app.py --server.port 8000  --server.address 0.0.0.0
+streamlit run label_pizza/label_pizza_app.py --server.port 8000  --server.address 0.0.0.0 -- --database-url-name DBURL
 ```
 
 Visit **[http://localhost:8000](http://localhost:8000)** to log in.
