@@ -76,7 +76,7 @@ OPTION_MAPPING: dict[str, dict[str, str]] = {
         "very_smooth_drone_shot": "Very Smooth / No Shaking (e.g., Drone shot with no shaking at all)",
         "smooth_steadicam_stabilized_handheld_shot": "Smooth / Minimal Shaking (e.g., Steadicam shot or stabilized handheld shot)",
         "unsteady_somewhat_shaky_handheld_shot": "Unsteady (e.g., Somewhat shaky handheld shot)",
-        "very_unsteady_extreme_shaky_found_footage_style": "Very Unsteady (e.g., Extreme shaky shot, found footage style)"
+        "very_unsteady_extreme_shaky_found_footage_style": "Very Unsteady (e.g., Shaky shot)"
     },
     "Is there any camera movement other than shaking?": {
         "yes_major_complex_motion": "Yes with major, complex motion",
@@ -202,182 +202,182 @@ OPTION_MAPPING: dict[str, dict[str, str]] = {
         "changing_mixed": "Changing + Mixed",
         "consistent": "Consistent"
     },
-    "Are there any regular lens flares?": {
+    "Regular lens flares?": {
         "yes": "Yes",
         "no": "No",
         "unsure": "Unsure"
     },
-    "Are there any anamorphic lens flares?": {
+    "Anamorphic lens flares?": {
         "yes": "Yes",
         "no": "No",
         "unsure": "Unsure"
     },
-    "Are there any mist/diffusion effect?": {
+    "Mist diffusion?": {
         "no": "No",
         "yes": "Yes",
         "unsure": "Unsure"
     },
-    "Are there any bokeh effect?": {
+    "Bokeh?": {
         "yes": "Yes",
         "no": "No",
         "unsure": "Unsure"
     },
-    "Are there any water-reflection effect?": {
+    "Water reflection?": {
         "no": "No",
         "yes": "Yes",
         "unsure": "Unsure"
     },
-    "Are there any glassy-surface reflection effect?": {
+    "Glassy surface reflection?": {
         "no": "No",
         "yes": "Yes",
         "unsure": "Unsure"
     },
-    "Are there any mirror-reflection effect?": {
+    "Mirror reflection?": {
         "no": "No",
         "yes": "Yes",
         "unsure": "Unsure"
     },
-    "Are there any aerial-perspective effect?": {
+    "Aerial / atmospheric Perspective?": {
         "no": "No",
         "yes": "Yes",
         "unsure": "Unsure"
     },
-    "Are there any rainbow effect?": {
+    "Rainbow?": {
         "yes": "Yes",
         "no": "No",
         "unsure": "Unsure"
     },
-    "Are there any aurora effect?": {
+    "Aurora?": {
         "yes": "Yes",
         "no": "No",
         "unsure": "Unsure"
     },
-    "Are there any heat-waves or heat-haze effect?": {
+    "Heat waves / haze?": {
         "no": "No",
         "yes": "Yes",
         "unsure": "Unsure"
     },
-    "Are there any lightning effect?": {
+    "Lightning?": {
         "yes": "Yes",
         "no": "No",
         "unsure": "Unsure"
     },
-    "Are there any volumetric beam light?": {
+    "Volumetric beam light?": {
         "yes": "Yes",
         "no": "No",
         "unsure": "Unsure"
     },
-    "Are there any volumetric spot light?": {
+    "Volumetric spot light?": {
         "yes": "Yes",
         "no": "No",
         "unsure": "Unsure"
     },
-    "Are there any god-rays?": {
+    "God rays?": {
         "no": "No",
         "yes": "Yes",
         "unsure": "Unsure"
     },
-    "Are there any volumetric light through medium?": {
+    "Volumetric light through medium?": {
         "yes": "Yes",
         "no": "No",
         "unsure": "Unsure"
     },
-    "Are there any other volumetric light?": {
+    "Volumetric light (others)?": {
         "no": "No",
         "yes": "Yes",
         "unsure": "Unsure"
     },
-    "Are there any venetian-blinds lighting?": {
+    "Venetian blinds?": {
         "no": "No",
         "yes": "Yes",
         "unsure": "Unsure"
     },
-    "Are there any subject-shape lighting?": {
+    "Subject shape?": {
         "no": "No",
         "yes": "Yes",
         "unsure": "Unsure"
     },
-    "Are there any window-frame lighting?": {
+    "Window frame?": {
         "no": "No",
         "yes": "Yes",
         "unsure": "Unsure"
     },
-    "Are there any foliage lighting?": {
+    "Foliage?": {
         "yes": "Yes",
         "no": "No",
         "unsure": "Unsure"
     },
-    "Are there any gobo-lighting (others)?": {
+    "Gobo lighting (others)?": {
         "no": "No",
         "yes": "Yes",
         "unsure": "Unsure"
     },
-    "Are there any color-shifting (smooth) effect?": {
+    "Color shifting (smooth)?": {
         "no": "No",
         "yes": "Yes",
         "unsure": "Unsure"
     },
-    "Are there any color-shifting (sudden) effect?": {
+    "Color shifting (sudden)?": {
         "no": "No",
         "yes": "Yes",
         "unsure": "Unsure"
     },
-    "Are there any flashing effect?": {
+    "Flashing?": {
         "yes": "Yes",
         "no": "No",
         "unsure": "Unsure"
     },
-    "Are there any moving-light effect?": {
+    "Moving light?": {
         "no": "No",
         "yes": "Yes",
         "unsure": "Unsure"
     },
-    "Are there any pulsing or flickering effect?": {
+    "Pulsing or flickering?": {
         "yes": "Yes",
         "no": "No",
         "unsure": "Unsure"
     },
-    "Are there any vignette effect?": {
+    "Vignette?": {
         "yes": "Yes",
         "no": "No",
         "unsure": "Unsure"
     },
-    "Are there any wave-light / water-caustics effect?": {
+    "Wave light or water caustics?": {
         "no": "No",
         "yes": "Yes",
         "unsure": "Unsure"
     },
-    "Are there any city-light effect?": {
+    "City light?": {
         "no": "No",
         "yes": "Yes",
         "unsure": "Unsure"
     },
-    "Are there any street-light effect?": {
+    "Street light?": {
         "no": "No",
         "yes": "Yes",
         "unsure": "Unsure"
     },
-    "Are there any revealing-shot dynamic?": {
+    "Revealing shot?": {
         "no": "No",
         "yes": "Yes",
         "unsure": "Unsure"
     },
-    "Are there any transformation or morphing dynamic?": {
+    "Transformation or morphing?": {
         "yes": "Yes",
         "no": "No",
         "unsure": "Unsure"
     },
-    "Are there any levitation or floating dynamic?": {
+    "Levitation or floating?": {
         "yes": "Yes",
         "no": "No",
         "unsure": "Unsure"
     },
-    "Are there any explosion dynamic?": {
+    "Explosion?": {
         "yes": "Yes",
         "no": "No",
         "unsure": "Unsure"
     },
-    "Are there any shattering or breaking effect?": {
+    "Shattering or breaking?": {
         "no": "No",
         "yes": "Yes",
         "unsure": "Unsure"
@@ -387,7 +387,7 @@ OPTION_MAPPING: dict[str, dict[str, str]] = {
         "no": "No",
         "unsure": "Unsure"
     },
-    "Are there any splashing or waves dynamic?": {
+    "Splashing or waves?": {
         "yes": "Yes",
         "no": "No",
         "unsure": "Unsure"
@@ -397,17 +397,17 @@ OPTION_MAPPING: dict[str, dict[str, str]] = {
         "subject_gets_larger": "Subject gets larger",
         "subject_gets_smaller": "Subject gets smaller"
     },
-    "Are there any professional / portrait lighting effect?": {
+    "Professional / portrait lighting?": {
         "no": "No",
         "yes": "Yes",
         "unsure": "Unsure"
     },
-    "Are there any colored or neon lighting effect?": {
+    "Colored or neon lighting?": {
         "yes": "Yes",
         "no": "No",
         "unsure": "Unsure"
     },
-    "Are there any head-light or flash-light effect?": {
+    "Headlight or flashlight?": {
         "no": "No",
         "yes": "Yes",
         "unsure": "Unsure"
@@ -459,40 +459,40 @@ NAME_MAPPING: dict[str, str] = {
     "light_contrast_on_subject_s_is":              "Light contrast on subject(s) is?",
     
     # Light-effects checklist
-    "are_there_any_regular_lens_flares":           "Are there any regular lens flares?",
-    "are_there_any_anamorphic_lens_flares":        "Are there any anamorphic lens flares?",
-    "are_there_any_mist_diffusion_effect":         "Are there any mist/diffusion effect?",
-    "are_there_any_bokeh_effect":                  "Are there any bokeh effect?",
-    "are_there_any_water_reflection_effect":       "Are there any water-reflection effect?",
-    "are_there_any_glassy_surface_reflection_effect": "Are there any glassy-surface reflection effect?",
-    "are_there_any_mirror_reflection_effect":      "Are there any mirror-reflection effect?",
-    "are_there_any_aeiral_perspective_effect":     "Are there any aerial-perspective effect?",
-    "are_there_any_rainbow_effect":                "Are there any rainbow effect?",
-    "are_there_any_aurora_effect":                 "Are there any aurora effect?",
-    "are_there_any_heat_waves_or_heat_haze_effect": "Are there any heat-waves or heat-haze effect?",
-    "are_there_any_lightning_effect":              "Are there any lightning effect?",
-    "are_there_any_wave_light_or_water_caustics_effect": "Are there any wave-light / water-caustics effect?",
-    "are_there_any_volumetric_beam_light":         "Are there any volumetric beam light?",
-    "are_there_any_volumetric_spot_light":         "Are there any volumetric spot light?",
-    "are_ther_any_god_rays":                       "Are there any god-rays?",
-    "are_there_any_volumetric_light_through_medium": "Are there any volumetric light through medium?",
-    "are_there_any_volumetric_light_others":       "Are there any other volumetric light?",
-    "are_there_any_venetian_blinds_lighting":      "Are there any venetian-blinds lighting?",
-    "are_there_any_subject_shape_lighting":        "Are there any subject-shape lighting?",
-    "are_there_any_window_frame_lighting":         "Are there any window-frame lighting?",
-    "are_there_any_foliage_lighting":              "Are there any foliage lighting?",
+    "are_there_any_regular_lens_flares":           "Regular lens flares?",
+    "are_there_any_anamorphic_lens_flares":        "Anamorphic lens flares?",
+    "are_there_any_mist_diffusion_effect":         "Mist diffusion?",
+    "are_there_any_bokeh_effect":                  "Bokeh?",
+    "are_there_any_water_reflection_effect":       "Water reflection?",
+    "are_there_any_glassy_surface_reflection_effect": "Glassy surface reflection?",
+    "are_there_any_mirror_reflection_effect":      "Mirror reflection?",
+    "are_there_any_aeiral_perspective_effect":     "Aerial / atmospheric Perspective?",
+    "are_there_any_rainbow_effect":                "Rainbow?",
+    "are_there_any_aurora_effect":                 "Aurora?",
+    "are_there_any_heat_waves_or_heat_haze_effect": "Heat waves / haze?",
+    "are_there_any_lightning_effect":              "Lightning?",
+    "are_there_any_wave_light_or_water_caustics_effect": "Wave light or water caustics?",
+    "are_there_any_volumetric_beam_light":         "Volumetric beam light?",
+    "are_there_any_volumetric_spot_light":         "Volumetric spot light?",
+    "are_ther_any_god_rays":                       "God rays?",
+    "are_there_any_volumetric_light_through_medium": "Volumetric light through medium?",
+    "are_there_any_volumetric_light_others":       "Volumetric light (others)?",
+    "are_there_any_venetian_blinds_lighting":      "Venetian blinds?",
+    "are_there_any_subject_shape_lighting":        "Subject shape?",
+    "are_there_any_window_frame_lighting":         "Window frame?",
+    "are_there_any_foliage_lighting":              "Foliage?",
     "are_there_any_gobo_lighting_others":          "Are there any gobo-lighting (others)?",
-    "are_there_any_color_shifting_smooth_effect":  "Are there any color-shifting (smooth) effect?",
-    "are_there_any_color_shifting_sudden_effect":  "Are there any color-shifting (sudden) effect?",
-    "are_there_any_flashing_effect":               "Are there any flashing effect?",
-    "are_there_any_moving_light_effect":           "Are there any moving-light effect?",
-    "are_there_any_pulsing_or_flickering_effect":  "Are there any pulsing or flickering effect?",
-    "are_there_any_professional_or_portrait_lighting_effect": "Are there any professional / portrait lighting effect?",
-    "are_there_any_colored_or_neon_lighting_effect": "Are there any colored or neon lighting effect?",
-    "are_there_any_headlight_or_flashlight_effect": "Are there any head-light or flash-light effect?",
-    "are_there_any_vignette_effect":               "Are there any vignette effect?",
-    "are_there_any_city_light_effect":             "Are there any city-light effect?",
-    "are_there_any_street_light_effect":           "Are there any street-light effect?",
+    "are_there_any_color_shifting_smooth_effect":  "Color shifting (smooth)?",
+    "are_there_any_color_shifting_sudden_effect":  "Color shifting (sudden)?",
+    "are_there_any_flashing_effect":               "Flashing?",
+    "are_there_any_moving_light_effect":           "Moving light?",
+    "are_there_any_pulsing_or_flickering_effect":  "Pulsing or flickering?",
+    "are_there_any_professional_or_portrait_lighting_effect": "Professional / portrait lighting?",
+    "are_there_any_colored_or_neon_lighting_effect": "Colored or neon lighting?",
+    "are_there_any_headlight_or_flashlight_effect": "Headlight or flashlight?",
+    "are_there_any_vignette_effect":               "Vignette?",
+    "are_there_any_city_light_effect":             "City light?",
+    "are_there_any_street_light_effect":           "Street light?",
 
     # Descriptive free-text for special lighting
     "special_lighting_effects_description":        "Describe special lighting effects",
@@ -501,13 +501,13 @@ NAME_MAPPING: dict[str, str] = {
     "dynamic_lighting_effects_description":        "Describe dynamic lighting effects",
 
     # Dynamic / motion-graphic effects
-    "are_there_any_revealing_shot_dynamic":        "Are there any revealing-shot dynamic?",
-    "are_there_any_transformation_or_morphing_dynamic": "Are there any transformation or morphing dynamic?",
-    "are_there_any_levitation_or_floating_dynamic": "Are there any levitation or floating dynamic?",
-    "are_there_any_explosion_dynamic":             "Are there any explosion dynamic?",
-    "are_there_any_shattering_or_breaking_effect": "Are there any shattering or breaking effect?",
+    "are_there_any_revealing_shot_dynamic":        "Revealing shot?",
+    "are_there_any_transformation_or_morphing_dynamic": "Transformation or morphing?",
+    "are_there_any_levitation_or_floating_dynamic": "Levitation or floating?",
+    "are_there_any_explosion_dynamic":             "Explosion?",
+    "are_there_any_shattering_or_breaking_effect": "Shattering or breaking?",
     "are_there_any_diffusion_dynamic":             "Are there any diffusion dynamic?",
-    "are_there_any_splashing_or_waves_dynamic":    "Are there any splashing or waves dynamic?"
+    "are_there_any_splashing_or_waves_dynamic":    "Splashing or waves?"
 }
 
 def _rename_key(raw_key: str) -> str:
@@ -541,8 +541,13 @@ def _answers_from_classifications(
                 tracking_questions = cls['radio_answer']['classifications']
                 sub_questions = [item['value'] for item in tracking_questions]
                 if "does_the_size_of_the_subject_change" in sub_questions:
+                    change_size_question = next(
+                        (cls for cls in tracking_questions
+                        if cls.get("value") == "does_the_size_of_the_subject_change"),
+                        None             # ← default returned when nothing matches
+                    )
                     tmp_key = _rename_key("does_the_size_of_the_subject_change")
-                    answers[tmp_key] = cls["radio_answer"]["value"]
+                    answers[tmp_key] = change_size_question["radio_answer"]["value"]
                 if "select_the_type_of_tracking_shot" in sub_questions:
                     tracking_question = next(
                         (cls for cls in tracking_questions
@@ -561,7 +566,6 @@ def _answers_from_classifications(
                         None             # ← default returned when nothing matches
                     )
                     selected = [item["value"] for item in subject_light["checklist_answers"]]
-                    print(_expand_checklist("select_light_directions", selected))
                     answers.update(_expand_checklist("select_light_directions", selected))
             answers[key] = cls["radio_answer"]["value"]
 
@@ -605,7 +609,7 @@ def modify_motion_attributes(motion_attributes_json: str = None):
         steadiness = answers.get("What is the camera steadiness?", None)
         arcing = answers.get("Is the camera moving in an arc?", None)
         motion_complexity = answers.get("Is there any camera movement other than shaking?", None)
-        if arcing != 'No' or motion_complexity == 'Yes with major, complex motion' or steadiness in ['Unsteady (e.g., Somewhat shaky handheld shot)', 'Very Unsteady (e.g., Extreme shaky shot, found footage style)']:
+        if arcing != 'No' or motion_complexity == 'Yes with major, complex motion' or steadiness in ['Unsteady (e.g., Somewhat shaky handheld shot)', 'Very Unsteady (e.g., Shaky shot)']:
             for attribute in attributes:
                 answers[attribute] = "Unclear" if answers[attribute] == "No" else answers[attribute]
             item['answers'] = answers
@@ -669,7 +673,7 @@ def load_ndjson_all_labels(
                         if batch_size >= max_videos_per_project:
                             batch_no += 1
                             batch_size = 0
-                        uid_to_project[video_uid] = f"{base_project_name}-{batch_no}"
+                        uid_to_project[video_uid] = f"{base_project_name} {batch_no}"
                         batch_size += 1
                     project_name = uid_to_project[video_uid]
 
@@ -702,7 +706,7 @@ def load_ndjson_all_labels(
     
     with open(target_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
-    if question_group_title == "Camera Movement Attributes_syc_test":
+    if question_group_title == "Camera Movement Attributes":
         modify_motion_attributes(target_path)
     return results
 
@@ -710,17 +714,104 @@ def load_ndjson_all_labels(
 # CLI test helper
 # ──────────────────────────────
 if __name__ == "__main__":
-    ndjson_path = "./test_ndjson/Video_Segment_Classification_Camera_Movement_cm2iljzsz00rg07117sq10jiw.ndjson"
-    question_group_title="Camera Movement Attributes_syc_test"
-    base_project_name="motion_batch_1"
-    max_videos_per_project=15
-    target_path = './test_json/all_videos_motion_attri_annotations.json'
-    out = load_ndjson_all_labels(
-        ndjson_path = ndjson_path,
-        question_group_title=question_group_title,
-        base_project_name=base_project_name,
-        max_videos_per_project=max_videos_per_project,
-        target_path = target_path,
-        selected_label=False,
-    )
-    print("✔ Done –", len(out), "records")
+    """
+        Question Group Titles:
+        - Camera Motion Effects
+        - Camera Movement Attributes
+        - Camera Movement Speed
+        - Camera Tracking Shot
+        - Color Grading
+        - Light Setup
+        - Natural Light Effects
+        - Shot Transition
+        - Special Light Effects
+        - Subject Light
+    """
+    title_project_mapping = {
+        "Camera Motion Effects": "motion_effects",
+        "Camera Movement Attributes": "motion_attributes",
+        "Camera Movement Speed": "motion_speed",
+        "Camera Tracking Shot": "tracking_shot",
+        "Color Grading": "color_grading",
+        "Light Setup": "light_setup",
+        "Natural Light Effects": "natural_effects",
+        "Special Light Effects": "special_effects",
+        "Subject Light": "subject_light",
+    }
+    import glob
+    import re
+    ndjson_paths = glob.glob("./labelbox_annotations/lighting/*.ndjson")
+    for ndjson_path in ndjson_paths:
+        fname = os.path.basename(ndjson_path)
+        m = re.match(r'^(Lightingtest_\d+(_\d+)?).*\.ndjson$', fname)
+        if m:
+            test = m.group(1)
+        # test = 'Camera Movement'
+            if "color" in fname:
+                question_group_titles = ["Color Grading"]
+            elif "light_effect" in fname:
+                question_group_titles = ["Cinematic Motion", "Lens Flares", "Reflection", "Atmospheric Effects", "Special Lighting", "Volumetric Light", "Shadow and Gobos", "Dynamic Effects"]
+            elif "subject_light" in fname:
+                question_group_titles = ["Subject Light"]
+            elif "light_setup" in fname:
+                question_group_titles = ["Light Setup"]
+            elif "Movement" in fname:
+                question_group_titles = ["Camera Movement Attributes", "Camera Motion Effects", "Camera Tracking Shot"]
+            for question_group_title in question_group_titles:
+                if question_group_title == "Cinematic Motion":
+                    fname = test + "_cinematic_motion"
+                elif question_group_title == "Lens Flares":
+                    fname = test + "_lens_flares"
+                elif question_group_title == "Reflection":
+                    fname = test + "_reflection"
+                elif question_group_title == "Atmospheric Effects":
+                    fname = test + "_atmospheric_effects"
+                elif question_group_title == "Special Lighting":
+                    fname = test + "_special_lighting"
+                elif question_group_title == "Volumetric Light":
+                    fname = test + "_volumetric_light"
+                elif question_group_title == "Shadow and Gobos":
+                    fname = test + "_shadow_and_gobos"
+                elif question_group_title == "Dynamic Effects":
+                    fname = test + "_dynamic_effects"
+                elif question_group_title == "Camera Movement Attributes":
+                    fname = test.replace(' ', '_') + "_motion_attributes"
+                elif question_group_title == "Camera Motion Effects":
+                    fname = test.replace(' ', '_') + "_motion_effects"
+                elif question_group_title == "Camera Tracking Shot":
+                    fname = test.replace(' ', '_') + "_tracking_shot"
+                target_folder = './annotations/lighting'
+                project_name_map = {
+                    'Cinematic Motion': 'Cinematic Effects', 'Lens Flares': 'Cinematic Effects', 'Reflection': 'Cinematic Effects', 'Atmospheric Effects': 'Cinematic Effects',
+                    "Special Lighting": "Special Effects", "Volumetric Light": "Special Effects", "Shadow and Gobos": "Special Effects", "Dynamic Effects": "Special Effects",
+                    "Camera Movement Attributes": "Camera Movement", "Camera Motion Effects": "Camera Movement", "Camera Tracking Shot": "Camera Movement",
+                    'Color Grading': 'Color Grading', 'Light Setup': 'Light Setup', 'Subject Light': 'Subject Light'
+                }
+                base_prj_name = project_name_map.get(question_group_title, question_group_title)
+                os.makedirs(target_folder, exist_ok=True)
+                target_path = os.path.join(target_folder, f'{fname}.json')
+                max_videos_per_project=30
+                out = load_ndjson_all_labels(
+                    ndjson_path = ndjson_path,
+                    question_group_title=question_group_title,
+                    base_project_name=base_prj_name + ' ' + test,
+                    max_videos_per_project=max_videos_per_project,
+                    target_path = target_path,
+                    selected_label=False,
+                )
+            # elif "motion" in fname:
+            #     question_group_title = "Camera Movement Attributes"
+    # ndjson_path = "./labelbox_annotations/Video_Segment_Classification_Camera_Movement_cm2iljzsz00rg07117sq10jiw.ndjson"
+    # question_group_title=""
+    # base_project_name="motion_batch_1"
+    # max_videos_per_project=15
+    # target_path = './test_json/all_videos_motion_attri_annotations.json'
+    # out = load_ndjson_all_labels(
+    #     ndjson_path = ndjson_path,
+    #     question_group_title=question_group_title,
+    #     base_project_name=base_project_name,
+    #     max_videos_per_project=max_videos_per_project,
+    #     target_path = target_path,
+    #     selected_label=False,
+    # )
+    # print("✔ Done –", len(out), "records")
