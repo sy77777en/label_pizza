@@ -1,0 +1,37 @@
+{
+    "title": "Weather Questions",
+    "description": "Detect and describe the weathers in the video.",
+    "is_reusable": false,
+    "is_auto_submit": false,
+    "verification_function": "check_weather_description",
+    "questions": [
+        {
+            "text": "Is the weather sunny?",
+            "qtype": "single",
+            "required": true,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure",
+                "Complex (others)"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure",
+                "Complex (others)"
+            ],
+            "default_option": "Unsure",
+            "display_text": "Is the weather sunny?"
+        },
+        {
+            "text": "If the weathers change during the video, please describe them.",
+            "qtype": "description",
+            "required": false,
+            "options": null,
+            "display_values": null,
+            "default_option": null,
+            "display_text": "If the weathers change during the video, please describe them."
+        }
+    ]
+}

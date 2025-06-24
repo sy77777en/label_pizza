@@ -582,7 +582,7 @@ def upload_users():
     import glob
     paths = glob.glob('./users/*.json')
     for path in paths:
-        with open(json_path, 'r') as f:
+        with open(path, 'r') as f:
             users = json.load(f)
 
         with SessionLocal() as session:
