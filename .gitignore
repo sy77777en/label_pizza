@@ -25,6 +25,7 @@ wheels/
 .installed.cfg
 *.egg
 scripts/
+test.py
 # Virtual Environment
 venv/
 env/
