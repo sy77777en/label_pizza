@@ -19,11 +19,11 @@ example/
 ├── question_groups/
 │   ├── nsfw.json
 │   ├── subjects.json
-│   └── weather.json
+│   └── actions.json
 └── reviews/
     ├── subjects/
     │   └── subject_annotations.json
-    └── weather/
+    └── actions/
         └── weather_annotations.json
 ```
 

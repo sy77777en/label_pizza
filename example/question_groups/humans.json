@@ -1,0 +1,37 @@
+{
+    "title": "Human Questions",
+    "description": "Detect and describe all humans in the video.",
+    "is_reusable": false,
+    "is_auto_submit": false,
+    "verification_function": "check_human_description",
+    "questions": [
+        {
+            "text": "Number of people?",
+            "qtype": "single",
+            "required": true,
+            "options": [
+                "0",
+                "1",
+                "2",
+                "Complex (others)"
+            ],
+            "display_values": [
+                "0",
+                "1",
+                "2",
+                "Complex (others)"
+            ],
+            "default_option": "0",
+            "display_text": "Number of people?"
+        },
+        {
+            "text": "If there are people, describe them.",
+            "qtype": "description",
+            "required": false,
+            "options": null,
+            "display_values": null,
+            "default_option": null,
+            "display_text": "If there are people, describe them."
+        }
+    ]
+}

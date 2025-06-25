@@ -1,14 +1,14 @@
 [
   {
-    "schema_name": "Subjects in Video",
+    "schema_name": "Humans in Video",
     "question_group_names": [
-      "Subject Questions", "NSFW Question"
+      "Human Questions", "NSFW Question"
     ]
   },
   {
-    "schema_name": "Actions in Video",
+    "schema_name": "Pizzas in Video",
     "question_group_names": [
-      "Action Identification", "NSFW Question"
+      "Pizza Questions", "NSFW Question"
     ]
   }
 ]

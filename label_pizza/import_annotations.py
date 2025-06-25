@@ -399,12 +399,10 @@ def import_annotations(annotations_folder: str = None, annotations_data: list[di
         import os
         import glob
         annotations_data = []
-        subfolders = glob.glob(os.path.join(annotations_folder, '*'))
-        for subfolder in subfolders:
-            paths = glob.glob(os.path.join(subfolder, '*.json'))
-            for path in paths:
-                with open(path, 'r') as f:
-                    annotations_data.append(json.load(f))
+        paths = glob.glob(os.path.join(annotations_folder, '*.json'))
+        for path in paths:
+            with open(path, 'r') as f:
+                annotations_data.append(json.load(f))
     for annotation_data in annotations_data:
         upload_annotations_from_json(annotation_data)
     
@@ -417,12 +415,10 @@ def import_reviews(reviews_folder: str = None, reviews_data: list[dict] = None) 
         import os
         import glob
         reviews_data = []
-        subfolders = glob.glob(os.path.join(reviews_folder, '*'))
-        for subfolder in subfolders:
-            paths = glob.glob(os.path.join(subfolder, '*.json'))
-            for path in paths:
-                with open(path, 'r') as f:
-                    reviews_data.append(json.load(f))
+        paths = glob.glob(os.path.join(reviews_folder, '*'))
+        for path in paths:
+            with open(path, 'r') as f:
+                reviews_data.append(json.load(f))
     for review_data in reviews_data:
         upload_reviews_from_json(review_data)
 
