@@ -1,3 +1,6 @@
-from upload_utils import *
+import sys
+from pathlib import Path
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-create_schemas()
+from label_pizza.upload_utils import *
