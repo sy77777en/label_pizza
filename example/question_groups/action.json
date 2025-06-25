@@ -1,0 +1,39 @@
+{
+    "title": "Action Identification",
+    "description": "Please identify the primary action taking place in the video clip.",
+    "is_reusable": false,
+    "is_auto_submit": false,
+    "verification_function": "check_action_description",
+    "questions": [
+      {
+        "text": "What is the primary action in the video?",
+        "qtype": "single",
+        "required": true,
+        "options": [
+          "Walking",
+          "Running",
+          "Standing",
+          "Sitting",
+          "Other (please specify)"
+        ],
+        "display_values": [
+          "Walking",
+          "Running",
+          "Standing",
+          "Sitting",
+          "Other (please specify)"
+        ],
+        "default_option": "Other (please specify)",
+        "display_text": "What is the primary action in the video?"
+      },
+      {
+        "text": "Provide a brief description of the observed action.",
+        "qtype": "description",
+        "required": false,
+        "options": null,
+        "display_values": null,
+        "default_option": null,
+        "display_text": "Provide a brief description of the observed action."
+      }
+    ]
+  }

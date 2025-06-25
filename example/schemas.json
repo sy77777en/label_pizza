@@ -6,9 +6,9 @@
     ]
   },
   {
-    "schema_name": "Weather in Video",
+    "schema_name": "Actions in Video",
     "question_group_names": [
-      "Weather Questions", "NSFW Question"
+      "Action Identification", "NSFW Question"
     ]
   }
 ]

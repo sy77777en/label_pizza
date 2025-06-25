@@ -1,7 +1,7 @@
 [
   {
     "user_email": "admin1@example.com",
-    "project_name": "Weather test 0",
+    "project_name": "Action test 0",
     "role": "reviewer"
   },
   {
@@ -11,7 +11,7 @@
   },
   {
     "user_email": "user1@example.com",
-    "project_name": "Weather test 0",
+    "project_name": "Action test 0",
     "role": "reviewer"
   },
   {

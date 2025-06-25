@@ -10,6 +10,8 @@ from label_pizza.services import (
     AuthService, AnnotatorService, GroundTruthService, SchemaService
 )
 from label_pizza.db import SessionLocal
+from label_pizza.db import init_database
+init_database()
 
 def get_project_from_annotations(annotations_path: str = None, annotations_data: list[dict] = None, schema_name: str = None) -> list[dict]:
     """
