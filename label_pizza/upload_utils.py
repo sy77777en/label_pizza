@@ -708,7 +708,8 @@ def create_projects(
             video_ids = ProjectService.get_video_ids_by_uids(video_uids_list, session)
             # Check if project already exists
             try:
-                schema_id = SchemaService.get_schema_id_by_name(project_data.get('schema_name', None), session)
+                project = ProjectService.get_project_by_name(project_data.get('project_name', None), session)
+                print(f"Project {project.name} already exists")
             except Exception as e:
                 if ("not found" in str(e)):
                     ProjectService.create_project(name = project_name, schema_id = schema_id, video_ids = video_ids, session = session)

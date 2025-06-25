@@ -6,7 +6,7 @@
     "verification_function": "check_subject_description",
     "questions": [
         {
-            "text": "How many people are there in the video",
+            "text": "Number of people?",
             "qtype": "single",
             "required": true,
             "options": [
@@ -22,10 +22,10 @@
                 "Complex (others)"
             ],
             "default_option": "0",
-            "display_text": "How many people are there in the video"
+            "display_text": "Number of people?"
         },
         {
-            "text": "How many cars are there in the video",
+            "text": "Number of pizzas?",
             "qtype": "single",
             "required": true,
             "options": [
@@ -41,16 +41,16 @@
                 "Complex (others)"
             ],
             "default_option": "0",
-            "display_text": "How many cars are there in the video"
+            "display_text": "Number of pizzas?"
         },
         {
-            "text": "If there is at least one person in the video, please describe them.",
+            "text": "Describe any person in the video.",
             "qtype": "description",
             "required": false,
             "options": null,
             "display_values": null,
             "default_option": null,
-            "display_text": "If there is at least one person in the video, please describe them."
+            "display_text": "Describe any person in the video."
         }
     ]
 }

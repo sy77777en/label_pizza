@@ -7,7 +7,7 @@
     "video_uid": "d0yGdNEWdn0.0.7.mp4",
     "answers": {
       "What is the primary action in the video?": "Running",
-      "If the weather changes during the video, please describe them.": ""
+      "Briefly describe the action.": ""
     }
   },
   {
@@ -17,8 +17,8 @@
     "reviewer_email": "user1@example.com",
     "video_uid": "oVXs1Lo_4pk_2400_4200.0.0.mp4",
     "answers": {
-      "Is the weather sunny?": "Other (please specify)",
-      "If the weather changes during the video, please describe them.": "He is running initially, then sitting down."
+      "What is the primary action in the video?": "Other (please specify)",
+      "Briefly describe the action.": "He is running initially, then sitting down."
     }
   }
 ]

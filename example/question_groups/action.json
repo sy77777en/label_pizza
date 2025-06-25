@@ -27,13 +27,13 @@
         "display_text": "What is the primary action in the video?"
       },
       {
-        "text": "Provide a brief description of the observed action.",
+        "text": "Briefly describe the action.",
         "qtype": "description",
         "required": false,
         "options": null,
         "display_values": null,
         "default_option": null,
-        "display_text": "Provide a brief description of the observed action."
+        "display_text": "Briefly describe the action."
       }
     ]
   }
