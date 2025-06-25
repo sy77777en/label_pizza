@@ -1,8 +1,254 @@
-### Quick Start
+## Quick Start
+
+#### Folders Structure
+
+> This directory provides a compact, end‑to‑end example of the files required to set up a video‑annotation workflow.  It is intended as a reference: copy the pieces you need, adjust the JSON to match your own questions and videos, then import the data with the project‑creation scripts.
+
+```
+example/
+├── assignments.json
+├── projects.json
+├── schemas.json
+├── users.json
+├── videos.json
+├── annotations/
+│   ├── subjects/
+│   │   └── subject_annotations.json
+│   └── weather/
+│       └── weather_annotations.json
+├── question_groups/
+│   ├── nsfw.json
+│   ├── subjects.json
+│   └── weather.json
+└── reviews/
+    ├── subjects/
+    │   └── subject_annotations.json
+    └── weather/
+        └── weather_annotations.json
+```
+
+## File‑by‑file guide
+
+### `videos.json`
+
+Contains one entry per video that should be available to projects.
+
+```
+[
+  {
+    "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/d0yGdNEWdn0.0.7.mp4",
+    "metadata": {
+      "original_name": "d0yGdNEWdn0",
+      "license": "youtube educational license"
+    }
+  },
+  {
+    "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/oVXs1Lo_4pk_2400_4200.0.0.mp4",
+    "metadata": {
+      "original_name": "oVXs1Lo_4pk",
+      "license": "youtube educational license"
+    }
+  }
+]
+```
+
+The **`url` **field must be directly downloadable by your annotation platform.  Everything under **`metadata`** is passed through untouched; store provenance or licence notes here.
+
+### `users.json`
+
+Defines every account that should be present before projects are created.  Accepted `user_type` values are `admin`, `human`, and `model`.
+
+```
+[
+    {
+        "user_id": "Admin 1",
+        "email": "admin1@example.com",
+        "password": "admin111",
+        "user_type": "admin"
+    },
+    {
+        "user_id": "User 1",
+        "email": "user1@example.com",
+        "password": "user111",
+        "user_type": "human"
+    },
+    {
+        "user_id": "User 2",
+        "email": "user2@example.com",
+        "password": "user222",
+        "user_type": "human"
+    },
+    {
+        "user_id": "Chancharik's Robot",
+        "password": "cmitraRobot",
+        "user_type": "model"
+    }
+]
+```
+
+### `assignments.json`
+
+Grants a **role** (annotator, reviewer, etc.) to a user within a specific project.
+
+```
+[
+  {
+    "user_email": "admin1@example.com",
+    "project_name": "Weather test 0",
+    "role": "reviewer"
+  },
+  {
+    "user_email": "admin11@example.com",
+    "project_name": "Subject test 0",
+    "role": "reviewer"
+  },
+  {
+    "user_email": "user1@example.com",
+    "project_name": "Weather test 0",
+    "role": "reviewer"
+  },
+  {
+    "user_email": "user1@example.com",
+    "project_name": "Subject test 0",
+    "role": "reviewer"
+  }
+]
+```
+
+### `question_groups/`
+
+Each file defines a *single* group of questions that can be reused across multiple schemas.  The example below shows a trimmed‑down `weather.json`.
+
+```
+{
+    "title": "Weather Questions",
+    "description": "Identify and describe the weather conditions observed in the video.",
+    "is_reusable": false,
+    "is_auto_submit": false,
+    "verification_function": "check_weather_description",
+    "questions": [
+        {
+            "text": "Is the weather sunny?",
+            "qtype": "single",
+            "required": true,
+            "options": [
+                "Yes",
+                "No",
+                "Unsure",
+                "Complex (others)"
+            ],
+            "display_values": [
+                "Yes",
+                "No",
+                "Unsure",
+                "Complex (others)"
+            ],
+            "default_option": "Unsure",
+            "display_text": "Is the weather sunny?"
+        },
+        {
+            "text": "Please describe any changes in the weather.",
+            "qtype": "description",
+            "required": false,
+            "options": null,
+            "display_values": null,
+            "default_option": null,
+            "display_text": "Please describe any changes in the weather."
+        }
+    ]
+}
+```
+
+### `schemas.json`
+
+A schema is simply a list of question‑group titles.  Projects reference schemas by name.
+
+```
+[
+  {
+    "schema_name": "Subjects in Video",
+    "question_group_names": [
+      "Subject Questions", "NSFW Question"
+    ]
+  },
+  {
+    "schema_name": "Weather in Video",
+    "question_group_names": [
+      "Weather Questions", "NSFW Question"
+    ]
+  }
+]
+```
+
+### `projects.json`
+
+Binds a schema to a collection of videos.  Video filenames must match the `original_name` (plus extension) in `videos.json`.
+
+```
+[
+  {
+    "project_name": "Subject test 0",
+    "schema_name": "Subjects in Video",
+    "videos": [
+      "d0yGdNEWdn0.0.7.mp4",
+      "oVXs1Lo_4pk_2400_4200.0.0.mp4"
+    ]
+  },
+  {
+    "project_name": "Weather test 0",
+    "schema_name": "Weather in Video",
+    "videos": [
+      "d0yGdNEWdn0.0.7.mp4",
+      "oVXs1Lo_4pk_2400_4200.0.0.mp4"
+    ]
+  }
+]
+```
+
+### `annotations/` and `reviews/`
+
+Both directories share the same JSON structure.  Use `annotations/` for initial answers and `reviews/` for ground‑truth or adjudicated results.
+
+```
+[
+  {
+    "question_group_title": "Subject Questions",
+    "project_name": "Subject test 0",
+    "user_email": "admin1@example.com",
+    "video_uid": "d0yGdNEWdn0.0.7.mp4",
+    "answers": {
+      "How many people are there in the video": "0",
+      "How many cars are there in the video": "1",
+      "If there is at least one person in the video, please describe them.": ""
+    }
+  },
+  ...
+]
+```
+
+```
+[
+  {
+    "question_group_title": "Subject Questions",
+    "project_name": "Subject test 0",
+    "user_email": "admin1@example.com",
+    "reviewer_email": "admin1@example.com",
+    "video_uid": "d0yGdNEWdn0.0.7.mp4",
+    "answers": {
+      "How many people are there in the video": "0",
+      "How many cars are there in the video": "1",
+      "If there is at least one person in the video, please describe them.": ""
+    }
+  }
+  ...
+]
+```
 
 
 
-#### Step 0 Reset DB & Add Seed Admin
+## Getting Started
+
+Follow the steps **in order** so that every dependency (users → question groups → schemas → videos → projects → assignments → annotations) is satisfied.
 
 #### Step 1 Upload Videos
 
@@ -10,33 +256,16 @@
 
 ```
 from scripts.upload_utils import upload_videos
+import json
 
-upload_videos()
+# quickest: point to the JSON file
+upload_videos(videos_path="./example/videos.json")
+
+# alternative: pre-load the file yourself
+with open("./example/videos.json") as f:
+    videos = json.load(f)
+upload_videos(videos_data=videos)
 ```
-
-**`.json` file format should be:**
-
-```
- [
-  {
-    "url": str,
-    "metadata": {
-      key: value,
-      key: value
-    }
-  },
-  {
-    "url": str,
-    "metadata": {
-      key: value,
-      key: value
-    }
-  }
-  ...
-]
-```
-
-
 
 #### Step 2 Upload Users
 
@@ -44,97 +273,50 @@ upload_videos()
 
 ```
 from scripts.upload_utils import upload_users
+import json
 
-upload_users()
+upload_users(users_path="./example/users.json")
+
+# or
+with open("./example/users.json") as f:
+    users = json.load(f)
+upload_users(users_data=users)
 ```
 
-**`.json` file format should be:**
-
-```
-# "user_type" could only be one of ['human', 'admin', 'model']
-[
-    {
-        "user_id": "User1",
-        "email": "user1@example.com",
-        "password": "user111",
-        "user_type": "human"
-    },
-    {
-        "user_id": "Admin1",
-        "email": "admin1@gmail.com",
-        "password": "admin111",
-        "user_type": "admin"
-    },
-    {
-        "user_id": "Robot1",
-        "password": "robot111",
-        "user_type": "model"
-    }
-    ...
-]
-```
-
-#### Step 3 Upload Questions / Question Groups / Schemas
+#### Step 3 Register question groups and schemas
 
 > Upload all the schemas / question groups / questions from `./schemas` and `./question_groups` folders. They should be stored in `.json` file.
 
 ```
 from scripts.upload_utils import create_schemas
 
-create_schemas()
+create_schemas(
+    schemas_path="./example/schemas.json",
+    question_groups_folder="./example/question_groups"
+)
 ```
 
-**Schema `.json` file format should be:**
+#### Optional: (Optional) Build `projects.json` from annotations
+
+> Skip this step if `projects.json` is already prepared.
 
 ```
-{
-  "schema_name": str,
-  "question_group_names": [
-    "question group 1", "question group 2", ...
-  ]
-}
-```
+from import_annotations import get_project_from_annotations
+import itertools, json
 
-**Question Group `.json` file format should be:**
+projects = list(itertools.chain.from_iterable([
+    get_project_from_annotations(
+        "./example/annotations/subjects/subject_annotations.json",
+        schema_name="Subjects in Video"
+    ),
+    get_project_from_annotations(
+        "./example/annotations/weather/weather_annotations.json",
+        schema_name="Weather in Video"
+    ),
+]))
 
-```
-{
-    "title": Group Title,
-    "description": Description for This Group,
-    "verification_function": Verification Function Name,
-    "is_reusable": false,
-    "is_auto_submit": false,
-    "verification_function": "",
-    "questions": [
-        {
-            "text": Question Text,
-            "qtype": "single",
-            "required": true,
-            "options": [
-                "Opt 1",
-                "Opt 2",
-								"Opt 3"
-            ],
-            "display_values": [
-                "Opt 1",
-                "Opt 2",
-								"Opt 3"
-            ],
-            "default_option": "Opt 1",
-            "display_text": Question Display Text
-        },
-        {
-            "text": Question Text,
-            "qtype": "description",
-            "required": false,
-            "options": null,
-            "display_values": null,
-            "default_option": null,
-            "display_text": Question Text
-        },
-        ...
-    ]
-}
+with open("./example/projects.json", "w") as f:
+    json.dump(projects, f, indent=2)
 ```
 
 #### Step 4 Create Projects from Annotations
@@ -142,125 +324,40 @@ create_schemas()
 >Create Projects from existing annotations / reviews (This is somehow complex now). You could just look it for reference.
 
 ```
-from scripts.upload_utils import create_projects_from_annotations_json
+from scripts.upload_utils import create_projects
+import json
 
-    create_projects_from_annotations_json(json_path='./annotations/subjects/subject_annotations.json', schema_name='Subjects in Video')
-    create_projects_from_annotations_json(json_path='./annotations/weathers/weather_annotations.json', schema_name='Weathers in Video')
+create_projects(projects_path="./example/projects.json")
+
+# or
+with open("./example/projects.json") as f:
+    projects = json.load(f)
+create_projects(projects_data=projects)
 ```
 
-**`.json` file format should be:**
-
-```
-[
-  {
-    "question_group_title": "Atmospheric Effects",
-    "project_name": "Cinematic Effects Lightingtest_0 1",
-    "user_email": "whan55751@gmail.com",
-    "video_uid": "7jUW96CiEKA.0.6.mp4",
-    "answers": {
-      "Question 1": "Answer 1",
-      "Question 2": "Answer 2",
-      "Question 3": "Answer 3"
-    },
-    "confidence_score": {
-      "Question 1": score 1,
-      "Question 2": score 2,
-      "Question 3": score 3
-    }
-  },
-  ...
-]
-```
-
-#### Step 5 Bulk Assignment
+#### Step 5 Assign users to projects
 
 > Assign Users to Projects from `./assignment` folder. Assignment should be stored in `.json` file.
 
 ```
-from upload_utils import bulk_assign_users
+from scripts.upload_utils import bulk_assign_users
+import json
 
-bulk_assign_users()
+bulk_assign_users(assignment_path="./example/assignments.json")
+
+# or
+with open("./example/assignments.json") as f:
+    assignments = json.load(f)
+bulk_assign_users(assignments_data=assignments)
 ```
 
-**`.json` file format should be:**
-
-```
-[
-  {
-    "user_email": "ttiffanyyllingg@gmail.com",
-    "project_name": "Color Grading Lightingtest_2_1 2",
-    "role": "annotator"
-  },
-  {
-    "user_email": "thebluesoil@hotmail.com",
-    "project_name": "Color Grading Lightingtest_2_0 1",
-    "role": "reviewer"
-  }
-  ...
-]
-```
-
-#### Step 6 Import Annotations
+#### Step 6 Import annotations and reviews
 
 > Import all the annotations from `./annotations` folder.
 
 ```
-from import_annotations import import_annotations
+from import_annotations import import_annotations, import_reviews
 
-import_annotations()
+import_annotations(annotations_folder="./example/annotations")
+import_reviews(reviews_folder="./example/reviews")
 ```
-
-**`.json` file format should be:**
-
-```
-[
-  {
-    "question_group_title": "Atmospheric Effects",
-    "project_name": "Cinematic Effects Lightingtest_0 1",
-    "user_email": "whan55751@gmail.com",
-    "video_uid": "7jUW96CiEKA.0.6.mp4",
-    "answers": {
-      "Question 1": "Answer 1",
-      "Question 2": "Answer 2",
-      "Question 3": "Answer 3"
-    },
-    "confidence_score": {
-      "Question 1": score 1,
-      "Question 2": score 2,
-      "Question 3": score 3
-    }
-  },
-  ...
-]
-```
-
-#### Step 7 Import Reviews
-
-> Import all the reviews from `./reviews` folder.
-
-```
-from import_annotations import import_reviews
-
-import_reviews()
-```
-
-**`.json` file format should be:**
-
-```
-[
-  {
-    "question_group_title": "Atmospheric Effects",
-    "project_name": "Cinematic Effects Lightingtest_0 1",
-    "user_email": "whan55751@gmail.com",
-    "video_uid": "7jUW96CiEKA.0.6.mp4",
-    "answers": {
-      "Question 1": "Answer 1",
-      "Question 2": "Answer 2",
-      "Question 3": "Answer 3"
-    },
-    "reviewer_email": "siyuancen096@gmail.com"
-  },
-  ...
-]
-```
-

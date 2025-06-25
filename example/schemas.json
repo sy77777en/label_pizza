@@ -1,0 +1,14 @@
+[
+  {
+    "schema_name": "Subjects in Video",
+    "question_group_names": [
+      "Subject Questions", "NSFW Question"
+    ]
+  },
+  {
+    "schema_name": "Weather in Video",
+    "question_group_names": [
+      "Weather Questions", "NSFW Question"
+    ]
+  }
+]

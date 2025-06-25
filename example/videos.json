@@ -1,0 +1,16 @@
+[
+  {
+    "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/d0yGdNEWdn0.0.7.mp4",
+    "metadata": {
+      "original_name": "d0yGdNEWdn0",
+      "license": "youtube educational license"
+    }
+  },
+  {
+    "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/oVXs1Lo_4pk_2400_4200.0.0.mp4",
+    "metadata": {
+      "video_name": "oVXs1Lo_4pk",
+      "license": "youtube educational license"
+    }
+  }
+]

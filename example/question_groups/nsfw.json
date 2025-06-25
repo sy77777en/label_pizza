@@ -1,0 +1,24 @@
+{
+    "title": "NSFW Question",
+    "description": "Check whether the video safe for work or not.",
+    "is_reusable": true,
+    "is_auto_submit": true,
+    "verification_function": "",
+    "questions": [
+        {
+            "text": "Does the video not safe for work?",
+            "qtype": "single",
+            "required": true,
+            "options": [
+                "Yes",
+                "No"
+            ],
+            "display_values": [
+                "Yes",
+                "No"
+            ],
+            "default_option": "No",
+            "display_text": "Does the video not safe for work?"
+        }
+    ]
+}
