@@ -12,19 +12,15 @@ example/
 ├── users.json
 ├── videos.json
 ├── annotations/
-│   ├── subjects/
-│   │   └── subject_annotations.json
-│   └── weather/
-│       └── weather_annotations.json
+│   ├── human_annotations.json
+│   └── pizza_annotations.json
 ├── question_groups/
 │   ├── nsfw.json
 │   ├── subjects.json
-│   └── actions.json
+│   └── pizzas.json
 └── reviews/
-    ├── subjects/
-    │   └── subject_annotations.json
-    └── actions/
-        └── weather_annotations.json
+    ├── human_annotations.json
+    └── pizza_annotations.json
 ```
 
 ## File‑by‑file guide
@@ -94,22 +90,22 @@ Grants a **role** (annotator, reviewer, etc.) to a user within a specific projec
 [
   {
     "user_email": "admin1@example.com",
-    "project_name": "Weather test 0",
+    "project_name": "Pizza test 0",
     "role": "reviewer"
   },
   {
-    "user_email": "admin11@example.com",
-    "project_name": "Subject test 0",
-    "role": "reviewer"
-  },
-  {
-    "user_email": "user1@example.com",
-    "project_name": "Weather test 0",
+    "user_email": "admin1@example.com",
+    "project_name": "Human test 0",
     "role": "reviewer"
   },
   {
     "user_email": "user1@example.com",
-    "project_name": "Subject test 0",
+    "project_name": "Pizza test 0",
+    "role": "reviewer"
+  },
+  {
+    "user_email": "user1@example.com",
+    "project_name": "Human test 0",
     "role": "reviewer"
   }
 ]
@@ -121,39 +117,39 @@ Each file defines a *single* group of questions that can be reused across multip
 
 ```
 {
-    "title": "Weather Questions",
-    "description": "Identify and describe the weather conditions observed in the video.",
+    "title": "Human Questions",
+    "description": "Detect and describe all humans in the video.",
     "is_reusable": false,
     "is_auto_submit": false,
-    "verification_function": "check_weather_description",
+    "verification_function": "check_human_description",
     "questions": [
         {
-            "text": "Is the weather sunny?",
+            "text": "Number of people?",
             "qtype": "single",
             "required": true,
             "options": [
-                "Yes",
-                "No",
-                "Unsure",
+                "0",
+                "1",
+                "2",
                 "Complex (others)"
             ],
             "display_values": [
-                "Yes",
-                "No",
-                "Unsure",
+                "0",
+                "1",
+                "2",
                 "Complex (others)"
             ],
-            "default_option": "Unsure",
-            "display_text": "Is the weather sunny?"
+            "default_option": "0",
+            "display_text": "Number of people?"
         },
         {
-            "text": "Please describe any changes in the weather.",
+            "text": "If there are people, describe them.",
             "qtype": "description",
             "required": false,
             "options": null,
             "display_values": null,
             "default_option": null,
-            "display_text": "Please describe any changes in the weather."
+            "display_text": "If there are people, describe them."
         }
     ]
 }
@@ -166,15 +162,15 @@ A schema is simply a list of question‑group titles.  Projects reference schema
 ```
 [
   {
-    "schema_name": "Subjects in Video",
+    "schema_name": "Humans in Video",
     "question_group_names": [
-      "Subject Questions", "NSFW Question"
+      "Human Questions", "NSFW Question"
     ]
   },
   {
-    "schema_name": "Weather in Video",
+    "schema_name": "Pizzas in Video",
     "question_group_names": [
-      "Weather Questions", "NSFW Question"
+      "Pizza Questions", "NSFW Question"
     ]
   }
 ]
@@ -187,16 +183,16 @@ Binds a schema to a collection of videos.  Video filenames must match the `origi
 ```
 [
   {
-    "project_name": "Subject test 0",
-    "schema_name": "Subjects in Video",
+    "project_name": "Human test 0",
+    "schema_name": "Humans in Video",
     "videos": [
       "d0yGdNEWdn0.0.7.mp4",
       "oVXs1Lo_4pk_2400_4200.0.0.mp4"
     ]
   },
   {
-    "project_name": "Weather test 0",
-    "schema_name": "Weather in Video",
+    "project_name": "Pizza test 0",
+    "schema_name": "Pizzas in Video",
     "videos": [
       "d0yGdNEWdn0.0.7.mp4",
       "oVXs1Lo_4pk_2400_4200.0.0.mp4"
@@ -212,35 +208,52 @@ Both directories share the same JSON structure.  Use `annotations/` for initial 
 ```
 [
   {
-    "question_group_title": "Subject Questions",
-    "project_name": "Subject test 0",
+    "question_group_title": "Human Questions",
+    "project_name": "Human test 0",
     "user_email": "admin1@example.com",
     "video_uid": "d0yGdNEWdn0.0.7.mp4",
     "answers": {
-      "How many people are there in the video": "0",
-      "How many cars are there in the video": "1",
-      "If there is at least one person in the video, please describe them.": ""
+      "Number of people?": "0",
+      "If there are people, describe them.": ""
     }
   },
-  ...
+  {
+    "question_group_title": "Human Questions",
+    "project_name": "Human test 0",
+    "user_email": "user1@example.com",
+    "video_uid": "oVXs1Lo_4pk_2400_4200.0.0.mp4",
+    "answers": {
+      "Number of people?": "1",
+      "If there are people, describe them.": "The person is tall and slim."
+    }
+  }
 ]
 ```
 
 ```
 [
   {
-    "question_group_title": "Subject Questions",
-    "project_name": "Subject test 0",
+    "question_group_title": "Human Questions",
+    "project_name": "Human test 0",
     "user_email": "admin1@example.com",
-    "reviewer_email": "admin1@example.com",
+    "reviewer_email": "user1@example.com",
     "video_uid": "d0yGdNEWdn0.0.7.mp4",
     "answers": {
-      "How many people are there in the video": "0",
-      "How many cars are there in the video": "1",
-      "If there is at least one person in the video, please describe them.": ""
+      "Number of people?": "0",
+      "If there are people, describe them.": ""
+    }
+  },
+  {
+    "question_group_title": "Human Questions",
+    "project_name": "Human test 0",
+    "user_email": "user1@example.com",
+    "reviewer_email": "admin1@example.com",
+    "video_uid": "oVXs1Lo_4pk_2400_4200.0.0.mp4",
+    "answers": {
+      "Number of people?": "1",
+      "If there are people, describe them.": "The person is tall and slim."
     }
   }
-  ...
 ]
 ```
 
