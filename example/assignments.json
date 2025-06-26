@@ -1,0 +1,12 @@
+[
+  {
+    "user_email": "user1@example.com",
+    "project_name": "Pizza Test 0",
+    "role": "annotator"
+  },
+  {
+    "user_email": "user1@example.com",
+    "project_name": "Human Test 0",
+    "role": "annotator"
+  }
+]
