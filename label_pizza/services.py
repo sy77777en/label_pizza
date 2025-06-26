@@ -203,35 +203,36 @@ class VideoService:
         return pd.DataFrame(rows)
 
     @staticmethod
-    def add_video(url: str, session: Session, metadata: dict = None) -> None:
-        """Add a new video to the database.
-        
+    def verify_add_video(url: str, session: Session, metadata: dict = None) -> None:
+        """Verify parameters for adding a new video.
+
         Args:
             url: The URL of the video
             session: Database session
             metadata: Optional dictionary containing video metadata
-            
+
         Raises:
-            ValueError: If URL is invalid, video already exists, or metadata is invalid
+            ValueError: If URL is invalid, metadata is invalid, or video already exists
         """
+        # Validate URL format
         if not url.startswith(("http://", "https://")):
             raise ValueError("URL must start with http:// or https://")
-        
+
         # Extract filename and check for extension
         filename = url.split("/")[-1]
         if not filename or "." not in filename:
             raise ValueError("URL must end with a filename with extension")
-        
+
         if len(filename) > 255:
             raise ValueError("Video UID is too long")
-        
+
         # Validate metadata type - must be None or a dictionary
         if metadata is not None:
             if not isinstance(metadata, dict):
                 raise ValueError("Metadata must be a dictionary")
             if not metadata:
                 raise ValueError("Metadata must be a non-empty dictionary")
-            
+
             # Validate metadata value types if metadata is provided
             for key, value in metadata.items():
                 if not isinstance(value, (str, int, float, bool, list, dict)):
@@ -246,14 +247,29 @@ class VideoService:
                     for k, v in value.items():
                         if not isinstance(v, (str, int, float, bool, list, dict)):
                             raise ValueError(f"Invalid nested metadata value type for key '{key}.{k}': {type(v)}")
-        
+
         # Check if video already exists (case-sensitive check)
-        existing = session.scalar(
-            select(Video).where(Video.video_uid == filename)
-        )
+        filename = url.split("/")[-1]
+        existing = VideoService.get_video_by_uid(filename, session)
         if existing:
             raise ValueError(f"Video with UID '{filename}' already exists")
-        
+
+    @staticmethod
+    def add_video(url: str, session: Session, metadata: dict = None) -> None:
+        """Add a new video to the database.
+
+        Args:
+            url: The URL of the video
+            session: Database session
+            metadata: Optional dictionary containing video metadata
+
+        Raises:
+            ValueError: If URL is invalid, video already exists, or metadata is invalid
+        """
+        # Verify input parameters and get the filename
+        VideoService.verify_add_video(url, session, metadata)
+
+        filename = url.split("/")[-1]
         # Create video
         video = Video(
             video_uid=filename,
@@ -262,8 +278,7 @@ class VideoService:
         )
         session.add(video)
         session.commit()
-    
-    
+
     @staticmethod
     def get_project_videos(project_id: int, session: Session) -> List[Dict[str, Any]]:
         """Get all non-archived videos in a project.
@@ -298,34 +313,88 @@ class VideoService:
             "url": v.url,
             "metadata": v.video_metadata
         } for v in videos]
-    
+
     @staticmethod
-    def update_video(video_uid: str, new_url: str, new_metadata: dict, session: Session) -> None:
-        """Update video URL and metadata.
-        
+    def verify_update_video(video_uid: str, new_url: str, new_metadata: dict, session: Session) -> None:
+        """Verify parameters for updating a video.
+
         Args:
             video_uid: Video UID to update
             new_url: New video URL
             new_metadata: New metadata dictionary
             session: Database session
-            
+
         Raises:
             ValueError: If video not found or validation fails
         """
+        # Check if video exists
         video = VideoService.get_video_by_uid(video_uid=video_uid, session=session)
         if not video:
             raise ValueError(f"Video with UID '{video_uid}' not found")
-        
+
+        # Validate new URL if provided
         if new_url and new_url != video.url:
             if not new_url.startswith(("http://", "https://")):
                 raise ValueError("URL must start with http:// or https://")
-            video.url = new_url
-        
+
+            # ---- new check ----
+            # Strip any query string, then compare the filename to the UID
+            filename = new_url.split("/")[-1]
+            if filename != video_uid:
+                raise ValueError(
+                    f"URL filename '{filename}' must exactly match the video UID '{video_uid}'"
+                )
+            # -------------------
+
+        # Validate new metadata if provided
         if new_metadata is not None:
             if not isinstance(new_metadata, dict):
                 raise ValueError("Metadata must be a dictionary")
+            if not new_metadata:
+                raise ValueError("Metadata must be a non-empty dictionary")
+
+            # Validate metadata value types
+            for key, value in new_metadata.items():
+                if not isinstance(value, (str, int, float, bool, list, dict)):
+                    raise ValueError(f"Invalid metadata value type for key '{key}': {type(value)}")
+                if isinstance(value, list):
+                    # Validate list elements
+                    for item in value:
+                        if not isinstance(item, (str, int, float, bool, dict)):
+                            raise ValueError(f"Invalid list element type in metadata key '{key}': {type(item)}")
+                elif isinstance(value, dict):
+                    # Validate nested dictionary values
+                    for k, v in value.items():
+                        if not isinstance(v, (str, int, float, bool, list, dict)):
+                            raise ValueError(f"Invalid nested metadata value type for key '{key}.{k}': {type(v)}")
+
+    @staticmethod
+    def update_video(video_uid: str, new_url: str, new_metadata: dict, session: Session) -> None:
+        """Update video URL and metadata.
+
+        Args:
+            video_uid: Video UID to update
+            new_url: New video URL
+            new_metadata: New metadata dictionary
+            session: Database session
+
+        Raises:
+            ValueError: If video not found or validation fails
+        """
+        # Verify parameters (raises ValueError if invalid)
+        VideoService.verify_update_video(video_uid, new_url, new_metadata, session)
+
+        # Get the video object for updating
+        video = VideoService.get_video_by_uid(video_uid=video_uid, session=session)
+
+        # Update URL if provided and different
+        if new_url and new_url != video.url:
+            video.url = new_url
+
+        # Update metadata if provided
+        if new_metadata is not None:
             video.video_metadata = new_metadata
-        
+
         video.updated_at = datetime.now(timezone.utc)
         session.commit()
 
@@ -1021,39 +1090,44 @@ class SchemaService:
         return schema.name
 
     @staticmethod
-    def create_schema(name: str, question_group_ids: List[int], session: Session) -> Schema:
-        """Create a new schema with its question groups.
-        
+    def verify_create_schema(
+            name: str,
+            question_group_ids: List[int],
+            session: Session
+    ) -> None:
+        """Verify parameters for creating a new schema.
+
+        This function performs all validation checks and raises ValueError
+        if any validation fails. It does not return any objects.
+
         Args:
             name: Schema name
             question_group_ids: List of question group IDs in desired order
             session: Database session
-            
-        Returns:
-            Created schema
-            
+
         Raises:
             ValueError: If schema with same name exists or validation fails
         """
+        # Validate name
+        if not name or not name.strip():
+            raise ValueError("Schema name is required")
+
         # Check if schema with same name exists
         existing = session.scalar(select(Schema).where(Schema.name == name))
         if existing:
             raise ValueError(f"Schema with name '{name}' already exists")
-            
-        # Create schema
-        schema = Schema(name=name)
-        session.add(schema)
-        session.flush()  # Get schema ID
-        
-        # Add question groups
-        for i, group_id in enumerate(question_group_ids):
+
+        # Validate question group IDs
+        if not question_group_ids:
+            raise ValueError("Schema must contain at least one question group")
+
+        # Validate all question groups
+        for group_id in question_group_ids:
             # Check if group exists
-            group = session.get(QuestionGroup, group_id)
-            if not group:
-                raise ValueError(f"Question group with ID {group_id} not found")
+            group = QuestionGroupService.get_group_by_id(group_id, session)
             if group.is_archived:
                 raise ValueError(f"Question group with ID {group_id} is archived")
-                
+
             # Check if non-reusable group is already used in another schema
             if not group.is_reusable:
                 existing_schema = session.scalar(
@@ -1062,16 +1136,41 @@ class SchemaService:
                     .where(SchemaQuestionGroup.question_group_id == group_id)
                 )
                 if existing_schema:
-                    raise ValueError(f"Question group {group.title} is not reusable and is already used in schema {existing_schema.name}")
-            
-            # Add group to schema
+                    raise ValueError(
+                        f"Question group {group.title} is not reusable and is already used in schema {existing_schema.name}")
+
+    @staticmethod
+    def create_schema(name: str, question_group_ids: List[int], session: Session) -> Schema:
+        """Create a new schema with its question groups.
+
+        Args:
+            name: Schema name
+            question_group_ids: List of question group IDs in desired order
+            session: Database session
+
+        Returns:
+            Created schema
+
+        Raises:
+            ValueError: If schema with same name exists or validation fails
+        """
+        # First, verify all parameters (will raise ValueError if validation fails)
+        SchemaService.verify_create_schema(name, question_group_ids, session)
+
+        # Create schema object
+        schema = Schema(name=name)
+        session.add(schema)
+        session.flush()  # Get schema ID
+
+        # Add question groups to schema in specified order
+        for i, group_id in enumerate(question_group_ids):
             sqg = SchemaQuestionGroup(
                 schema_id=schema.id,
                 question_group_id=group_id,
                 display_order=i
             )
             session.add(sqg)
-            
+
         session.commit()
         return schema
 
@@ -1452,20 +1551,26 @@ class QuestionService:
         return q
 
     @staticmethod
-    def edit_question(question_id: int, new_display_text: str, new_opts: Optional[List[str]], new_default: Optional[str],
-                     session: Session, new_display_values: Optional[List[str]] = None,
-                     new_option_weights: Optional[List[float]] = None) -> None:
-        """Edit an existing question (only display_text and options, not text).
-        
+    def verify_edit_question(
+            question_id: int,
+            new_display_text: str,
+            new_opts: Optional[List[str]],
+            new_default: Optional[str],
+            session: Session,
+            new_display_values: Optional[List[str]] = None,
+            new_option_weights: Optional[List[float]] = None
+    ) -> None:
+        """Verify parameters for editing an existing question.
+
         Args:
             question_id: Current question ID
-            new_display_text: New display text for UI.
+            new_display_text: New display text for UI
             new_opts: New options for single-choice questions. Must include all existing options.
             new_default: New default option for single-choice questions
             session: Database session
             new_display_values: Optional new display values for options. For single-type questions, if not provided, maintains existing display values or uses options.
-            new_option_weights: Optional new weights for options. For single-type questions, if not provided, maintains existing weights or defaults to 1.0.
-        
+            new_option_weights: Optional new weights for options. For single-type questions, if not provided, maintains existing weights.
+
         Raises:
             ValueError: If question not found or validation fails
         """
@@ -1475,24 +1580,64 @@ class QuestionService:
         # Check if question is archived
         if q.is_archived:
             raise ValueError(f"Question with ID {question_id} is archived")
-        
+
         # For single-choice questions, validate options and display values
         if q.type == "single":
             if not new_opts:
                 raise ValueError("Cannot change question type")
             if new_default and new_default not in new_opts:
-                raise ValueError(f"Default option '{new_default}' must be one of the available options: {', '.join(new_opts)}")
-            
+                raise ValueError(
+                    f"Default option '{new_default}' must be one of the available options: {', '.join(new_opts)}")
+
             # Validate that all existing options are included in new options
             missing_opts = set(q.options) - set(new_opts)
             if missing_opts:
                 raise ValueError(f"Cannot remove existing options: {', '.join(missing_opts)}")
-            
-            # For single-type questions, ensure we have display values
+
+            # Validate display values
             if new_display_values:
                 if len(new_display_values) != len(new_opts):
                     raise ValueError("Number of display values must match number of options")
-            else:
+
+            # Validate option weights
+            if new_option_weights:
+                if len(new_option_weights) != len(new_opts):
+                    raise ValueError("Number of option weights must match number of options")
+        else:  # description type
+            if new_opts is not None or new_default is not None or new_display_values is not None or new_option_weights is not None:
+                raise ValueError("Cannot change question type")
+
+    @staticmethod
+    def edit_question(question_id: int, new_display_text: str, new_opts: Optional[List[str]],
+                      new_default: Optional[str],
+                      session: Session, new_display_values: Optional[List[str]] = None,
+                      new_option_weights: Optional[List[float]] = None) -> None:
+        """Edit an existing question (only display_text and options, not text).
+
+        Args:
+            question_id: Current question ID
+            new_display_text: New display text for UI.
+            new_opts: New options for single-choice questions. Must include all existing options.
+            new_default: New default option for single-choice questions
+            session: Database session
+            new_display_values: Optional new display values for options. For single-type questions, if not provided, maintains existing display values or uses options.
+            new_option_weights: Optional new weights for options. For single-type questions, if not provided, maintains existing weights or defaults to 1.0.
+
+        Raises:
+            ValueError: If question not found or validation fails
+        """
+        # Verify parameters (raises ValueError if invalid)
+        QuestionService.verify_edit_question(
+            question_id, new_display_text, new_opts, new_default, session, new_display_values, new_option_weights
+        )
+
+        # Get question again after validation
+        q = QuestionService.get_question_object_by_id(question_id=question_id, session=session)
+
+        # Process defaults after validation passes
+        if q.type == "single":
+            # For single-type questions, ensure we have display values
+            if new_display_values is None:
                 # If no new display values provided, maintain existing mapping for unchanged options
                 new_display_values = []
                 for opt in new_opts:
@@ -1501,12 +1646,9 @@ class QuestionService:
                         new_display_values.append(q.display_values[idx])
                     else:
                         new_display_values.append(opt)
-                        
+
             # Handle option weights
-            if new_option_weights:
-                if len(new_option_weights) != len(new_opts):
-                    raise ValueError("Number of option weights must match number of options")
-            else:
+            if new_option_weights is None:
                 # If no new weights provided, maintain existing weights for unchanged options
                 new_option_weights = []
                 for opt in new_opts:
@@ -1515,10 +1657,6 @@ class QuestionService:
                         new_option_weights.append(q.option_weights[idx])
                     else:
                         new_option_weights.append(1.0)  # Default to 1.0 for new options
-        else:  # description type
-            if new_opts is not None or new_default is not None or new_display_values is not None or new_option_weights is not None:
-                raise ValueError("Cannot change question type")
-        
         # Update only display_text, options, display_values, option_weights, default_option
         q.display_text = new_display_text
         q.options = new_opts
@@ -2527,17 +2665,20 @@ class QuestionGroupService:
         session.commit()
 
     @staticmethod
-    def create_group(
-        title: str,
-        description: str,
-        is_reusable: bool,
-        question_ids: List[int],
-        verification_function: Optional[str],
-        is_auto_submit: bool = False,
-        session: Session = None
-    ) -> QuestionGroup:
-        """Create a new question group.
-        
+    def verify_create_group(
+            title: str,
+            description: str,
+            is_reusable: bool,
+            question_ids: List[int],
+            verification_function: Optional[str],
+            is_auto_submit: bool = False,
+            session: Session = None
+    ) -> None:
+        """Verify parameters for creating a new question group.
+
+        This function performs all validation checks and raises ValueError
+        if any validation fails. It does not return any objects.
+
         Args:
             title: Group title
             description: Group description
@@ -2546,21 +2687,18 @@ class QuestionGroupService:
             verification_function: Optional name of verification function from verify.py
             is_auto_submit: If TRUE, answers are automatically submitted for annotation mode
             session: Database session
-            
-        Returns:
-            Created QuestionGroup
-            
+
         Raises:
             ValueError: If title already exists or validation fails
         """
         # Validate title
         if not title or not title.strip():
             raise ValueError("Title is required")
-            
+
         # Validate questions
         if not question_ids:
             raise ValueError("Question group must contain at least one question")
-            
+
         # Check if title already exists
         existing = session.scalar(
             select(QuestionGroup).where(
@@ -2569,13 +2707,54 @@ class QuestionGroupService:
         )
         if existing:
             raise ValueError(f"Question group with title '{title}' already exists")
-        
+
         # Validate verification function if provided
         if verification_function:
             if not hasattr(verify, verification_function):
                 raise ValueError(f"Verification function '{verification_function}' not found in verify.py")
-                
-        # Create group
+
+        # Validate all questions exist and aren't archived
+        for question_id in question_ids:
+            question = session.scalar(select(Question).where(Question.id == question_id))
+            if not question:
+                raise ValueError(f"Question with ID {question_id} not found")
+            if question.is_archived:
+                raise ValueError(f"Question with ID {question_id} is archived")
+
+    @staticmethod
+    def create_group(
+            title: str,
+            description: str,
+            is_reusable: bool,
+            question_ids: List[int],
+            verification_function: Optional[str],
+            is_auto_submit: bool = False,
+            session: Session = None
+    ) -> QuestionGroup:
+        """Create a new question group.
+
+        Args:
+            title: Group title
+            description: Group description
+            is_reusable: Whether group can be used in multiple schemas
+            question_ids: List of question IDs in desired order
+            verification_function: Optional name of verification function from verify.py
+            is_auto_submit: If TRUE, answers are automatically submitted for annotation mode
+            session: Database session
+
+        Returns:
+            Created QuestionGroup
+
+        Raises:
+            ValueError: If title already exists or validation fails
+        """
+        # First, verify all parameters (will raise ValueError if validation fails)
+        QuestionGroupService.verify_create_group(
+            title, description, is_reusable, question_ids,
+            verification_function, is_auto_submit, session
+        )
+
+        # Create group object
         group = QuestionGroup(
             title=title,
             description=description,
@@ -2583,25 +2762,18 @@ class QuestionGroupService:
             verification_function=verification_function,
             is_auto_submit=is_auto_submit
         )
+
         session.add(group)
         session.flush()  # Get the group ID
-        
-        # Validate and add questions
+
+        # Add questions to group in specified order
         for i, question_id in enumerate(question_ids):
-            # Check if question exists and isn't archived
-            question = session.scalar(select(Question).where(Question.id == question_id))
-            if not question:
-                raise ValueError(f"Question with ID {question_id} not found")
-            if question.is_archived:
-                raise ValueError(f"Question with ID {question_id} is archived")
-                
-            # Add question to group
             session.add(QuestionGroupQuestion(
                 question_group_id=group.id,
                 question_id=question_id,
                 display_order=i
             ))
-            
+
         session.commit()
         return group
 
@@ -2684,10 +2856,17 @@ class QuestionGroupService:
         }
 
     @staticmethod
-    def edit_group(group_id: int, new_title: str, new_description: str, is_reusable: bool, 
-                verification_function: Optional[str], is_auto_submit: bool = False, session: Session = None) -> None:
-        """Edit a question group including its verification function and auto-submit flag.
-        
+    def verify_edit_group(
+            group_id: int,
+            new_title: str,
+            new_description: str,
+            is_reusable: bool,
+            verification_function: Optional[str],
+            is_auto_submit: bool = False,
+            session: Session = None
+    ) -> None:
+        """Verify parameters for editing a question group.
+
         Args:
             group_id: Group ID
             new_title: New group title
@@ -2696,14 +2875,12 @@ class QuestionGroupService:
             verification_function: New verification function name (can be None to remove)
             is_auto_submit: If not None, sets the auto-submit flag
             session: Database session
-            
+
         Raises:
             ValueError: If group not found or validation fails
         """
-        group = session.get(QuestionGroup, group_id)
-        if not group:
-            raise ValueError(f"Question group with ID {group_id} not found")
-        
+        # Get and validate group exists
+        group = QuestionGroupService.get_group_by_id(group_id, session)
         # If making a group non-reusable, check if it's used in multiple schemas
         if not is_reusable and group.is_reusable:
             schemas = session.scalars(
@@ -2712,13 +2889,13 @@ class QuestionGroupService:
                 .where(SchemaQuestionGroup.question_group_id == group_id)
                 .distinct()
             ).all()
-            
+
             if len(schemas) > 1:
                 raise ValueError(
                     f"Cannot make group non-reusable as it is used in multiple schemas: "
                     f"{', '.join(s.name for s in schemas)}"
                 )
-        
+
         # Check if new title conflicts with existing group
         if new_title != group.title:
             existing = session.scalar(
@@ -2726,12 +2903,38 @@ class QuestionGroupService:
             )
             if existing:
                 raise ValueError(f"Question group with title '{new_title}' already exists")
-        
+
         # Validate verification function if provided
         if verification_function:
             if not hasattr(verify, verification_function):
                 raise ValueError(f"Verification function '{verification_function}' not found in verify.py")
-        
+
+    @staticmethod
+    def edit_group(group_id: int, new_title: str, new_description: str, is_reusable: bool,
+                   verification_function: Optional[str], is_auto_submit: bool = False, session: Session = None) -> None:
+        """Edit a question group including its verification function and auto-submit flag.
+
+        Args:
+            group_id: Group ID
+            new_title: New group title
+            new_description: New group description
+            is_reusable: Whether the group is reusable
+            verification_function: New verification function name (can be None to remove)
+            is_auto_submit: If not None, sets the auto-submit flag
+            session: Database session
+
+        Raises:
+            ValueError: If group not found or validation fails
+        """
+        # Verify parameters
+        QuestionGroupService.verify_edit_group(
+            group_id, new_title, new_description, is_reusable,
+            verification_function, is_auto_submit, session
+        )
+
+        # Get group object for updating
+        group = QuestionGroupService.get_group_by_id(group_id, session)
+
         # Update group properties
         group.title = new_title
         group.description = new_description

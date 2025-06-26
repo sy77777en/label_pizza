@@ -1,0 +1,38 @@
+{
+    "title": "Pizza",
+    "description": "Detect and describe all pizzas in the video.",
+    "is_reusable": false,
+    "is_auto_submit": false,
+    "verification_function": "check_pizza_description",
+    "questions": [
+        {
+            "qtype": "single",
+            "text": "Number of pizzas?",
+            "display_text": "Number of pizzas?",
+            "options": [
+                "0",
+                "1",
+                "2",
+                "3 or more"
+            ],
+            "display_values": [
+                "0",
+                "1",
+                "2",
+                "3 or more"
+            ],
+            "option_weights": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+            ],
+            "default_option": "0"
+        },
+      {
+        "qtype": "description",
+        "text": "If there are pizzas, describe them.",
+        "display_text": "If there are pizzas, describe them."
+      }
+    ]
+}

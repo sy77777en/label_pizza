@@ -1,0 +1,14 @@
+[
+  {
+    "schema_name": "Questions about Humans",
+    "question_group_names": [
+      "Human", "NSFW"
+    ]
+  },
+  {
+    "schema_name": "Questions about Pizzas",
+    "question_group_names": [
+      "Pizza", "NSFW"
+    ]
+  }
+]

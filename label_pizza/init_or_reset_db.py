@@ -12,7 +12,7 @@ Usage:
     
     # Full reset (DESTRUCTIVE!)
     python init_or_reset_db.py --mode reset --email admin@example.com --password mypass --user-id "Admin"
-    
+
     # Quick init with defaults
     python init_or_reset_db.py --mode init
 """
