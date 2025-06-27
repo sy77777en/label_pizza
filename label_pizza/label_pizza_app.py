@@ -665,7 +665,7 @@ def get_user_projects(user_id: int, session: Session) -> Dict:
     try:
         user_projects = AuthService.get_user_projects_by_role(user_id=user_id, session=session)
         
-        if user_projects.get("admin"):
+        if user_projects.get("admin"): # meaning it is a non-empty list
             all_projects_df = ProjectService.get_all_projects(session=session)
             all_projects_list = [
                 {"id": project_row["ID"], "name": project_row["Name"], "description": "", "created_at": None}
@@ -675,8 +675,7 @@ def get_user_projects(user_id: int, session: Session) -> Dict:
             return {
                 "annotator": all_projects_list.copy(),
                 "reviewer": all_projects_list.copy(),
-                "admin": all_projects_list.copy(),
-                "meta_reviewer": all_projects_list.copy()
+                "admin": all_projects_list.copy()
             }
         
         return user_projects
