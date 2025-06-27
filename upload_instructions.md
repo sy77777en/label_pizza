@@ -1,8 +1,22 @@
-## Quick Start
+# Label Pizza Setup Guide
 
-#### Folder Structure
+## Quick Setup
 
-> This directory provides a compact, end‑to‑end example of the files required to set up a video‑annotation workflow.  It is intended as a reference: copy the pieces you need, adjust the JSON to match your own questions and videos, then import the data with the project‑creation scripts.
+**For a quick start, use the single command‑line tool:**
+
+```bash
+python upload_projects_from_folder.py --folder-path ./example
+```
+
+This single command imports everything in the `example/` folder — videos, users, question groups, schemas, projects, and even sample annotations — so you get a fully‑working demo in seconds. If you just want to see Label Pizza in action, run it and explore the UI. When you’re ready to tailor the workflow to your own data, continue with the rest of this guide to learn how to batch‑upload users, videos, question groups, schemas, and projects.
+
+---
+
+The rest of this README explains the detailed folder structure, JSON formats, and step‑by‑step process for anyone who wants to learn how to batch‑upload their own projects.
+
+## Folder Structure
+
+> This directory provides a compact, end‑to‑end example of the files required to set up a video‑annotation workflow. Copy whichever pieces you already have, adjust the JSON to match your questions and videos, and import them with the project‑creation scripts. Any missing parts (e.g., annotations or reviews) can always be added later through the web interface.
 
 ```
 example/
@@ -18,45 +32,47 @@ example/
 ├── annotations/
 │   ├── humans.json
 │   ├── pizzas.json
-|   └── nsfw.json
+│   └── nsfw.json
 └── reviews/
     ├── humans.json
     ├── pizzas.json
     └── nsfw.json
 ```
 
-## File‑by‑file guide
+## Folder Structure / JSON Format
 
 ### `videos.json`
 
-Contains one entry per video that should be available to projects.
+Contains one entry per video.
 
-```
+```json
 [
   {
-    "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/d0yGdNEWdn0.0.7.mp4",
+    "url": "https://huggingface.co/datasets/syCen/example4labelpizza/resolve/main/human.mp4",
     "metadata": {
-      "original_url": "https://www.youtube.com/watch?v=d0yGdNEWdn0",
+      "original_url": "https://www.youtube.com/watch?v=L3wKzyIN1yk",
       "license": "Standard YouTube License"
     }
   },
   {
-    "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/oVXs1Lo_4pk_2400_4200.0.0.mp4",
+    "url": "https://huggingface.co/datasets/syCen/example4labelpizza/resolve/main/pizza.mp4",
     "metadata": {
-      "original_url": "https://www.youtube.com/watch?v=oVXs1Lo_4pk",
+      "original_url": "https://www.youtube.com/watch?v=8J1NzjA9jNg",
       "license": "Standard YouTube License"
     }
   }
 ]
 ```
 
-The **`url`** field must be directly downloadable by your annotation platform.  Everything under **`metadata`** is passed through untouched; store provenance or licence notes here.
+The **`url`** must point straight to the video file itself, and the link must end with the actual filename like `my_clip.mp4`. Everything inside **`metadata`** is kept as-is for provenance. We recommend hosting services such as Hugging Face Datasets or S3 buckets for video files.
 
 ### `question_groups/`
 
-Each file defines a *single* group of questions that can be reused across multiple schemas.  The example below shows the `humans.json` question group.
+Each JSON file defines *one* group of related questions.
 
-```
+Below is an example question group that asks annotators to report how many people appear in a video and, if any, to describe them.
+
+```json
 {
     "title": "Human",
     "description": "Detect and describe all humans in the video.",
@@ -97,11 +113,18 @@ Each file defines a *single* group of questions that can be reused across multip
 }
 ```
 
+* **`text`** and **`options`** are immutable identifiers, whereas **`display_text`** and **`display_values`** can later be edited in the web UI for wording tweaks.
+* **`option_weights`** let you assign extra influence to certain answers in the weighted majority vote (for reviewer to resolve annotator disagreement), in case you need one option to carry more weight than the others.
+* **`default_option`** pre‑selects a choice when the task opens for both annotators and reviewers.
+* **`is_reusable`** indicates whether this question group can be added to multiple schemas.
+* **`is_auto_submit`** automatically submits the default answer as soon as the video loads. For example, if 99 % of your clips are safe, auto‑submitting "No" to an NSFW question saves annotators from repeatedly clicking the obvious answer.
+* Current `qtype` values are `single` (single‑choice) and `description` (free‑text).
+
 ### `schemas.json`
 
-A schema is simply a list of question‑group titles.  Projects reference schemas by name.
+A schema is a set of question groups.
 
-```
+```json
 [
   {
     "schema_name": "Questions about Humans",
@@ -120,9 +143,9 @@ A schema is simply a list of question‑group titles.  Projects reference schema
 
 ### `users.json`
 
-Defines every account that should be present before projects are created.  Accepted `user_type` values are `admin`, `human`, and `model`.
+Lists the user accounts that should exist before projects are created. `user_type` can be `admin`, `human`, or `model`.
 
-```
+```json
 [
     {
         "user_id": "Admin 1",
@@ -141,24 +164,24 @@ Defines every account that should be present before projects are created.  Accep
 
 ### `projects.json`
 
-Binds a schema to a collection of videos.  Video filenames must match the `original_name` (plus extension) in `videos.json`.
+A project applies a schema to a collection of videos.
 
-```
+```json
 [
   {
     "project_name": "Human Test 0",
     "schema_name": "Questions about Humans",
     "videos": [
-      "d0yGdNEWdn0.0.7.mp4",
-      "oVXs1Lo_4pk_2400_4200.0.0.mp4"
+      "human.mp4",
+      "pizza.mp4"
     ]
   },
   {
     "project_name": "Pizza Test 0",
     "schema_name": "Questions about Pizzas",
     "videos": [
-      "d0yGdNEWdn0.0.7.mp4",
-      "oVXs1Lo_4pk_2400_4200.0.0.mp4"
+      "human.mp4",
+      "pizza.mp4"
     ]
   }
 ]
@@ -166,9 +189,9 @@ Binds a schema to a collection of videos.  Video filenames must match the `origi
 
 ### `assignments.json`
 
-Grants a **role** (annotator, reviewer, admin, or model) to a user within a specific project. Note that admins are automatically assigned to all projects with an admin role.
+Grants a **role** (`annotator`, `reviewer`, `admin`, or `model`) to a user within a project. Admins gain project access automatically, and once a user is created as `model` they cannot be switched to a human role (or vice‑versa) because model accounts store confidence scores.
 
-```
+```json
 [
   {
     "user_email": "user1@example.com",
@@ -185,103 +208,109 @@ Grants a **role** (annotator, reviewer, admin, or model) to a user within a spec
 
 ### `annotations/` and `reviews/`
 
-Both directories share the same JSON structure.  Use `annotations/` for initial answers and `reviews/` for ground‑truth results.
+Both directories share the same JSON structure: each file contains answers for a single question group across all projects and videos. Use `annotations/` for annotator answers and `reviews/` for reviewer ground truth (there can be only one ground‑truth answer per video‑question‑group pair).
 
-**Annotations structure:**
-```
+#### Annotations folder structure:
+
+* `annotations/humans.json` - Contains all human‑related annotations
+* `annotations/pizzas.json` - Contains all pizza‑related annotations
+* `annotations/nsfw.json`  - Contains all NSFW‑related annotations
+
+**Example `annotations/humans.json`:**
+
+```json
 [
   {
     "question_group_title": "Human",
     "project_name": "Human Test 0",
-    "user_email": "user1@example.com",
-    "video_uid": "d0yGdNEWdn0.0.7.mp4",
+    "user_name": "User 1",
+    "video_uid": "human.mp4",
     "answers": {
-      "Number of people?": "0",
-      "If there are people, describe them.": ""
-    }
+      "Number of people?": "1",
+      "If there are people, describe them.": "The person appears to be a large man with a full beard and closely cropped hair."
+    },
+    "is_ground_truth": false
   },
   {
     "question_group_title": "Human",
     "project_name": "Human Test 0",
-    "user_email": "user1@example.com",
-    "video_uid": "oVXs1Lo_4pk_2400_4200.0.0.mp4",
+    "user_name": "User 1",
+    "video_uid": "pizza.mp4",
     "answers": {
-      "Number of people?": "1",
-      "If there are people, describe them.": "The person is tall and slim."
-    }
+      "Number of people?": "0",
+      "If there are people, describe them.": ""
+    },
+    "is_ground_truth": false
   }
 ]
 ```
 
-**Reviews structure:**
-```
+#### Reviews folder structure:
+
+* `reviews/humans.json` - Contains all human‑related ground‑truth reviews
+* `reviews/pizzas.json` - Contains all pizza‑related ground‑truth reviews
+* `reviews/nsfw.json`   - Contains all NSFW‑related ground‑truth reviews
+
+**Example `reviews/humans.json`:**
+
+```json
 [
   {
     "question_group_title": "Human",
     "project_name": "Human Test 0",
-    "reviewer_email": "admin1@example.com",
-    "video_uid": "d0yGdNEWdn0.0.7.mp4",
+    "user_name": "Admin 1",
+    "video_uid": "human.mp4",
     "answers": {
-      "Number of people?": "0",
-      "If there are people, describe them.": ""
-    }
+      "Number of people?": "1",
+      "If there are people, describe them.": "The person appears to be a large man with a full beard and closely cropped hair."
+    },
+    "is_ground_truth": true
   },
   {
     "question_group_title": "Human",
     "project_name": "Human Test 0",
-    "reviewer_email": "admin1@example.com",
-    "video_uid": "oVXs1Lo_4pk_2400_4200.0.0.mp4",
+    "user_name": "Admin 1",
+    "video_uid": "pizza.mp4",
     "answers": {
-      "Number of people?": "1",
-      "If there are people, describe them.": "The person is tall and slim."
-    }
+      "Number of people?": "0",
+      "If there are people, describe them.": ""
+    },
+    "is_ground_truth": true
   }
 ]
 ```
 
-## Getting Started
+**Important:** The `is_ground_truth: true` field marks reviewer ground‑truth answers and should appear at most once per (video, question group) pair.
 
-Follow the steps **in order** so that every dependency (users → question groups → schemas → videos → projects → assignments → annotations) is satisfied.
+## Step‑by‑Step Upload Guide
 
-#### Step 1 Upload Videos
+Follow the steps **in order** so that every dependency (videos → question groups → schemas → users → projects → assignments → annotations) is satisfied.
 
-> Upload all the videos from `./videos` folder. Videos should be stored in `.json` file.
+### Step 0: Initialize Database
 
+**Important:** Initialize the database before running any other steps.
+
+```python
+from label_pizza.db import init_database
+init_database("DBURL")  # replace with your database URL
 ```
-from scripts.upload_utils import upload_videos
-import json
 
-# quickest: point to the JSON file
+### Step 1: Upload Videos
+
+Upload all the videos defined in `videos.json`.
+
+```python
+from label_pizza.upload_utils import upload_videos
+
 upload_videos(videos_path="./example/videos.json")
-
-# alternative: pre-load the file yourself
-with open("./example/videos.json") as f:
-    videos = json.load(f)
-upload_videos(videos_data=videos)
 ```
 
-#### Step 2 Upload Users
+### Step 2: Register Question Groups and Schemas
 
-> Upload all the users from `./users` folder. Users should be stored in `.json` file.
+Load the question groups and schemas from the `question_groups/` folder and `schemas.json`.
 
-```
-from scripts.upload_utils import upload_users
-import json
-
-upload_users(users_path="./example/users.json")
-
-# or
-with open("./example/users.json") as f:
-    users = json.load(f)
-upload_users(users_data=users)
-```
-
-#### Step 3 Register question groups and schemas
-
-> Upload all the schemas / question groups / questions from `./schemas` and `./question_groups` folders. They should be stored in `.json` file.
-
-```
-from scripts.upload_utils import create_schemas
+```python
+from label_pizza.upload_utils import create_schemas
 
 create_schemas(
     schemas_path="./example/schemas.json",
@@ -289,68 +318,43 @@ create_schemas(
 )
 ```
 
-#### Optional: (Optional) Build `projects.json` from annotations
+### Step 3: Upload Users
 
-> Skip this step if `projects.json` is already prepared.
+Create the user accounts listed in `users.json`.
 
-```
-from import_annotations import get_project_from_annotations
-import itertools, json
+```python
+from label_pizza.upload_utils import upload_users
 
-projects = list(itertools.chain.from_iterable([
-    get_project_from_annotations(
-        "./example/annotations/humans.json",
-        schema_name="Questions about Humans"
-    ),
-    get_project_from_annotations(
-        "./example/annotations/pizzas.json",
-        schema_name="Questions about Pizzas"
-    ),
-]))
-
-with open("./example/projects.json", "w") as f:
-    json.dump(projects, f, indent=2)
+upload_users(users_path="./example/users.json")
 ```
 
-#### Step 4 Create Projects from Annotations
+### Step 4: Create Projects
 
->Create Projects from existing annotations / reviews (This is somehow complex now). You could just look it for reference.
+Generate projects from `projects.json`.
 
-```
-from scripts.upload_utils import create_projects
-import json
+```python
+from label_pizza.upload_utils import create_projects
 
 create_projects(projects_path="./example/projects.json")
-
-# or
-with open("./example/projects.json") as f:
-    projects = json.load(f)
-create_projects(projects_data=projects)
 ```
 
-#### Step 5 Assign users to projects
+### Step 5: Assign Users to Projects
 
-> Assign Users to Projects from `./assignment` folder. Assignment should be stored in `.json` file.
+Assign roles to users as specified in `assignments.json`.
 
-```
-from scripts.upload_utils import bulk_assign_users
-import json
+```python
+from label_pizza.upload_utils import bulk_assign_users
 
 bulk_assign_users(assignment_path="./example/assignments.json")
-
-# or
-with open("./example/assignments.json") as f:
-    assignments = json.load(f)
-bulk_assign_users(assignments_data=assignments)
 ```
 
-#### Step 6 Import annotations and reviews
+### Step 6: Upload Annotations and Reviews
 
-> Import all the annotations from `./annotations` folder.
+Finally, upload any pre‑existing annotations and reviewer ground truth.
 
-```
-from import_annotations import import_annotations, import_reviews
+```python
+from label_pizza.upload_utils import upload_annotations, upload_reviews
 
-import_annotations(annotations_folder="./example/annotations")
-import_reviews(reviews_folder="./example/reviews")
+upload_annotations(annotations_folder="./example/annotations")
+upload_reviews(reviews_folder="./example/reviews")
 ```
