@@ -292,7 +292,7 @@ Follow the steps **in order** so that every dependency (videos → question grou
 
 ```python
 from label_pizza.db import init_database
-init_database("DBURL")  # replace with your database URL
+init_database("DBURL")  # replace with your database URL name as stored in .env
 ```
 
 ### Step 1: Upload Videos
