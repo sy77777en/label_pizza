@@ -1,5 +1,6 @@
 import json
 from sqlalchemy.orm import Session
+from functools import lru_cache
 from tqdm import tqdm
 from label_pizza.services import (
     VideoService, 
@@ -7,12 +8,14 @@ from label_pizza.services import (
     SchemaService, 
     QuestionGroupService, 
     QuestionService,
-    AuthService
+    AuthService,
+    AnnotatorService,
+    GroundTruthService
 )
 from label_pizza.db import SessionLocal, engine # Must have been initialized by init_database() before importing this file
 import hashlib
 from pathlib import Path
-from typing import List, Dict, Optional, Any, Set
+from typing import List, Dict, Optional, Any, Set, Tuple
 
 
 def add_videos(videos_data: list[dict]) -> None:
@@ -141,34 +144,6 @@ def update_videos(videos_data: list[dict]) -> None:
             session.rollback()
             raise RuntimeError(f"Error committing changes: {e}") from None
 
-def import_questions() -> None:
-    import glob
-    with SessionLocal() as session:
-        question_paths = glob.glob('./questions/*.json')
-        for question_path in tqdm(question_paths, desc="Importing questions"):
-            with open(question_path, 'r') as f:
-                question_data = json.load(f)
-                
-            # Check if question already exists
-            try:
-                existing_question = QuestionService.get_question_by_text(question_data["text"], session)
-                print(f"⏭️  Skipped existing question: {question_data['text']}")
-                continue
-            except ValueError:
-                # Question doesn't exist, proceed with adding it
-                pass
-            
-            QuestionService.add_question(
-                text=question_data["text"],
-                qtype=question_data["type"],
-                options=question_data.get("options", None),
-                default=question_data.get("default_option", None),
-                session=session,
-                display_values=question_data.get("display_values", None),
-                display_text=question_data.get("display_text", None),
-                option_weights=question_data.get("option_weights", None),
-            )
-            print(f"✓ Imported question: {question_data['text']}")
 
 def import_question_group(group_data: dict) -> int:
     """
@@ -235,7 +210,7 @@ def import_question_group(group_data: dict) -> int:
                 description=group_data["description"],
                 is_reusable=group_data["is_reusable"],
                 question_ids=question_ids,
-                verification_function=group_data.get("verification_function", ""),
+                verification_function=group_data.get("verification_function", None),
                 is_auto_submit=group_data.get("is_auto_submit", False),
                 session=session,
             )
@@ -592,7 +567,6 @@ def upload_users(users_path: str = None, users_data: list[dict] = None):
 
     with SessionLocal() as session:
         existing_users = AuthService.get_all_users(session)
-        existing_emails = set(existing_users['Email'].tolist())
         existing_user_ids = set(existing_users['User ID'].tolist())
 
         for user in users_data:
@@ -601,8 +575,8 @@ def upload_users(users_path: str = None, users_data: list[dict] = None):
             password = user['password']
             user_type = user.get('user_type', 'human')
 
-            if email in existing_emails or user_id in existing_user_ids:
-                print(f"User {email} or user_id {user_id} already exists, skipping.")
+            if user_id in existing_user_ids:
+                print(f"User {user_id} already exists, skipping.")
                 continue
 
             # Hash the password (sha256)
@@ -729,14 +703,24 @@ def bulk_assign_users(assignment_path: str = None, assignments_data: list[dict] 
         try:
             for assignment in assignments_data:
                 try:
-                    user = AuthService.get_user_by_email(assignment["user_email"], session)
+                    user = AuthService.get_user_by_name(assignment["user_name"], session)
                     project = ProjectService.get_project_by_name(assignment["project_name"], session)
                     
                     # Skip global admin users
                     if user.user_type == "admin":
-                        print(f"⚠️ Skipped: {assignment['user_email']} is a global admin, cannot assign non-admin role")
-                        continue
+                        raise ValueError(f"⚠️ {assignment['user_name']} is a global admin, cannot assign non-admin role")
                     
+                    if user.user_type == "model":
+                        if assignment["role"] != "model":
+                            raise ValueError(f"⚠️ {assignment['user_name']} is a model user, cannot assign non-model role")
+                        ProjectService.add_user_to_project(
+                            project_id=project.id,
+                            user_id=user.id, 
+                            role="model",
+                            session=session
+                        )
+                        print(f"✓ Assigned model user {assignment['user_name']} to {assignment['project_name']}")
+                        continue
                     # Get user's projects by role using service function
                     user_projects = AuthService.get_user_projects_by_role(user.id, session)
                     
@@ -755,40 +739,20 @@ def bulk_assign_users(assignment_path: str = None, assignments_data: list[dict] 
                     
                     new_role = assignment["role"]
                     
+                    # No existing role - assign new role
+                    ProjectService.add_user_to_project(
+                        project_id=project.id,
+                        user_id=user.id, 
+                        role=new_role,
+                        session=session
+                    )
                     # Apply business logic
                     if not user_has_role:
-                        # No existing role - assign new role
-                        ProjectService.add_user_to_project(
-                            project_id=project.id,
-                            user_id=user.id, 
-                            role=new_role,
-                            session=session
-                        )
-                        print(f"✓ Assigned {assignment['user_email']} to {assignment['project_name']} as {new_role}")
+                        print(f"✓ Assigned {assignment['user_name']} to {assignment['project_name']} as {new_role}")
                         
-                    elif current_role == "annotator" and new_role == "reviewer":
-                        # annotator -> reviewer: Update
-                        ProjectService.add_user_to_project(
-                            project_id=project.id,
-                            user_id=user.id, 
-                            role=new_role,
-                            session=session
-                        )
-                        print(f"✓ Updated {assignment['user_email']} from annotator to reviewer in {assignment['project_name']}")
-                        
-                    elif current_role == "reviewer" and new_role == "annotator":
-                        # reviewer -> annotator: Ignore
-                        print(f"⚠️ Ignored: {assignment['user_email']} already reviewer, not downgrading to annotator in {assignment['project_name']}")
-                        
+                    
                     else:
-                        # Other cases: Update role
-                        ProjectService.add_user_to_project(
-                            project_id=project.id,
-                            user_id=user.id, 
-                            role=new_role,
-                            session=session
-                        )
-                        print(f"✓ Updated {assignment['user_email']} role to {new_role} in {assignment['project_name']}")
+                        print(f"✓ Updated {assignment['user_name']} role to {new_role} in {assignment['project_name']}")
                     
                 except Exception as e:
                     print(f"✗ Failed: {e}")
@@ -801,3 +765,353 @@ def bulk_assign_users(assignment_path: str = None, assignments_data: list[dict] 
         except Exception as e:
             print(f"❌ Error: {e}")
             session.rollback()
+
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Helpers
+# ──────────────────────────────────────────────────────────────────────
+def _resolve_ids(
+    *,
+    session: Session,
+    question_group_title: str,
+    user_name: str,
+    video_ref: str,
+    project_name: str,
+) -> Tuple[int, int, int, int]:
+    """Return (video_id, project_id, user_id, group_id) or raise ValueError."""
+    group_id = QuestionGroupService.get_group_by_name(question_group_title, session).id
+    if user_name:
+        user_id  = AuthService.get_user_by_name(user_name, session).id
+    else:
+        raise ValueError("user_name is required!")
+
+    video_uid  = video_ref.split("/")[-1]
+    video_id   = VideoService.get_video_by_uid(video_uid, session).id
+
+    project_id = ProjectService.get_project_by_name(project_name, session).id
+    return video_id, project_id, user_id, group_id
+
+
+def _verification_passes(
+    *,
+    session: Session,
+    video_id: int,
+    project_id: int,
+    user_id: int,
+    group_id: int,
+    answers: Dict[str, str],
+) -> None:
+    """
+    Validate one label *without* writing to DB.
+    Missing answers are tolerated for questions where `is_required` is False.
+    """
+    # 1. project & user existence / role checks ------------------------
+    AnnotatorService._validate_project_and_user(project_id, user_id, session)
+    AnnotatorService._validate_user_role(user_id, project_id, "annotator", session)
+
+    # 2. fetch group + questions ---------------------------------------
+    group, questions = AnnotatorService._validate_question_group(group_id, session)
+
+    # ---- build two helper sets ---------------------------------------
+    required_q_texts = {q.text for q in questions if getattr(q, "required", True)}
+    provided_q_texts = set(answers)
+    missing = required_q_texts - provided_q_texts
+    extra   = provided_q_texts  - {q.text for q in questions}
+
+    if missing or extra:
+        raise ValueError(
+            f"Answers do not match questions in group. "
+            f"Missing: {missing}. Extra: {extra}"
+        )
+
+    # 3. run optional verification hook -------------------------------
+    AnnotatorService._run_verification(group, answers)
+
+    # 4. per-question value validation (only for keys we have) ---------
+    q_lookup = {q.text: q for q in questions}
+    for q_text in provided_q_texts:
+        AnnotatorService._validate_answer_value(q_lookup[q_text], answers[q_text])
+
+# ──────────────────────────────────────────────────────────────────────
+# Main routine
+# ──────────────────────────────────────────────────────────────────────
+# ── small helper: cache the legal question keys for each group_id ────────────
+@lru_cache(maxsize=None)
+def _legal_keys_for_group(group_id: int, session: Session) -> set[str]:
+    """Return the set of Question.text keys that live in <group_id>."""
+    qs = QuestionGroupService.get_group_questions(group_id, session)
+    return {row["Text"] for _, row in qs.iterrows()}
+
+def upload_annotations_from_json(
+    rows: List[Dict[str, Any]],
+) -> None:
+    """Verify every entry; upload only if all entries are valid."""
+    errors: list[str] = []
+    valid_cache: list[dict[str, Any]] = []
+
+    with SessionLocal() as session:
+        for idx, row in enumerate(tqdm(rows, desc="verifying"), start=1):
+            try:
+                # ----- resolve IDs -------------------------------------------------
+                video_id, project_id, user_id, group_id = _resolve_ids(
+                    session=session,
+                    question_group_title=row["question_group_title"],
+                    user_name=row["user_name"],
+                    video_ref=row.get("video_uid") or row["video_uid"],
+                    project_name=row["project_name"],
+                )
+
+                # ----- keep only questions that exist in this group ---------------
+                legal_keys = _legal_keys_for_group(group_id, session)
+                answers = {k: v for k, v in row["answers"].items() if k in legal_keys}
+
+                # (optional) warn if something was dropped
+                dropped = set(row["answers"]) - legal_keys
+                if dropped:
+                    print(f"[WARN] {row['video_uid']} | {row['user_name']} "
+                          f"dropped keys: {dropped}")
+
+                # ----- verify remaining answers -----------------------------------
+                _verification_passes(
+                    session=session,
+                    video_id=video_id,
+                    project_id=project_id,
+                    user_id=user_id,
+                    group_id=group_id,
+                    answers=answers,
+                )
+
+                # ----- cache for phase-2 upload -----------------------------------
+                valid_cache.append({
+                    "video_id":   video_id,
+                    "project_id": project_id,
+                    "user_id":    user_id,
+                    "group_id":   group_id,
+                    "answers":    answers,
+                    "confidence": row.get("confidence_scores") or {},
+                    "notes":      row.get("notes") or {},
+                    "video_uid":  row.get("video_uid", "<unknown>"),
+                    "user_name":      row["user_name"],
+                })
+
+            except Exception as exc:
+                errors.append(f"[{idx}] {row.get('video_uid')} | "
+                              f"{row.get('user_name')}: {exc}")
+
+    if errors:
+        print("\nVERIFICATION FAILED – nothing uploaded.")
+        for e in errors[:20]:
+            print(e)
+        if len(errors) > 20:
+            print(f"...and {len(errors)-20} more")
+        return
+
+    print(f"\nVERIFICATION PASSED ({len(valid_cache)} records). Starting upload...")
+
+    # -------- phase 2 – real upload -----------------------------------
+    ok, fail = 0, 0
+    with SessionLocal() as session:
+        for rec in tqdm(valid_cache, desc="uploading"):
+            try:
+                AnnotatorService.submit_answer_to_question_group(
+                    video_id=rec["video_id"],
+                    project_id=rec["project_id"],
+                    user_id=rec["user_id"],
+                    question_group_id=rec["group_id"],
+                    answers=rec["answers"],
+                    session=session,
+                    confidence_scores=rec["confidence"],
+                    notes=rec["notes"],
+                )
+                ok += 1
+            except Exception as exc:
+                print(f"[FAIL] {rec['video_uid']}: {exc}")
+                fail += 1
+
+    print(f"\nUpload finished – {ok} succeeded, {fail} failed.")
+
+def _resolve_ids_for_reviews(
+    *,
+    session: Session,
+    question_group_title: str,
+    user_name: str,
+    video_ref: str,
+    project_name: str,
+) -> Tuple[int, int, int, int]:
+    """Return (video_id, project_id, reviewer_id, group_id) or raise ValueError."""
+    group_id = QuestionGroupService.get_group_by_name(question_group_title, session).id
+    if user_name:
+        reviewer_id = AuthService.get_user_by_name(user_name=user_name, session=session).id
+    else:
+        raise ValueError("user_name is required!")
+
+    video_uid  = video_ref.split("/")[-1]
+    video_id   = VideoService.get_video_by_uid(video_uid, session).id
+
+    project_id = ProjectService.get_project_by_name(project_name, session).id
+    return video_id, project_id, reviewer_id, group_id
+
+def upload_reviews_from_json(
+    rows: List[Dict[str, Any]],
+) -> None:
+    """Verify every review entry; upload only if all entries are valid."""
+    errors: list[str] = []
+    valid_cache: list[dict[str, Any]] = []
+    with SessionLocal() as session:
+        for idx, row in enumerate(tqdm(rows, desc="verifying reviews"), start=1):
+            if row.get("is_ground_truth") == False:
+                raise ValueError(f"is_ground_truth must be True! Video: {row['video_uid']} is not ground truth.")
+            try:
+                # ----- resolve IDs -------------------------------------------------
+                video_id, project_id, reviewer_id, group_id = _resolve_ids_for_reviews(
+                    session=session,
+                    question_group_title=row["question_group_title"],
+                    user_name=row.get("user_name", None),
+                    video_ref=row.get("video_uid") or row["video_uid"],
+                    project_name=row["project_name"],
+                )
+
+                # ----- keep only questions that exist in this group ---------------
+                legal_keys = _legal_keys_for_group(group_id, session)
+                answers = {k: v for k, v in row["answers"].items() if k in legal_keys}
+
+                # (optional) warn if something was dropped
+                dropped = set(row["answers"]) - legal_keys
+                if dropped:
+                    print(f"[WARN] {row['video_uid']} | reviewer:{row['user_name']} "
+                          f"dropped keys: {dropped}")
+
+                # ----- verify remaining answers -----------------------------------
+                _verification_passes_reviews(
+                    session=session,
+                    video_id=video_id,
+                    project_id=project_id,
+                    reviewer_id=reviewer_id,
+                    group_id=group_id,
+                    answers=answers,
+                )
+
+                # ----- cache for phase-2 upload -----------------------------------
+                valid_cache.append({
+                    "video_id":   video_id,
+                    "project_id": project_id,
+                    "reviewer_id": reviewer_id,
+                    "group_id":   group_id,
+                    "answers":    answers,
+                    "confidence": row.get("confidence_scores") or {},
+                    "notes":      row.get("notes") or {},
+                    "video_uid":  row.get("video_uid", "<unknown>"),
+                    "user_name": row["user_name"],
+                })
+
+            except Exception as exc:
+                errors.append(f"[{idx}] {row.get('video_uid')} | "
+                              f"reviewer:{row.get('user_name')}: {exc}")
+
+    if errors:
+        print("\nVERIFICATION FAILED – nothing uploaded.")
+        for e in errors[:20]:
+            print(e)
+        if len(errors) > 20:
+            print(f"...and {len(errors)-20} more")
+        return
+
+    print(f"\nVERIFICATION PASSED ({len(valid_cache)} records). Starting upload...")
+
+    # -------- phase 2 – real upload -----------------------------------
+    ok, fail = 0, 0
+    with SessionLocal() as session:
+        for rec in tqdm(valid_cache, desc="uploading reviews"):
+            try:
+                GroundTruthService.submit_ground_truth_to_question_group(
+                    video_id=rec["video_id"],
+                    project_id=rec["project_id"],
+                    reviewer_id=rec["reviewer_id"],
+                    question_group_id=rec["group_id"],
+                    answers=rec["answers"],
+                    session=session,
+                    confidence_scores=rec["confidence"],
+                    notes=rec["notes"],
+                )
+                ok += 1
+            except Exception as exc:
+                print(f"[FAIL] {rec['video_uid']} | reviewer:{rec['user_name']}: {exc}")
+                fail += 1
+
+    print(f"\nUpload finished – {ok} succeeded, {fail} failed.")
+
+
+def _verification_passes_reviews(
+    *,
+    session: Session,
+    video_id: int,  # 改为 int
+    project_id: int,
+    reviewer_id: int,
+    group_id: int,
+    answers: Dict[str, str],
+) -> None:
+    """
+    Validate one review label *without* writing to DB.
+    Missing answers are tolerated for questions where `is_required` is False.
+    """
+    # 1. project & reviewer existence / role checks ------------------------
+    GroundTruthService._validate_project_and_user(project_id, reviewer_id, session)
+    GroundTruthService._validate_user_role(reviewer_id, project_id, "reviewer", session)
+
+    # 2. fetch group + questions ---------------------------------------
+    group, questions = GroundTruthService._validate_question_group(group_id, session)
+
+    # ---- build two helper sets ---------------------------------------
+    required_q_texts = {q.text for q in questions if getattr(q, "required", True)}
+    provided_q_texts = set(answers)
+    missing = required_q_texts - provided_q_texts
+    extra   = provided_q_texts  - {q.text for q in questions}
+
+    if missing or extra:
+        raise ValueError(
+            f"Answers do not match questions in group. "
+            f"Missing: {missing}. Extra: {extra}"
+        )
+
+    # 3. run optional verification hook -------------------------------
+    GroundTruthService._run_verification(group, answers)
+
+    # 4. per-question value validation (only for keys we have) ---------
+    q_lookup = {q.text: q for q in questions}
+    for q_text in provided_q_texts:
+        GroundTruthService._validate_answer_value(q_lookup[q_text], answers[q_text])
+
+
+def upload_annotations(annotations_folder: str = None, annotations_data: list[dict] = None) -> None:
+    
+    if annotations_folder is None and annotations_data is None:
+        raise ValueError("At least one parameter must be provided: annotations_folder or annotations_data")
+    
+    if annotations_folder is not None:
+        import os
+        import glob
+        annotations_data = []
+        paths = glob.glob(os.path.join(annotations_folder, '*.json'))
+        for path in paths:
+            with open(path, 'r') as f:
+                annotations_data.append(json.load(f))
+    for annotation_data in annotations_data:
+        upload_annotations_from_json(annotation_data)
+    
+def upload_reviews(reviews_folder: str = None, reviews_data: list[dict] = None) -> None:
+    
+    if reviews_folder is None and reviews_data is None:
+        raise ValueError("At least one parameter must be provided: reviews_folder or reviews_data")
+    
+    if reviews_folder is not None:
+        import os
+        import glob
+        reviews_data = []
+        paths = glob.glob(os.path.join(reviews_folder, '*'))
+        for path in paths:
+            with open(path, 'r') as f:
+                reviews_data.append(json.load(f))
+    for review_data in reviews_data:
+        upload_reviews_from_json(review_data)
+
