@@ -17,6 +17,7 @@ def test_question_group_service_create_group(session):
     
     group = QuestionGroupService.create_group(
         title="test_group",
+        display_title="test_group",
         description="test description",
         is_reusable=True,
         question_ids=[question["id"]],  # Add the question to the group
@@ -44,6 +45,7 @@ def test_question_group_service_create_group_duplicate(session, test_question_gr
     with pytest.raises(ValueError, match="Question group with title 'test_group' already exists"):
         QuestionGroupService.create_group(
             title="test_group",
+            display_title="test_group",
             description="test description",
             is_reusable=True,
             question_ids=[new_question["id"]],
@@ -55,6 +57,7 @@ def test_question_group_service_create_group_with_questions(session, test_questi
     """Test creating a group with questions."""
     group = QuestionGroupService.create_group(
         title="test_group",
+        display_title="test_group",
         description="test description",
         is_reusable=True,
         question_ids=[test_question["id"]],
@@ -73,6 +76,7 @@ def test_question_group_service_create_group_with_invalid_question(session):
     with pytest.raises(ValueError, match="Question with ID 999 not found"):
         QuestionGroupService.create_group(
             title="test_group",
+            display_title="test_group",
             description="test description",
             is_reusable=True,
             question_ids=[999],  # Non-existent question ID
@@ -171,6 +175,7 @@ def test_question_group_service_update_question_order(session, test_question_gro
     # Create a new group with both questions
     group = QuestionGroupService.create_group(
         title="test_group2",
+        display_title="test_group2",
         description="test description",
         is_reusable=True,
         question_ids=[test_question_group.id, question2["id"]],
@@ -196,6 +201,7 @@ def test_question_group_service_get_all_groups_by_reusable(session, test_questio
     # Create a non-reusable group
     QuestionGroupService.create_group(
         title="non_reusable_group",
+        display_title="non_reusable_group",
         description="test description",
         is_reusable=False,
         question_ids=[test_question_group.id],

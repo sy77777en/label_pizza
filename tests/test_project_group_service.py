@@ -225,6 +225,7 @@ def test_project_group_service_validate_project_group_uniqueness(session):
     # Create a question group
     question_group = QuestionGroupService.create_group(
         title="test_group",
+        display_title="test_group",
         description="Test group",
         is_reusable=True,
         question_ids=[question.id],

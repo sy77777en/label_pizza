@@ -210,7 +210,7 @@ Grants a **role** (`annotator`, `reviewer`, `admin`, or `model`) to a user withi
 
 Both directories share the same JSON structure: each file contains answers for a single question group across all projects and videos. Use `annotations/` for annotator answers and `reviews/` for reviewer ground truth (there can be only one ground‑truth answer per video‑question‑group pair).
 
-#### Annotations folder structure:
+#### Example annotations folder:
 
 * `annotations/humans.json` - Contains all human‑related annotations
 * `annotations/pizzas.json` - Contains all pizza‑related annotations
@@ -245,7 +245,7 @@ Both directories share the same JSON structure: each file contains answers for a
 ]
 ```
 
-#### Reviews folder structure:
+#### Example reviews folder:
 
 * `reviews/humans.json` - Contains all human‑related ground‑truth reviews
 * `reviews/pizzas.json` - Contains all pizza‑related ground‑truth reviews
@@ -280,7 +280,7 @@ Both directories share the same JSON structure: each file contains answers for a
 ]
 ```
 
-**Important:** The `is_ground_truth: true` field marks reviewer ground‑truth answers and should appear at most once per (video, question group) pair.
+**Important:** The `is_ground_truth: true` field marks reviewer ground‑truth answers. A (video, question group, project) can have at most one ground truth answer.
 
 ## Step‑by‑Step Upload Guide
 

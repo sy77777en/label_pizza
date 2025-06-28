@@ -207,6 +207,7 @@ def import_question_group(group_data: dict) -> int:
 
             qgroup = QuestionGroupService.create_group(
                 title=group_data["title"],
+                display_title=group_data["title"],
                 description=group_data["description"],
                 is_reusable=group_data["is_reusable"],
                 question_ids=question_ids,

@@ -186,6 +186,7 @@ def seed_sample_data(session_local: Session):
                 try:
                     group = QuestionGroupService.create_group(
                         title="Sample Questions",
+                        display_title="Sample Questions",
                         description="Sample questions for testing",
                         is_reusable=True,
                         question_ids=question_ids,

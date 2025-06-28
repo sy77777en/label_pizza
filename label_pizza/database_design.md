@@ -74,6 +74,7 @@ Archiving supports takedowns.
 | ------ | ---- | ------- | ----------- |
 | `id`           | INT PK |
 | `title`        | VARCHAR(255) UNIQUE |
+| `display_title`        | VARCHAR(255) |
 | `description`  | TEXT |
 | `is_reusable`  | BOOL | **FALSE** | `TRUE` ⇒ can be imported by many schemas (e.g., Shot Transition) |
 | `is_auto_submit` | BOOL | **FALSE** | `TRUE` ⇒ answers are automatically submitted for annotation mode |

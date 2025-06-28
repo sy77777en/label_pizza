@@ -96,6 +96,7 @@ def test_video_service_get_videos_with_project_status(session, test_video):
     # Create a question group with the question
     question_group = QuestionGroupService.create_group(
         title="test_group",
+        display_title="test_group",
         description="test description",
         is_reusable=True,
         question_ids=[question["id"]],
@@ -138,6 +139,7 @@ def test_video_service_get_videos_with_ground_truth(session, test_video, test_us
     # Create a question group with the question
     question_group = QuestionGroupService.create_group(
         title="test_group_gt",
+        display_title="test_group_gt",
         description="test description",
         is_reusable=True,
         question_ids=[question.id],
@@ -319,6 +321,7 @@ def test_video_service_get_all_videos_multiple_projects(session, test_video):
         # Create question group with the question
         group = QuestionGroupService.create_group(
             title=f"test_group{i}",
+            display_title=f"test_group{i}",
             description="test description",
             is_reusable=True,
             question_ids=[question["id"]],  # Add the question to the group
@@ -384,6 +387,7 @@ def test_video_service_get_all_videos_with_review(session, test_video, test_user
     # Create a question group with the questions
     question_group = QuestionGroupService.create_group(
         title="test_group_review",
+        display_title="test_group_review",
         description="test description",
         is_reusable=True,
         question_ids=[q["id"] for q in questions],

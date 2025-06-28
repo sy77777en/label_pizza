@@ -84,6 +84,7 @@ def test_schema(session):
     # Create a question group with the question
     group = QuestionGroupService.create_group(
         title="test_group_for_schema",
+        display_title="test_group_for_schema",
         description="test description",
         is_reusable=True,
         question_ids=[question["id"]],
@@ -113,6 +114,7 @@ def test_question_group(session):
     # Create question group with the question
     group = QuestionGroupService.create_group(
         title="test_group",
+        display_title="test_group",
         description="test description",
         is_reusable=True,
         question_ids=[question["id"]],  # Add the question to the group

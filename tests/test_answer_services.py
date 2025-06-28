@@ -608,6 +608,7 @@ def test_ground_truth_service_submit_answer_review(session, test_user, test_proj
     # Create a new question group with the description question
     description_group = QuestionGroupService.create_group(
         title="Description Group",
+        display_title="Description Group",
         description="Group for description questions",
         is_reusable=True,
         question_ids=[question["id"]],
@@ -689,6 +690,7 @@ def test_ground_truth_service_submit_answer_review_invalid_status(session, test_
     # Create a new question group with the description question
     description_group = QuestionGroupService.create_group(
         title="Description Group",
+        display_title="Description Group",
         description="Group for description questions",
         is_reusable=True,
         question_ids=[question["id"]],

@@ -6,3 +6,6 @@ codeBackgroundColor = "#F3F2F4"
 
 [theme.sidebar]
 backgroundColor = "#F3F2F4"
+
+[server]
+fileWatcherType = "none"

@@ -135,6 +135,7 @@ def create_question_groups(session, question_ids):
         try:
             return QuestionGroupService.create_group(
                 title=title,
+                display_title=title,
                 description=description,
                 is_reusable=is_reusable,
                 question_ids=question_ids,

@@ -795,7 +795,7 @@ def display_auto_submit_tab(project_id: int, user_id: int, role: str, videos: Li
         if auto_submit_groups:
             st.markdown("### 🤖 Automatic Processing")
             
-            auto_group_names = [group["Title"] for group in auto_submit_groups]
+            auto_group_names = [group["Display Title"] for group in auto_submit_groups]
             if len(auto_group_names) == 1:
                 custom_info(f"Found **{auto_group_names[0]}** with auto-submit enabled")
             else:
@@ -810,14 +810,14 @@ def display_auto_submit_tab(project_id: int, user_id: int, role: str, videos: Li
             
             selected_group_names = st.multiselect(
                 "Select question groups for manual auto-submit:",
-                [group["Title"] for group in manual_groups],
-                default=[group["Title"] for group in manual_groups],  # ADD THIS LINE
+                [group["Display Title"] for group in manual_groups],
+                default=[group["Display Title"] for group in manual_groups],  # ADD THIS LINE
                 key=f"manual_groups_{role}_{project_id}",
                 disabled=is_training_mode,
                 help="All groups are preselected. Deselect any you don't want to configure."  # ADD THIS LINE
             )
             
-            selected_groups = [group for group in manual_groups if group["Title"] in selected_group_names]
+            selected_groups = [group for group in manual_groups if group["Display Title"] in selected_group_names]
             
             if selected_groups:
                 display_manual_auto_submit_controls(selected_groups, target_videos, project_id, user_id, role, session, is_training_mode)
@@ -882,13 +882,13 @@ def display_auto_submit_tab(project_id: int, user_id: int, role: str, videos: Li
         
         selected_group_names = st.multiselect(
             "Select question groups for ground truth auto-submit:",
-            [group["Title"] for group in question_groups],
-            default=[group["Title"] for group in question_groups],  # ADD THIS LINE
+            [group["Display Title"] for group in question_groups],
+            default=[group["Display Title"] for group in question_groups],  # ADD THIS LINE
             key=f"manual_groups_{role}_{project_id}",
             help="All groups are preselected. Deselect any you don't want to configure."  # ADD THIS LINE
         )
         
-        selected_groups = [group for group in question_groups if group["Title"] in selected_group_names]
+        selected_groups = [group for group in question_groups if group["Display Title"] in selected_group_names]
         
         if selected_groups:
             display_manual_auto_submit_controls(selected_groups, target_videos, project_id, user_id, role, session, False)
@@ -1090,6 +1090,21 @@ def build_virtual_responses_for_video(video_id: int, project_id: int, role: str,
     return virtual_responses
 
 
+def display_layout_tab_content(videos: List[Dict], role: str):
+    """Display layout tab content"""
+    st.markdown("#### 🎛️ Video Layout Settings")
+    
+    st.markdown(f"""
+    <div style="{get_card_style('#B180FF')}text-align: center;">
+        <div style="color: #5C00BF; font-weight: 500; font-size: 0.95rem;">
+            🎛️ Customize Your Video Display - Adjust how videos and questions are laid out
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    with st.expander("⚙️ Layout Configuration", expanded=False):
+        _display_video_layout_controls(videos, role)
+        custom_info("💡 Adjust layout to optimize your workflow.")
 
 
 # MINIMAL MODIFICATION: Update the preview and execution functions to use custom settings
@@ -1156,7 +1171,7 @@ def run_manual_auto_submit(selected_groups: List[Dict], videos: List[Dict], proj
     
     for group in selected_groups:
         group_id = group["ID"]
-        group_title = group["Title"]
+        group_display_title = group["Display Title"]
         
         for video in videos:
             video_id = video["id"]
@@ -1198,7 +1213,7 @@ def run_manual_auto_submit(selected_groups: List[Dict], videos: List[Dict], proj
                 if result.get("verification_failed", False):
                     total_verification_failures += 1
                     verification_failure_details.append({
-                        "group": group_title,
+                        "group": group_display_title,
                         "video": video_uid,
                         "error": result.get("verification_error", "Unknown verification error")
                     })
@@ -1206,7 +1221,7 @@ def run_manual_auto_submit(selected_groups: List[Dict], videos: List[Dict], proj
                 if "details" in result and "threshold_failures" in result["details"]:
                     for failure in result["details"]["threshold_failures"]:
                         threshold_failure_details.append({
-                            "group": group_title,
+                            "group": group_display_title,
                             "video": video_uid,
                             "question": failure["question"],
                             "percentage": failure["percentage"],
@@ -1216,7 +1231,7 @@ def run_manual_auto_submit(selected_groups: List[Dict], videos: List[Dict], proj
             except Exception as e:
                 total_verification_failures += 1
                 verification_failure_details.append({
-                    "group": group_title,
+                    "group": group_display_title,
                     "video": video_uid,
                     "error": str(e)
                 })
@@ -1364,7 +1379,7 @@ def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project
             
             for group in selected_groups:
                 group_id = group["ID"]
-                group_title = group["Title"]
+                group_display_title = group["Display Title"]
                 
                 try:
                     questions_in_group = get_questions_by_group_cached(group_id=group_id, session=session)
@@ -1417,7 +1432,7 @@ def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project
                     
                     if group_would_submit:
                         groups_would_submit += 1
-                        video_results[video_uid]["groups"][group_title] = {
+                        video_results[video_uid]["groups"][group_display_title] = {
                             "would_submit": True,
                             "answers": result["answers"],
                             "vote_details": result["vote_details"],
@@ -1441,7 +1456,7 @@ def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project
                             
                             failure_reason = " + ".join(failure_parts) if failure_parts else "unknown failure"
                         
-                        video_results[video_uid]["groups"][group_title] = {
+                        video_results[video_uid]["groups"][group_display_title] = {
                             "would_submit": False,
                             "answers": result["answers"] if result["answers"] else {},
                             "vote_details": result["vote_details"] if result["vote_details"] else {},
@@ -1457,7 +1472,7 @@ def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project
                     except:
                         total_questions_in_group = 0
                     
-                    video_results[video_uid]["groups"][group_title] = {
+                    video_results[video_uid]["groups"][group_display_title] = {
                         "would_submit": False,
                         "answers": {},
                         "vote_details": {},
@@ -2002,13 +2017,13 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
             # KEEP ORIGINAL LAYOUT but fix the logic
             for group in selected_groups:
                 group_id = group["ID"]
-                group_title = group["Title"]
+                group_display_title = group["Display Title"]
                 questions = all_questions_by_group.get(group_id, [])
                 
                 if not questions:
                     continue
                 
-                st.markdown(f"**📋 {group_title}**")
+                st.markdown(f"**📋 {group_display_title}**")
                 
                 # Two column layout - UNCHANGED
                 cols = st.columns(2)
@@ -2146,13 +2161,13 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
             
             for group in selected_groups:
                 group_id = group["ID"]
-                group_title = group["Title"]
+                group_display_title = group["Display Title"]
                 questions = all_questions_by_group.get(group_id, [])
                 
                 if not questions:
                     continue
                 
-                st.markdown(f"**📋 {group_title}**")
+                st.markdown(f"**📋 {group_display_title}**")
                 
                 cols = st.columns(2)
                 
@@ -2189,13 +2204,13 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
             
             for group in selected_groups:
                 group_id = group["ID"]
-                group_title = group["Title"]
+                group_display_title = group["Display Title"]
                 questions = all_questions_by_group.get(group_id, [])
                 
                 if not questions:
                     continue
                 
-                st.markdown(f"**📋 {group_title}**")
+                st.markdown(f"**📋 {group_display_title}**")
                 
                 cols = st.columns(2)
                 
@@ -2268,13 +2283,13 @@ def display_manual_auto_submit_controls(selected_groups: List[Dict], videos: Lis
             
             for group in selected_groups:
                 group_id = group["ID"]
-                group_title = group["Title"]
+                group_display_title = group["Display Title"]
                 questions = all_questions_by_group.get(group_id, [])
                 
                 if not questions:
                     continue
                 
-                st.markdown(f"**📋 {group_title}**")
+                st.markdown(f"**📋 {group_display_title}**")
                 
                 cols = st.columns(2)
                 
@@ -2645,16 +2660,20 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
 ###############################################################################
 
 
-def display_user_simple(user_name: str, user_email: str, is_ground_truth: bool = False):
+def display_user_simple(user_name: str, user_email: str, is_ground_truth: bool = False, user_role: str = None):
     """Simple user display using custom styling"""
     display_name, initials = AuthService.get_user_display_name_with_initials(user_name)
     
     icon = "🏆" if is_ground_truth else "👤"
     
+    # Add role text if provided - only role text is purple
+    role_text = f"<br><div style='margin-top: 8px; font-size: 0.85rem; font-weight: 600; color: #5C00BF;'>Role: {user_role.title()}</div>" if user_role else ""
+    
     st.markdown(f"""
     <div style="background: #EAE1F9; border-radius: 12px; padding: 12px 16px; margin: 8px 0; text-align: center;">
         <div style="color: #333333; font-weight: 600; font-size: 0.95rem;">
             {icon} <strong>{user_name}</strong> ({initials}) - {user_email}
+            {role_text}
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -2830,7 +2849,7 @@ def display_project_dashboard(user_id: int, role: str, session: Session) -> Opti
             page_col1, page_col2, page_col3 = st.columns([1, 2, 1])
             
             with page_col1:
-                if st.button("◀ Previous", disabled=(current_page == 0), key=f"prev_{page_key}", use_container_width=True):
+                if st.button("◀ Prev", disabled=(current_page == 0), key=f"prev_{page_key}", use_container_width=True):
                     st.session_state[page_key] = max(0, current_page - 1)
                     st.rerun()
             
@@ -4012,135 +4031,136 @@ def run_project_wide_auto_submit_on_entry(project_id: int, user_id: int, session
 
 def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: int):
     """Modern, compact annotator selection with completion checks and confidence scores for model users"""
-    if not annotators:
-        custom_info("No annotators have submitted answers for this project yet.")
-        return []
-    
-    # Check completion status for each annotator
-    try:
-        with get_db_session() as session:
-            completion_progress = get_cached_user_completion_progress(project_id=project_id, session=session)
-    
-        completed_annotators = {}
-        incomplete_annotators = {}
+    with st.expander("⚙️ Annotator Selection (Expand to see options)", expanded=False):
+        if not annotators:
+            custom_info("No annotators have submitted answers for this project yet.")
+            return []
         
-        for annotator_display, annotator_info in annotators.items():
-            user_id = annotator_info.get('id')
-            if user_id and user_id in completion_progress:
-                progress = completion_progress[user_id]
-                if progress >= 100:
-                    completed_annotators[annotator_display] = annotator_info
+        # Check completion status for each annotator
+        try:
+            with get_db_session() as session:
+                completion_progress = get_cached_user_completion_progress(project_id=project_id, session=session)
+        
+            completed_annotators = {}
+            incomplete_annotators = {}
+            
+            for annotator_display, annotator_info in annotators.items():
+                user_id = annotator_info.get('id')
+                if user_id and user_id in completion_progress:
+                    progress = completion_progress[user_id]
+                    if progress >= 100:
+                        completed_annotators[annotator_display] = annotator_info
+                    else:
+                        incomplete_annotators[annotator_display] = annotator_info
                 else:
                     incomplete_annotators[annotator_display] = annotator_info
-            else:
-                incomplete_annotators[annotator_display] = annotator_info
-    except:
-        # Fallback: treat none as completed if we can't check
-        print("Error checking completion status for annotators")
-        completed_annotators = {}
-        incomplete_annotators = annotators
-    
-    if "selected_annotators" not in st.session_state:
-        # Only select completed annotators by default
-        completed_options = list(completed_annotators.keys())
-        st.session_state.selected_annotators = completed_options[:3] if len(completed_options) > 3 else completed_options
-    
-    all_annotator_options = list(annotators.keys())
-    
-    with st.container():
-        st.markdown("#### 🎯 Quick Actions")
+        except:
+            # Fallback: treat none as completed if we can't check
+            print("Error checking completion status for annotators")
+            completed_annotators = {}
+            incomplete_annotators = annotators
         
-        btn_col1, btn_col2 = st.columns(2)
-        with btn_col1:
-            if st.button("✅ Select All Completed", key=f"select_completed_{project_id}", help="Select all annotators who completed the project", use_container_width=True):
-                st.session_state.selected_annotators = list(completed_annotators.keys())
+        if "selected_annotators" not in st.session_state:
+            # Only select completed annotators by default
+            completed_options = list(completed_annotators.keys())
+            st.session_state.selected_annotators = completed_options[:3] if len(completed_options) > 3 else completed_options
+        
+        all_annotator_options = list(annotators.keys())
+        
+        with st.container():
+            st.markdown("#### 🎯 Quick Actions")
+            
+            btn_col1, btn_col2 = st.columns(2)
+            with btn_col1:
+                if st.button("✅ Select All Completed", key=f"select_completed_{project_id}", help="Select all annotators who completed the project", use_container_width=True):
+                    st.session_state.selected_annotators = list(completed_annotators.keys())
+                    st.rerun()
+            
+            with btn_col2:
+                if st.button("❌ Clear All", key=f"clear_all_{project_id}", help="Deselect all annotators", use_container_width=True):
+                    st.session_state.selected_annotators = []
+                    st.rerun()
+            
+            # Status display
+            selected_count = len(st.session_state.selected_annotators)
+            completed_count = len(completed_annotators)
+            total_count = len(annotators)
+            
+            status_color = COLORS['success'] if selected_count > 0 else COLORS['secondary']
+            status_text = f"📊 {selected_count} selected • {completed_count} completed • {total_count} total"
+            
+            # st.markdown(f"""
+            # <div style="background: linear-gradient(135deg, {status_color}15, {status_color}08); border: 1px solid {status_color}40; border-radius: 8px; padding: 8px 16px; margin: 12px 0; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.1);">
+            #     <div style="color: {status_color}; font-weight: 600; font-size: 0.9rem;">{status_text}</div>
+            # </div>
+            # """, unsafe_allow_html=True)
+            custom_info(status_text)
+        
+        with st.container():
+            st.markdown("#### 👥 Choose Annotators")
+            st.caption("✅ = Completed project • ⏳ = In progress • 🤖 = AI Model")
+            
+            updated_selection = []
+            
+            # Display completed annotators first
+            if completed_annotators:
+                st.markdown("**✅ Completed Annotators:**")
+                display_annotator_checkboxes(completed_annotators, project_id, "completed", updated_selection, disabled=False)
+            
+            # Display incomplete annotators (NO LONGER DISABLED)
+            if incomplete_annotators:
+                st.markdown("**⏳ Incomplete Annotators:**")
+                display_annotator_checkboxes(incomplete_annotators, project_id, "incomplete", updated_selection, disabled=False)
+            
+            if set(updated_selection) != set(st.session_state.selected_annotators):
+                st.session_state.selected_annotators = updated_selection
                 st.rerun()
         
-        with btn_col2:
-            if st.button("❌ Clear All", key=f"clear_all_{project_id}", help="Deselect all annotators", use_container_width=True):
-                st.session_state.selected_annotators = []
-                st.rerun()
-        
-        # Status display
-        selected_count = len(st.session_state.selected_annotators)
-        completed_count = len(completed_annotators)
-        total_count = len(annotators)
-        
-        status_color = COLORS['success'] if selected_count > 0 else COLORS['secondary']
-        status_text = f"📊 {selected_count} selected • {completed_count} completed • {total_count} total"
-        
-        # st.markdown(f"""
-        # <div style="background: linear-gradient(135deg, {status_color}15, {status_color}08); border: 1px solid {status_color}40; border-radius: 8px; padding: 8px 16px; margin: 12px 0; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.1);">
-        #     <div style="color: {status_color}; font-weight: 600; font-size: 0.9rem;">{status_text}</div>
-        # </div>
-        # """, unsafe_allow_html=True)
-        custom_info(status_text)
-    
-    with st.container():
-        st.markdown("#### 👥 Choose Annotators")
-        st.caption("✅ = Completed project • ⏳ = In progress • 🤖 = AI Model")
-        
-        updated_selection = []
-        
-        # Display completed annotators first
-        if completed_annotators:
-            st.markdown("**✅ Completed Annotators:**")
-            display_annotator_checkboxes(completed_annotators, project_id, "completed", updated_selection, disabled=False)
-        
-        # Display incomplete annotators (NO LONGER DISABLED)
-        if incomplete_annotators:
-            st.markdown("**⏳ Incomplete Annotators:**")
-            display_annotator_checkboxes(incomplete_annotators, project_id, "incomplete", updated_selection, disabled=False)
-        
-        if set(updated_selection) != set(st.session_state.selected_annotators):
-            st.session_state.selected_annotators = updated_selection
-            st.rerun()
-    
-    # Selection summary with model user indicators and completion status
-    if st.session_state.selected_annotators:
-        initials_list = []
-        for annotator in st.session_state.selected_annotators:
-            annotator_info = annotators.get(annotator, {})
-            user_role = annotator_info.get('role', 'human')
+        # Selection summary with model user indicators and completion status
+        if st.session_state.selected_annotators:
+            initials_list = []
+            for annotator in st.session_state.selected_annotators:
+                annotator_info = annotators.get(annotator, {})
+                user_role = annotator_info.get('role', 'human')
+                
+                if " (" in annotator and annotator.endswith(")"):
+                    initials = annotator.split(" (")[1][:-1]
+                else:
+                    initials = annotator[:2].upper()
+                
+                # Show completion status
+                if annotator in completed_annotators:
+                    status_icon = "🤖✅" if user_role == "model" else "✅"
+                else:
+                    status_icon = "🤖⏳" if user_role == "model" else "⏳"
+                
+                initials_list.append(f"{status_icon}{initials}")
             
-            if " (" in annotator and annotator.endswith(")"):
-                initials = annotator.split(" (")[1][:-1]
+            if len(initials_list) <= 8:
+                initials_text = " • ".join(initials_list)
             else:
-                initials = annotator[:2].upper()
+                shown = initials_list[:6]
+                remaining = len(initials_list) - 6
+                initials_text = f"{' • '.join(shown)} + {remaining} more"
             
-            # Show completion status
-            if annotator in completed_annotators:
-                status_icon = "🤖✅" if user_role == "model" else "✅"
-            else:
-                status_icon = "🤖⏳" if user_role == "model" else "⏳"
-            
-            initials_list.append(f"{status_icon}{initials}")
-        
-        if len(initials_list) <= 8:
-            initials_text = " • ".join(initials_list)
+            # st.markdown(f"""
+            # <div style="background: linear-gradient(135deg, #e8f5e8, #d4f1d4); border: 2px solid #28a745; border-radius: 12px; padding: 12px 16px; margin: 16px 0; text-align: center; box-shadow: 0 2px 8px rgba(40, 167, 69, 0.2);">
+            #     <div style="color: #155724; font-weight: 600; font-size: 0.95rem;">
+            #         ✅ Currently Selected: {initials_text}
+            #     </div>
+            # </div>
+            # """, unsafe_allow_html=True)
+            custom_info(f"Currently Selected: {initials_text}")
         else:
-            shown = initials_list[:6]
-            remaining = len(initials_list) - 6
-            initials_text = f"{' • '.join(shown)} + {remaining} more"
-        
-        # st.markdown(f"""
-        # <div style="background: linear-gradient(135deg, #e8f5e8, #d4f1d4); border: 2px solid #28a745; border-radius: 12px; padding: 12px 16px; margin: 16px 0; text-align: center; box-shadow: 0 2px 8px rgba(40, 167, 69, 0.2);">
-        #     <div style="color: #155724; font-weight: 600; font-size: 0.95rem;">
-        #         ✅ Currently Selected: {initials_text}
-        #     </div>
-        # </div>
-        # """, unsafe_allow_html=True)
-        custom_info(f"Currently Selected: {initials_text}")
-    else:
-        # st.markdown(f"""
-        # <div style="background: linear-gradient(135deg, #fff3cd, #ffeaa7); border: 2px solid #ffc107; border-radius: 12px; padding: 12px 16px; margin: 16px 0; text-align: center; box-shadow: 0 2px 8px rgba(255, 193, 7, 0.2);">
-        #     <div style="color: #856404; font-weight: 600; font-size: 0.95rem;">
-        #         ⚠️ No annotators selected - results will only show ground truth
-        #     </div>
-        # </div>
-        # """, unsafe_allow_html=True)
-        custom_info("⚠️ No annotators selected - results will only show ground truth")
-    return st.session_state.selected_annotators
+            # st.markdown(f"""
+            # <div style="background: linear-gradient(135deg, #fff3cd, #ffeaa7); border: 2px solid #ffc107; border-radius: 12px; padding: 12px 16px; margin: 16px 0; text-align: center; box-shadow: 0 2px 8px rgba(255, 193, 7, 0.2);">
+            #     <div style="color: #856404; font-weight: 600; font-size: 0.95rem;">
+            #         ⚠️ No annotators selected - results will only show ground truth
+            #     </div>
+            # </div>
+            # """, unsafe_allow_html=True)
+            custom_info("⚠️ No annotators selected - results will only show ground truth")
+        return st.session_state.selected_annotators
 
 def display_smart_annotator_selection_for_auto_submit(annotators: Dict[str, Dict], project_id: int):
     """Annotator selection for auto-submit - only completed annotators"""
@@ -4238,7 +4258,7 @@ def display_order_tab(project_id: int, role: str, project: Any, session: Session
         for i, group_id in enumerate(working_order):
             if group_id in group_lookup:
                 group = group_lookup[group_id]
-                group_title = group["Title"]
+                group_display_title = group["Display Title"]
                 
                 order_col1, order_col2, order_col3 = st.columns([0.1, 0.8, 0.1])
                 
@@ -4250,7 +4270,7 @@ def display_order_tab(project_id: int, role: str, project: Any, session: Session
                         st.rerun()
                 
                 with order_col2:
-                    st.write(f"**{i+1}.** {group_title}")
+                    st.write(f"**{i+1}.** {group_display_title}")
                     st.caption(f"Group ID: {group_id}")
                 
                 with order_col3:
@@ -4420,18 +4440,7 @@ def display_project_view(user_id: int, role: str, session: Session):
             display_order_tab(project_id=project_id, role=role, project=project, session=session)
         
         with layout_tab:
-            st.markdown("#### 🎛️ Video Layout Settings")
-            
-            st.markdown(f"""
-            <div style="{get_card_style('#B180FF')}text-align: center;">
-                <div style="color: #5C00BF; font-weight: 500; font-size: 0.95rem;">
-                    🎛️ Customize Your Video Display - Adjust how videos and questions are laid out
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            _display_video_layout_controls(videos, role)
-            custom_info("💡 Tip: Adjust layout to optimize your workflow.")
+            display_layout_tab_content(videos=videos, role=role)
         
         with auto_submit_tab:
             display_auto_submit_tab(project_id=project_id, user_id=user_id, role=role, videos=videos, session=session)
@@ -4504,18 +4513,7 @@ def display_project_view(user_id: int, role: str, session: Session):
             display_order_tab(project_id=project_id, role=role, project=project, session=session)
         
         with layout_tab:
-            st.markdown("#### 🎛️ Video Layout Settings")
-            
-            st.markdown(f"""
-            <div style="{get_card_style('#B180FF')}text-align: center;">
-                <div style="color: #5C00BF; font-weight: 500; font-size: 0.95rem;">
-                    🎛️ Customize Your Video Display - Adjust how videos and questions are laid out
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            _display_video_layout_controls(videos, role)
-            custom_info("💡 Tip: Adjust layout to optimize your workflow.")
+            display_layout_tab_content(videos=videos, role=role)
     
     else:  # Annotator role
         # st.markdown("---")
@@ -4523,23 +4521,7 @@ def display_project_view(user_id: int, role: str, session: Session):
         layout_tab, sort_tab, auto_submit_tab = st.tabs(["🎛️ Layout Settings", "🔄 Sort", "⚡ Auto-Submit"])
         
         with layout_tab:
-            st.markdown("#### 🎛️ Video Layout Settings")
-            
-            st.markdown(f"""
-            <div style="{get_card_style('#B180FF')}text-align: center;">
-                <div style="color: #5C00BF; font-weight: 500; font-size: 0.95rem;">
-                    🎛️ Customize Your Video Display - Adjust how videos and questions are laid out
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            _display_video_layout_controls(videos, role)
-            # st.markdown(f"""
-            # <div style="background: #EAE1F9; border-left: 4px solid #B180FF; border-radius: 8px; padding: 12px 16px; margin-top: 16px; font-size: 0.9rem; color: #5C00BF;">
-            #     💡 <strong>Tip:</strong> Adjust layout to optimize your annotation workflow.
-            # </div>
-            # """, unsafe_allow_html=True)
-            custom_info("💡 Adjust layout to optimize your annotation workflow.")
+            display_layout_tab_content(videos=videos, role=role)
         
         with sort_tab:
             display_enhanced_sort_tab_annotator(project_id=project_id, session=session)
@@ -4626,6 +4608,7 @@ def display_project_view(user_id: int, role: str, session: Session):
     
     st.markdown(f"**Showing videos {start_idx + 1}-{end_idx} of {len(videos)}**")
     
+    
     # Display videos
     for i in range(0, len(page_videos), video_pairs_per_row):
         row_videos = page_videos[i:i + video_pairs_per_row]
@@ -4668,7 +4651,7 @@ def display_project_view(user_id: int, role: str, session: Session):
         nav_col1, nav_col2, nav_col3 = st.columns([1, 5, 1])
         
         with nav_col1:
-            if st.button("◀ Previous Page", disabled=(current_page == 0), key=f"{role}_prev_{project_id}", use_container_width=True):
+            if st.button("◀ Prev", disabled=(current_page == 0), key=f"{role}_prev_{project_id}", use_container_width=True):
                 st.session_state[page_key] = max(0, current_page - 1)
                 st.rerun()
         
@@ -4685,7 +4668,7 @@ def display_project_view(user_id: int, role: str, session: Session):
                         display_options.append("...")
                         actual_pages.append(None)
                     else:
-                        display_options.append(f"Page {opt + 1}")
+                        display_options.append(f"{opt + 1}")
                         actual_pages.append(opt)
                 
                 try:
@@ -4712,7 +4695,7 @@ def display_project_view(user_id: int, role: str, session: Session):
                     pass
         
         with nav_col3:
-            if st.button("Next Page ▶", disabled=(current_page == total_pages - 1), key=f"{role}_next_{project_id}", use_container_width=True):
+            if st.button("Next ▶", disabled=(current_page == total_pages - 1), key=f"{role}_next_{project_id}", use_container_width=True):
                 st.session_state[page_key] = min(total_pages - 1, current_page + 1)
                 st.rerun()
         
@@ -4917,7 +4900,7 @@ def display_video_answer_pair(video: Dict, project_id: int, user_id: int, role: 
         total_count = len(question_groups)
         
         completion_details = [
-            f"✅ {group['Title']}" if completion_status[group["ID"]] else group['Title']
+            f"✅ {group['Display Title']}" if completion_status[group["ID"]] else group['Display Title']
             for group in question_groups
         ]
         
@@ -4939,7 +4922,7 @@ def display_video_answer_pair(video: Dict, project_id: int, user_id: int, role: 
             video_height = custom_video_player(video["url"], autoplay=autoplay, loop=loop, show_share_button=True)
         
         with answer_col:
-            tab_names = [group['Title'] for group in question_groups]
+            tab_names = [group['Display Title'] for group in question_groups]
             tabs = st.tabs(tab_names)
             
             for tab, group in zip(tabs, question_groups):
@@ -6075,6 +6058,7 @@ def admin_questions():
                 for _, group_row in filtered_groups.iterrows():
                     group_id = group_row["ID"]
                     group_name = group_row["Name"]
+                    group_display_title = group_row["Display Title"]
                     description = group_row["Description"]
                     is_archived = group_row["Archived"]
                     is_reusable = group_row["Reusable"]
@@ -6113,7 +6097,7 @@ def admin_questions():
                         question_info = f"📝 {question_count} questions"
                     
                     # Create header
-                    header = f"**{group_name}** • {' • '.join(status_indicators)} • {question_info}"
+                    header = f"**{group_display_title}** (Internal: {group_name}) • {' • '.join(status_indicators)} • {question_info}"
                     
                     with st.expander(header, expanded=False):
                         # Group metadata section
@@ -6124,6 +6108,7 @@ def admin_questions():
                         with info_col1:
                             st.markdown(f"**ID:** {group_id}")
                             st.markdown(f"**Name:** {group_name}")
+                            st.markdown(f"**Display Title:** {group_display_title}")
                             st.markdown(f"**Description:** {description or 'No description provided'}")
                             st.markdown(f"**Question Count:** {question_count} total")
                             if archived_questions > 0:
@@ -6311,7 +6296,7 @@ def admin_questions():
                     if title and selected_questions:
                         try:
                             QuestionGroupService.create_group(
-                                title=title, description=description, is_reusable=is_reusable, 
+                                title=title, display_title=title, description=description, is_reusable=is_reusable, 
                                 question_ids=selected_questions, verification_function=verification_function, 
                                 is_auto_submit=is_auto_submit, session=session
                             )
@@ -6361,9 +6346,9 @@ def admin_questions():
                                 current_verification = group_details.get("verification_function")
                                 
                                 st.text_input(
-                                    "Group Title",
-                                    value=group_details["title"],
-                                    key="admin_edit_group_title"
+                                    "Group Display Title",
+                                    value=group_details["display_title"],
+                                    key="admin_edit_group_display_title"
                                 )
                                 edit_basic_col1, edit_basic_col2 = st.columns(2)
                                 with edit_basic_col1:
@@ -6514,7 +6499,7 @@ def admin_questions():
                                 if st.button("💾 Update Question Group", key="admin_update_group_btn", type="primary", use_container_width=True):
                                     try:
                                         QuestionGroupService.edit_group(
-                                            group_id=selected_group_id, new_title=group_details["title"],
+                                            group_id=selected_group_id, new_display_title=group_details["display_title"],
                                             new_description=new_description, is_reusable=new_is_reusable,
                                             verification_function=new_verification_function, is_auto_submit=new_is_auto_submit, session=session
                                         )
@@ -8685,24 +8670,7 @@ def main():
         if not user_email or user_email == 'No email':
             user_email = user.get('Email', user.get('user_email', 'No email'))
         
-        display_user_simple(user['name'], user_email, is_ground_truth=(user['role'] == 'admin'))
-        
-        # role_color = COLORS['danger'] if user['role'] == 'admin' else COLORS['info']
-        role_color = '#9553FE'
-        st.markdown(f"""
-        <div style="
-            background: linear-gradient(135deg, {role_color}, {role_color}dd);
-            color: white;
-            padding: 6px 12px;
-            border-radius: 8px;
-            text-align: center;
-            font-weight: 600;
-            font-size: 0.9rem;
-            margin: 8px 0;
-        ">
-            Role: {user['role'].title()}
-        </div>
-        """, unsafe_allow_html=True)
+        display_user_simple(user['name'], user_email, is_ground_truth=(user['role'] == 'admin'), user_role=user['role'])
         
         # Portal selection
         if available_portals:

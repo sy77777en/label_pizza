@@ -334,6 +334,7 @@ class TestDataSetup:
                 try:
                     group = QuestionGroupService.create_group(
                         title=group_title,
+                        display_title=group_title,
                         description=group_desc,
                         is_reusable=True,
                         question_ids=question_ids,

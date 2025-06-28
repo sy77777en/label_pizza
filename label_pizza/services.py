@@ -1338,6 +1338,7 @@ class SchemaService:
             DataFrame containing question groups with columns:
             - ID: Question group ID
             - Title: Question group title
+            - Display Title: Question group display title
             - Description: Question group description
             - Reusable: Whether the group is reusable
             - Archived: Whether the group is archived
@@ -1382,6 +1383,7 @@ class SchemaService:
             rows.append({
                 "ID": group.id,
                 "Title": group.title,
+                "Display Title": group.display_title,
                 "Description": group.description,
                 "Reusable": group.is_reusable,
                 "Archived": group.is_archived,
@@ -1420,6 +1422,7 @@ class SchemaService:
         return [{
             "ID": g.id,
             "Title": g.title,
+            "Display Title": g.display_title,
             "Description": g.description
         } for g in groups]
 
@@ -2498,6 +2501,7 @@ class QuestionGroupService:
             raise ValueError(f"Question group with ID {group_id} not found")
         return {
             "title": group.title,
+            "display_title": group.display_title,
             "description": group.description,
             "is_reusable": group.is_reusable,
             "is_auto_submit": group.is_auto_submit,
@@ -2560,6 +2564,7 @@ class QuestionGroupService:
             rows.append({
                 "ID": g.id,
                 "Name": g.title,
+                "Display Title": g.display_title,
                 "Description": g.description,
                 "Questions": "\n".join(question_list) if question_list else "No questions",
                 "Reusable": g.is_reusable,
@@ -2633,6 +2638,7 @@ class QuestionGroupService:
             raise ValueError(f"Question group with ID {group_id} not found")
         return {
             "title": group.title,
+            "display_title": group.display_title,
             "description": group.description,
             "is_reusable": group.is_reusable,
             "is_auto_submit": group.is_auto_submit,
@@ -2667,6 +2673,7 @@ class QuestionGroupService:
     @staticmethod
     def verify_create_group(
             title: str,
+            display_title: str,
             description: str,
             is_reusable: bool,
             question_ids: List[int],
@@ -2724,6 +2731,7 @@ class QuestionGroupService:
     @staticmethod
     def create_group(
             title: str,
+            display_title: str,
             description: str,
             is_reusable: bool,
             question_ids: List[int],
@@ -2734,7 +2742,8 @@ class QuestionGroupService:
         """Create a new question group.
 
         Args:
-            title: Group title
+            title: Group title (unique, immutable)
+            display_title: Group display title (can be changed)
             description: Group description
             is_reusable: Whether group can be used in multiple schemas
             question_ids: List of question IDs in desired order
@@ -2748,15 +2757,19 @@ class QuestionGroupService:
         Raises:
             ValueError: If title already exists or validation fails
         """
+        if display_title is None:
+            display_title = title
+        
         # First, verify all parameters (will raise ValueError if validation fails)
         QuestionGroupService.verify_create_group(
-            title, description, is_reusable, question_ids,
+            title, display_title, description, is_reusable, question_ids,
             verification_function, is_auto_submit, session
         )
 
         # Create group object
         group = QuestionGroup(
             title=title,
+            display_title=display_title,
             description=description,
             is_reusable=is_reusable,
             verification_function=verification_function,
@@ -2858,7 +2871,7 @@ class QuestionGroupService:
     @staticmethod
     def verify_edit_group(
             group_id: int,
-            new_title: str,
+            new_display_title: str,
             new_description: str,
             is_reusable: bool,
             verification_function: Optional[str],
@@ -2869,7 +2882,7 @@ class QuestionGroupService:
 
         Args:
             group_id: Group ID
-            new_title: New group title
+            new_display_title: New group display title
             new_description: New group description
             is_reusable: Whether the group is reusable
             verification_function: New verification function name (can be None to remove)
@@ -2897,12 +2910,12 @@ class QuestionGroupService:
                 )
 
         # Check if new title conflicts with existing group
-        if new_title != group.title:
+        if new_display_title != group.display_title:
             existing = session.scalar(
-                select(QuestionGroup).where(QuestionGroup.title == new_title)
+                select(QuestionGroup).where(QuestionGroup.display_title == new_display_title)
             )
             if existing:
-                raise ValueError(f"Question group with title '{new_title}' already exists")
+                raise ValueError(f"Question group with display title '{new_display_title}' already exists")
 
         # Validate verification function if provided
         if verification_function:
@@ -2910,13 +2923,13 @@ class QuestionGroupService:
                 raise ValueError(f"Verification function '{verification_function}' not found in verify.py")
 
     @staticmethod
-    def edit_group(group_id: int, new_title: str, new_description: str, is_reusable: bool,
+    def edit_group(group_id: int, new_display_title: str, new_description: str, is_reusable: bool,
                    verification_function: Optional[str], is_auto_submit: bool = False, session: Session = None) -> None:
         """Edit a question group including its verification function and auto-submit flag.
 
         Args:
             group_id: Group ID
-            new_title: New group title
+            new_display_title: New group display title
             new_description: New group description
             is_reusable: Whether the group is reusable
             verification_function: New verification function name (can be None to remove)
@@ -2928,7 +2941,7 @@ class QuestionGroupService:
         """
         # Verify parameters
         QuestionGroupService.verify_edit_group(
-            group_id, new_title, new_description, is_reusable,
+            group_id, new_display_title, new_description, is_reusable,
             verification_function, is_auto_submit, session
         )
 
@@ -2936,7 +2949,7 @@ class QuestionGroupService:
         group = QuestionGroupService.get_group_by_id(group_id, session)
 
         # Update group properties
-        group.title = new_title
+        group.display_title = new_display_title
         group.description = new_description
         group.is_reusable = is_reusable
         group.verification_function = verification_function  # This can be None to remove verification

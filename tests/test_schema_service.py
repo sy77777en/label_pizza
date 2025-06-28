@@ -23,6 +23,7 @@ def test_schema_service_create_schema_duplicate(session, test_schema, test_quest
     question = QuestionService.get_question_by_text("test question for schema duplicate", session)
     group = QuestionGroupService.create_group(
         title="test_group_for_schema_duplicate",
+        display_title="test_group_for_schema_duplicate",
         description="test description",
         is_reusable=True,
         question_ids=[question["id"]],
@@ -264,6 +265,7 @@ def test_schema_service_edit_group_duplicate_title(session, test_schema, test_qu
     
     group2 = QuestionGroupService.create_group(
         title="test_group2",
+        display_title="test_group2",
         description="test description",
         is_reusable=True,
         question_ids=[question2["id"]],
