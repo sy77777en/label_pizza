@@ -771,7 +771,7 @@ def determine_ground_truth_status(video_id: int, project_id: int, question_group
     
     try:
         # Check if ground truth exists for this question group
-        gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
+        gt_df = GroundTruthService.get_ground_truth_for_question_group(video_id=video_id, project_id=project_id, question_group_id=question_group_id, session=session)
         questions = QuestionService.get_questions_by_group_id(group_id=question_group_id, session=session)
         
         if gt_df.empty or not questions:

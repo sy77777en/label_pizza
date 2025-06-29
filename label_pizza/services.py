@@ -3827,6 +3827,162 @@ class GroundTruthService(BaseAnswerService):
         ])
 
     @staticmethod
+    def get_ground_truth_for_question(video_id: int, project_id: int, question_id: int, session: Session) -> Optional[Dict]:
+        """Get ground truth for a single question, returns None if no ground truth exists."""
+        gt = session.scalar(
+            select(ReviewerGroundTruth)
+            .where(
+                ReviewerGroundTruth.video_id == video_id,
+                ReviewerGroundTruth.project_id == project_id,
+                ReviewerGroundTruth.question_id == question_id
+            )
+        )
+        
+        if not gt:
+            return None
+            
+        return {
+            "Question ID": gt.question_id,
+            "Answer Value": gt.answer_value,
+            "Original Value": gt.original_answer_value,
+            "Reviewer ID": gt.reviewer_id,
+            "Modified At": gt.modified_at,
+            "Modified By Admin": gt.modified_by_admin_id,
+            "Modified By Admin At": gt.modified_by_admin_at,
+            "Confidence Score": gt.confidence_score,
+            "Created At": gt.created_at,
+            "Notes": gt.notes
+        }
+
+    @staticmethod
+    def get_ground_truth_for_question_group(video_id: int, project_id: int, question_group_id: int, session: Session) -> pd.DataFrame:
+        """Get ground truth for all questions in a specific question group."""
+        # First get question IDs in the group
+        questions = session.scalars(
+            select(Question.id)
+            .join(question_group_association)
+            .where(question_group_association.c.question_group_id == question_group_id)
+        ).all()
+        
+        if not questions:
+            return pd.DataFrame()
+        
+        # Get ground truth for these specific questions
+        gts = session.scalars(
+            select(ReviewerGroundTruth)
+            .where(
+                ReviewerGroundTruth.video_id == video_id,
+                ReviewerGroundTruth.project_id == project_id,
+                ReviewerGroundTruth.question_id.in_(questions)
+            )
+        ).all()
+        
+        return pd.DataFrame([
+            {
+                "Question ID": gt.question_id,
+                "Answer Value": gt.answer_value,
+                "Original Value": gt.original_answer_value,
+                "Reviewer ID": gt.reviewer_id,
+                "Modified At": gt.modified_at,
+                "Modified By Admin": gt.modified_by_admin_id,
+                "Modified By Admin At": gt.modified_by_admin_at,
+                "Confidence Score": gt.confidence_score,
+                "Created At": gt.created_at,
+                "Notes": gt.notes
+            }
+            for gt in gts
+        ])
+
+    @staticmethod
+    def check_ground_truth_exists_for_question(video_id: int, project_id: int, question_id: int, session: Session) -> bool:
+        """Check if ground truth exists for a single question (most efficient for existence checks)."""
+        return session.scalar(
+            select(func.count(ReviewerGroundTruth.question_id))
+            .where(
+                ReviewerGroundTruth.video_id == video_id,
+                ReviewerGroundTruth.project_id == project_id,
+                ReviewerGroundTruth.question_id == question_id
+            )
+        ) > 0
+
+    # @staticmethod
+    # TODO: See if we want to use this instead
+    # def check_question_modified_by_admin_optimized(video_id: int, project_id: int, question_id: int, session: Session) -> bool:
+    #     """Optimized version that doesn't fetch full ground truth data."""
+    #     return session.scalar(
+    #         select(func.count(ReviewerGroundTruth.question_id))
+    #         .where(
+    #             ReviewerGroundTruth.video_id == video_id,
+    #             ReviewerGroundTruth.project_id == project_id,
+    #             ReviewerGroundTruth.question_id == question_id,
+    #             ReviewerGroundTruth.modified_by_admin_id.is_not(None)
+    #         )
+    #     ) > 0
+
+    @staticmethod
+    def check_all_questions_have_ground_truth_for_group(video_id: int, project_id: int, question_group_id: int, session: Session) -> bool:
+        """Check if ALL questions in a group have ground truth."""
+        # Get count of questions in group
+        question_count = session.scalar(
+            select(func.count(question_group_association.c.question_id))
+            .where(question_group_association.c.question_group_id == question_group_id)
+        )
+        
+        if question_count == 0:
+            return False
+        
+        # Get count of ground truth records for questions in this group
+        gt_count = session.scalar(
+            select(func.count(ReviewerGroundTruth.question_id))
+            .join(question_group_association, ReviewerGroundTruth.question_id == question_group_association.c.question_id)
+            .where(
+                ReviewerGroundTruth.video_id == video_id,
+                ReviewerGroundTruth.project_id == project_id,
+                question_group_association.c.question_group_id == question_group_id
+            )
+        )
+        
+        return gt_count == question_count
+
+    @staticmethod
+    def get_ground_truth_for_question(video_id: int, project_id: int, question_id: int, session: Session) -> Optional[Dict]:
+        """Get ground truth answer for a specific question on a video.
+        
+        Args:
+            video_id: The ID of the video
+            project_id: The ID of the project  
+            question_id: The ID of the specific question
+            session: Database session
+            
+        Returns:
+            Dictionary with ground truth data for the question, or None if not found
+        """
+        gt = session.scalar(
+            select(ReviewerGroundTruth)
+            .where(
+                ReviewerGroundTruth.video_id == video_id,
+                ReviewerGroundTruth.project_id == project_id,
+                ReviewerGroundTruth.question_id == question_id
+            )
+        )
+        
+        if not gt:
+            return None
+            
+        return {
+            "Question ID": gt.question_id,
+            "Answer Value": gt.answer_value,
+            "Original Value": gt.original_answer_value,
+            "Reviewer ID": gt.reviewer_id,
+            "Modified At": gt.modified_at,
+            "Modified By Admin": gt.modified_by_admin_id,
+            "Modified By Admin At": gt.modified_by_admin_at,
+            "Confidence Score": gt.confidence_score,
+            "Created At": gt.created_at,
+            "Notes": gt.notes
+        }
+
+    @staticmethod
     def get_reviewer_accuracy(project_id: int, session: Session) -> Dict[int, Dict[int, Dict[str, int]]]:
         """Get accuracy data for all reviewers in a project.
         

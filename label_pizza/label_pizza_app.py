@@ -2677,7 +2677,7 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
         gt_answers = {}
         if mode == "Training" and role == "annotator":
             try:
-                gt_df = GroundTruthService.get_ground_truth(video_id=video["id"], project_id=project_id, session=session)
+                gt_df = GroundTruthService.get_ground_truth_for_question_group(video_id=video["id"], project_id=project_id, question_group_id=group_id, session=session)
                 if not gt_df.empty:
                     question_map = {q["id"]: q for q in questions}
                     for _, gt_row in gt_df.iterrows():
@@ -5166,38 +5166,58 @@ def show_reviewer_completion():
     if st.button("Close", use_container_width=True):
         st.rerun()
 
+# def check_all_questions_have_ground_truth(video_id: int, project_id: int, question_group_id: int, session: Session) -> bool:
+#     """Check if all questions in a group have ground truth answers for this specific video"""
+#     try:
+#         questions = get_questions_by_group_cached(group_id=question_group_id, session=session)
+#         if not questions:
+#             return False
+        
+#         gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
+#         if gt_df.empty:
+#             return False
+        
+#         gt_question_ids = set(gt_df["Question ID"].tolist())
+#         return all(question["id"] in gt_question_ids for question in questions)
+#     except:
+#         return False
+
 def check_all_questions_have_ground_truth(video_id: int, project_id: int, question_group_id: int, session: Session) -> bool:
-    """Check if all questions in a group have ground truth answers for this specific video"""
     try:
-        questions = get_questions_by_group_cached(group_id=question_group_id, session=session)
-        if not questions:
-            return False
-        
-        gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
-        if gt_df.empty:
-            return False
-        
-        gt_question_ids = set(gt_df["Question ID"].tolist())
-        return all(question["id"] in gt_question_ids for question in questions)
+        return GroundTruthService.check_all_questions_have_ground_truth_for_group(video_id=video_id, project_id=project_id, question_group_id=question_group_id, session=session)
     except:
         return False
+
+# def check_ground_truth_exists_for_group(video_id: int, project_id: int, question_group_id: int, session: Session) -> bool:
+#     """Check if ANY ground truth exists for questions in this group"""
+#     try:
+#         questions = get_questions_by_group_cached(group_id=question_group_id, session=session)
+#         if not questions:
+#             return False
+        
+#         gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
+#         if gt_df.empty:
+#             return False
+        
+#         gt_question_ids = set(gt_df["Question ID"].tolist())
+#         return any(question["id"] in gt_question_ids for question in questions)
+#     except:
+#         return False
+
 
 def check_ground_truth_exists_for_group(video_id: int, project_id: int, question_group_id: int, session: Session) -> bool:
-    """Check if ANY ground truth exists for questions in this group"""
     try:
         questions = get_questions_by_group_cached(group_id=question_group_id, session=session)
         if not questions:
             return False
         
-        gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
-        if gt_df.empty:
-            return False
-        
-        gt_question_ids = set(gt_df["Question ID"].tolist())
-        return any(question["id"] in gt_question_ids for question in questions)
+        # Check if ANY question in the group has ground truth
+        for question in questions:
+            if GroundTruthService.check_ground_truth_exists_for_question(video_id=video_id, project_id=project_id, question_id=question["id"], session=session):
+                return True
+        return False
     except:
         return False
-
 
 
 
@@ -8098,7 +8118,7 @@ def admin_project_groups():
 def show_training_feedback(video_id: int, project_id: int, group_id: int, user_answers: Dict[str, str], session: Session):
     """Show training feedback comparing user answers to ground truth"""
     try:
-        gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
+        gt_df = GroundTruthService.get_ground_truth_for_question_group(video_id=video_id, project_id=project_id, question_group_id=group_id, session=session)
         questions = get_questions_by_group_cached(group_id=group_id, session=session)
         question_map = {q["id"]: q for q in questions}
         

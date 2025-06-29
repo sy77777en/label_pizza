@@ -877,14 +877,15 @@ def _get_enhanced_options_for_reviewer(
             # Still check for ground truth even without annotators
             enhanced_options = display_values.copy()
             try:
-                gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
-                if not gt_df.empty:
-                    question_gt = gt_df[gt_df["Question ID"] == question_id]
-                    if not question_gt.empty:
-                        gt_selection = question_gt.iloc[0]["Answer Value"]
-                        for i, option in enumerate(options):
-                            if str(option) == str(gt_selection):
-                                enhanced_options[i] += " — 🏆 GT"
+                # gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
+                gt_row = GroundTruthService.get_ground_truth_for_question(video_id=video_id, project_id=project_id, question_id=question_id, session=session)
+                if gt_row:
+                    # question_gt = gt_df[gt_df["Question ID"] == question_id]
+                    # if not question_gt.empty:
+                    gt_selection = gt_row["Answer Value"]
+                    for i, option in enumerate(options):
+                        if str(option) == str(gt_selection):
+                            enhanced_options[i] += " — 🏆 GT"
             except:
                 pass
             return enhanced_options
@@ -928,12 +929,18 @@ def _get_enhanced_options_for_reviewer(
         
         # Check ground truth
         gt_selection = None
+        # try:
+        #     gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
+        #     if not gt_df.empty:
+        #         question_gt = gt_df[gt_df["Question ID"] == question_id]
+        #         if not question_gt.empty:
+        #             gt_selection = question_gt.iloc[0]["Answer Value"]
+        # except:
+        #     pass
         try:
-            gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
-            if not gt_df.empty:
-                question_gt = gt_df[gt_df["Question ID"] == question_id]
-                if not question_gt.empty:
-                    gt_selection = question_gt.iloc[0]["Answer Value"]
+            gt_df = GroundTruthService.get_ground_truth_for_question(video_id=video_id, project_id=project_id, question_id=question_id, session=session)
+            if gt_df:
+                gt_selection = gt_df["Answer Value"]
         except:
             pass
         
@@ -1028,30 +1035,31 @@ def _display_unified_status(
     
     # Ground truth status (always fresh)
     try:
-        gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
+        # gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
+        gt_row = GroundTruthService.get_ground_truth_for_question(video_id=video_id, project_id=project_id, question_id=question_id, session=session)
         
-        if not gt_df.empty:
-            question_gt = gt_df[gt_df["Question ID"] == question_id]
+        # if not gt_df.empty:
+        #     question_gt = gt_df[gt_df["Question ID"] == question_id]
             
-            if not question_gt.empty:
-                gt_row = question_gt.iloc[0]
+            # if not question_gt.empty:
+            #     gt_row = question_gt.iloc[0]
+        if gt_row:
+            try:
+                reviewer_info = AuthService.get_user_info_by_id(
+                    user_id=int(gt_row["Reviewer ID"]), session=session
+                )
+                reviewer_name = reviewer_info["user_id_str"]
                 
-                try:
-                    reviewer_info = AuthService.get_user_info_by_id(
-                        user_id=int(gt_row["Reviewer ID"]), session=session
-                    )
-                    reviewer_name = reviewer_info["user_id_str"]
-                    
-                    modified_by_admin = gt_row["Modified By Admin"] is not None
-                    
-                    if modified_by_admin:
-                        status_parts.append(f"🏆 GT by: {reviewer_name} (Admin)")
-                    else:
-                        status_parts.append(f"🏆 GT by: {reviewer_name}")
-                except Exception:
-                    status_parts.append("🏆 GT exists")
-            else:
-                status_parts.append("📭 No GT")
+                modified_by_admin = gt_row["Modified By Admin"] is not None
+                
+                if modified_by_admin:
+                    status_parts.append(f"🏆 GT by: {reviewer_name} (Admin)")
+                else:
+                    status_parts.append(f"🏆 GT by: {reviewer_name}")
+            except Exception:
+                status_parts.append("🏆 GT exists")
+            # else:
+            #     status_parts.append("📭 No GT")
         else:
             status_parts.append("📭 No GT")
             
@@ -1086,21 +1094,24 @@ def _display_enhanced_helper_text_answers(
             })
         elif not selected_annotators or len(selected_annotators) == 0:
             try:
-                gt_df = GroundTruthService.get_ground_truth(
-                    video_id=video_id, project_id=project_id, session=session
+                # gt_df = GroundTruthService.get_ground_truth(
+                #     video_id=video_id, project_id=project_id, session=session
+                # )
+                gt_row = GroundTruthService.get_ground_truth_for_question(
+                    video_id=video_id, project_id=project_id, question_id=question_id, session=session
                 )
-                if not gt_df.empty:
-                    question_gt = gt_df[gt_df["Question ID"] == question_id]
-                    if not question_gt.empty:
-                        gt_answer = question_gt.iloc[0]["Answer Value"]
-                        if gt_answer and str(gt_answer).strip():
-                            all_answers.append({
-                                "name": "Ground Truth",
-                                "full_text": str(gt_answer),
-                                "has_answer": True,
-                                "is_gt": True,
-                                "display_name": "Ground Truth"
-                            })
+                if gt_row:
+                    # question_gt = gt_df[gt_df["Question ID"] == question_id]
+                    # if not question_gt.empty:
+                    gt_answer = gt_row["Answer Value"]
+                    if gt_answer and str(gt_answer).strip():
+                        all_answers.append({
+                            "name": "Ground Truth",
+                            "full_text": str(gt_answer),
+                            "has_answer": True,
+                            "is_gt": True,
+                            "display_name": "Ground Truth"
+                        })
             except:
                 pass
         
