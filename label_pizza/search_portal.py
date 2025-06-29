@@ -5,19 +5,23 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from contextlib import contextmanager
 
-# Import from utils.py
-from label_pizza.utils import (
-    get_card_style, COLORS, handle_database_errors, get_db_session, custom_info,
-    _display_unified_status, _display_clean_sticky_single_choice_question,
-    _display_clean_sticky_description_question, _get_enhanced_options_for_reviewer,
-    _submit_answer_reviews, _load_existing_answer_reviews, get_schema_question_groups
+from label_pizza.ui_components import (
+    get_card_style, COLORS, custom_info
 )
-
+from label_pizza.database_utils import (
+    get_db_session, handle_database_errors, clear_project_cache,
+    check_project_has_full_ground_truth, get_user_assignment_dates,
+    get_project_groups_with_projects, calculate_user_overall_progress,
+    get_schema_question_groups
+)
+from label_pizza.display_fragments import (
+    display_single_choice_question, display_description_question, display_question_status,
+    submit_answer_reviews, load_existing_answer_reviews
+)
 # Import services
 from label_pizza.services import (
     VideoService, ProjectService, SchemaService, QuestionService, 
-    AuthService, QuestionGroupService, AnnotatorService, 
-    GroundTruthService, ProjectGroupService
+    AuthService, GroundTruthService, ProjectGroupService
 )
 
 # Import custom components
@@ -627,7 +631,7 @@ def display_single_question_group_for_search(video_info: Dict, project_id: int, 
             for question in service_questions:
                 if question["type"] == "description":
                     question_text = question["text"]
-                    existing_review_data = _load_existing_answer_reviews(
+                    existing_review_data = load_existing_answer_reviews(
                         video_id=video_info["id"], project_id=project_id, 
                         question_id=question["id"], session=session
                     )
@@ -674,7 +678,7 @@ def display_single_question_group_for_search(video_info: Dict, project_id: int, 
                             # Use VIDEO SEARCH specific question display functions with keyword arguments
                             try:
                                 if question["type"] == "single":
-                                    answers[question_text] = _display_clean_sticky_single_choice_question(
+                                    answers[question_text] = display_single_choice_question(
                                         question=question,
                                         video_id=video_info["id"],
                                         project_id=project_id,
@@ -692,7 +696,7 @@ def display_single_question_group_for_search(video_info: Dict, project_id: int, 
                                         preloaded_answers=None
                                     )
                                 else:
-                                    answers[question_text] = _display_clean_sticky_description_question(
+                                    answers[question_text] = display_description_question(
                                         question=question,
                                         video_id=video_info["id"],
                                         project_id=project_id,
@@ -744,7 +748,7 @@ def display_single_question_group_for_search(video_info: Dict, project_id: int, 
                         
                         # Submit answer reviews if any
                         if answer_reviews:
-                            _submit_answer_reviews(answer_reviews, video_info["id"], project_id, user_id, session)
+                            submit_answer_reviews(answer_reviews, video_info["id"], project_id, user_id, session)
                         
                         st.rerun(scope="fragment")
                         
@@ -1431,7 +1435,7 @@ def display_criteria_question_group_editor(video_info: Dict, project_id: int, us
             for question in questions:
                 if question["type"] == "description":
                     question_text = question["text"]
-                    existing_review_data = _load_existing_answer_reviews(
+                    existing_review_data = load_existing_answer_reviews(
                         video_id=video_info["id"], project_id=project_id, 
                         question_id=question["id"], session=session
                     )
@@ -1486,7 +1490,7 @@ def display_criteria_question_group_editor(video_info: Dict, project_id: int, us
                     
                     # Display questions with keyword arguments
                     if question["type"] == "single":
-                        answers[question_text] = _display_clean_sticky_single_choice_question(
+                        answers[question_text] = display_single_choice_question(
                             question=question,
                             video_id=video_info["id"],
                             project_id=project_id,
@@ -1504,7 +1508,7 @@ def display_criteria_question_group_editor(video_info: Dict, project_id: int, us
                             preloaded_answers=None
                         )
                     else:
-                        answers[question_text] = _display_clean_sticky_description_question(
+                        answers[question_text] = display_description_question(
                             question=question,
                             video_id=video_info["id"],
                             project_id=project_id,
@@ -1539,7 +1543,7 @@ def display_criteria_question_group_editor(video_info: Dict, project_id: int, us
                         
                         # Submit answer reviews if any
                         if answer_reviews:
-                            _submit_answer_reviews(answer_reviews, video_info["id"], project_id, user_id, session)
+                            submit_answer_reviews(answer_reviews, video_info["id"], project_id, user_id, session)
                         
                         st.success("✅ Ground truth overridden successfully!")
                     else:  # reviewer or reviewer_resubmit
@@ -1551,7 +1555,7 @@ def display_criteria_question_group_editor(video_info: Dict, project_id: int, us
                         
                         # Submit answer reviews if any
                         if answer_reviews:
-                            _submit_answer_reviews(answer_reviews, video_info["id"], project_id, user_id, session)
+                            submit_answer_reviews(answer_reviews, video_info["id"], project_id, user_id, session)
                         
                         success_msg = "✅ Ground truth re-submitted successfully!" if gt_status["role"] == "reviewer_resubmit" else "✅ Ground truth submitted successfully!"
                         st.success(success_msg)
@@ -1816,7 +1820,7 @@ def display_completion_question_group_editor(video_info: Dict, project_id: int, 
             for question in questions:
                 if question["type"] == "description":
                     question_text = question["text"]
-                    existing_review_data = _load_existing_answer_reviews(
+                    existing_review_data = load_existing_answer_reviews(
                         video_id=video_info["id"], project_id=project_id, 
                         question_id=question["id"], session=session
                     )
@@ -1859,7 +1863,7 @@ def display_completion_question_group_editor(video_info: Dict, project_id: int, 
                     
                     # Display question with keyword arguments using completion prefix
                     if question["type"] == "single":
-                        answers[question_text] = _display_clean_sticky_single_choice_question(
+                        answers[question_text] = display_single_choice_question(
                             question=question,
                             video_id=video_info["id"],
                             project_id=project_id,
@@ -1877,7 +1881,7 @@ def display_completion_question_group_editor(video_info: Dict, project_id: int, 
                             preloaded_answers=None
                         )
                     else:
-                        answers[question_text] = _display_clean_sticky_description_question(
+                        answers[question_text] = display_description_question(
                             question=question,
                             video_id=video_info["id"],
                             project_id=project_id,
@@ -1911,7 +1915,7 @@ def display_completion_question_group_editor(video_info: Dict, project_id: int, 
                         )
                         
                         if answer_reviews:
-                            _submit_answer_reviews(answer_reviews, video_info["id"], project_id, user_id, session)
+                            submit_answer_reviews(answer_reviews, video_info["id"], project_id, user_id, session)
                         
                         st.success("✅ Ground truth overridden successfully!")
                     else:
@@ -1922,7 +1926,7 @@ def display_completion_question_group_editor(video_info: Dict, project_id: int, 
                         )
                         
                         if answer_reviews:
-                            _submit_answer_reviews(answer_reviews, video_info["id"], project_id, user_id, session)
+                            submit_answer_reviews(answer_reviews, video_info["id"], project_id, user_id, session)
                         
                         success_msg = "✅ Ground truth re-submitted successfully!" if gt_status["role"] == "reviewer_resubmit" else "✅ Ground truth submitted successfully!"
                         st.success(success_msg)
