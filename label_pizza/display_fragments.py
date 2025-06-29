@@ -471,21 +471,23 @@ def display_single_choice_question(
     # Training mode feedback
     if mode == "Training" and form_disabled and gt_value and role == "annotator":
         if existing_value == gt_value:
-            st.markdown(f"""
-                <div style="{get_card_style(COLORS['success'])}">
-                    <span style="color: #1e8449; font-weight: 600; font-size: 0.95rem;">
-                        ✅ Excellent! You selected the correct answer.
-                    </span>
-                </div>
-            """, unsafe_allow_html=True)
+            # st.markdown(f"""
+            #     <div style="{get_card_style(COLORS['success'])}">
+            #         <span style="color: #1e8449; font-weight: 600; font-size: 0.95rem;">
+            #             ✅ Excellent! You selected the correct answer.
+            #         </span>
+            #     </div>
+            # """, unsafe_allow_html=True)
+            st.success(f"✅ Excellent! You selected the correct answer.")
         else:
-            st.markdown(f"""
-                <div style="{get_card_style(COLORS['danger'])}">
-                    <span style="color: #c0392b; font-weight: 600; font-size: 0.95rem;">
-                        ❌ Incorrect. The ground truth answer is highlighted below.
-                    </span>
-                </div>
-            """, unsafe_allow_html=True)
+            # st.markdown(f"""
+            #     <div style="{get_card_style(COLORS['danger'])}">
+            #         <span style="color: #c0392b; font-weight: 600; font-size: 0.95rem;">
+            #             ❌ Incorrect. The ground truth answer is highlighted below.
+            #         </span>
+            #     </div>
+            # """, unsafe_allow_html=True)
+            st.error(f"❌ Incorrect. The ground truth answer is highlighted below.")
     
     # Show unified status for reviewers/meta-reviewers - OPTIMIZED
     if role in ["reviewer", "meta_reviewer", "reviewer_resubmit"]:
@@ -857,7 +859,11 @@ def display_question_status(
                 modified_by_admin = gt_row["Modified By Admin"] is not None
                 
                 if modified_by_admin:
-                    status_parts.append(f"🏆 GT by: {reviewer_name} (Admin)")
+                    admin_info = AuthService.get_user_info_by_id(
+                        user_id=int(gt_row["Modified By Admin"]), session=session
+                    )
+                    admin_name = admin_info["user_id_str"]
+                    status_parts.append(f"🏆 GT by: {reviewer_name} (Overridden by {admin_name})")
                 else:
                     status_parts.append(f"🏆 GT by: {reviewer_name}")
             except Exception:
@@ -2380,7 +2386,7 @@ def _get_question_display_data(video_id: int, project_id: int, user_id: int, gro
             video_id=video_id, project_id=project_id, user_id=user_id, question_group_id=group_id, session=session
         )
     else:
-        existing_answers = GroundTruthService.get_ground_truth_for_question_group(
+        existing_answers = GroundTruthService.get_ground_truth_dict_for_question_group(
             video_id=video_id, project_id=project_id, question_group_id=group_id, session=session
         )
     

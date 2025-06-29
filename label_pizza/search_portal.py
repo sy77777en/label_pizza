@@ -615,7 +615,7 @@ def display_project_question_groups_with_tabs(project_data: Dict, project_id: in
 #         # Get existing answers to populate form
 #         existing_answers = {}
 #         try:
-#             existing_answers = GroundTruthService.get_ground_truth_for_question_group(
+#             existing_answers = GroundTruthService.get_ground_truth_dict_for_question_group(
 #                 video_id=video_info["id"], project_id=project_id, question_group_id=qg_id, session=session
 #             )
 #         except Exception as e:
@@ -775,7 +775,7 @@ def display_project_question_groups_with_tabs(project_data: Dict, project_id: in
     
 #     try:
 #         # Check if ground truth exists for this question group
-#         gt_df = GroundTruthService.get_ground_truth_for_question_group(video_id=video_id, project_id=project_id, question_group_id=question_group_id, session=session)
+#         gt_df = GroundTruthService.get_ground_truth_dict_for_question_group(video_id=video_id, project_id=project_id, question_group_id=question_group_id, session=session)
 #         questions = QuestionService.get_questions_by_group_id(group_id=question_group_id, session=session)
         
 #         if gt_df.empty or not questions:
@@ -836,121 +836,64 @@ def display_project_question_groups_with_tabs(project_data: Dict, project_id: in
 
 
 def determine_ground_truth_status(video_id: int, project_id: int, question_group_id: int, user_id: int, session: Session) -> Dict[str, str]:
-    """Determine the correct role and button text - SAME LOGIC with debug logging"""
-    
-    print(f"🔍 DEBUG: determine_ground_truth_status called with video_id={video_id}, project_id={project_id}, question_group_id={question_group_id}, user_id={user_id}")
+    """Determine the correct role and button text - simplified with error logging only"""
     
     try:
         # Check if ground truth exists for this question group
-        print(f"📊 DEBUG: Getting GT for question group...")
-        try:
-            gt_df = GroundTruthService.get_ground_truth_for_question_group(
-                video_id=video_id, project_id=project_id, question_group_id=question_group_id, session=session
-            )
-            print(f"📊 DEBUG: GT dataframe type: {type(gt_df)}")
-            print(f"📊 DEBUG: GT dataframe shape: {gt_df.shape if hasattr(gt_df, 'shape') else 'No shape attribute'}")
-            print(f"📊 DEBUG: GT dataframe empty: {gt_df.empty if hasattr(gt_df, 'empty') else 'No empty attribute'}")
-            if hasattr(gt_df, 'columns'):
-                print(f"📊 DEBUG: GT dataframe columns: {list(gt_df.columns)}")
-        except Exception as gt_error:
-            print(f"❌ DEBUG: Error getting GT dataframe: {gt_error}")
-            import traceback
-            print(f"❌ DEBUG: GT error traceback: {traceback.format_exc()}")
-            # Return early if we can't get GT
-            return {
-                "role": "reviewer",
-                "button_text": "Submit Ground Truth",
-                "message": "Create Ground Truth for this question group (GT fetch failed)"
-            }
+        gt_df = GroundTruthService.get_ground_truth_dict_for_question_group(
+            video_id=video_id, project_id=project_id, question_group_id=question_group_id, session=session
+        )
+        questions = QuestionService.get_questions_by_group_id(group_id=question_group_id, session=session)
         
-        print(f"📝 DEBUG: Getting questions for group...")
-        try:
-            questions = QuestionService.get_questions_by_group_id(group_id=question_group_id, session=session)
-            print(f"📝 DEBUG: Found {len(questions) if questions else 0} questions")
-            if questions:
-                question_ids = [q["id"] for q in questions]
-                print(f"📝 DEBUG: Question IDs: {question_ids}")
-        except Exception as q_error:
-            print(f"❌ DEBUG: Error getting questions: {q_error}")
-            questions = []
-        
-        # ORIGINAL LOGIC: Check if gt_df is empty or no questions
-        if gt_df.empty or not questions:
-            print(f"🔍 DEBUG: GT empty ({gt_df.empty if hasattr(gt_df, 'empty') else 'unknown'}) or no questions ({not questions}) - returning reviewer role")
+        # Check if gt_df is empty or no questions (dict is empty if len == 0)
+        if len(gt_df) == 0 or not questions:
             return {
                 "role": "reviewer",
                 "button_text": "Submit Ground Truth",
                 "message": "Create Ground Truth for this question group"
             }
         
-        # ORIGINAL LOGIC: Check if any questions in this group have ground truth
-        question_ids = [q["id"] for q in questions]
-        print(f"🔍 DEBUG: Filtering GT by question IDs: {question_ids}")
+        # Check if any questions in this group have ground truth
+        question_texts = [q["text"] for q in questions]
+        has_gt_for_group = any(q_text in gt_df for q_text in question_texts)
         
-        try:
-            group_gt = gt_df[gt_df["Question ID"].isin(question_ids)]
-            print(f"📊 DEBUG: Filtered GT shape: {group_gt.shape if hasattr(group_gt, 'shape') else 'No shape'}")
-            print(f"📊 DEBUG: Filtered GT empty: {group_gt.empty if hasattr(group_gt, 'empty') else 'No empty attribute'}")
-            if hasattr(group_gt, 'empty') and not group_gt.empty:
-                print(f"📊 DEBUG: GT Question IDs found: {list(group_gt['Question ID'].unique()) if 'Question ID' in group_gt.columns else 'No Question ID column'}")
-        except Exception as filter_error:
-            print(f"❌ DEBUG: Error filtering GT by question IDs: {filter_error}")
-            group_gt = gt_df  # Fallback to original dataframe
-        
-        # ORIGINAL LOGIC: If no GT for this group's questions
-        if group_gt.empty:
-            print(f"🔍 DEBUG: No GT found for this group's questions - returning reviewer role")
+        if not has_gt_for_group:
             return {
                 "role": "reviewer", 
                 "button_text": "Submit Ground Truth",
                 "message": "Create Ground Truth for this question group"
             }
         
-        # ORIGINAL LOGIC: Check if any questions were modified by admin
-        print(f"🎯 DEBUG: Checking for admin overrides...")
-        try:
-            has_admin_override = any(
-                GroundTruthService.check_question_modified_by_admin(
-                    video_id=int(video_id), project_id=int(project_id), question_id=int(qid), session=session
-                )
-                for qid in question_ids
+        # Check if any questions were modified by admin
+        question_ids = [q["id"] for q in questions]
+        has_admin_override = any(
+            GroundTruthService.check_question_modified_by_admin(
+                video_id=int(video_id), project_id=int(project_id), question_id=int(qid), session=session
             )
-            print(f"🎯 DEBUG: Has admin override: {has_admin_override}")
-        except Exception as admin_error:
-            print(f"❌ DEBUG: Error checking admin overrides: {admin_error}")
-            has_admin_override = False
+            for qid in question_ids
+        )
         
-        # ORIGINAL LOGIC: If admin override exists
         if has_admin_override:
-            print(f"🔍 DEBUG: Admin override detected - returning meta_reviewer role")
             return {
                 "role": "meta_reviewer",
                 "button_text": "🎯 Override Ground Truth",
                 "message": "Override Ground Truth for this question group"
             }
         
-        # ORIGINAL LOGIC: Check if current user is the original reviewer
-        print(f"👤 DEBUG: Checking if current user is original reviewer...")
-        try:
-            original_reviewer_ids = set(group_gt["Reviewer ID"].unique())
-            print(f"👤 DEBUG: Original reviewer IDs: {original_reviewer_ids}")
-            print(f"👤 DEBUG: Current user ID: {user_id}")
-            print(f"👤 DEBUG: User is original reviewer: {user_id in original_reviewer_ids}")
-        except Exception as reviewer_error:
-            print(f"❌ DEBUG: Error checking original reviewer: {reviewer_error}")
-            original_reviewer_ids = set()
+        # Check if current user is the original reviewer by getting full GT data
+        gt_full_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
+        if not gt_full_df.empty:
+            group_gt = gt_full_df[gt_full_df["Question ID"].isin(question_ids)]
+            if not group_gt.empty:
+                original_reviewer_ids = set(group_gt["Reviewer ID"].unique())
+                if user_id in original_reviewer_ids:
+                    return {
+                        "role": "reviewer_resubmit",
+                        "button_text": "✅ Re-submit Ground Truth",
+                        "message": "Re-submit Ground Truth for this question group"
+                    }
         
-        # ORIGINAL LOGIC: If current user is original reviewer
-        if user_id in original_reviewer_ids:
-            print(f"🔍 DEBUG: Current user is original reviewer - returning reviewer_resubmit role")
-            return {
-                "role": "reviewer_resubmit",
-                "button_text": "✅ Re-submit Ground Truth",
-                "message": "Re-submit Ground Truth for this question group"
-            }
-        
-        # ORIGINAL LOGIC: Ground truth exists but user is not original reviewer
-        print(f"🔍 DEBUG: GT exists but user is not original reviewer - returning meta_reviewer role")
+        # Ground truth exists but user is not original reviewer
         return {
             "role": "meta_reviewer",
             "button_text": "🎯 Override Ground Truth",
@@ -958,11 +901,10 @@ def determine_ground_truth_status(video_id: int, project_id: int, question_group
         }
         
     except Exception as e:
-        print(f"❌ DEBUG: Critical error in determine_ground_truth_status: {e}")
+        print(f"❌ ERROR in determine_ground_truth_status: {e}")
         import traceback
-        print(f"❌ DEBUG: Full traceback: {traceback.format_exc()}")
+        print(f"❌ ERROR traceback: {traceback.format_exc()}")
         
-        # ORIGINAL LOGIC: Return reviewer role on error
         return {
             "role": "reviewer",
             "button_text": "Submit Ground Truth",
@@ -970,18 +912,15 @@ def determine_ground_truth_status(video_id: int, project_id: int, question_group
         }
 
 
+@st.fragment
 def display_single_question_group_for_search(video_info: Dict, project_id: int, user_id: int, qg_id: int, qg_data: Dict, session: Session):
-    """Display single question group with MINIMAL changes - just better error handling in key places"""
+    """Display single question group as fragment to prevent full page rerun"""
     
-    print(f"🔍 DEBUG: Starting display_single_question_group_for_search")
-    print(f"🔍 DEBUG: video_id={video_info['id']}, project_id={project_id}, user_id={user_id}, qg_id={qg_id}")
-    
-    # Determine the correct role and button text - WITH DEBUG
+    # Determine the correct role and button text
     try:
         gt_status = determine_ground_truth_status(video_info["id"], project_id, qg_id, user_id, session)
-        print(f"✅ DEBUG: GT status determined: {gt_status}")
     except Exception as e:
-        print(f"❌ DEBUG: Error determining GT status: {e}")
+        print(f"❌ ERROR determining GT status: {e}")
         # Create fallback form
         with st.form(f"error_gt_status_{video_info['id']}_{qg_id}_{project_id}"):
             st.error(f"Could not determine ground truth status: {str(e)}")
@@ -994,14 +933,11 @@ def display_single_question_group_for_search(video_info: Dict, project_id: int, 
     else:  # reviewer or reviewer_resubmit
         st.info("🔍 **Review Mode** - Help create the ground truth dataset!")
     
-    # Get questions from service - WITH DEBUG
+    # Get questions from service
     try:
-        print(f"📝 DEBUG: Getting questions from service...")
         service_questions = QuestionService.get_questions_by_group_id(group_id=qg_id, session=session)
-        print(f"📝 DEBUG: Service returned {len(service_questions) if service_questions else 0} questions")
         
         if not service_questions:
-            print(f"⚠️ DEBUG: No questions found in service response")
             st.info("No questions found in this group")
             # Create empty form with submit button to prevent error
             with st.form(f"empty_form_{video_info['id']}_{qg_id}_{project_id}"):
@@ -1010,25 +946,23 @@ def display_single_question_group_for_search(video_info: Dict, project_id: int, 
             return
         
     except Exception as e:
-        print(f"❌ DEBUG: Error getting questions from service: {e}")
+        print(f"❌ ERROR getting questions from service: {e}")
         import traceback
-        print(f"❌ DEBUG: Questions error traceback: {traceback.format_exc()}")
+        print(f"❌ ERROR traceback: {traceback.format_exc()}")
         # Create error form
         with st.form(f"questions_error_{video_info['id']}_{qg_id}_{project_id}"):
             st.error(f"Error loading questions: {str(e)}")
             st.form_submit_button("Unable to Load Questions", disabled=True)
         return
     
-    # Get existing answers to populate form - WITH DEBUG
+    # Get existing answers to populate form (IMPROVEMENT 1: Better default loading)
     existing_answers = {}
     try:
-        print(f"📊 DEBUG: Getting existing GT answers...")
-        existing_answers = GroundTruthService.get_ground_truth_for_question_group(
+        existing_answers = GroundTruthService.get_ground_truth_dict_for_question_group(
             video_id=video_info["id"], project_id=project_id, question_group_id=qg_id, session=session
         )
-        print(f"📊 DEBUG: Got existing answers for {len(existing_answers)} questions")
     except Exception as e:
-        print(f"⚠️ DEBUG: Could not load existing answers: {e}")
+        print(f"❌ ERROR loading existing answers: {e}")
         existing_answers = {}
     
     # Get selected annotators
@@ -1047,7 +981,7 @@ def display_single_question_group_for_search(video_info: Dict, project_id: int, 
                     )
                     answer_reviews[question_text] = existing_review_data
                 except Exception as review_error:
-                    print(f"⚠️ DEBUG: Error loading review data for question {question['id']}: {review_error}")
+                    print(f"❌ ERROR loading review data for question {question['id']}: {review_error}")
                     answer_reviews[question_text] = {}
     
     # Create form with unique key INCLUDING project_id to prevent duplicates
@@ -1072,7 +1006,7 @@ def display_single_question_group_for_search(video_info: Dict, project_id: int, 
                         if i > 0:
                             st.markdown('<div style="margin: 32px 0;"></div>', unsafe_allow_html=True)
                         
-                        # Check admin modification status - WITH DEBUG
+                        # Check admin modification status
                         is_modified_by_admin = False
                         admin_info = None
                         if gt_status["role"] == "meta_reviewer":
@@ -1084,9 +1018,8 @@ def display_single_question_group_for_search(video_info: Dict, project_id: int, 
                                     admin_info = GroundTruthService.get_admin_modification_details(
                                         video_id=video_info["id"], project_id=project_id, question_id=question_id, session=session
                                     )
-                                print(f"🎯 DEBUG: Question {question_id} admin modified: {is_modified_by_admin}")
                             except Exception as admin_check_error:
-                                print(f"⚠️ DEBUG: Error checking admin modification for question {question_id}: {admin_check_error}")
+                                print(f"❌ ERROR checking admin modification for question {question_id}: {admin_check_error}")
                                 is_modified_by_admin = False
                                 admin_info = None
                         
@@ -1130,12 +1063,12 @@ def display_single_question_group_for_search(video_info: Dict, project_id: int, 
                                     preloaded_answers=None
                                 )
                         except Exception as e:
-                            print(f"❌ DEBUG: Error displaying question {question_id}: {e}")
+                            print(f"❌ ERROR displaying question {question_id}: {e}")
                             st.error(f"Error displaying question {question_id}: {str(e)}")
                             # Provide fallback answer
                             answers[question_text] = existing_value
             except Exception as e:
-                print(f"❌ DEBUG: Error displaying questions: {e}")
+                print(f"❌ ERROR displaying questions: {e}")
                 # Still provide empty answers
                 answers = {}
             
@@ -1146,8 +1079,6 @@ def display_single_question_group_for_search(video_info: Dict, project_id: int, 
             
             if submitted:
                 try:
-                    print(f"📤 DEBUG: Form submitted with role={gt_status['role']}, {len(answers)} answers")
-                    
                     if gt_status["role"] == "meta_reviewer":
                         GroundTruthService.override_ground_truth_to_question_group(
                             video_id=video_info["id"], project_id=project_id, 
@@ -1171,19 +1102,20 @@ def display_single_question_group_for_search(video_info: Dict, project_id: int, 
                     st.rerun(scope="fragment")
                     
                 except Exception as e:
-                    print(f"❌ DEBUG: Error saving ground truth: {e}")
+                    print(f"❌ ERROR saving ground truth: {e}")
                     import traceback
-                    print(f"❌ DEBUG: Submit error traceback: {traceback.format_exc()}")
+                    print(f"❌ ERROR traceback: {traceback.format_exc()}")
                     st.error(f"❌ Error saving ground truth: {str(e)}")
     
     except Exception as e:
-        print(f"❌ DEBUG: Error creating form: {e}")
+        print(f"❌ ERROR creating form: {e}")
         import traceback
-        print(f"❌ DEBUG: Form creation traceback: {traceback.format_exc()}")
+        print(f"❌ ERROR traceback: {traceback.format_exc()}")
         # Create emergency fallback form
         with st.form(f"emergency_form_{video_info['id']}_{qg_id}_{project_id}_{user_id}"):
             st.error(f"Could not create proper form: {str(e)}")
             st.form_submit_button("Form Creation Failed", disabled=True)
+
 
 def get_video_ground_truth_across_groups(video_id: int, selected_group_ids: List[int], session: Session) -> Dict:
     """Get only ground truth for a video across selected project groups"""
@@ -1771,7 +1703,7 @@ def display_criteria_question_group_editor(video_info: Dict, project_id: int, us
         # Get existing answers
         existing_answers = {}
         try:
-            existing_answers = GroundTruthService.get_ground_truth_for_question_group(
+            existing_answers = GroundTruthService.get_ground_truth_dict_for_question_group(
                 video_id=video_info["id"], project_id=project_id, 
                 question_group_id=group_id, session=session
             )
@@ -2156,7 +2088,7 @@ def display_completion_question_group_editor(video_info: Dict, project_id: int, 
         # Get existing answers
         existing_answers = {}
         try:
-            existing_answers = GroundTruthService.get_ground_truth_for_question_group(
+            existing_answers = GroundTruthService.get_ground_truth_dict_for_question_group(
                 video_id=video_info["id"], project_id=project_id, 
                 question_group_id=group_id, session=session
             )
