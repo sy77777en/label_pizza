@@ -580,17 +580,411 @@ def display_project_question_groups_with_tabs(project_data: Dict, project_id: in
             question_groups[group["ID"]], session
         )
 
-def display_single_question_group_for_search(video_info: Dict, project_id: int, user_id: int, qg_id: int, qg_data: Dict, session: Session):
-    """Display single question group with proper portal-consistent messaging"""
+# def display_single_question_group_for_search(video_info: Dict, project_id: int, user_id: int, qg_id: int, qg_data: Dict, session: Session):
+#     """Display single question group with proper portal-consistent messaging"""
     
-    # Determine the correct role and button text
+#     # Determine the correct role and button text
+#     try:
+#         gt_status = determine_ground_truth_status(video_info["id"], project_id, qg_id, user_id, session)
+#     except Exception as e:
+#         st.error(f"Error determining ground truth status: {str(e)}")
+#         # Create fallback form
+#         with st.form(f"error_gt_status_{video_info['id']}_{qg_id}_{project_id}"):
+#             st.error("Could not determine ground truth status")
+#             st.form_submit_button("Unable to Load", disabled=True)
+#         return
+    
+#     # Show mode messages exactly like other portals
+#     if gt_status["role"] == "meta_reviewer":
+#         st.warning("🎯 **Meta-Reviewer Mode** - Override ground truth answers as needed.")
+#     else:  # reviewer or reviewer_resubmit
+#         st.info("🔍 **Review Mode** - Help create the ground truth dataset!")
+    
+#     # Get questions from service
+#     try:
+#         service_questions = QuestionService.get_questions_by_group_id(group_id=qg_id, session=session)
+        
+#         if not service_questions:
+#             st.info("No questions found in this group")
+#             # Create empty form with submit button to prevent error
+#             with st.form(f"empty_form_{video_info['id']}_{qg_id}_{project_id}"):
+#                 st.info("No questions available")
+#                 st.form_submit_button("No Actions Available", disabled=True)
+#             return
+        
+#         # Get existing answers to populate form
+#         existing_answers = {}
+#         try:
+#             existing_answers = GroundTruthService.get_ground_truth_for_question_group(
+#                 video_id=video_info["id"], project_id=project_id, question_group_id=qg_id, session=session
+#             )
+#         except Exception as e:
+#             st.warning(f"Could not load existing answers: {str(e)}")
+#             existing_answers = {}
+        
+#         # Get selected annotators
+#         selected_annotators = st.session_state.get("selected_annotators", [])
+        
+#         # Initialize answer review states
+#         answer_reviews = {}
+#         if gt_status["role"] in ["reviewer", "meta_reviewer"]:
+#             for question in service_questions:
+#                 if question["type"] == "description":
+#                     question_text = question["text"]
+#                     existing_review_data = load_existing_answer_reviews(
+#                         video_id=video_info["id"], project_id=project_id, 
+#                         question_id=question["id"], session=session
+#                     )
+#                     answer_reviews[question_text] = existing_review_data
+        
+#         # Create form with unique key INCLUDING project_id to prevent duplicates
+#         form_key = f"video_search_form_{video_info['id']}_{qg_id}_{project_id}_{gt_status['role']}_{user_id}"
+        
+#         # Ensure form is always created
+#         try:
+#             with st.form(form_key):
+#                 answers = {}
+                
+#                 # Content height (same as other portals)
+#                 content_height = 500
+                
+#                 # Wrap question display in try/catch
+#                 try:
+#                     with st.container(height=content_height, border=False):
+#                         for i, question in enumerate(service_questions):
+#                             question_id = question["id"]
+#                             question_text = question["text"]
+#                             existing_value = existing_answers.get(question_text, "")
+                            
+#                             if i > 0:
+#                                 st.markdown('<div style="margin: 32px 0;"></div>', unsafe_allow_html=True)
+                            
+#                             # Check admin modification status
+#                             is_modified_by_admin = False
+#                             admin_info = None
+#                             if gt_status["role"] == "meta_reviewer":
+#                                 try:
+#                                     is_modified_by_admin = GroundTruthService.check_question_modified_by_admin(
+#                                         video_id=video_info["id"], project_id=project_id, question_id=question_id, session=session
+#                                     )
+#                                     if is_modified_by_admin:
+#                                         admin_info = GroundTruthService.get_admin_modification_details(
+#                                             video_id=video_info["id"], project_id=project_id, question_id=question_id, session=session
+#                                         )
+#                                 except Exception:
+#                                     is_modified_by_admin = False
+#                                     admin_info = None
+                            
+#                             # Use VIDEO SEARCH specific question display functions with keyword arguments
+#                             try:
+#                                 if question["type"] == "single":
+#                                     answers[question_text] = display_single_choice_question(
+#                                         question=question,
+#                                         video_id=video_info["id"],
+#                                         project_id=project_id,
+#                                         group_id=qg_id,
+#                                         role=gt_status["role"],
+#                                         existing_value=existing_value,
+#                                         is_modified_by_admin=is_modified_by_admin,
+#                                         admin_info=admin_info,
+#                                         form_disabled=False,
+#                                         session=session,
+#                                         gt_value="",
+#                                         mode="",
+#                                         selected_annotators=selected_annotators,
+#                                         key_prefix="video_search_",
+#                                         preloaded_answers=None
+#                                     )
+#                                 else:
+#                                     answers[question_text] = display_description_question(
+#                                         question=question,
+#                                         video_id=video_info["id"],
+#                                         project_id=project_id,
+#                                         group_id=qg_id,
+#                                         role=gt_status["role"],
+#                                         existing_value=existing_value,
+#                                         is_modified_by_admin=is_modified_by_admin,
+#                                         admin_info=admin_info,
+#                                         form_disabled=False,
+#                                         session=session,
+#                                         gt_value="",
+#                                         mode="",
+#                                         answer_reviews=answer_reviews,
+#                                         selected_annotators=selected_annotators,
+#                                         key_prefix="video_search_",
+#                                         preloaded_answers=None
+#                                     )
+#                             except Exception as e:
+#                                 st.error(f"Error displaying question {question_id}: {str(e)}")
+#                                 # Provide fallback answer
+#                                 answers[question_text] = existing_value
+#                 except Exception as e:
+#                     st.error(f"Error displaying questions: {str(e)}")
+#                     # Still provide empty answers
+#                     answers = {}
+                
+#                 st.markdown('<div style="margin: 8px 0;"></div>', unsafe_allow_html=True)
+                
+#                 # ALWAYS include submit button
+#                 submitted = st.form_submit_button(gt_status["button_text"], use_container_width=True, type="primary")
+                
+#                 if submitted:
+#                     try:
+#                         if gt_status["role"] == "meta_reviewer":
+#                             GroundTruthService.override_ground_truth_to_question_group(
+#                                 video_id=video_info["id"], project_id=project_id, 
+#                                 question_group_id=qg_id, admin_id=user_id, 
+#                                 answers=answers, session=session
+#                             )
+#                             st.success("✅ Ground truth overridden successfully!")
+#                         else:  # reviewer or reviewer_resubmit
+#                             GroundTruthService.submit_ground_truth_to_question_group(
+#                                 video_id=video_info["id"], project_id=project_id, 
+#                                 reviewer_id=user_id, question_group_id=qg_id, 
+#                                 answers=answers, session=session
+#                             )
+#                             success_msg = "✅ Ground truth re-submitted successfully!" if gt_status["role"] == "reviewer_resubmit" else "✅ Ground truth submitted successfully!"
+#                             st.success(success_msg)
+                        
+#                         # Submit answer reviews if any
+#                         if answer_reviews:
+#                             submit_answer_reviews(answer_reviews, video_info["id"], project_id, user_id, session)
+                        
+#                         st.rerun(scope="fragment")
+                        
+#                     except Exception as e:
+#                         st.error(f"❌ Error saving ground truth: {str(e)}")
+        
+#         except Exception as e:
+#             st.error(f"Error creating form: {str(e)}")
+#             # Create emergency fallback form
+#             with st.form(f"emergency_form_{video_info['id']}_{qg_id}_{project_id}_{user_id}"):
+#                 st.error("Could not create proper form")
+#                 st.form_submit_button("Form Creation Failed", disabled=True)
+                    
+#     except Exception as e:
+#         st.error(f"❌ Error loading question group: {str(e)}")
+#         # Create empty form with submit button to prevent error
+#         with st.form(f"error_form_{video_info['id']}_{qg_id}_{project_id}_{user_id}"):
+#             st.error("Failed to load questions")
+#             st.form_submit_button("Unable to Load", disabled=True)
+
+
+# def determine_ground_truth_status(video_id: int, project_id: int, question_group_id: int, user_id: int, session: Session) -> Dict[str, str]:
+#     """Determine the correct role and button text - simplified"""
+    
+#     try:
+#         # Check if ground truth exists for this question group
+#         gt_df = GroundTruthService.get_ground_truth_for_question_group(video_id=video_id, project_id=project_id, question_group_id=question_group_id, session=session)
+#         questions = QuestionService.get_questions_by_group_id(group_id=question_group_id, session=session)
+        
+#         if gt_df.empty or not questions:
+#             return {
+#                 "role": "reviewer",
+#                 "button_text": "Submit Ground Truth",
+#                 "message": "Create Ground Truth for this question group"
+#             }
+        
+#         # Check if any questions in this group have ground truth
+#         question_ids = [q["id"] for q in questions]
+#         group_gt = gt_df[gt_df["Question ID"].isin(question_ids)]
+        
+#         if group_gt.empty:
+#             return {
+#                 "role": "reviewer", 
+#                 "button_text": "Submit Ground Truth",
+#                 "message": "Create Ground Truth for this question group"
+#             }
+        
+#         # Check if any questions were modified by admin
+#         has_admin_override = any(
+#             GroundTruthService.check_question_modified_by_admin(
+#                 video_id=int(video_id), project_id=int(project_id), question_id=int(qid), session=session
+#             )
+#             for qid in question_ids
+#         )
+        
+#         if has_admin_override:
+#             return {
+#                 "role": "meta_reviewer",
+#                 "button_text": "🎯 Override Ground Truth",
+#                 "message": "Override Ground Truth for this question group"
+#             }
+        
+#         # Check if current user is the original reviewer
+#         original_reviewer_ids = set(group_gt["Reviewer ID"].unique())
+#         if user_id in original_reviewer_ids:
+#             return {
+#                 "role": "reviewer_resubmit",
+#                 "button_text": "✅ Re-submit Ground Truth",
+#                 "message": "Re-submit Ground Truth for this question group"
+#             }
+        
+#         # Ground truth exists but user is not original reviewer
+#         return {
+#             "role": "meta_reviewer",
+#             "button_text": "🎯 Override Ground Truth",
+#             "message": "Override Ground Truth for this question group"
+#         }
+        
+#     except Exception as e:
+#         return {
+#             "role": "reviewer",
+#             "button_text": "Submit Ground Truth",
+#             "message": "Create Ground Truth for this question group"
+#         }
+
+
+def determine_ground_truth_status(video_id: int, project_id: int, question_group_id: int, user_id: int, session: Session) -> Dict[str, str]:
+    """Determine the correct role and button text - SAME LOGIC with debug logging"""
+    
+    print(f"🔍 DEBUG: determine_ground_truth_status called with video_id={video_id}, project_id={project_id}, question_group_id={question_group_id}, user_id={user_id}")
+    
+    try:
+        # Check if ground truth exists for this question group
+        print(f"📊 DEBUG: Getting GT for question group...")
+        try:
+            gt_df = GroundTruthService.get_ground_truth_for_question_group(
+                video_id=video_id, project_id=project_id, question_group_id=question_group_id, session=session
+            )
+            print(f"📊 DEBUG: GT dataframe type: {type(gt_df)}")
+            print(f"📊 DEBUG: GT dataframe shape: {gt_df.shape if hasattr(gt_df, 'shape') else 'No shape attribute'}")
+            print(f"📊 DEBUG: GT dataframe empty: {gt_df.empty if hasattr(gt_df, 'empty') else 'No empty attribute'}")
+            if hasattr(gt_df, 'columns'):
+                print(f"📊 DEBUG: GT dataframe columns: {list(gt_df.columns)}")
+        except Exception as gt_error:
+            print(f"❌ DEBUG: Error getting GT dataframe: {gt_error}")
+            import traceback
+            print(f"❌ DEBUG: GT error traceback: {traceback.format_exc()}")
+            # Return early if we can't get GT
+            return {
+                "role": "reviewer",
+                "button_text": "Submit Ground Truth",
+                "message": "Create Ground Truth for this question group (GT fetch failed)"
+            }
+        
+        print(f"📝 DEBUG: Getting questions for group...")
+        try:
+            questions = QuestionService.get_questions_by_group_id(group_id=question_group_id, session=session)
+            print(f"📝 DEBUG: Found {len(questions) if questions else 0} questions")
+            if questions:
+                question_ids = [q["id"] for q in questions]
+                print(f"📝 DEBUG: Question IDs: {question_ids}")
+        except Exception as q_error:
+            print(f"❌ DEBUG: Error getting questions: {q_error}")
+            questions = []
+        
+        # ORIGINAL LOGIC: Check if gt_df is empty or no questions
+        if gt_df.empty or not questions:
+            print(f"🔍 DEBUG: GT empty ({gt_df.empty if hasattr(gt_df, 'empty') else 'unknown'}) or no questions ({not questions}) - returning reviewer role")
+            return {
+                "role": "reviewer",
+                "button_text": "Submit Ground Truth",
+                "message": "Create Ground Truth for this question group"
+            }
+        
+        # ORIGINAL LOGIC: Check if any questions in this group have ground truth
+        question_ids = [q["id"] for q in questions]
+        print(f"🔍 DEBUG: Filtering GT by question IDs: {question_ids}")
+        
+        try:
+            group_gt = gt_df[gt_df["Question ID"].isin(question_ids)]
+            print(f"📊 DEBUG: Filtered GT shape: {group_gt.shape if hasattr(group_gt, 'shape') else 'No shape'}")
+            print(f"📊 DEBUG: Filtered GT empty: {group_gt.empty if hasattr(group_gt, 'empty') else 'No empty attribute'}")
+            if hasattr(group_gt, 'empty') and not group_gt.empty:
+                print(f"📊 DEBUG: GT Question IDs found: {list(group_gt['Question ID'].unique()) if 'Question ID' in group_gt.columns else 'No Question ID column'}")
+        except Exception as filter_error:
+            print(f"❌ DEBUG: Error filtering GT by question IDs: {filter_error}")
+            group_gt = gt_df  # Fallback to original dataframe
+        
+        # ORIGINAL LOGIC: If no GT for this group's questions
+        if group_gt.empty:
+            print(f"🔍 DEBUG: No GT found for this group's questions - returning reviewer role")
+            return {
+                "role": "reviewer", 
+                "button_text": "Submit Ground Truth",
+                "message": "Create Ground Truth for this question group"
+            }
+        
+        # ORIGINAL LOGIC: Check if any questions were modified by admin
+        print(f"🎯 DEBUG: Checking for admin overrides...")
+        try:
+            has_admin_override = any(
+                GroundTruthService.check_question_modified_by_admin(
+                    video_id=int(video_id), project_id=int(project_id), question_id=int(qid), session=session
+                )
+                for qid in question_ids
+            )
+            print(f"🎯 DEBUG: Has admin override: {has_admin_override}")
+        except Exception as admin_error:
+            print(f"❌ DEBUG: Error checking admin overrides: {admin_error}")
+            has_admin_override = False
+        
+        # ORIGINAL LOGIC: If admin override exists
+        if has_admin_override:
+            print(f"🔍 DEBUG: Admin override detected - returning meta_reviewer role")
+            return {
+                "role": "meta_reviewer",
+                "button_text": "🎯 Override Ground Truth",
+                "message": "Override Ground Truth for this question group"
+            }
+        
+        # ORIGINAL LOGIC: Check if current user is the original reviewer
+        print(f"👤 DEBUG: Checking if current user is original reviewer...")
+        try:
+            original_reviewer_ids = set(group_gt["Reviewer ID"].unique())
+            print(f"👤 DEBUG: Original reviewer IDs: {original_reviewer_ids}")
+            print(f"👤 DEBUG: Current user ID: {user_id}")
+            print(f"👤 DEBUG: User is original reviewer: {user_id in original_reviewer_ids}")
+        except Exception as reviewer_error:
+            print(f"❌ DEBUG: Error checking original reviewer: {reviewer_error}")
+            original_reviewer_ids = set()
+        
+        # ORIGINAL LOGIC: If current user is original reviewer
+        if user_id in original_reviewer_ids:
+            print(f"🔍 DEBUG: Current user is original reviewer - returning reviewer_resubmit role")
+            return {
+                "role": "reviewer_resubmit",
+                "button_text": "✅ Re-submit Ground Truth",
+                "message": "Re-submit Ground Truth for this question group"
+            }
+        
+        # ORIGINAL LOGIC: Ground truth exists but user is not original reviewer
+        print(f"🔍 DEBUG: GT exists but user is not original reviewer - returning meta_reviewer role")
+        return {
+            "role": "meta_reviewer",
+            "button_text": "🎯 Override Ground Truth",
+            "message": "Override Ground Truth for this question group"
+        }
+        
+    except Exception as e:
+        print(f"❌ DEBUG: Critical error in determine_ground_truth_status: {e}")
+        import traceback
+        print(f"❌ DEBUG: Full traceback: {traceback.format_exc()}")
+        
+        # ORIGINAL LOGIC: Return reviewer role on error
+        return {
+            "role": "reviewer",
+            "button_text": "Submit Ground Truth",
+            "message": "Create Ground Truth for this question group"
+        }
+
+
+def display_single_question_group_for_search(video_info: Dict, project_id: int, user_id: int, qg_id: int, qg_data: Dict, session: Session):
+    """Display single question group with MINIMAL changes - just better error handling in key places"""
+    
+    print(f"🔍 DEBUG: Starting display_single_question_group_for_search")
+    print(f"🔍 DEBUG: video_id={video_info['id']}, project_id={project_id}, user_id={user_id}, qg_id={qg_id}")
+    
+    # Determine the correct role and button text - WITH DEBUG
     try:
         gt_status = determine_ground_truth_status(video_info["id"], project_id, qg_id, user_id, session)
+        print(f"✅ DEBUG: GT status determined: {gt_status}")
     except Exception as e:
-        st.error(f"Error determining ground truth status: {str(e)}")
+        print(f"❌ DEBUG: Error determining GT status: {e}")
         # Create fallback form
         with st.form(f"error_gt_status_{video_info['id']}_{qg_id}_{project_id}"):
-            st.error("Could not determine ground truth status")
+            st.error(f"Could not determine ground truth status: {str(e)}")
             st.form_submit_button("Unable to Load", disabled=True)
         return
     
@@ -600,11 +994,14 @@ def display_single_question_group_for_search(video_info: Dict, project_id: int, 
     else:  # reviewer or reviewer_resubmit
         st.info("🔍 **Review Mode** - Help create the ground truth dataset!")
     
-    # Get questions from service
+    # Get questions from service - WITH DEBUG
     try:
+        print(f"📝 DEBUG: Getting questions from service...")
         service_questions = QuestionService.get_questions_by_group_id(group_id=qg_id, session=session)
+        print(f"📝 DEBUG: Service returned {len(service_questions) if service_questions else 0} questions")
         
         if not service_questions:
+            print(f"⚠️ DEBUG: No questions found in service response")
             st.info("No questions found in this group")
             # Create empty form with submit button to prevent error
             with st.form(f"empty_form_{video_info['id']}_{qg_id}_{project_id}"):
@@ -612,228 +1009,181 @@ def display_single_question_group_for_search(video_info: Dict, project_id: int, 
                 st.form_submit_button("No Actions Available", disabled=True)
             return
         
-        # Get existing answers to populate form
+    except Exception as e:
+        print(f"❌ DEBUG: Error getting questions from service: {e}")
+        import traceback
+        print(f"❌ DEBUG: Questions error traceback: {traceback.format_exc()}")
+        # Create error form
+        with st.form(f"questions_error_{video_info['id']}_{qg_id}_{project_id}"):
+            st.error(f"Error loading questions: {str(e)}")
+            st.form_submit_button("Unable to Load Questions", disabled=True)
+        return
+    
+    # Get existing answers to populate form - WITH DEBUG
+    existing_answers = {}
+    try:
+        print(f"📊 DEBUG: Getting existing GT answers...")
+        existing_answers = GroundTruthService.get_ground_truth_for_question_group(
+            video_id=video_info["id"], project_id=project_id, question_group_id=qg_id, session=session
+        )
+        print(f"📊 DEBUG: Got existing answers for {len(existing_answers)} questions")
+    except Exception as e:
+        print(f"⚠️ DEBUG: Could not load existing answers: {e}")
         existing_answers = {}
-        try:
-            existing_answers = GroundTruthService.get_ground_truth_for_question_group(
-                video_id=video_info["id"], project_id=project_id, question_group_id=qg_id, session=session
-            )
-        except Exception as e:
-            st.warning(f"Could not load existing answers: {str(e)}")
-            existing_answers = {}
-        
-        # Get selected annotators
-        selected_annotators = st.session_state.get("selected_annotators", [])
-        
-        # Initialize answer review states
-        answer_reviews = {}
-        if gt_status["role"] in ["reviewer", "meta_reviewer"]:
-            for question in service_questions:
-                if question["type"] == "description":
-                    question_text = question["text"]
+    
+    # Get selected annotators
+    selected_annotators = st.session_state.get("selected_annotators", [])
+    
+    # Initialize answer review states
+    answer_reviews = {}
+    if gt_status["role"] in ["reviewer", "meta_reviewer"]:
+        for question in service_questions:
+            if question["type"] == "description":
+                question_text = question["text"]
+                try:
                     existing_review_data = load_existing_answer_reviews(
                         video_id=video_info["id"], project_id=project_id, 
                         question_id=question["id"], session=session
                     )
                     answer_reviews[question_text] = existing_review_data
-        
-        # Create form with unique key INCLUDING project_id to prevent duplicates
-        form_key = f"video_search_form_{video_info['id']}_{qg_id}_{project_id}_{gt_status['role']}_{user_id}"
-        
-        # Ensure form is always created
-        try:
-            with st.form(form_key):
-                answers = {}
-                
-                # Content height (same as other portals)
-                content_height = 500
-                
-                # Wrap question display in try/catch
-                try:
-                    with st.container(height=content_height, border=False):
-                        for i, question in enumerate(service_questions):
-                            question_id = question["id"]
-                            question_text = question["text"]
-                            existing_value = existing_answers.get(question_text, "")
-                            
-                            if i > 0:
-                                st.markdown('<div style="margin: 32px 0;"></div>', unsafe_allow_html=True)
-                            
-                            # Check admin modification status
-                            is_modified_by_admin = False
-                            admin_info = None
-                            if gt_status["role"] == "meta_reviewer":
-                                try:
-                                    is_modified_by_admin = GroundTruthService.check_question_modified_by_admin(
+                except Exception as review_error:
+                    print(f"⚠️ DEBUG: Error loading review data for question {question['id']}: {review_error}")
+                    answer_reviews[question_text] = {}
+    
+    # Create form with unique key INCLUDING project_id to prevent duplicates
+    form_key = f"video_search_form_{video_info['id']}_{qg_id}_{project_id}_{gt_status['role']}_{user_id}"
+    
+    # Ensure form is always created
+    try:
+        with st.form(form_key):
+            answers = {}
+            
+            # Content height (same as other portals)
+            content_height = 500
+            
+            # Wrap question display in try/catch
+            try:
+                with st.container(height=content_height, border=False):
+                    for i, question in enumerate(service_questions):
+                        question_id = question["id"]
+                        question_text = question["text"]
+                        existing_value = existing_answers.get(question_text, "")
+                        
+                        if i > 0:
+                            st.markdown('<div style="margin: 32px 0;"></div>', unsafe_allow_html=True)
+                        
+                        # Check admin modification status - WITH DEBUG
+                        is_modified_by_admin = False
+                        admin_info = None
+                        if gt_status["role"] == "meta_reviewer":
+                            try:
+                                is_modified_by_admin = GroundTruthService.check_question_modified_by_admin(
+                                    video_id=video_info["id"], project_id=project_id, question_id=question_id, session=session
+                                )
+                                if is_modified_by_admin:
+                                    admin_info = GroundTruthService.get_admin_modification_details(
                                         video_id=video_info["id"], project_id=project_id, question_id=question_id, session=session
                                     )
-                                    if is_modified_by_admin:
-                                        admin_info = GroundTruthService.get_admin_modification_details(
-                                            video_id=video_info["id"], project_id=project_id, question_id=question_id, session=session
-                                        )
-                                except Exception:
-                                    is_modified_by_admin = False
-                                    admin_info = None
-                            
-                            # Use VIDEO SEARCH specific question display functions with keyword arguments
-                            try:
-                                if question["type"] == "single":
-                                    answers[question_text] = display_single_choice_question(
-                                        question=question,
-                                        video_id=video_info["id"],
-                                        project_id=project_id,
-                                        group_id=qg_id,
-                                        role=gt_status["role"],
-                                        existing_value=existing_value,
-                                        is_modified_by_admin=is_modified_by_admin,
-                                        admin_info=admin_info,
-                                        form_disabled=False,
-                                        session=session,
-                                        gt_value="",
-                                        mode="",
-                                        selected_annotators=selected_annotators,
-                                        key_prefix="video_search_",
-                                        preloaded_answers=None
-                                    )
-                                else:
-                                    answers[question_text] = display_description_question(
-                                        question=question,
-                                        video_id=video_info["id"],
-                                        project_id=project_id,
-                                        group_id=qg_id,
-                                        role=gt_status["role"],
-                                        existing_value=existing_value,
-                                        is_modified_by_admin=is_modified_by_admin,
-                                        admin_info=admin_info,
-                                        form_disabled=False,
-                                        session=session,
-                                        gt_value="",
-                                        mode="",
-                                        answer_reviews=answer_reviews,
-                                        selected_annotators=selected_annotators,
-                                        key_prefix="video_search_",
-                                        preloaded_answers=None
-                                    )
-                            except Exception as e:
-                                st.error(f"Error displaying question {question_id}: {str(e)}")
-                                # Provide fallback answer
-                                answers[question_text] = existing_value
-                except Exception as e:
-                    st.error(f"Error displaying questions: {str(e)}")
-                    # Still provide empty answers
-                    answers = {}
-                
-                st.markdown('<div style="margin: 8px 0;"></div>', unsafe_allow_html=True)
-                
-                # ALWAYS include submit button
-                submitted = st.form_submit_button(gt_status["button_text"], use_container_width=True, type="primary")
-                
-                if submitted:
-                    try:
-                        if gt_status["role"] == "meta_reviewer":
-                            GroundTruthService.override_ground_truth_to_question_group(
-                                video_id=video_info["id"], project_id=project_id, 
-                                question_group_id=qg_id, admin_id=user_id, 
-                                answers=answers, session=session
-                            )
-                            st.success("✅ Ground truth overridden successfully!")
-                        else:  # reviewer or reviewer_resubmit
-                            GroundTruthService.submit_ground_truth_to_question_group(
-                                video_id=video_info["id"], project_id=project_id, 
-                                reviewer_id=user_id, question_group_id=qg_id, 
-                                answers=answers, session=session
-                            )
-                            success_msg = "✅ Ground truth re-submitted successfully!" if gt_status["role"] == "reviewer_resubmit" else "✅ Ground truth submitted successfully!"
-                            st.success(success_msg)
+                                print(f"🎯 DEBUG: Question {question_id} admin modified: {is_modified_by_admin}")
+                            except Exception as admin_check_error:
+                                print(f"⚠️ DEBUG: Error checking admin modification for question {question_id}: {admin_check_error}")
+                                is_modified_by_admin = False
+                                admin_info = None
                         
-                        # Submit answer reviews if any
-                        if answer_reviews:
-                            submit_answer_reviews(answer_reviews, video_info["id"], project_id, user_id, session)
-                        
-                        st.rerun(scope="fragment")
-                        
-                    except Exception as e:
-                        st.error(f"❌ Error saving ground truth: {str(e)}")
-        
-        except Exception as e:
-            st.error(f"Error creating form: {str(e)}")
-            # Create emergency fallback form
-            with st.form(f"emergency_form_{video_info['id']}_{qg_id}_{project_id}_{user_id}"):
-                st.error("Could not create proper form")
-                st.form_submit_button("Form Creation Failed", disabled=True)
+                        # Use existing question display functions with keyword arguments
+                        try:
+                            if question["type"] == "single":
+                                answers[question_text] = display_single_choice_question(
+                                    question=question,
+                                    video_id=video_info["id"],
+                                    project_id=project_id,
+                                    group_id=qg_id,
+                                    role=gt_status["role"],
+                                    existing_value=existing_value,
+                                    is_modified_by_admin=is_modified_by_admin,
+                                    admin_info=admin_info,
+                                    form_disabled=False,
+                                    session=session,
+                                    gt_value="",
+                                    mode="",
+                                    selected_annotators=selected_annotators,
+                                    key_prefix="video_search_",
+                                    preloaded_answers=None
+                                )
+                            else:
+                                answers[question_text] = display_description_question(
+                                    question=question,
+                                    video_id=video_info["id"],
+                                    project_id=project_id,
+                                    group_id=qg_id,
+                                    role=gt_status["role"],
+                                    existing_value=existing_value,
+                                    is_modified_by_admin=is_modified_by_admin,
+                                    admin_info=admin_info,
+                                    form_disabled=False,
+                                    session=session,
+                                    gt_value="",
+                                    mode="",
+                                    answer_reviews=answer_reviews,
+                                    selected_annotators=selected_annotators,
+                                    key_prefix="video_search_",
+                                    preloaded_answers=None
+                                )
+                        except Exception as e:
+                            print(f"❌ DEBUG: Error displaying question {question_id}: {e}")
+                            st.error(f"Error displaying question {question_id}: {str(e)}")
+                            # Provide fallback answer
+                            answers[question_text] = existing_value
+            except Exception as e:
+                print(f"❌ DEBUG: Error displaying questions: {e}")
+                # Still provide empty answers
+                answers = {}
+            
+            st.markdown('<div style="margin: 8px 0;"></div>', unsafe_allow_html=True)
+            
+            # ALWAYS include submit button
+            submitted = st.form_submit_button(gt_status["button_text"], use_container_width=True, type="primary")
+            
+            if submitted:
+                try:
+                    print(f"📤 DEBUG: Form submitted with role={gt_status['role']}, {len(answers)} answers")
                     
-    except Exception as e:
-        st.error(f"❌ Error loading question group: {str(e)}")
-        # Create empty form with submit button to prevent error
-        with st.form(f"error_form_{video_info['id']}_{qg_id}_{project_id}_{user_id}"):
-            st.error("Failed to load questions")
-            st.form_submit_button("Unable to Load", disabled=True)
-
-
-def determine_ground_truth_status(video_id: int, project_id: int, question_group_id: int, user_id: int, session: Session) -> Dict[str, str]:
-    """Determine the correct role and button text - simplified"""
+                    if gt_status["role"] == "meta_reviewer":
+                        GroundTruthService.override_ground_truth_to_question_group(
+                            video_id=video_info["id"], project_id=project_id, 
+                            question_group_id=qg_id, admin_id=user_id, 
+                            answers=answers, session=session
+                        )
+                        st.success("✅ Ground truth overridden successfully!")
+                    else:  # reviewer or reviewer_resubmit
+                        GroundTruthService.submit_ground_truth_to_question_group(
+                            video_id=video_info["id"], project_id=project_id, 
+                            reviewer_id=user_id, question_group_id=qg_id, 
+                            answers=answers, session=session
+                        )
+                        success_msg = "✅ Ground truth re-submitted successfully!" if gt_status["role"] == "reviewer_resubmit" else "✅ Ground truth submitted successfully!"
+                        st.success(success_msg)
+                    
+                    # Submit answer reviews if any
+                    if answer_reviews:
+                        submit_answer_reviews(answer_reviews, video_info["id"], project_id, user_id, session)
+                    
+                    st.rerun(scope="fragment")
+                    
+                except Exception as e:
+                    print(f"❌ DEBUG: Error saving ground truth: {e}")
+                    import traceback
+                    print(f"❌ DEBUG: Submit error traceback: {traceback.format_exc()}")
+                    st.error(f"❌ Error saving ground truth: {str(e)}")
     
-    try:
-        # Check if ground truth exists for this question group
-        gt_df = GroundTruthService.get_ground_truth_for_question_group(video_id=video_id, project_id=project_id, question_group_id=question_group_id, session=session)
-        questions = QuestionService.get_questions_by_group_id(group_id=question_group_id, session=session)
-        
-        if gt_df.empty or not questions:
-            return {
-                "role": "reviewer",
-                "button_text": "Submit Ground Truth",
-                "message": "Create Ground Truth for this question group"
-            }
-        
-        # Check if any questions in this group have ground truth
-        question_ids = [q["id"] for q in questions]
-        group_gt = gt_df[gt_df["Question ID"].isin(question_ids)]
-        
-        if group_gt.empty:
-            return {
-                "role": "reviewer", 
-                "button_text": "Submit Ground Truth",
-                "message": "Create Ground Truth for this question group"
-            }
-        
-        # Check if any questions were modified by admin
-        has_admin_override = any(
-            GroundTruthService.check_question_modified_by_admin(
-                video_id=int(video_id), project_id=int(project_id), question_id=int(qid), session=session
-            )
-            for qid in question_ids
-        )
-        
-        if has_admin_override:
-            return {
-                "role": "meta_reviewer",
-                "button_text": "🎯 Override Ground Truth",
-                "message": "Override Ground Truth for this question group"
-            }
-        
-        # Check if current user is the original reviewer
-        original_reviewer_ids = set(group_gt["Reviewer ID"].unique())
-        if user_id in original_reviewer_ids:
-            return {
-                "role": "reviewer_resubmit",
-                "button_text": "✅ Re-submit Ground Truth",
-                "message": "Re-submit Ground Truth for this question group"
-            }
-        
-        # Ground truth exists but user is not original reviewer
-        return {
-            "role": "meta_reviewer",
-            "button_text": "🎯 Override Ground Truth",
-            "message": "Override Ground Truth for this question group"
-        }
-        
     except Exception as e:
-        return {
-            "role": "reviewer",
-            "button_text": "Submit Ground Truth",
-            "message": "Create Ground Truth for this question group"
-        }
-
+        print(f"❌ DEBUG: Error creating form: {e}")
+        import traceback
+        print(f"❌ DEBUG: Form creation traceback: {traceback.format_exc()}")
+        # Create emergency fallback form
+        with st.form(f"emergency_form_{video_info['id']}_{qg_id}_{project_id}_{user_id}"):
+            st.error(f"Could not create proper form: {str(e)}")
+            st.form_submit_button("Form Creation Failed", disabled=True)
 
 def get_video_ground_truth_across_groups(video_id: int, selected_group_ids: List[int], session: Session) -> Dict:
     """Get only ground truth for a video across selected project groups"""
