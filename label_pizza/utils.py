@@ -199,6 +199,86 @@ def get_project_videos(project_id: int, session: Session) -> List[Dict]:
     session_id = get_session_cache_key()
     return get_cached_project_videos(project_id, session_id)
 
+@st.cache_data(ttl=600)  # Cache for 10 minutes
+def get_cached_video_reviewer_data(video_id: int, project_id: int, annotator_user_ids: List[int], session_id: str) -> Dict:
+    """Cache ALL reviewer data for a specific video to minimize repeated queries"""
+    with SessionLocal() as session:
+        try:
+            cache_data = {
+                "annotator_answers": {},
+                "user_info": {},
+                "confidence_scores": {},
+                "text_answers": {},
+                "user_weights": {}  # ADD THIS
+            }
+            
+            # Get all questions for the project
+            questions = ProjectService.get_project_questions(project_id=project_id, session=session)
+            question_ids = [q["id"] for q in questions]
+            
+            # Batch load all answers for this video from selected annotators
+            for question_id in question_ids:
+                answers_df = AnnotatorService.get_question_answers(
+                    question_id=question_id, project_id=project_id, session=session
+                )
+                
+                if not answers_df.empty:
+                    video_answers = answers_df[
+                        (answers_df["Video ID"] == video_id) & 
+                        (answers_df["User ID"].isin(annotator_user_ids))
+                    ]
+                    
+                    cache_data["annotator_answers"][question_id] = video_answers.to_dict('records')
+                    
+                    # Extract confidence scores for model users
+                    for _, row in video_answers.iterrows():
+                        user_id = row["User ID"]
+                        if row["Confidence Score"] is not None:
+                            if user_id not in cache_data["confidence_scores"]:
+                                cache_data["confidence_scores"][user_id] = {}
+                            cache_data["confidence_scores"][user_id][question_id] = row["Confidence Score"]
+            
+            # Cache user information
+            users_df = AuthService.get_all_users(session=session)
+            for _, user_row in users_df.iterrows():
+                if user_row["ID"] in annotator_user_ids:
+                    cache_data["user_info"][user_row["ID"]] = {
+                        "name": user_row["User ID"],
+                        "email": user_row["Email"],
+                        "role": user_row["Role"]
+                    }
+            
+            # OPTIMIZED: Get user weights using service layer
+            try:
+                # Use the service method to get user weights for the project
+                user_weights = AuthService.get_user_weights_for_project(project_id=project_id, session=session)
+                for user_id in annotator_user_ids:
+                    if user_id in user_weights:
+                        cache_data["user_weights"][user_id] = user_weights[user_id]
+                    else:
+                        cache_data["user_weights"][user_id] = 1.0
+            except Exception as e:
+                print(f"Error getting user weights: {e}")
+                # Default all weights to 1.0 if error
+                for user_id in annotator_user_ids:
+                    cache_data["user_weights"][user_id] = 1.0
+            
+            # Cache text answers for description questions
+            description_questions = [q for q in questions if q["type"] == "description"]
+            for question in description_questions:
+                text_answers = GroundTruthService.get_question_text_answers(
+                    video_id=video_id, project_id=project_id, 
+                    question_id=question["id"], annotator_user_ids=annotator_user_ids, 
+                    session=session
+                )
+                cache_data["text_answers"][question["id"]] = text_answers
+            
+            return cache_data
+            
+        except Exception as e:
+            print(f"Error in get_cached_video_reviewer_data: {e}")
+            return {}
+
 @st.cache_data(ttl=3600)  # Cache for 1 hour - questions rarely change
 def get_cached_questions_by_group(group_id: int, session_id: str) -> List[Dict]:
     """Cache questions by group - questions rarely change once project is running"""
@@ -439,110 +519,6 @@ def calculate_per_question_accuracy(accuracy_data: Dict[int, Dict[int, Dict[str,
 # OPTIMIZED DISPLAY FUNCTIONS
 ###############################################################################
 
-def _display_enhanced_helper_text_answers(video_id: int, project_id: int, question_id: int, question_text: str, text_key: str, gt_value: str, role: str, answer_reviews: Optional[Dict], session: Session, selected_annotators: List[str] = None):
-    """OPTIMIZED: Display helper text showing other annotator answers"""
-    
-    try:
-        annotator_user_ids = []
-        text_answers = []
-        
-        # Get annotator answers if annotators are selected - OPTIMIZED
-        if selected_annotators:
-            annotator_user_ids = get_optimized_annotator_user_ids(
-                display_names=selected_annotators, project_id=project_id, session=session
-            )
-            
-            text_answers = GroundTruthService.get_question_text_answers(
-                video_id=video_id, project_id=project_id, question_id=question_id, 
-                annotator_user_ids=annotator_user_ids, session=session
-            )
-        
-        all_answers = []
-        
-        # Add Ground Truth for meta-reviewer OR if we have existing GT (search portal)
-        if role == "meta_reviewer" and gt_value:
-            all_answers.append({
-                "name": "Ground Truth",
-                "full_text": gt_value,
-                "has_answer": bool(gt_value.strip()),
-                "is_gt": True,
-                "display_name": "Ground Truth"
-            })
-        # For search portal - check if we have ground truth even without annotators
-        elif not selected_annotators or len(selected_annotators) == 0:
-            try:
-                gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
-                if not gt_df.empty:
-                    question_gt = gt_df[gt_df["Question ID"] == question_id]
-                    if not question_gt.empty:
-                        gt_answer = question_gt.iloc[0]["Answer Value"]
-                        if gt_answer and str(gt_answer).strip():
-                            all_answers.append({
-                                "name": "Ground Truth",
-                                "full_text": str(gt_answer),
-                                "has_answer": True,
-                                "is_gt": True,
-                                "display_name": "Ground Truth"
-                            })
-            except Exception as e:
-                print(f"Error getting ground truth: {e}")
-                pass
-        
-        # Add annotator answers
-        if text_answers:
-            unique_answers = []
-            seen_answers = set()
-            
-            for answer in text_answers:
-                answer_key = f"{answer['initials']}:{answer['answer_value']}"
-                if answer_key not in seen_answers:
-                    seen_answers.add(answer_key)
-                    unique_answers.append(answer)
-            
-            for answer_info in unique_answers:
-                annotator_name = answer_info['name']
-                answer_value = answer_info['answer_value']
-                initials = answer_info['initials']
-                
-                all_answers.append({
-                    "name": annotator_name,
-                    "full_text": answer_value,
-                    "has_answer": bool(answer_value.strip()),
-                    "is_gt": False,
-                    "display_name": f"{annotator_name} ({initials})",
-                    "initials": initials
-                })
-        
-        if all_answers:
-            # Smart tab naming
-            if len(all_answers) > 6:
-                tab_names = []
-                for answer in all_answers:
-                    if answer["is_gt"]:
-                        tab_names.append("🏆 GT")
-                    else:
-                        tab_names.append(answer["initials"])
-            else:
-                tab_names = []
-                for answer in all_answers:
-                    if answer["is_gt"]:
-                        tab_names.append("Ground Truth")
-                    else:
-                        name = answer["name"]
-                        tab_names.append(name[:17] + "..." if len(name) > 20 else name)
-            
-            tabs = st.tabs(tab_names)
-            
-            for tab, answer in zip(tabs, all_answers):
-                with tab:
-                    _display_single_answer_elegant(
-                        answer, text_key, question_text, answer_reviews, 
-                        video_id, project_id, question_id, session
-                    )
-                            
-    except Exception as e:
-        st.caption(f"⚠️ Could not load answer information: {str(e)}")
-
 def _display_clean_sticky_single_choice_question(
     question: Dict, 
     video_id: int, 
@@ -558,7 +534,8 @@ def _display_clean_sticky_single_choice_question(
     mode: str = "", 
     selected_annotators: List[str] = None, 
     key_prefix: str = "", 
-    preloaded_answers: Dict = None
+    preloaded_answers: Dict = None,
+    cache_data: Dict = None
 ) -> str:
     """OPTIMIZED: Display a single choice question with preloaded answer support"""
     question_id = question["id"]
@@ -627,7 +604,8 @@ def _display_clean_sticky_single_choice_question(
             question_id=question_id, 
             session=session,
             show_annotators=show_annotators,
-            selected_annotators=selected_annotators or []
+            selected_annotators=selected_annotators or [],
+            cache_data=cache_data
         )
     
     # Question content with UNIQUE KEYS using key_prefix
@@ -748,7 +726,8 @@ def _display_clean_sticky_description_question(
     answer_reviews: Optional[Dict] = None, 
     selected_annotators: List[str] = None, 
     key_prefix: str = "", 
-    preloaded_answers: Dict = None
+    preloaded_answers: Dict = None,
+    cache_data: Dict = None
 ) -> str:
     """OPTIMIZED: Display a description question with preloaded answer support"""
     
@@ -838,7 +817,8 @@ def _display_clean_sticky_description_question(
             question_id=question_id, 
             session=session,
             show_annotators=show_annotators,
-            selected_annotators=selected_annotators or []
+            selected_annotators=selected_annotators or [],
+            cache_data=cache_data
         )
         
         # Show enhanced helper text if annotators selected OR if we have ground truth (for search portal)
@@ -848,7 +828,8 @@ def _display_clean_sticky_description_question(
                 question_text=question_key, text_key=text_key,
                 gt_value=existing_value if role in ["meta_reviewer", "reviewer_resubmit"] else "",
                 role=role, answer_reviews=answer_reviews, session=session,
-                selected_annotators=selected_annotators or []
+                selected_annotators=selected_annotators or [],
+                cache_data=cache_data
             )
         
         result = answer
@@ -877,58 +858,76 @@ def _display_clean_sticky_description_question(
     
     return result
 
-def _get_enhanced_options_for_reviewer(video_id: int, project_id: int, question_id: int, options: List[str], display_values: List[str], session: Session, selected_annotators: List[str] = None) -> List[str]:
-    """OPTIMIZED: Get enhanced options showing who selected what for reviewers with model confidence scores"""
+def _get_enhanced_options_for_reviewer(
+    video_id: int, project_id: int, question_id: int, 
+    options: List[str], display_values: List[str], 
+    session: Session, selected_annotators: List[str] = None
+) -> List[str]:
+    """OPTIMIZED: Get enhanced options using cached video data"""
     
     try:
-        # Get annotator selections if annotators are provided - OPTIMIZED
+        # Get annotator user IDs
         annotator_user_ids = []
         if selected_annotators:
             annotator_user_ids = get_optimized_annotator_user_ids(
                 display_names=selected_annotators, project_id=project_id, session=session
             )
         
-        # Get user info from cached data - OPTIMIZED
+        if not annotator_user_ids:
+            # Still check for ground truth even without annotators
+            enhanced_options = display_values.copy()
+            try:
+                gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
+                if not gt_df.empty:
+                    question_gt = gt_df[gt_df["Question ID"] == question_id]
+                    if not question_gt.empty:
+                        gt_selection = question_gt.iloc[0]["Answer Value"]
+                        for i, option in enumerate(options):
+                            if str(option) == str(gt_selection):
+                                enhanced_options[i] += " — 🏆 GT"
+            except:
+                pass
+            return enhanced_options
+        
+        # Use cached data
         session_id = get_session_cache_key()
-        users_df = get_cached_all_users(session_id)
-        user_lookup = {row["ID"]: {"role": row["Role"], "name": row["User ID"]} for _, row in users_df.iterrows()}
-        
-        # Create reverse lookup: user_name -> user_info
-        name_to_user_lookup = {row["User ID"]: {"id": row["ID"], "role": row["Role"]} for _, row in users_df.iterrows()}
-        
-        option_selections = GroundTruthService.get_question_option_selections(
-            video_id=video_id, project_id=project_id, question_id=question_id, 
-            annotator_user_ids=annotator_user_ids, session=session
+        cache_data = get_cached_video_reviewer_data(
+            video_id=video_id, project_id=project_id, 
+            annotator_user_ids=annotator_user_ids, session_id=session_id
         )
         
-        # Get answers with confidence scores for models - OPTIMIZED
-        answers_df = get_optimized_question_answers(question_id=question_id, project_id=project_id, session=session)
-        
-        confidence_map = {}
-        if not answers_df.empty:
-            video_answers = answers_df[answers_df["Video ID"] == video_id]
-            for _, answer_row in video_answers.iterrows():
-                user_id = answer_row["User ID"]
-                confidence = answer_row["Confidence Score"]
-                if confidence is not None:
-                    confidence_map[int(user_id)] = confidence
-        
-        # Also get ground truth info for search portal
-        gt_selection = None
-        try:
-            gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
-            if not gt_df.empty:
-                question_gt = gt_df[gt_df["Question ID"] == question_id]
-                if not question_gt.empty:
-                    gt_selection = question_gt.iloc[0]["Answer Value"]
-        except Exception as e:
-            print(f"Error getting ground truth: {e}")
-            pass
-        
-    except Exception as e:
-        # Fallback: still check for ground truth even if annotator data fails
-        gt_selection = None
+        # Build option selections from cache
         option_selections = {}
+        question_answers = cache_data["annotator_answers"].get(question_id, [])
+        
+        for answer_record in question_answers:
+            answer_value = answer_record["Answer Value"]
+            user_id = answer_record["User ID"]
+            
+            if answer_value not in option_selections:
+                option_selections[answer_value] = []
+            
+            user_info = cache_data["user_info"].get(user_id, {})
+            user_name = user_info.get("name", "Unknown User")
+            user_role = user_info.get("role", "human")
+            
+            _, initials = AuthService.get_user_display_name_with_initials(user_name)
+            
+            # Add confidence score for models
+            confidence_text = initials
+            if user_role == "model" and user_id in cache_data["confidence_scores"]:
+                confidence = cache_data["confidence_scores"][user_id].get(question_id)
+                if confidence is not None:
+                    confidence_text = f"{initials} ({confidence:.2f})"
+            
+            option_selections[answer_value].append({
+                "name": user_name,
+                "initials": confidence_text,
+                "type": "annotator"
+            })
+        
+        # Check ground truth
+        gt_selection = None
         try:
             gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
             if not gt_df.empty:
@@ -937,148 +936,110 @@ def _get_enhanced_options_for_reviewer(video_id: int, project_id: int, question_
                     gt_selection = question_gt.iloc[0]["Answer Value"]
         except:
             pass
-        confidence_map = {}
-        user_lookup = {}
-        name_to_user_lookup = {}
-    
-    total_annotators = len(annotator_user_ids) if selected_annotators else 0
-    enhanced_options = []
-    
-    for i, display_val in enumerate(display_values):
-        actual_val = options[i] if i < len(options) else display_val
-        option_text = display_val
         
-        selection_info = []
+        # Build enhanced options
+        total_annotators = len(annotator_user_ids)
+        enhanced_options = []
         
-        # Add annotator selection info if available with confidence scores for models
-        if actual_val in option_selections:
-            annotators = []
-            for selector in option_selections[actual_val]:
-                if selector["type"] != "ground_truth":  # Don't double-count GT here
-                    user_name = selector.get("name", "Unknown User")
-                    
-                    # Get initials using centralized function
-                    _, initials = AuthService.get_user_display_name_with_initials(user_name)
-                    
-                    # Look up user info from user_name
-                    user_info = name_to_user_lookup.get(user_name, {})
-                    user_id_int = user_info.get("id")
-                    user_role = user_info.get("role", "human")
-                    
-                    # Add confidence score inside initials for model users
-                    if user_role == "model" and user_id_int in confidence_map:
-                        annotator_text = f"{initials} ({confidence_map[user_id_int]:.2f})"
-                    elif user_role == "model":
-                        annotator_text = f"{initials} (🤖)"
-                    else:
-                        annotator_text = initials
-                    
-                    annotators.append(annotator_text)
+        for i, display_val in enumerate(display_values):
+            actual_val = options[i] if i < len(options) else display_val
+            option_text = display_val
             
-            if annotators and total_annotators > 0:
+            selection_info = []
+            
+            # Add annotator info
+            if actual_val in option_selections:
+                annotators = [sel["initials"] for sel in option_selections[actual_val]]
                 count = len(annotators)
-                percentage = (count / total_annotators) * 100
-                percentage_str = f"{int(percentage)}%" if percentage == int(percentage) else f"{percentage:.1f}%"
-                selection_info.append(f"{percentage_str}: {', '.join(annotators)}")
-            elif annotators:
-                selection_info.append(f"{', '.join(annotators)}")
+                
+                if total_annotators > 0:
+                    percentage = (count / total_annotators) * 100
+                    percentage_str = f"{int(percentage)}%" if percentage == int(percentage) else f"{percentage:.1f}%"
+                    selection_info.append(f"{percentage_str}: {', '.join(annotators)}")
+                else:
+                    selection_info.append(f"{', '.join(annotators)}")
+            
+            # Add ground truth indicator
+            if gt_selection and str(actual_val) == str(gt_selection):
+                selection_info.append("🏆 GT")
+            
+            if selection_info:
+                option_text += f" — {' | '.join(selection_info)}"
+            
+            enhanced_options.append(option_text)
         
-        # Add ground truth indicator if this option is the GT
-        if gt_selection and str(actual_val) == str(gt_selection):
-            selection_info.append("🏆 GT")
+        return enhanced_options
         
-        if selection_info:
-            option_text += f" — {' | '.join(selection_info)}"
-        
-        enhanced_options.append(option_text)
-    
-    return enhanced_options
+    except Exception as e:
+        print(f"Error in _get_enhanced_options_for_reviewer: {e}")
+        # Fallback to original
+        return display_values
 
-def _display_unified_status(video_id: int, project_id: int, question_id: int, session: Session, show_annotators: bool = False, selected_annotators: List[str] = None):
-    """OPTIMIZED: Display ground truth status and optionally annotator status with clean user display names"""
+def _display_unified_status(
+    video_id: int, project_id: int, question_id: int, 
+    session: Session, show_annotators: bool = False, 
+    selected_annotators: List[str] = None, cache_data: Dict = None
+):
+    """OPTIMIZED: Display status using cached data"""
     
     status_parts = []
     
-    # Get annotator status first if requested - OPTIMIZED
-    if show_annotators and selected_annotators:
+    # Get annotator status using cache
+    if show_annotators and selected_annotators and cache_data:
         try:
-            # Step 1: Get annotator user IDs
             annotator_user_ids = get_optimized_annotator_user_ids(
                 display_names=selected_annotators, project_id=project_id, session=session
             )
             
-            if not annotator_user_ids:
-                status_parts.append("⚠️ No annotator IDs found")
-            else:
-                # Step 2: Get answers for this question/video - OPTIMIZED
-                answers_df = get_optimized_question_answers(question_id=question_id, project_id=project_id, session=session)
+            if annotator_user_ids:
+                question_answers = cache_data["annotator_answers"].get(question_id, [])
+                answered_user_ids = set(record["User ID"] for record in question_answers)
                 
-                # Step 3: Get user info from cached data - OPTIMIZED
-                session_id = get_session_cache_key()
-                users_df = get_cached_all_users(session_id)
+                annotators_with_answers = []
+                annotators_missing = []
                 
-                if users_df.empty:
-                    status_parts.append("⚠️ No user data available")
-                else:
-                    user_lookup = {row["ID"]: {"role": row["Role"], "name": row["User ID"]} for _, row in users_df.iterrows()}
+                for user_id in annotator_user_ids:
+                    user_info = cache_data["user_info"].get(user_id, {})
+                    user_name = user_info.get("name", f"User {user_id}")
                     
-                    # Find which annotators have answered this specific question/video
-                    annotators_with_answers = set()
-                    annotators_missing = set()
-                    
-                    if not answers_df.empty:
-                        video_answers = answers_df[answers_df["Video ID"] == video_id]
-                        answered_user_ids = set(video_answers["User ID"].tolist())
-                        
-                        for user_id in annotator_user_ids:
-                            user_info = user_lookup.get(user_id, {})
-                            user_name = user_info.get("name", f"User {user_id}")
-                            
-                            if user_id in answered_user_ids:
-                                annotators_with_answers.add(user_name)
-                            else:
-                                annotators_missing.add(user_name)
+                    if user_id in answered_user_ids:
+                        annotators_with_answers.append(user_name)
                     else:
-                        # No answers at all - all are missing
-                        for user_id in annotator_user_ids:
-                            user_info = user_lookup.get(user_id, {})
-                            user_name = user_info.get("name", f"User {user_id}")
-                            annotators_missing.add(user_name)
+                        annotators_missing.append(user_name)
+                
+                # Format status parts
+                if annotators_with_answers:
+                    display_names = []
+                    for user_name in annotators_with_answers:
+                        display_name, _ = AuthService.get_user_display_name_with_initials(user_name)
+                        display_names.append(display_name)
+                    status_parts.append(f"📊 Answered: {', '.join(display_names)}")
+                
+                if annotators_missing:
+                    display_names = []
+                    for user_name in annotators_missing:
+                        display_name, _ = AuthService.get_user_display_name_with_initials(user_name)
+                        display_names.append(display_name)
+                    status_parts.append(f"⚠️ Missing: {', '.join(display_names)}")
                     
-                    # Add annotator status parts with initials, no truncation
-                    if annotators_with_answers:
-                        display_names = []
-                        for user_name in annotators_with_answers:
-                            display_name, _ = AuthService.get_user_display_name_with_initials(user_name)
-                            display_names.append(display_name)
-                        status_parts.append(f"📊 Answered: {', '.join(display_names)}")
-                    
-                    if annotators_missing:
-                        display_names = []
-                        for user_name in annotators_missing:
-                            display_name, _ = AuthService.get_user_display_name_with_initials(user_name)
-                            display_names.append(display_name)
-                        status_parts.append(f"⚠️ Missing: {', '.join(display_names)}")
-                        
         except Exception as e:
-            print(f"Detailed error in annotator status: {e}")
-            import traceback
-            traceback.print_exc()  # This will help debug the exact issue
-            status_parts.append(f"⚠️ Annotator status error: {str(e)[:50]}")
+            print(f"Error in annotator status: {e}")
+            status_parts.append(f"⚠️ Status error")
     
-    # Ground truth status (existing code remains the same)
+    # Ground truth status (always fresh)
     try:
         gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
         
         if not gt_df.empty:
-            question_id_int = int(question_id)
-            question_gt = gt_df[gt_df["Question ID"] == question_id_int]
+            question_gt = gt_df[gt_df["Question ID"] == question_id]
             
             if not question_gt.empty:
                 gt_row = question_gt.iloc[0]
                 
                 try:
-                    reviewer_info = AuthService.get_user_info_by_id(user_id=int(gt_row["Reviewer ID"]), session=session)
+                    reviewer_info = AuthService.get_user_info_by_id(
+                        user_id=int(gt_row["Reviewer ID"]), session=session
+                    )
                     reviewer_name = reviewer_info["user_id_str"]
                     
                     modified_by_admin = gt_row["Modified By Admin"] is not None
@@ -1098,100 +1059,104 @@ def _display_unified_status(video_id: int, project_id: int, question_id: int, se
         print(f"Error getting ground truth status: {e}")
         status_parts.append("📭 GT error")
     
-    # Display single combined status line
+    # Display combined status
     if status_parts:
         st.caption(" | ".join(status_parts))
 
-def get_weighted_votes_for_question_with_custom_weights(
-    video_id: int, 
-    project_id: int, 
-    question_id: int,
-    include_user_ids: List[int],
-    virtual_responses: List[Dict],
-    session: Session,
-    user_weights: Dict[int, float] = None,
-    custom_option_weights: Dict[str, float] = None
-) -> Dict[str, float]:
-    """
-    OPTIMIZED: MINIMAL MODIFICATION of the original function to use custom option weights for reviewers.
-    """
+def _display_enhanced_helper_text_answers(
+    video_id: int, project_id: int, question_id: int, 
+    question_text: str, text_key: str, gt_value: str, 
+    role: str, answer_reviews: Optional[Dict], 
+    session: Session, selected_annotators: List[str] = None,
+    cache_data: Dict = None
+):
+    """OPTIMIZED: Display helper text using cached data"""
+    
     try:
-        from label_pizza.models import User, ProjectUserRole
-        from sqlalchemy import select
+        all_answers = []
         
-        # Get question details
-        question = QuestionService.get_question_by_id(question_id=question_id, session=session)
-        if not question:
-            return {}
+        # Add Ground Truth for meta-reviewer or if exists
+        if role == "meta_reviewer" and gt_value:
+            all_answers.append({
+                "name": "Ground Truth",
+                "full_text": gt_value,
+                "has_answer": bool(gt_value.strip()),
+                "is_gt": True,
+                "display_name": "Ground Truth"
+            })
+        elif not selected_annotators or len(selected_annotators) == 0:
+            try:
+                gt_df = GroundTruthService.get_ground_truth(
+                    video_id=video_id, project_id=project_id, session=session
+                )
+                if not gt_df.empty:
+                    question_gt = gt_df[gt_df["Question ID"] == question_id]
+                    if not question_gt.empty:
+                        gt_answer = question_gt.iloc[0]["Answer Value"]
+                        if gt_answer and str(gt_answer).strip():
+                            all_answers.append({
+                                "name": "Ground Truth",
+                                "full_text": str(gt_answer),
+                                "has_answer": True,
+                                "is_gt": True,
+                                "display_name": "Ground Truth"
+                            })
+            except:
+                pass
         
-        user_weights = user_weights or {}
-        vote_weights = {}
-        
-        # Get real user answers - OPTIMIZED
-        answers_df = get_optimized_question_answers(question_id=question_id, project_id=project_id, session=session)
-        
-        if not answers_df.empty:
-            video_answers = answers_df[
-                (answers_df["Video ID"] == video_id) & 
-                (answers_df["User ID"].isin(include_user_ids))
-            ]
+        # Add annotator answers from cache
+        if selected_annotators and cache_data:
+            text_answers = cache_data["text_answers"].get(question_id, [])
             
-            for _, answer_row in video_answers.iterrows():
-                user_id = int(answer_row["User ID"])
-                answer_value = str(answer_row["Answer Value"])
+            if text_answers:
+                unique_answers = []
+                seen_answers = set()
                 
-                # Get user weight - prioritize passed weights, then database, then default
-                user_weight = user_weights.get(user_id)
-                if user_weight is None:
-                    assignment = session.execute(
-                        select(ProjectUserRole).where(
-                            ProjectUserRole.user_id == user_id,
-                            ProjectUserRole.project_id == project_id,
-                            ProjectUserRole.role == "annotator"
-                        )
-                    ).first()
-                    user_weight = float(assignment[0].user_weight) if assignment else 1.0
+                for answer in text_answers:
+                    answer_key = f"{answer['initials']}:{answer['answer_value']}"
+                    if answer_key not in seen_answers:
+                        seen_answers.add(answer_key)
+                        unique_answers.append(answer)
                 
-                # MINIMAL CHANGE: Use custom option weights if provided (for reviewers)
-                option_weight = 1.0
-                if question["type"] == "single":
-                    if custom_option_weights and answer_value in custom_option_weights:
-                        option_weight = float(custom_option_weights[answer_value])
-                    elif question["option_weights"]:
-                        try:
-                            option_index = question["options"].index(answer_value)
-                            option_weight = float(question["option_weights"][option_index])
-                        except (ValueError, IndexError):
-                            option_weight = 1.0
-                
-                # Combined weight = user_weight * option_weight
-                combined_weight = user_weight * option_weight
-                vote_weights[answer_value] = vote_weights.get(answer_value, 0.0) + combined_weight
+                for answer_info in unique_answers:
+                    all_answers.append({
+                        "name": answer_info['name'],
+                        "full_text": answer_info['answer_value'],
+                        "has_answer": bool(answer_info['answer_value'].strip()),
+                        "is_gt": False,
+                        "display_name": f"{answer_info['name']} ({answer_info['initials']})",
+                        "initials": answer_info['initials']
+                    })
         
-        # Add virtual responses (unchanged)
-        for virtual_response in virtual_responses:
-            answer_value = str(virtual_response["answer"])
-            user_weight = float(virtual_response["user_weight"])
+        if all_answers:
+            # Display logic remains the same
+            if len(all_answers) > 6:
+                tab_names = []
+                for answer in all_answers:
+                    if answer["is_gt"]:
+                        tab_names.append("🏆 GT")
+                    else:
+                        tab_names.append(answer["initials"])
+            else:
+                tab_names = []
+                for answer in all_answers:
+                    if answer["is_gt"]:
+                        tab_names.append("Ground Truth")
+                    else:
+                        name = answer["name"]
+                        tab_names.append(name[:17] + "..." if len(name) > 20 else name)
             
-            option_weight = 1.0
-            if question["type"] == "single":
-                if custom_option_weights and answer_value in custom_option_weights:
-                    option_weight = float(custom_option_weights[answer_value])
-                elif question["option_weights"]:
-                    try:
-                        option_index = question["options"].index(answer_value)
-                        option_weight = float(question["option_weights"][option_index])
-                    except (ValueError, IndexError):
-                        option_weight = 1.0
+            tabs = st.tabs(tab_names)
             
-            # Combined weight = user_weight * option_weight
-            combined_weight = user_weight * option_weight
-            vote_weights[answer_value] = vote_weights.get(answer_value, 0.0) + combined_weight
-        
-        return vote_weights
-        
+            for tab, answer in zip(tabs, all_answers):
+                with tab:
+                    _display_single_answer_elegant(
+                        answer, text_key, question_text, answer_reviews, 
+                        video_id, project_id, question_id, session
+                    )
+                            
     except Exception as e:
-        raise ValueError(f"Error calculating weighted votes: {str(e)}")
+        st.caption(f"⚠️ Could not load answer information: {str(e)}")
 
 ###############################################################################
 # REMAINING UNCHANGED UTILITY FUNCTIONS
@@ -1299,15 +1264,25 @@ def _submit_answer_reviews(answer_reviews: Dict, video_id: int, project_id: int,
                     print(f"Error submitting review for {annotator_display}: {e}")
                     continue
 
-def _load_existing_answer_reviews(video_id: int, project_id: int, question_id: int, session: Session) -> Dict[str, Dict]:
+def _load_existing_answer_reviews(video_id: int, project_id: int, question_id: int, session: Session, cache_data: Dict = None) -> Dict[str, Dict]:
     """OPTIMIZED: Load existing answer reviews for a description question from the database"""
     reviews = {}
     
     try:
         selected_annotators = st.session_state.get("selected_annotators", [])
-        annotator_user_ids = get_optimized_annotator_user_ids(
-            display_names=selected_annotators, project_id=project_id, session=session
-        )
+        if cache_data and selected_annotators:
+            # Use cached user info instead of querying
+            annotator_user_ids = []
+            for annotator_name in selected_annotators:
+                for user_id, user_info in cache_data.get("user_info", {}).items():
+                    if user_info.get("name") == annotator_name:
+                        annotator_user_ids.append(user_id)
+                        break
+        else:
+            # Fallback to original method
+            annotator_user_ids = get_optimized_annotator_user_ids(
+                display_names=selected_annotators, project_id=project_id, session=session
+            )
         
         for user_id in annotator_user_ids:
             answers_df = AnnotatorService.get_answers(video_id=video_id, project_id=project_id, session=session)

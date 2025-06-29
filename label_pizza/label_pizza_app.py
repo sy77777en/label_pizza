@@ -6,6 +6,7 @@ NEW ACCURACY FEATURES for training mode projects, ENHANCED ANNOTATOR SELECTION, 
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 from typing import Dict, Optional, List, Tuple, Any
 from datetime import datetime
@@ -39,8 +40,8 @@ from label_pizza.custom_video_player import custom_video_player
 from label_pizza.search_portal import search_portal
 from label_pizza.utils import (
     get_card_style, custom_info, COLORS, handle_database_errors, get_db_session, clear_project_cache,
-    _display_unified_status, _display_clean_sticky_single_choice_question,
-    _display_clean_sticky_description_question, _get_enhanced_options_for_reviewer,
+    _display_unified_status, _display_clean_sticky_single_choice_question, get_session_cache_key,
+    _display_clean_sticky_description_question, get_optimized_annotator_user_ids, get_cached_video_reviewer_data,
     _submit_answer_reviews, _load_existing_answer_reviews, calculate_overall_accuracy, calculate_per_question_accuracy,
     get_schema_question_groups, get_project_videos, get_questions_by_group_cached,
     get_cached_user_completion_progress, get_session_cached_project_annotators, calculate_user_overall_progress
@@ -606,6 +607,118 @@ def display_accuracy_button_for_project(project_id: int, role: str, session: Ses
 # AUTHENTICATION & ROUTING
 ###############################################################################
 
+def display_pagination_controls(current_page: int, total_pages: int, page_key: str, role: str, project_id: int, position: str = "bottom", video_list_info_str: str = ""):
+    """Display pagination controls (can be used for both top and bottom) - keeps original styling"""
+    if total_pages <= 1:
+        return
+        
+    def get_pagination_options(current, total):
+        if total <= 7:
+            return list(range(total))
+        
+        options = [0]
+        start = max(1, current - 1)
+        end = min(total - 1, current + 2)
+        
+        if start > 1:
+            options.append("...")
+        
+        for i in range(start, end):
+            if i not in options:
+                options.append(i)
+        
+        if end < total - 1:
+            options.append("...")
+        
+        if total - 1 not in options:
+            options.append(total - 1)
+        
+        return options
+
+    
+    # Keep original column layout [1, 5, 1]
+    nav_col1, nav_col2, nav_col3 = st.columns([1, 5, 1])
+    
+    with nav_col1:
+        if st.button("◀ Prev", disabled=(current_page == 0), 
+                    key=f"{role}_prev_{position}_{project_id}", use_container_width=True):
+            st.session_state[page_key] = max(0, current_page - 1)
+            st.rerun()
+    
+    with nav_col2:
+        # Keep original nested centering [1, 2, 1]
+        _, center_col, _ = st.columns([2, 3, 0.5])  # Push more right
+        
+        with center_col:
+            pagination_options = get_pagination_options(current_page, total_pages)
+            
+            display_options = []
+            actual_pages = []
+            for opt in pagination_options:
+                if opt == "...":
+                    display_options.append("...")
+                    actual_pages.append(None)
+                else:
+                    display_options.append(f"{opt + 1}")
+                    actual_pages.append(opt)
+            
+            try:
+                current_display_index = actual_pages.index(current_page)
+            except ValueError:
+                current_display_index = 0
+            
+            segmented_key = f"{role}_page_segmented_{position}_{project_id}"
+            selected_display = st.segmented_control(
+                "📄 Navigate Pages", 
+                display_options,
+                default=display_options[current_display_index] if current_display_index < len(display_options) else display_options[0],
+                key=segmented_key,
+                label_visibility="collapsed"
+            )
+        
+        if selected_display and selected_display != "...":
+            try:
+                selected_index = display_options.index(selected_display)
+                new_page = actual_pages[selected_index]
+                if new_page is not None and new_page != current_page:
+                    st.session_state[page_key] = new_page
+                    st.rerun()
+            except (ValueError, IndexError):
+                pass
+    
+    with nav_col3:
+        if st.button("Next ▶", disabled=(current_page == total_pages - 1), 
+                    key=f"{role}_next_{position}_{project_id}", use_container_width=True):
+            st.session_state[page_key] = min(total_pages - 1, current_page + 1)
+            st.rerun()
+    
+    # Show page info with appropriate spacing
+    # Show page info with appropriate spacing
+    page_info_style = "margin-bottom: 1rem;" if position == "top" else "margin-top: 1rem;"
+    markdown_str = f"<div style='text-align: center; color: #6c757d; {page_info_style}'>Page {current_page + 1} of {total_pages} • {video_list_info_str}</div>"
+    st.markdown(markdown_str, unsafe_allow_html=True)
+
+    # Add working "Back to top" component for bottom pagination only
+    if position == "bottom":
+        components.html("""
+        <div style="text-align: center; margin-top: 8px;">
+            <a href="#" onclick="
+                try {
+                    var element = parent.document.getElementById('video-list-section');
+                    if (element) {
+                        element.scrollIntoView({behavior: 'smooth'});
+                    }
+                } catch (e) {
+                    console.log('Scroll error:', e);
+                }
+                return false;
+            " style="color: #9553FE; text-decoration: none; font-size: 0.9rem;">
+                ↑ Back to top
+            </a>
+        </div>
+        """, height=25)
+
+
 def login_page():
     st.markdown("<br><br>", unsafe_allow_html=True)
     
@@ -1035,12 +1148,11 @@ def build_dynamic_virtual_responses_for_video(
     
     return dynamic_responses
 
+
 def build_virtual_responses_for_video(video_id: int, project_id: int, role: str, session: Session) -> Dict[int, List[Dict]]:
     """
     Build virtual responses for a specific video, using stored option weights and description selections.
-    
-    MINIMAL CHANGE: Only for reviewers, and only when they have custom settings.
-    For annotators: returns empty dict (uses original virtual_responses)
+    OPTIMIZED: Uses cached data for description questions
     """
     if role != "reviewer":
         return {}  # Use original virtual_responses for annotators
@@ -1055,40 +1167,62 @@ def build_virtual_responses_for_video(video_id: int, project_id: int, role: str,
     
     virtual_responses = {}
     
+    # Get cached data if available
+    cache_data = None
+    if selected_annotators and description_selections:
+        annotator_user_ids = get_optimized_annotator_user_ids(
+            display_names=selected_annotators, project_id=project_id, session=session
+        )
+        if annotator_user_ids:
+            session_id = get_session_cache_key()
+            cache_data = get_cached_video_reviewer_data(
+                video_id=video_id, project_id=project_id, 
+                annotator_user_ids=annotator_user_ids, session_id=session_id
+            )
+    
     # Handle description questions with specific annotator selections
     for question_id, selected_annotator in description_selections.items():
         if selected_annotator == "Auto (use user weights)":
             continue  # Use weighted voting
         
         try:
-            # Get available annotators
-            available_annotators = get_session_cached_project_annotators(project_id=project_id, session=session)
-            annotator_info = available_annotators.get(selected_annotator, {})
-            annotator_user_id = annotator_info.get('id')
-            
-            if annotator_user_id:
-                # Get this annotator's answer for this specific video
-                answers_df = AnnotatorService.get_question_answers(
-                    question_id=question_id, project_id=project_id, session=session
-                )
-                
-                if not answers_df.empty:
-                    user_video_answers = answers_df[
-                        (answers_df["User ID"] == annotator_user_id) & 
-                        (answers_df["Video ID"] == video_id)
-                    ]
-                    
-                    if not user_video_answers.empty:
-                        answer_text = user_video_answers.iloc[0]["Answer Value"]
+            # OPTIMIZED: Use cached data instead of querying
+            if cache_data and cache_data.get("text_answers", {}).get(question_id):
+                # Find the answer from the selected annotator in cache
+                for answer_info in cache_data["text_answers"][question_id]:
+                    if answer_info['name'] == selected_annotator or f"{answer_info['name']} ({answer_info['initials']})" == selected_annotator:
                         virtual_responses[question_id] = [{
-                            "answer": answer_text,
+                            "answer": answer_info['answer_value'],
                             "user_weight": 1.0
                         }]
+                        break
+            else:
+                # Fallback to original method if cache miss
+                available_annotators = get_session_cached_project_annotators(project_id=project_id, session=session)
+                annotator_info = available_annotators.get(selected_annotator, {})
+                annotator_user_id = annotator_info.get('id')
+                
+                if annotator_user_id:
+                    answers_df = AnnotatorService.get_question_answers(
+                        question_id=question_id, project_id=project_id, session=session
+                    )
+                    
+                    if not answers_df.empty:
+                        user_video_answers = answers_df[
+                            (answers_df["User ID"] == annotator_user_id) & 
+                            (answers_df["Video ID"] == video_id)
+                        ]
+                        
+                        if not user_video_answers.empty:
+                            answer_text = user_video_answers.iloc[0]["Answer Value"]
+                            virtual_responses[question_id] = [{
+                                "answer": answer_text,
+                                "user_weight": 1.0
+                            }]
         except Exception as e:
             print(f"Error getting answer for question {question_id}: {e}")
     
     return virtual_responses
-
 
 def display_layout_tab_content(videos: List[Dict], role: str):
     """Display layout tab content"""
@@ -1601,6 +1735,15 @@ def calculate_preload_answers_no_threshold(video_id: int, project_id: int, quest
             return {}
         
         preload_answers = {}
+
+        # Get cached data if this is for a reviewer with selected annotators
+        cache_data = None
+        if role == "reviewer" and include_user_ids:
+            session_id = get_session_cache_key()
+            cache_data = get_cached_video_reviewer_data(
+                video_id=video_id, project_id=project_id, 
+                annotator_user_ids=include_user_ids, session_id=session_id
+            )
         
         for question in questions:
             question_id = question["id"]
@@ -1610,30 +1753,44 @@ def calculate_preload_answers_no_threshold(video_id: int, project_id: int, quest
             if question_type == "single":
                 # REVERTED: Use original AutoSubmitService logic for single choice
                 vote_counts = {}
-                
-                # Add annotator votes
-                if include_user_ids:
-                    try:
-                        answers_df = AnnotatorService.get_question_answers(
-                            question_id=question_id, project_id=project_id, session=session
-                        )
+
+                # OPTIMIZED: Use cached data if available
+                if cache_data and question_id in cache_data.get("annotator_answers", {}):
+                    # Use cached answers
+                    for answer_record in cache_data["annotator_answers"][question_id]:
+                        answer_value = answer_record["Answer Value"]
+                        user_id = answer_record["User ID"]
+                        user_weight = user_weights.get(user_id, 1.0) if user_weights else 1.0
                         
-                        if not answers_df.empty:
-                            video_answers = answers_df[
-                                (answers_df["Video ID"] == video_id) & 
-                                (answers_df["User ID"].isin(include_user_ids))
-                            ]
+                        if answer_value not in vote_counts:
+                            vote_counts[answer_value] = 0.0
+                        vote_counts[answer_value] += user_weight
+                else:
+                    # Fallback to original method
+                
+                    # Add annotator votes
+                    if include_user_ids:
+                        try:
+                            answers_df = AnnotatorService.get_question_answers(
+                                question_id=question_id, project_id=project_id, session=session
+                            )
                             
-                            for _, answer_row in video_answers.iterrows():
-                                answer_value = answer_row["Answer Value"]
-                                user_id = answer_row["User ID"]
-                                user_weight = user_weights.get(user_id, 1.0) if user_weights else 1.0
+                            if not answers_df.empty:
+                                video_answers = answers_df[
+                                    (answers_df["Video ID"] == video_id) & 
+                                    (answers_df["User ID"].isin(include_user_ids))
+                                ]
                                 
-                                if answer_value not in vote_counts:
-                                    vote_counts[answer_value] = 0.0
-                                vote_counts[answer_value] += user_weight
-                    except Exception:
-                        pass
+                                for _, answer_row in video_answers.iterrows():
+                                    answer_value = answer_row["Answer Value"]
+                                    user_id = answer_row["User ID"]
+                                    user_weight = user_weights.get(user_id, 1.0) if user_weights else 1.0
+                                    
+                                    if answer_value not in vote_counts:
+                                        vote_counts[answer_value] = 0.0
+                                    vote_counts[answer_value] += user_weight
+                        except Exception:
+                            pass
                 
                 # Add virtual responses (default answers configured)
                 virtual_responses = virtual_responses_by_question.get(question_id, [])
@@ -1659,31 +1816,53 @@ def calculate_preload_answers_no_threshold(video_id: int, project_id: int, quest
                     preload_answers[question_text] = virtual_responses[0]["answer"]
                 else:
                     # Fall back to weight-based selection only if no dropdown selection made
-                    answer_scores = {}
-                    
-                    # Add annotator answers
-                    if include_user_ids:
-                        try:
-                            answers_df = AnnotatorService.get_question_answers(
-                                question_id=question_id, project_id=project_id, session=session
-                            )
+                    # OPTIMIZED: Use cached data for description questions
+                    if cache_data and question_id in cache_data.get("text_answers", {}):
+                        # Use cached text answers
+                        answer_scores = {}
+                        for answer_info in cache_data["text_answers"][question_id]:
+                            answer_value = answer_info['answer_value']
+                            # Find user weight from answer info
+                            user_name = answer_info['name']
+                            user_weight = 1.0
+                            if user_weights:
+                                # Find user ID from name
+                                for uid in include_user_ids:
+                                    if cache_data["user_info"].get(uid, {}).get("name") == user_name:
+                                        user_weight = user_weights.get(uid, 1.0)
+                                        break
                             
-                            if not answers_df.empty:
-                                video_answers = answers_df[
-                                    (answers_df["Video ID"] == video_id) & 
-                                    (answers_df["User ID"].isin(include_user_ids))
-                                ]
+                            if answer_value not in answer_scores:
+                                answer_scores[answer_value] = 0.0
+                            answer_scores[answer_value] += user_weight
+                    else:
+                        # Fallback to original method
+                    
+                        answer_scores = {}
+                        
+                        # Add annotator answers
+                        if include_user_ids:
+                            try:
+                                answers_df = AnnotatorService.get_question_answers(
+                                    question_id=question_id, project_id=project_id, session=session
+                                )
                                 
-                                for _, answer_row in video_answers.iterrows():
-                                    answer_value = answer_row["Answer Value"]
-                                    user_id = answer_row["User ID"]
-                                    user_weight = user_weights.get(user_id, 1.0) if user_weights else 1.0
+                                if not answers_df.empty:
+                                    video_answers = answers_df[
+                                        (answers_df["Video ID"] == video_id) & 
+                                        (answers_df["User ID"].isin(include_user_ids))
+                                    ]
                                     
-                                    if answer_value not in answer_scores:
-                                        answer_scores[answer_value] = 0.0
-                                    answer_scores[answer_value] += user_weight
-                        except Exception:
-                            pass
+                                    for _, answer_row in video_answers.iterrows():
+                                        answer_value = answer_row["Answer Value"]
+                                        user_id = answer_row["User ID"]
+                                        user_weight = user_weights.get(user_id, 1.0) if user_weights else 1.0
+                                        
+                                        if answer_value not in answer_scores:
+                                            answer_scores[answer_value] = 0.0
+                                        answer_scores[answer_value] += user_weight
+                            except Exception:
+                                pass
                     
                     # Pick highest weighted answer (NO THRESHOLD CHECK!)
                     if answer_scores:
@@ -1846,6 +2025,14 @@ def calculate_preload_answers_no_threshold_with_custom_weights(
             return {}
         
         preload_answers = {}
+
+        cache_data = None
+        if include_user_ids:
+            session_id = get_session_cache_key()
+            cache_data = get_cached_video_reviewer_data(
+                video_id=video_id, project_id=project_id, 
+                annotator_user_ids=include_user_ids, session_id=session_id
+            )
         
         for question in questions:
             question_id = question["id"]
@@ -1855,16 +2042,46 @@ def calculate_preload_answers_no_threshold_with_custom_weights(
             if question_type == "single":
                 # Get custom option weights for this question
                 question_custom_weights = option_weights.get(question_id, {}) if option_weights else {}
+
+                # OPTIMIZED: Build vote counts from cache
+                vote_counts = {}
                 
-                # Get all votes for this question (annotator + virtual responses)
-                vote_counts = get_weighted_votes_for_question_with_custom_weights(
-                    video_id=video_id, project_id=project_id, question_id=question_id,
-                    include_user_ids=include_user_ids, 
-                    virtual_responses=virtual_responses_by_question.get(question_id, []),
-                    session=session, user_weights=user_weights,
-                    custom_option_weights=question_custom_weights if question_custom_weights else None
-                )
+                if cache_data and question_id in cache_data.get("annotator_answers", {}):
+                    # Use cached answers
+                    for answer_record in cache_data["annotator_answers"][question_id]:
+                        answer_value = answer_record["Answer Value"]
+                        user_id = answer_record["User ID"]
+                        
+                        # Get user weight
+                        user_weight = user_weights.get(user_id, 1.0) if user_weights else 1.0
+                        
+                        # Get option weight
+                        option_weight = 1.0
+                        if question_custom_weights and answer_value in question_custom_weights:
+                            option_weight = float(question_custom_weights[answer_value])
+                        elif question["option_weights"]:
+                            try:
+                                option_index = question["options"].index(answer_value)
+                                option_weight = float(question["option_weights"][option_index])
+                            except (ValueError, IndexError):
+                                option_weight = 1.0
+                        
+                        # Combined weight
+                        combined_weight = user_weight * option_weight
+                        vote_counts[answer_value] = vote_counts.get(answer_value, 0.0) + combined_weight
+                else:
+                    # Fallback to service call if no cache
                 
+                    # Get all votes for this question (annotator + virtual responses)
+                    vote_counts = get_weighted_votes_for_question_with_custom_weights(
+                        video_id=video_id, project_id=project_id, question_id=question_id,
+                        include_user_ids=include_user_ids, 
+                        virtual_responses=virtual_responses_by_question.get(question_id, []),
+                        session=session, user_weights=user_weights,
+                        custom_option_weights=question_custom_weights if question_custom_weights else None,
+                        cache_data=cache_data
+                    )
+                    
                 # Pick highest weighted option (NO THRESHOLD CHECK!)
                 if vote_counts:
                     winning_answer = max(vote_counts.keys(), key=lambda x: vote_counts[x])
@@ -1879,31 +2096,50 @@ def calculate_preload_answers_no_threshold_with_custom_weights(
                     preload_answers[question_text] = virtual_responses[0]["answer"]
                 else:
                     # Fall back to weight-based selection
-                    answer_scores = {}
-                    
-                    # Add annotator answers
-                    if include_user_ids:
-                        try:
-                            answers_df = AnnotatorService.get_question_answers(
-                                question_id=question_id, project_id=project_id, session=session
-                            )
+                    # OPTIMIZED: Use cached text answers
+                    if cache_data and question_id in cache_data.get("text_answers", {}):
+                        answer_scores = {}
+                        for answer_info in cache_data["text_answers"][question_id]:
+                            answer_value = answer_info['answer_value']
+                            # Find user weight
+                            user_name = answer_info['name']
+                            user_weight = 1.0
+                            if user_weights:
+                                for uid in include_user_ids:
+                                    if cache_data["user_info"].get(uid, {}).get("name") == user_name:
+                                        user_weight = user_weights.get(uid, 1.0)
+                                        break
                             
-                            if not answers_df.empty:
-                                video_answers = answers_df[
-                                    (answers_df["Video ID"] == video_id) & 
-                                    (answers_df["User ID"].isin(include_user_ids))
-                                ]
+                            if answer_value not in answer_scores:
+                                answer_scores[answer_value] = 0.0
+                            answer_scores[answer_value] += user_weight
+                    else:
+                        # Fallback to original method
+                        answer_scores = {}
+                        
+                        # Add annotator answers
+                        if include_user_ids:
+                            try:
+                                answers_df = AnnotatorService.get_question_answers(
+                                    question_id=question_id, project_id=project_id, session=session
+                                )
                                 
-                                for _, answer_row in video_answers.iterrows():
-                                    answer_value = answer_row["Answer Value"]
-                                    user_id = answer_row["User ID"]
-                                    user_weight = user_weights.get(user_id, 1.0) if user_weights else 1.0
+                                if not answers_df.empty:
+                                    video_answers = answers_df[
+                                        (answers_df["Video ID"] == video_id) & 
+                                        (answers_df["User ID"].isin(include_user_ids))
+                                    ]
                                     
-                                    if answer_value not in answer_scores:
-                                        answer_scores[answer_value] = 0.0
-                                    answer_scores[answer_value] += user_weight
-                        except Exception:
-                            pass
+                                    for _, answer_row in video_answers.iterrows():
+                                        answer_value = answer_row["Answer Value"]
+                                        user_id = answer_row["User ID"]
+                                        user_weight = user_weights.get(user_id, 1.0) if user_weights else 1.0
+                                        
+                                        if answer_value not in answer_scores:
+                                            answer_scores[answer_value] = 0.0
+                                        answer_scores[answer_value] += user_weight
+                            except Exception:
+                                pass
                     
                     # Pick highest weighted answer (NO THRESHOLD CHECK!)
                     if answer_scores:
@@ -2392,12 +2628,22 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
         # Get preloaded answers if available - SIMPLIFIED
         preloaded_answers = st.session_state.get(f"current_preloaded_answers_{role}_{project_id}", {})
         
-        # REMOVED: Ugly preloaded status message
-        
         # Get selected annotators for reviewer/meta-reviewer roles
         selected_annotators = None
+        cache_data = None
+
         if role in ["reviewer", "meta_reviewer"]:
             selected_annotators = st.session_state.get("selected_annotators", [])
+            if selected_annotators:
+                annotator_user_ids = get_optimized_annotator_user_ids(
+                    display_names=selected_annotators, project_id=project_id, session=session
+                )
+                if annotator_user_ids:
+                    session_id = get_session_cache_key()
+                    cache_data = get_cached_video_reviewer_data(
+                        video_id=video["id"], project_id=project_id, 
+                        annotator_user_ids=annotator_user_ids, session_id=session_id
+                    )
         
         # Check admin modifications
         has_any_admin_modified_questions = False
@@ -2485,7 +2731,8 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                     question_text = question["text"]
                     existing_review_data = _load_existing_answer_reviews(
                         video_id=video["id"], project_id=project_id, 
-                        question_id=question["id"], session=session
+                        question_id=question["id"], session=session,
+                        cache_data=cache_data
                     )
                     answer_reviews[question_text] = existing_review_data
         
@@ -2535,7 +2782,8 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                                 gt_value=gt_value,
                                 mode=mode,
                                 selected_annotators=selected_annotators,
-                                preloaded_answers=preloaded_answers
+                                preloaded_answers=preloaded_answers,
+                                cache_data=cache_data
                             )
                         else:
                             answers[question_text] = _display_clean_sticky_description_question(
@@ -2553,7 +2801,8 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                                 mode=mode,
                                 answer_reviews=answer_reviews,
                                 selected_annotators=selected_annotators,
-                                preloaded_answers=preloaded_answers
+                                preloaded_answers=preloaded_answers,
+                                cache_data=cache_data
                             )
             except Exception as e:
                 st.error(f"Error displaying questions: {str(e)}")
@@ -2580,7 +2829,7 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                         
                         try:
                             overall_progress = calculate_user_overall_progress(user_id=user_id, project_id=project_id, session=session)
-                            if overall_progress >= 100:
+                            if overall_progress >= 100 and not is_group_complete:
                                 show_annotator_completion()
                                 return
                         except Exception as e:
@@ -2631,7 +2880,7 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                             
                             try:
                                 project_progress = ProjectService.progress(project_id=project_id, session=session)
-                                if project_progress['completion_percentage'] >= 100:
+                                if project_progress['completion_percentage'] >= 100 and not is_group_complete:
                                     show_reviewer_completion()
                                     return
                             except Exception as e:
@@ -4160,6 +4409,8 @@ def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: i
             # </div>
             # """, unsafe_allow_html=True)
             custom_info("⚠️ No annotators selected - results will only show ground truth")
+        
+
         return st.session_state.selected_annotators
 
 def display_smart_annotator_selection_for_auto_submit(annotators: Dict[str, Dict], project_id: int):
@@ -4606,8 +4857,11 @@ def display_project_view(user_id: int, role: str, session: Session):
     end_idx = min(start_idx + videos_per_page, len(videos))
     page_videos = videos[start_idx:end_idx]
     
-    st.markdown(f"**Showing videos {start_idx + 1}-{end_idx} of {len(videos)}**")
-    
+    # st.markdown(f"**Showing videos {start_idx + 1}-{end_idx} of {len(videos)}**")
+    st.markdown('<div id="video-list-section"></div>', unsafe_allow_html=True)
+    video_list_info_str = f"Showing videos {start_idx + 1}-{end_idx} of {len(videos)}"
+    display_pagination_controls(current_page, total_pages, page_key, role, project_id, "top", video_list_info_str)
+
     
     # Display videos
     for i in range(0, len(page_videos), video_pairs_per_row):
@@ -4623,83 +4877,7 @@ def display_project_view(user_id: int, role: str, session: Session):
         
         st.markdown("---")
     
-    # Pagination controls
-    if total_pages > 1:
-        def get_pagination_options(current, total):
-            if total <= 7:
-                return list(range(total))
-            
-            options = [0]
-            start = max(1, current - 1)
-            end = min(total - 1, current + 2)
-            
-            if start > 1:
-                options.append("...")
-            
-            for i in range(start, end):
-                if i not in options:
-                    options.append(i)
-            
-            if end < total - 1:
-                options.append("...")
-            
-            if total - 1 not in options:
-                options.append(total - 1)
-            
-            return options
-        
-        nav_col1, nav_col2, nav_col3 = st.columns([1, 5, 1])
-        
-        with nav_col1:
-            if st.button("◀ Prev", disabled=(current_page == 0), key=f"{role}_prev_{project_id}", use_container_width=True):
-                st.session_state[page_key] = max(0, current_page - 1)
-                st.rerun()
-        
-        with nav_col2:
-            _, center_col, _ = st.columns([1, 2, 1])
-            
-            with center_col:
-                pagination_options = get_pagination_options(current_page, total_pages)
-                
-                display_options = []
-                actual_pages = []
-                for opt in pagination_options:
-                    if opt == "...":
-                        display_options.append("...")
-                        actual_pages.append(None)
-                    else:
-                        display_options.append(f"{opt + 1}")
-                        actual_pages.append(opt)
-                
-                try:
-                    current_display_index = actual_pages.index(current_page)
-                except ValueError:
-                    current_display_index = 0
-                
-                segmented_key = f"{role}_page_segmented_{project_id}"
-                selected_display = st.segmented_control(
-                    "📄 Navigate Pages", 
-                    display_options,
-                    default=display_options[current_display_index] if current_display_index < len(display_options) else display_options[0],
-                    key=segmented_key
-                )
-            
-            if selected_display and selected_display != "...":
-                try:
-                    selected_index = display_options.index(selected_display)
-                    new_page = actual_pages[selected_index]
-                    if new_page is not None and new_page != current_page:
-                        st.session_state[page_key] = new_page
-                        st.rerun()
-                except (ValueError, IndexError):
-                    pass
-        
-        with nav_col3:
-            if st.button("Next ▶", disabled=(current_page == total_pages - 1), key=f"{role}_next_{project_id}", use_container_width=True):
-                st.session_state[page_key] = min(total_pages - 1, current_page + 1)
-                st.rerun()
-        
-        st.markdown(f"<div style='text-align: center; color: #6c757d; margin-top: 1rem;'>Page {current_page + 1} of {total_pages}</div>", unsafe_allow_html=True)
+    display_pagination_controls(current_page, total_pages, page_key, role, project_id, "bottom", video_list_info_str)
 
 @st.fragment
 def _display_video_layout_controls(videos: List[Dict], role: str):
@@ -4900,7 +5078,8 @@ def display_video_answer_pair(video: Dict, project_id: int, user_id: int, role: 
         total_count = len(question_groups)
         
         completion_details = [
-            f"✅ {group['Display Title']}" if completion_status[group["ID"]] else group['Display Title']
+            f"✅ {group['Display Title']}" if completion_status[group["ID"]] 
+            else f"<span style='color: #A1A1A1;'>{group['Display Title']}</span>"
             for group in question_groups
         ]
         
@@ -6218,6 +6397,7 @@ def admin_questions():
                                         "Verification Function Source",
                                         value=source_code,
                                         height=300,
+                                        key=f"verification_function_source_{group_id}",
                                         disabled=True,
                                         label_visibility="collapsed"
                                     )

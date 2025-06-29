@@ -5029,16 +5029,14 @@ def get_weighted_votes_for_question_with_custom_weights(
     virtual_responses: List[Dict],
     session: Session,
     user_weights: Dict[int, float] = None,
-    custom_option_weights: Dict[str, float] = None
+    custom_option_weights: Dict[str, float] = None,
+    cache_data: Dict = None  # ADD THIS PARAMETER
 ) -> Dict[str, float]:
     """
-    MINIMAL MODIFICATION of the original function to use custom option weights for reviewers.
+    OPTIMIZED: Uses cached data when available to avoid database queries
     """
     try:
-        from label_pizza.models import User, ProjectUserRole
-        from sqlalchemy import select
-        
-        # Get question details
+        # Get question details - still need this for option weights
         question = QuestionService.get_question_by_id(question_id=question_id, session=session)
         if not question:
             return {}
@@ -5046,34 +5044,30 @@ def get_weighted_votes_for_question_with_custom_weights(
         user_weights = user_weights or {}
         vote_weights = {}
         
-        # Get real user answers
-        answers_df = AnnotatorService.get_question_answers(
-            question_id=question_id, project_id=project_id, session=session
-        )
-        
-        if not answers_df.empty:
-            video_answers = answers_df[
-                (answers_df["Video ID"] == video_id) & 
-                (answers_df["User ID"].isin(include_user_ids))
-            ]
-            
-            for _, answer_row in video_answers.iterrows():
-                user_id = int(answer_row["User ID"])
-                answer_value = str(answer_row["Answer Value"])
+        # OPTIMIZED: Use cached data if available
+        if cache_data and question_id in cache_data.get("annotator_answers", {}):
+            # Use cached answers
+            for answer_record in cache_data["annotator_answers"][question_id]:
+                user_id = int(answer_record["User ID"])
+                answer_value = str(answer_record["Answer Value"])
                 
-                # Get user weight - prioritize passed weights, then database, then default
+                # Get user weight - prioritize passed weights, then cached, then default
                 user_weight = user_weights.get(user_id)
                 if user_weight is None:
-                    assignment = session.execute(
-                        select(ProjectUserRole).where(
-                            ProjectUserRole.user_id == user_id,
-                            ProjectUserRole.project_id == project_id,
-                            ProjectUserRole.role == "annotator"
-                        )
-                    ).first()
-                    user_weight = float(assignment[0].user_weight) if assignment else 1.0
+                    # Try to get from cache first
+                    if user_id in cache_data.get("user_weights", {}):
+                        user_weight = float(cache_data["user_weights"][user_id])
+                    else:
+                        # Fallback to service method
+                        try:
+                            project_user_weights = AuthService.get_user_weights_for_project(
+                                project_id=project_id, session=session
+                            )
+                            user_weight = float(project_user_weights.get(user_id, 1.0))
+                        except:
+                            user_weight = 1.0
                 
-                # MINIMAL CHANGE: Use custom option weights if provided (for reviewers)
+                # Use custom option weights if provided (for reviewers)
                 option_weight = 1.0
                 if question["type"] == "single":
                     if custom_option_weights and answer_value in custom_option_weights:
@@ -5088,6 +5082,48 @@ def get_weighted_votes_for_question_with_custom_weights(
                 # Combined weight = user_weight * option_weight
                 combined_weight = user_weight * option_weight
                 vote_weights[answer_value] = vote_weights.get(answer_value, 0.0) + combined_weight
+        else:
+            # Fallback to original method if no cache
+            answers_df = AnnotatorService.get_question_answers(
+                question_id=question_id, project_id=project_id, session=session
+            )
+            
+            if not answers_df.empty:
+                video_answers = answers_df[
+                    (answers_df["Video ID"] == video_id) & 
+                    (answers_df["User ID"].isin(include_user_ids))
+                ]
+                
+                for _, answer_row in video_answers.iterrows():
+                    user_id = int(answer_row["User ID"])
+                    answer_value = str(answer_row["Answer Value"])
+                    
+                    # Get user weight - prioritize passed weights, then service, then default
+                    user_weight = user_weights.get(user_id)
+                    if user_weight is None:
+                        try:
+                            project_user_weights = AuthService.get_user_weights_for_project(
+                                project_id=project_id, session=session
+                            )
+                            user_weight = float(project_user_weights.get(user_id, 1.0))
+                        except:
+                            user_weight = 1.0
+                    
+                    # Use custom option weights if provided (for reviewers)
+                    option_weight = 1.0
+                    if question["type"] == "single":
+                        if custom_option_weights and answer_value in custom_option_weights:
+                            option_weight = float(custom_option_weights[answer_value])
+                        elif question["option_weights"]:
+                            try:
+                                option_index = question["options"].index(answer_value)
+                                option_weight = float(question["option_weights"][option_index])
+                            except (ValueError, IndexError):
+                                option_weight = 1.0
+                    
+                    # Combined weight = user_weight * option_weight
+                    combined_weight = user_weight * option_weight
+                    vote_weights[answer_value] = vote_weights.get(answer_value, 0.0) + combined_weight
         
         # Add virtual responses (unchanged)
         for virtual_response in virtual_responses:
@@ -5113,7 +5149,6 @@ def get_weighted_votes_for_question_with_custom_weights(
         
     except Exception as e:
         raise ValueError(f"Error calculating weighted votes: {str(e)}")
-
 
 class GroundTruthExportService:
     @staticmethod
