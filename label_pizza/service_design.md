@@ -102,6 +102,9 @@ Service-Layer API Spec
 | `get_schema_questions(schema_id, session)`                | ✔︎     | —          | `DataFrame` | — |
 | `get_schema_id_by_name(name, session)`                    | ✔︎     | —          | `int` | Raises if not found |
 | `create_schema(name, question_group_ids, session)`        | ✔︎     | —          | `Schema` | • Unique name 🛡️<br>• Groups exist 🛡️ |
+| `create_schema(name, question_group_ids, session, instructions_url=None, has_custom_display=False)` | ✔︎ | — | `Schema` | • Unique name 🛡️<br>• Groups exist 🛡️<br>• URL validation 🛡️ |
+| `edit_schema(schema_id, name=None, instructions_url=None, has_custom_display=None, session)` | ✔︎ | — | `None` | • Unique name 🛡️<br>• URL validation 🛡️ |
+| `get_schema_details(schema_id, session)`                  | ✔︎     | —          | `Dict` | — |
 | `archive_schema(schema_id, session)`                      | ✔︎     | —          | `None` | — |
 | `unarchive_schema(schema_id, session)`                    | ✔︎     | —          | `None` | — |
 | `get_question_group_order(schema_id, session)`            | ✔︎     | —          | `list[int]` | — |
@@ -222,6 +225,7 @@ Service-Layer API Spec
 | `submit_ground_truth_to_question_group(video_id, project_id, reviewer_id, question_group_id, answers, session, confidence_scores, notes)` | ✔︎ | — | `None` | • Reviewer role required 🛡️<br>• Type & option validation 🛡️ |
 | `get_ground_truth(video_id, project_id, session)`                                                                         | ✔︎     | —          | `DataFrame` | — |
 | `get_ground_truth_for_question(video_id, project_id, question_id, session)`                                                                         | ✔︎     | —          | `Optional[Dict]` | — |
+| `get_ground_truth_dict_for_question_group(video_id, project_id, question_group_id, session)`            | ✔︎     | —          | `Optional[Dict]` | — |
 | `get_ground_truth_for_question_group(video_id, project_id, question_group_id, session)`            | ✔︎     | —          | `DataFrame` | — |
 | `check_ground_truth_exists_for_question(video_id, project_id, question_id, session)`            | ✔︎     | —          | `bool` | — |
 | `check_all_questions_have_ground_truth_for_group(video_id, project_id, question_group_id, session)`            | ✔︎     | —          | `bool` | — |
