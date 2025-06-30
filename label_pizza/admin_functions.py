@@ -739,7 +739,7 @@ def admin_questions():
                                 new_description = st.text_area(
                                     "Description",
                                     value=group_details["description"] or "",
-                                    key="admin_edit_group_description"
+                                    key="admin_edit_question_group_description"
                                 )
                                 
                                 # Verification function editing
@@ -2077,7 +2077,7 @@ def admin_schemas():
                     custom_info("No schemas available to edit.")
             else:
                 custom_info("No schemas available to edit.")
-                
+
 @st.fragment
 def admin_users():
     st.subheader("👥 User Management")
@@ -2243,9 +2243,9 @@ def admin_assignments():
                 project_groups = ProjectGroupService.list_project_groups(session=session)
                 project_group_lookup = {}
                 for group in project_groups:
-                    group_info = ProjectGroupService.get_project_group_by_id(group_id=group.id, session=session)
+                    group_info = ProjectGroupService.get_project_group_by_id(group_id=group["id"], session=session)
                     for project in group_info["projects"]:
-                        project_group_lookup[project.id] = group.name
+                        project_group_lookup[project["id"]] = group["name"]
             except:
                 project_group_lookup = {}
             
@@ -2591,22 +2591,22 @@ def admin_project_groups():
                 group_data = []
                 for group in groups:
                     try:
-                        group_info = ProjectGroupService.get_project_group_by_id(group_id=group.id, session=session)
+                        group_info = ProjectGroupService.get_project_group_by_id(group_id=int(group["id"]), session=session)
                         project_count = len(group_info["projects"])
                         group_data.append({
-                            "ID": group.id,
-                            "Name": group.name,
-                            "Description": group.description,
+                            "ID": group["id"],
+                            "Name": group["name"],
+                            "Description": group["description"],
                             "Project Count": project_count,
-                            "Created": group.created_at
+                            "Created": group["created_at"]
                         })
                     except:
                         group_data.append({
-                            "ID": group.id,
-                            "Name": group.name,
-                            "Description": group.description,
+                            "ID": group["id"],
+                            "Name": group["name"],
+                            "Description": group["description"],
                             "Project Count": "Error",
-                            "Created": group.created_at
+                            "Created": group["created_at"]
                         })
                 
                 st.dataframe(pd.DataFrame(group_data), use_container_width=True)
@@ -2647,7 +2647,7 @@ def admin_project_groups():
             try:
                 groups = ProjectGroupService.list_project_groups(session=session)
                 if groups:
-                    group_options = {f"{g.name} (ID: {g.id})": g.id for g in groups}
+                    group_options = {f"{g['name']} (ID: {g['id']})": g['id'] for g in groups}
                     selected_group_name = st.selectbox(
                         "Select Group to Edit", 
                         list(group_options.keys()),
@@ -2665,22 +2665,22 @@ def admin_project_groups():
                         
                         new_name = st.text_input(
                             "Group Name", 
-                            value=current_group.name,
+                            value=current_group["name"],
                             key="admin_edit_group_name"
                         )
                         new_description = st.text_area(
                             "Description", 
-                            value=current_group.description or "",
-                            key="admin_edit_group_description"
+                            value=current_group["description"] or "",
+                            key="admin_edit_project_group_description"
                         )
                         
                         st.markdown("**Project Management:**")
                         
                         if current_projects:
                             st.markdown("**Current Projects:**")
-                            current_project_ids = [p.id for p in current_projects]
+                            current_project_ids = [p["id"] for p in current_projects]
                             for project in current_projects:
-                                st.write(f"- {project.name} (ID: {project.id})")
+                                st.write(f"- {project['name']} (ID: {project['id']})")
                         else:
                             custom_info("No projects currently in this group")
                             current_project_ids = []
@@ -2718,8 +2718,8 @@ def admin_project_groups():
                             try:
                                 ProjectGroupService.edit_project_group(
                                     group_id=selected_group_id,
-                                    name=new_name if new_name != current_group.name else None,
-                                    description=new_description if new_description != (current_group.description or "") else None,
+                                    name=new_name if new_name != current_group["name"] else None,
+                                    description=new_description if new_description != (current_group["description"] or "") else None,
                                     add_project_ids=add_projects if add_projects else None,
                                     remove_project_ids=remove_projects if remove_projects else None,
                                     session=session

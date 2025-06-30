@@ -767,6 +767,27 @@ class ProjectService:
         if not project:
             raise ValueError(f"Project with ID {project_id} not found")
         return project
+    
+    @staticmethod
+    def get_project_dict_by_id(project_id: int, session: Session) -> Dict[str, Any]:
+        """Get project details as a dictionary by ID.
+        
+        Returns:
+            Dictionary with project details: id, name, description, schema_id, etc.
+        """
+        project = session.get(Project, project_id)
+        if not project:
+            raise ValueError(f"Project with ID {project_id} not found")
+        
+        return {
+            "id": project.id,
+            "name": project.name,
+            "description": project.description,
+            "schema_id": project.schema_id,
+            "created_at": project.created_at,
+            "is_archived": project.is_archived,
+        }
+
 
     @staticmethod
     def add_user_to_project(project_id: int, user_id: int, role: str, session: Session, user_weight: Optional[float] = None) -> None:
@@ -4756,6 +4777,25 @@ class ProjectGroupService:
             select(Project).join(ProjectGroupProject, Project.id == ProjectGroupProject.project_id)
             .where(ProjectGroupProject.project_group_id == group_id)
         ).all()
+        # Convert group to dict
+        group = {
+            "id": group.id,
+            "name": group.name,
+            "description": group.description,
+            "created_at": group.created_at
+        }
+        # Convert projects to dicts
+        projects = [
+            {
+                "id": p.id,
+                "name": p.name,
+                "schema_id": p.schema_id,
+                "description": p.description,
+                "created_at": p.created_at,
+                "is_archived": p.is_archived
+            }
+            for p in projects
+        ]
         return {"group": group, "projects": projects}
     
     @staticmethod
@@ -4770,6 +4810,15 @@ class ProjectGroupService:
     @staticmethod
     def list_project_groups(session: Session):
         groups = session.scalars(select(ProjectGroup)).all()
+        groups = [
+            {
+                "id": g.id,
+                "name": g.name,
+                "description": g.description,
+                "created_at": g.created_at
+            }
+            for g in groups
+        ]
         return groups
 
     @staticmethod
