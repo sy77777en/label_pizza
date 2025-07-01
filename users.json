@@ -1,0 +1,139 @@
+[
+    {
+        "user_id": "Siyuan Cen",
+        "email": "siyuancen096@gmail.com",
+        "password": "siyuan",
+        "user_type": "admin"
+    },
+    {
+        "user_id": "Yanxi Wang",
+        "email": "yanxi.wwang@ntu.edu.sg",
+        "password": "wyanxi77",
+        "user_type": "human"
+    },
+    {
+        "user_id": "Yuhan Huang",
+        "email": "huangyuhan1130@gmail.com",
+        "password": "huangyuhan1130",
+        "user_type": "admin"
+    },
+    {
+        "user_id": "Hewei Wang",
+        "email": "stephenw@andrew.cmu.edu",
+        "password": "loveLBJ4ever",
+        "user_type": "human"
+    },
+    {
+        "user_id": "Yu Tong Tiffany Ling",
+        "email": "ttiffanyyllingg@gmail.com",
+        "password": "ttiffanyyllingg",
+        "user_type": "admin"
+    },
+    {
+        "user_id": "Zhiqiu Lin",
+        "email": "zhiqiulin98@gmail.com",
+        "password": "zhiqiu",
+        "user_type": "admin"
+    },
+    {
+        "user_id": "Haochi Zhang",
+        "email": "zhanghaochi22@gmail.com",
+        "password": "zhanghaochi22",
+        "user_type": "human"
+    },
+    {
+        "user_id": "WHan",
+        "email": "whan55751@gmail.com",
+        "password": "whan55751",
+        "user_type": "human"
+    },
+    {
+        "user_id":"sarahchenart",
+        "email": "sarahchenart@gmail.com",
+        "password": "sarahchenart",
+        "user_type": "human"
+    },
+    {
+        "user_id": "The Blue Soil",
+        "email": "thebluesoil@hotmail.com",
+        "password": "thebluesoil",
+        "user_type": "human"
+    },
+    {
+        "user_id": "Chancharik's Robot",
+        "password": "cmitraRobot",
+        "user_type": "model"
+    },
+    {
+        "user_id": "Kewen Wu",
+        "email": "wukw8016@gmail.com",
+        "password": "wukw8016",
+        "user_type": "human"
+    },
+    {
+        "user_id": "Hewen Chi",
+        "email": "chwen.1@outlook.com",
+        "password": "chwen.1",
+        "user_type": "human"
+    },
+    {
+        "user_id": "Yongbo Yang",
+        "email": "yangyongbo716@outlook.com",
+        "password": "yangyongbo716",
+        "user_type": "human"
+    },
+    {
+        "user_id": "Daniel Jiang",
+        "email": "drjiang@andrew.cmu.edu",
+        "password": "drjiang",
+        "user_type": "human"
+    },
+    {
+        "user_id": "rater.62",
+        "email": "rater.62@grandecenter.org",
+        "password": "rater.62",
+        "user_type": "human"
+    },
+    {
+        "user_id": "rater.51",
+        "email": "rater.51@grandecenter.org",
+        "password": "rater.51",
+        "user_type": "human"
+    },
+    {
+        "user_id": "rater.67",
+        "email": "rater.67@grandecenter.org",
+        "password": "rater.67",
+        "user_type": "human"
+    },
+    {
+        "user_id": "rater.70",
+        "email": "rater.70@grandecenter.org",
+        "password": "rater.70",
+        "user_type": "human"
+    },
+    {
+        "user_id": "zhiqiul",
+        "email": "zhiqiul@andrew.cmu.edu",
+        "password": "zhiqiul",
+        "user_type": "human"
+    },
+    {
+        "user_id": "stephenw0516",
+        "email": "stephenw0516@gmail.com",
+        "password": "stephenw0516",
+        "user_type": "human"
+    },
+    {
+        "user_id": "kewenwu",
+        "email": "kewenwu@andrew.cmu.edu",
+        "password": "kewenwu",
+        "user_type": "human"
+    },
+    {
+        "user_id": "rater.32",
+        "email": "rater.32@grandecenter.org",
+        "password": "rater.32",
+        "user_type": "human"
+    }
+]

@@ -337,6 +337,15 @@ class VideoService:
             if not new_url.startswith(("http://", "https://")):
                 raise ValueError("URL must start with http:// or https://")
 
+            # ---- new check ----
+            # Strip any query string, then compare the filename to the UID
+            filename = new_url.split("/")[-1]
+            if filename != video_uid:
+                raise ValueError(
+                    f"URL filename '{filename}' must exactly match the video UID '{video_uid}'"
+                )
+            # -------------------
+
         # Validate new metadata if provided
         if new_metadata is not None:
             if not isinstance(new_metadata, dict):
@@ -760,8 +769,8 @@ class ProjectService:
         return project
 
     @staticmethod
-    def add_user_to_project(project_id: int, user_id: int, role: str, session: Session, user_weight: Optional[float] = None) -> None:
-        """Add a user to a project with the specified role.
+    def verify_add_user_to_project(project_id: int, user_id: int, role: str, session: Session, user_weight: Optional[float] = None) -> None:
+        """Verify if a user can be added to a project with the specified role.
         
         Args:
             project_id: The ID of the project
@@ -771,15 +780,16 @@ class ProjectService:
             user_weight: Optional weight for the user's answers (defaults to 1.0)
             
         Raises:
-            ValueError: If project or user not found, or if role is invalid
+            ValueError: If project or user not found, or if role is invalid, or if assignment is not allowed
         """
-        # Validate project and user
+        # Validate project
         project = session.get(Project, project_id)
         if not project:
             raise ValueError(f"Project with ID {project_id} not found")
         if project.is_archived:
             raise ValueError(f"Project with ID {project_id} is archived")
         
+        # Validate user
         user = session.get(User, user_id)
         if not user:
             raise ValueError(f"User with ID {user_id} not found")
@@ -803,6 +813,24 @@ class ProjectService:
         
         if user.user_type == "model" and role != "model":
             raise ValueError(f"User {user_id} must not be a model to be assigned a non-model role")
+        
+
+    @staticmethod
+    def add_user_to_project(project_id: int, user_id: int, role: str, session: Session, user_weight: Optional[float] = None) -> None:
+        """Add a user to a project with the specified role.
+        
+        Args:
+            project_id: The ID of the project
+            user_id: The ID of the user
+            role: The role to assign ('annotator', 'reviewer', 'admin', or 'model')
+            session: Database session
+            user_weight: Optional weight for the user's answers (defaults to 1.0)
+            
+        Raises:
+            ValueError: If project or user not found, or if role is invalid
+        """
+        # Validate project and user
+        ProjectService.verify_add_user_to_project(project_id, user_id, role, session, user_weight)
             
         # Archive any existing roles for this user in this project
         session.execute(
@@ -1104,12 +1132,9 @@ class SchemaService:
             raise ValueError("Schema name is required")
 
         # Check if schema with same name exists
-        try:
-            existing = SchemaService.get_schema_by_name(name, session)
-            if existing:
-                raise ValueError(f"Schema with name '{name}' already exists")
-        except:
-            pass
+        existing = session.scalar(select(Schema).where(Schema.name == name))
+        if existing:
+            raise ValueError(f"Schema with name '{name}' already exists")
 
         # Validate question group IDs
         if not question_group_ids:
@@ -1119,8 +1144,6 @@ class SchemaService:
         for group_id in question_group_ids:
             # Check if group exists
             group = QuestionGroupService.get_group_by_id(group_id, session)
-            if not group:
-                raise ValueError(f"Question group with ID {group_id} not found")
             if group.is_archived:
                 raise ValueError(f"Question group with ID {group_id} is archived")
 
@@ -1334,6 +1357,7 @@ class SchemaService:
             DataFrame containing question groups with columns:
             - ID: Question group ID
             - Title: Question group title
+            - Display Title: Question group display title
             - Description: Question group description
             - Reusable: Whether the group is reusable
             - Archived: Whether the group is archived
@@ -1378,6 +1402,7 @@ class SchemaService:
             rows.append({
                 "ID": group.id,
                 "Title": group.title,
+                "Display Title": group.display_title,
                 "Description": group.description,
                 "Reusable": group.is_reusable,
                 "Archived": group.is_archived,
@@ -1416,6 +1441,7 @@ class SchemaService:
         return [{
             "ID": g.id,
             "Title": g.title,
+            "Display Title": g.display_title,
             "Description": g.description
         } for g in groups]
 
@@ -1477,6 +1503,61 @@ class QuestionService:
         return question
 
     @staticmethod
+    def verify_add_question(text: str, qtype: str, options: Optional[List[str]], default: Optional[str], 
+                    session: Session, display_values: Optional[List[str]] = None, display_text: Optional[str] = None,
+                    option_weights: Optional[List[float]] = None) -> None:
+        """Verify if a question can be added with the specified parameters.
+        
+        Args:
+            text: Question text (immutable, unique)
+            qtype: Question type ('single' or 'description')
+            options: List of options for single-choice questions
+            default: Default option for single-choice questions
+            session: Database session
+            display_values: Optional list of display text for options. For single-type questions, if not provided, uses options as display values.
+            display_text: Optional display text for UI. If not provided, uses text.
+            option_weights: Optional list of weights for each option. If not provided, defaults to 1.0 for each option.
+        
+        Raises:
+            ValueError: If question text already exists or validation fails
+        """
+        # Check if question text already exists
+        existing = session.scalar(select(Question).where(Question.text == text))
+        if existing:
+            raise ValueError(f"Question with text '{text}' already exists")
+        
+        # Validate question type
+        if qtype not in ["single", "description"]:
+            raise ValueError(f"Invalid question type '{qtype}'. Must be 'single' or 'description'")
+        
+        # Validate default option for single-choice questions
+        if qtype == "single":
+            if not options:
+                raise ValueError("Single-choice questions must have options")
+            if default and default not in options:
+                raise ValueError(f"Default option '{default}' must be one of the available options: {', '.join(options)}")
+            
+            # For single-type questions, display_values must be provided or default to options
+            if display_values:
+                if len(display_values) != len(options):
+                    raise ValueError("Number of display values must match number of options")
+            
+            # Handle option weights
+            if option_weights:
+                if len(option_weights) != len(options):
+                    raise ValueError("Number of option weights must match number of options")
+        else:
+            # For description-type questions, options should be None
+            if options:
+                raise ValueError("Description-type questions should not have options")
+            if default:
+                raise ValueError("Description-type questions should not have a default option")
+            if display_values:
+                raise ValueError("Description-type questions should not have display values")
+            if option_weights:
+                raise ValueError("Description-type questions should not have option weights")
+
+    @staticmethod
     def add_question(text: str, qtype: str, options: Optional[List[str]], default: Optional[str], 
                     session: Session, display_values: Optional[List[str]] = None, display_text: Optional[str] = None,
                     option_weights: Optional[List[float]] = None) -> Question:
@@ -1498,33 +1579,19 @@ class QuestionService:
         Raises:
             ValueError: If question text already exists or validation fails
         """
-        # Check if question text already exists
-        existing = session.scalar(select(Question).where(Question.text == text))
-        if existing:
-            raise ValueError(f"Question with text '{text}' already exists")
+        # Verify all parameters first
+        QuestionService.verify_add_question(text, qtype, options, default, session, display_values, display_text, option_weights)
         
-        # Validate default option for single-choice questions
+        # Process parameters for creation
         if qtype == "single":
-            if not options:
-                raise ValueError("Single-choice questions must have options")
-            if default and default not in options:
-                raise ValueError(f"Default option '{default}' must be one of the available options: {', '.join(options)}")
-            
             # For single-type questions, display_values must be provided or default to options
-            if display_values:
-                if len(display_values) != len(options):
-                    raise ValueError("Number of display values must match number of options")
-            else:
+            if not display_values:
                 display_values = options  # Use options as display values if not provided
-                
             # Handle option weights
-            if option_weights:
-                if len(option_weights) != len(options):
-                    raise ValueError("Number of option weights must match number of options")
-            else:
+            if not option_weights:
                 option_weights = [1.0] * len(options)  # Default to 1.0 for each option
         else:
-            # For description-type questions, display_values and option_weights should be None
+            # For description-type questions, ensure these are None
             display_values = None
             option_weights = None
         
@@ -1564,8 +1631,8 @@ class QuestionService:
             new_opts: New options for single-choice questions. Must include all existing options.
             new_default: New default option for single-choice questions
             session: Database session
-            new_display_values: Optional new display values for options
-            new_option_weights: Optional new weights for options
+            new_display_values: Optional new display values for options. For single-type questions, if not provided, maintains existing display values or uses options.
+            new_option_weights: Optional new weights for options. For single-type questions, if not provided, maintains existing weights.
 
         Raises:
             ValueError: If question not found or validation fails
@@ -1653,10 +1720,6 @@ class QuestionService:
                         new_option_weights.append(q.option_weights[idx])
                     else:
                         new_option_weights.append(1.0)  # Default to 1.0 for new options
-        else:
-            q.display_values = None
-            q.option_weights = None
-
         # Update only display_text, options, display_values, option_weights, default_option
         q.display_text = new_display_text
         q.options = new_opts
@@ -2197,12 +2260,25 @@ class AuthService:
         ])
 
     @staticmethod
-    def create_user(user_id: str, email: str, password_hash: str, user_type: str, session: Session, is_archived: bool = False) -> User:
-        """Create a new user with validation."""
+    def verify_create_user(user_id: str, email: str, password_hash: str, user_type: str, session: Session, is_archived: bool = False) -> None:
+        """Verify if a user can be created with the specified parameters.
+        
+        Args:
+            user_id: Unique user ID string
+            email: User email (required for human/admin, must be None for model)
+            password_hash: Hashed password
+            user_type: Type of user ('human', 'model', or 'admin')
+            session: Database session
+            is_archived: Whether user should be archived on creation
+            
+        Raises:
+            ValueError: If validation fails (invalid user type, email constraints, or user already exists)
+        """
+        # Validate user type
         if user_type not in ["human", "model", "admin"]:
             raise ValueError("Invalid user type. Must be one of: human, model, admin")
         
-        # For model users, email should be None
+        # Validate email constraints based on user type
         if user_type == "model":
             if email:
                 raise ValueError("Model users cannot have emails")
@@ -2218,7 +2294,29 @@ class AuthService:
         )
         if existing_user:
             raise ValueError(f"User with ID '{user_id}' or email '{email}' already exists")
+
+    @staticmethod
+    def create_user(user_id: str, email: str, password_hash: str, user_type: str, session: Session, is_archived: bool = False) -> User:
+        """Create a new user with validation.
         
+        Args:
+            user_id: Unique user ID string
+            email: User email (required for human/admin, must be None for model)
+            password_hash: Hashed password
+            user_type: Type of user ('human', 'model', or 'admin')
+            session: Database session
+            is_archived: Whether user should be archived on creation
+            
+        Returns:
+            Created user
+            
+        Raises:
+            ValueError: If validation fails (invalid user type, email constraints, or user already exists)
+        """
+        # Verify all parameters first
+        AuthService.verify_create_user(user_id, email, password_hash, user_type, session, is_archived)
+        
+        # Create user
         user = User(
             user_id_str=user_id,
             email=email,
@@ -2498,6 +2596,7 @@ class QuestionGroupService:
             raise ValueError(f"Question group with ID {group_id} not found")
         return {
             "title": group.title,
+            "display_title": group.display_title,
             "description": group.description,
             "is_reusable": group.is_reusable,
             "is_auto_submit": group.is_auto_submit,
@@ -2560,6 +2659,7 @@ class QuestionGroupService:
             rows.append({
                 "ID": g.id,
                 "Name": g.title,
+                "Display Title": g.display_title,
                 "Description": g.description,
                 "Questions": "\n".join(question_list) if question_list else "No questions",
                 "Reusable": g.is_reusable,
@@ -2633,6 +2733,7 @@ class QuestionGroupService:
             raise ValueError(f"Question group with ID {group_id} not found")
         return {
             "title": group.title,
+            "display_title": group.display_title,
             "description": group.description,
             "is_reusable": group.is_reusable,
             "is_auto_submit": group.is_auto_submit,
@@ -2667,6 +2768,7 @@ class QuestionGroupService:
     @staticmethod
     def verify_create_group(
             title: str,
+            display_title: str,
             description: str,
             is_reusable: bool,
             question_ids: List[int],
@@ -2724,6 +2826,7 @@ class QuestionGroupService:
     @staticmethod
     def create_group(
             title: str,
+            display_title: str,
             description: str,
             is_reusable: bool,
             question_ids: List[int],
@@ -2734,7 +2837,8 @@ class QuestionGroupService:
         """Create a new question group.
 
         Args:
-            title: Group title
+            title: Group title (unique, immutable)
+            display_title: Group display title (can be changed)
             description: Group description
             is_reusable: Whether group can be used in multiple schemas
             question_ids: List of question IDs in desired order
@@ -2748,15 +2852,19 @@ class QuestionGroupService:
         Raises:
             ValueError: If title already exists or validation fails
         """
+        if display_title is None:
+            display_title = title
+        
         # First, verify all parameters (will raise ValueError if validation fails)
         QuestionGroupService.verify_create_group(
-            title, description, is_reusable, question_ids,
+            title, display_title, description, is_reusable, question_ids,
             verification_function, is_auto_submit, session
         )
 
         # Create group object
         group = QuestionGroup(
             title=title,
+            display_title=display_title,
             description=description,
             is_reusable=is_reusable,
             verification_function=verification_function,
@@ -2858,7 +2966,7 @@ class QuestionGroupService:
     @staticmethod
     def verify_edit_group(
             group_id: int,
-            new_title: str,
+            new_display_title: str,
             new_description: str,
             is_reusable: bool,
             verification_function: Optional[str],
@@ -2869,7 +2977,7 @@ class QuestionGroupService:
 
         Args:
             group_id: Group ID
-            new_title: New group title
+            new_display_title: New group display title
             new_description: New group description
             is_reusable: Whether the group is reusable
             verification_function: New verification function name (can be None to remove)
@@ -2881,9 +2989,6 @@ class QuestionGroupService:
         """
         # Get and validate group exists
         group = QuestionGroupService.get_group_by_id(group_id, session)
-        if not group:
-            raise ValueError(f"Question group with ID {group_id} not found")
-
         # If making a group non-reusable, check if it's used in multiple schemas
         if not is_reusable and group.is_reusable:
             schemas = session.scalars(
@@ -2900,10 +3005,12 @@ class QuestionGroupService:
                 )
 
         # Check if new title conflicts with existing group
-        if new_title != group.title:
-            existing = QuestionGroupService.get_group_by_name(new_title, session)
+        if new_display_title != group.display_title:
+            existing = session.scalar(
+                select(QuestionGroup).where(QuestionGroup.display_title == new_display_title)
+            )
             if existing:
-                raise ValueError(f"Question group with title '{new_title}' already exists")
+                raise ValueError(f"Question group with display title '{new_display_title}' already exists")
 
         # Validate verification function if provided
         if verification_function:
@@ -2911,13 +3018,13 @@ class QuestionGroupService:
                 raise ValueError(f"Verification function '{verification_function}' not found in verify.py")
 
     @staticmethod
-    def edit_group(group_id: int, new_title: str, new_description: str, is_reusable: bool,
+    def edit_group(group_id: int, new_display_title: str, new_description: str, is_reusable: bool,
                    verification_function: Optional[str], is_auto_submit: bool = False, session: Session = None) -> None:
         """Edit a question group including its verification function and auto-submit flag.
 
         Args:
             group_id: Group ID
-            new_title: New group title
+            new_display_title: New group display title
             new_description: New group description
             is_reusable: Whether the group is reusable
             verification_function: New verification function name (can be None to remove)
@@ -2929,7 +3036,7 @@ class QuestionGroupService:
         """
         # Verify parameters
         QuestionGroupService.verify_edit_group(
-            group_id, new_title, new_description, is_reusable,
+            group_id, new_display_title, new_description, is_reusable,
             verification_function, is_auto_submit, session
         )
 
@@ -2937,7 +3044,7 @@ class QuestionGroupService:
         group = QuestionGroupService.get_group_by_id(group_id, session)
 
         # Update group properties
-        group.title = new_title
+        group.display_title = new_display_title
         group.description = new_description
         group.is_reusable = is_reusable
         group.verification_function = verification_function  # This can be None to remove verification
@@ -3364,17 +3471,17 @@ class BaseAnswerService:
 
 class AnnotatorService(BaseAnswerService):
     @staticmethod
-    def submit_answer_to_question_group(
+    def verify_submit_answer_to_question_group(
         video_id: int,
         project_id: int,
         user_id: int,
         question_group_id: int,
-        answers: Dict[str, str],  # Maps question text to answer value
+        answers: Dict[str, str],
         session: Session,
         confidence_scores: Optional[Dict[str, float]] = None,
         notes: Optional[Dict[str, str]] = None
     ) -> None:
-        """Submit answers for all questions in a question group.
+        """Verify all prerequisites for answer submission without actually submitting.
         
         Args:
             video_id: The ID of the video
@@ -3400,22 +3507,70 @@ class AnnotatorService(BaseAnswerService):
         
         # Validate answers match questions
         AnnotatorService._validate_answers_match_questions(answers=answers, questions=questions)
+        
+        # Validate confidence scores and answer values
+        for question in questions:
+            answer_value = answers[question.text]
+            confidence_score = confidence_scores.get(question.text) if confidence_scores else None
+            
+            # If confidence score is not None, check if it's float
+            if confidence_score is not None:
+                if not isinstance(confidence_score, float):
+                    raise ValueError(f"Confidence score for question '{question.text}' must be a float")
+            
+            # Validate answer value
+            AnnotatorService._validate_answer_value(question=question, answer_value=answer_value)
             
         # Run verification if specified
         AnnotatorService._run_verification(group=group, answers=answers)
+
+
+    @staticmethod
+    def submit_answer_to_question_group(
+        video_id: int,
+        project_id: int,
+        user_id: int,
+        question_group_id: int,
+        answers: Dict[str, str],  # Maps question text to answer value
+        session: Session,
+        confidence_scores: Optional[Dict[str, float]] = None,
+        notes: Optional[Dict[str, str]] = None
+    ) -> None:
+        """Submit answers for all questions in a question group.
+        
+        Args:
+            video_id: The ID of the video
+            project_id: The ID of the project
+            user_id: The ID of the user submitting the answers
+            question_group_id: The ID of the question group
+            answers: Dictionary mapping question text to answer value
+            session: Database session
+            confidence_scores: Optional dictionary mapping question text to confidence score
+            notes: Optional dictionary mapping question text to notes
+            
+        Raises:
+            ValueError: If validation fails or verification fails
+        """
+        # Run verification first
+        AnnotatorService.verify_submit_answer_to_question_group(
+            video_id=video_id,
+            project_id=project_id,
+            user_id=user_id,
+            question_group_id=question_group_id,
+            answers=answers,
+            session=session,
+            confidence_scores=confidence_scores,
+            notes=notes
+        )
+        
+        # Get questions for submission
+        group, questions = AnnotatorService._validate_question_group(question_group_id=question_group_id, session=session)
             
         # Submit each answer
         for question in questions:
             answer_value = answers[question.text]
             confidence_score = confidence_scores.get(question.text) if confidence_scores else None
-            # If confidence score is not None, check if it's float
-            if confidence_score is not None:
-                if not isinstance(confidence_score, float):
-                    raise ValueError(f"Confidence score for question '{question.text}' must be a float")
             note = notes.get(question.text) if notes else None
-            
-            # Validate answer value
-            AnnotatorService._validate_answer_value(question=question, answer_value=answer_value)
             
             # Check for existing answer
             existing = session.scalar(
@@ -3813,6 +3968,139 @@ class GroundTruthService(BaseAnswerService):
             }
             for gt in gts
         ])
+
+    @staticmethod
+    def get_ground_truth_for_question(video_id: int, project_id: int, question_id: int, session: Session) -> Optional[Dict]:
+        """Get ground truth for a single question, returns None if no ground truth exists."""
+        gt = session.scalar(
+            select(ReviewerGroundTruth)
+            .where(
+                ReviewerGroundTruth.video_id == video_id,
+                ReviewerGroundTruth.project_id == project_id,
+                ReviewerGroundTruth.question_id == question_id
+            )
+        )
+        
+        if not gt:
+            return None
+            
+        return {
+            "Question ID": gt.question_id,
+            "Answer Value": gt.answer_value,
+            "Original Value": gt.original_answer_value,
+            "Reviewer ID": gt.reviewer_id,
+            "Modified At": gt.modified_at,
+            "Modified By Admin": gt.modified_by_admin_id,
+            "Modified By Admin At": gt.modified_by_admin_at,
+            "Confidence Score": gt.confidence_score,
+            "Created At": gt.created_at,
+            "Notes": gt.notes
+        }
+
+    @staticmethod
+    def get_ground_truth_for_question_group(video_id: int, project_id: int, question_group_id: int, session: Session) -> pd.DataFrame:
+        """Get ground truth for all questions in a specific question group."""
+        
+        # Use existing service method to get questions
+        try:
+            questions = QuestionService.get_questions_by_group_id(group_id=question_group_id, session=session)
+            if not questions:
+                return pd.DataFrame()
+            
+            question_ids = [q["id"] for q in questions]
+            
+            # Get ground truth for these specific questions
+            gts = session.scalars(
+                select(ReviewerGroundTruth)
+                .where(
+                    ReviewerGroundTruth.video_id == video_id,
+                    ReviewerGroundTruth.project_id == project_id,
+                    ReviewerGroundTruth.question_id.in_(question_ids)
+                )
+            ).all()
+            
+            return pd.DataFrame([
+                {
+                    "Question ID": gt.question_id,
+                    "Answer Value": gt.answer_value,
+                    "Original Value": gt.original_answer_value,
+                    "Reviewer ID": gt.reviewer_id,
+                    "Modified At": gt.modified_at,
+                    "Modified By Admin": gt.modified_by_admin_id,
+                    "Modified By Admin At": gt.modified_by_admin_at,
+                    "Confidence Score": gt.confidence_score,
+                    "Created At": gt.created_at,
+                    "Notes": gt.notes
+                }
+                for gt in gts
+            ])
+        except Exception as e:
+            print(f"Error in get_ground_truth_for_question_group: {e}")
+            return pd.DataFrame()
+
+    @staticmethod
+    def check_ground_truth_exists_for_question(video_id: int, project_id: int, question_id: int, session: Session) -> bool:
+        """Check if ground truth exists for a single question (most efficient for existence checks)."""
+        return session.scalar(
+            select(func.count(ReviewerGroundTruth.question_id))
+            .where(
+                ReviewerGroundTruth.video_id == video_id,
+                ReviewerGroundTruth.project_id == project_id,
+                ReviewerGroundTruth.question_id == question_id
+            )
+        ) > 0
+
+    # @staticmethod
+    # TODO: See if we want to use this instead
+    # def check_question_modified_by_admin_optimized(video_id: int, project_id: int, question_id: int, session: Session) -> bool:
+    #     """Optimized version that doesn't fetch full ground truth data."""
+    #     return session.scalar(
+    #         select(func.count(ReviewerGroundTruth.question_id))
+    #         .where(
+    #             ReviewerGroundTruth.video_id == video_id,
+    #             ReviewerGroundTruth.project_id == project_id,
+    #             ReviewerGroundTruth.question_id == question_id,
+    #             ReviewerGroundTruth.modified_by_admin_id.is_not(None)
+    #         )
+    #     ) > 0
+
+    @staticmethod
+    def get_ground_truth_for_question(video_id: int, project_id: int, question_id: int, session: Session) -> Optional[Dict]:
+        """Get ground truth answer for a specific question on a video.
+        
+        Args:
+            video_id: The ID of the video
+            project_id: The ID of the project  
+            question_id: The ID of the specific question
+            session: Database session
+            
+        Returns:
+            Dictionary with ground truth data for the question, or None if not found
+        """
+        gt = session.scalar(
+            select(ReviewerGroundTruth)
+            .where(
+                ReviewerGroundTruth.video_id == video_id,
+                ReviewerGroundTruth.project_id == project_id,
+                ReviewerGroundTruth.question_id == question_id
+            )
+        )
+        
+        if not gt:
+            return None
+            
+        return {
+            "Question ID": gt.question_id,
+            "Answer Value": gt.answer_value,
+            "Original Value": gt.original_answer_value,
+            "Reviewer ID": gt.reviewer_id,
+            "Modified At": gt.modified_at,
+            "Modified By Admin": gt.modified_by_admin_id,
+            "Modified By Admin At": gt.modified_by_admin_at,
+            "Confidence Score": gt.confidence_score,
+            "Created At": gt.created_at,
+            "Notes": gt.notes
+        }
 
     @staticmethod
     def get_reviewer_accuracy(project_id: int, session: Session) -> Dict[int, Dict[int, Dict[str, int]]]:
@@ -4339,7 +4627,7 @@ class GroundTruthService(BaseAnswerService):
         return text_answers
     
     @staticmethod
-    def get_ground_truth_for_question_group(video_id: int, project_id: int, question_group_id: int, session: Session) -> Dict[str, str]:
+    def get_ground_truth_dict_for_question_group(video_id: int, project_id: int, question_group_id: int, session: Session) -> Dict[str, str]:
         """Get existing ground truth for a video and question group.
         
         Args:
@@ -4949,7 +5237,7 @@ class ReviewerAutoSubmitService:
             # Check existing GROUND TRUTH answers
             existing_answers = {}
             try:
-                existing_answers = GroundTruthService.get_ground_truth_for_question_group(
+                existing_answers = GroundTruthService.get_ground_truth_dict_for_question_group(
                     video_id=video_id, project_id=project_id, 
                     question_group_id=question_group_id, session=session
                 )
@@ -4972,7 +5260,7 @@ class ReviewerAutoSubmitService:
                 if custom_option_weights and question_id in custom_option_weights:
                     question_custom_weights = custom_option_weights[question_id]
                 
-                vote_weights = get_weighted_votes_for_question_with_custom_weights(
+                vote_weights = ReviewerAutoSubmitService.get_weighted_votes_for_question_with_custom_weights(
                     video_id=video_id, project_id=project_id, question_id=question_id,
                     include_user_ids=include_user_ids, virtual_responses=virtual_responses, 
                     session=session, user_weights=user_weights,
@@ -5008,60 +5296,116 @@ class ReviewerAutoSubmitService:
         except Exception as e:
             raise ValueError(f"Error calculating auto-submit ground truth: {str(e)}")
 
-
-def get_weighted_votes_for_question_with_custom_weights(
-    video_id: int, 
-    project_id: int, 
-    question_id: int,
-    include_user_ids: List[int],
-    virtual_responses: List[Dict],
-    session: Session,
-    user_weights: Dict[int, float] = None,
-    custom_option_weights: Dict[str, float] = None
-) -> Dict[str, float]:
-    """
-    MINIMAL MODIFICATION of the original function to use custom option weights for reviewers.
-    """
-    try:
-        from label_pizza.models import User, ProjectUserRole
-        from sqlalchemy import select
-        
-        # Get question details
-        question = QuestionService.get_question_by_id(question_id=question_id, session=session)
-        if not question:
-            return {}
-        
-        user_weights = user_weights or {}
-        vote_weights = {}
-        
-        # Get real user answers
-        answers_df = AnnotatorService.get_question_answers(
-            question_id=question_id, project_id=project_id, session=session
-        )
-        
-        if not answers_df.empty:
-            video_answers = answers_df[
-                (answers_df["Video ID"] == video_id) & 
-                (answers_df["User ID"].isin(include_user_ids))
-            ]
+    @staticmethod
+    def get_weighted_votes_for_question_with_custom_weights(
+        video_id: int, 
+        project_id: int, 
+        question_id: int,
+        include_user_ids: List[int],
+        virtual_responses: List[Dict],
+        session: Session,
+        user_weights: Dict[int, float] = None,
+        custom_option_weights: Dict[str, float] = None,
+        cache_data: Dict = None  # ADD THIS PARAMETER
+    ) -> Dict[str, float]:
+        """
+        OPTIMIZED: Uses cached data when available to avoid database queries
+        """
+        try:
+            # Get question details - still need this for option weights
+            question = QuestionService.get_question_by_id(question_id=question_id, session=session)
+            if not question:
+                return {}
             
-            for _, answer_row in video_answers.iterrows():
-                user_id = int(answer_row["User ID"])
-                answer_value = str(answer_row["Answer Value"])
+            user_weights = user_weights or {}
+            vote_weights = {}
+            
+            # OPTIMIZED: Use cached data if available
+            if cache_data and question_id in cache_data.get("annotator_answers", {}):
+                # Use cached answers
+                for answer_record in cache_data["annotator_answers"][question_id]:
+                    user_id = int(answer_record["User ID"])
+                    answer_value = str(answer_record["Answer Value"])
+                    
+                    # Get user weight - prioritize passed weights, then cached, then default
+                    user_weight = user_weights.get(user_id)
+                    if user_weight is None:
+                        # Try to get from cache first
+                        if user_id in cache_data.get("user_weights", {}):
+                            user_weight = float(cache_data["user_weights"][user_id])
+                        else:
+                            # Fallback to service method
+                            try:
+                                project_user_weights = AuthService.get_user_weights_for_project(
+                                    project_id=project_id, session=session
+                                )
+                                user_weight = float(project_user_weights.get(user_id, 1.0))
+                            except:
+                                user_weight = 1.0
+                    
+                    # Use custom option weights if provided (for reviewers)
+                    option_weight = 1.0
+                    if question["type"] == "single":
+                        if custom_option_weights and answer_value in custom_option_weights:
+                            option_weight = float(custom_option_weights[answer_value])
+                        elif question["option_weights"]:
+                            try:
+                                option_index = question["options"].index(answer_value)
+                                option_weight = float(question["option_weights"][option_index])
+                            except (ValueError, IndexError):
+                                option_weight = 1.0
+                    
+                    # Combined weight = user_weight * option_weight
+                    combined_weight = user_weight * option_weight
+                    vote_weights[answer_value] = vote_weights.get(answer_value, 0.0) + combined_weight
+            else:
+                # Fallback to original method if no cache
+                answers_df = AnnotatorService.get_question_answers(
+                    question_id=question_id, project_id=project_id, session=session
+                )
                 
-                # Get user weight - prioritize passed weights, then database, then default
-                user_weight = user_weights.get(user_id)
-                if user_weight is None:
-                    assignment = session.execute(
-                        select(ProjectUserRole).where(
-                            ProjectUserRole.user_id == user_id,
-                            ProjectUserRole.project_id == project_id,
-                            ProjectUserRole.role == "annotator"
-                        )
-                    ).first()
-                    user_weight = float(assignment[0].user_weight) if assignment else 1.0
+                if not answers_df.empty:
+                    video_answers = answers_df[
+                        (answers_df["Video ID"] == video_id) & 
+                        (answers_df["User ID"].isin(include_user_ids))
+                    ]
+                    
+                    for _, answer_row in video_answers.iterrows():
+                        user_id = int(answer_row["User ID"])
+                        answer_value = str(answer_row["Answer Value"])
+                        
+                        # Get user weight - prioritize passed weights, then service, then default
+                        user_weight = user_weights.get(user_id)
+                        if user_weight is None:
+                            try:
+                                project_user_weights = AuthService.get_user_weights_for_project(
+                                    project_id=project_id, session=session
+                                )
+                                user_weight = float(project_user_weights.get(user_id, 1.0))
+                            except:
+                                user_weight = 1.0
+                        
+                        # Use custom option weights if provided (for reviewers)
+                        option_weight = 1.0
+                        if question["type"] == "single":
+                            if custom_option_weights and answer_value in custom_option_weights:
+                                option_weight = float(custom_option_weights[answer_value])
+                            elif question["option_weights"]:
+                                try:
+                                    option_index = question["options"].index(answer_value)
+                                    option_weight = float(question["option_weights"][option_index])
+                                except (ValueError, IndexError):
+                                    option_weight = 1.0
+                        
+                        # Combined weight = user_weight * option_weight
+                        combined_weight = user_weight * option_weight
+                        vote_weights[answer_value] = vote_weights.get(answer_value, 0.0) + combined_weight
+            
+            # Add virtual responses (unchanged)
+            for virtual_response in virtual_responses:
+                answer_value = str(virtual_response["answer"])
+                user_weight = float(virtual_response["user_weight"])
                 
-                # MINIMAL CHANGE: Use custom option weights if provided (for reviewers)
                 option_weight = 1.0
                 if question["type"] == "single":
                     if custom_option_weights and answer_value in custom_option_weights:
@@ -5076,32 +5420,11 @@ def get_weighted_votes_for_question_with_custom_weights(
                 # Combined weight = user_weight * option_weight
                 combined_weight = user_weight * option_weight
                 vote_weights[answer_value] = vote_weights.get(answer_value, 0.0) + combined_weight
-        
-        # Add virtual responses (unchanged)
-        for virtual_response in virtual_responses:
-            answer_value = str(virtual_response["answer"])
-            user_weight = float(virtual_response["user_weight"])
             
-            option_weight = 1.0
-            if question["type"] == "single":
-                if custom_option_weights and answer_value in custom_option_weights:
-                    option_weight = float(custom_option_weights[answer_value])
-                elif question["option_weights"]:
-                    try:
-                        option_index = question["options"].index(answer_value)
-                        option_weight = float(question["option_weights"][option_index])
-                    except (ValueError, IndexError):
-                        option_weight = 1.0
+            return vote_weights
             
-            # Combined weight = user_weight * option_weight
-            combined_weight = user_weight * option_weight
-            vote_weights[answer_value] = vote_weights.get(answer_value, 0.0) + combined_weight
-        
-        return vote_weights
-        
-    except Exception as e:
-        raise ValueError(f"Error calculating weighted votes: {str(e)}")
-
+        except Exception as e:
+            raise ValueError(f"Error calculating weighted votes: {str(e)}")
 
 class GroundTruthExportService:
     @staticmethod

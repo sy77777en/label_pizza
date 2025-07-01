@@ -1,0 +1,3199 @@
+[
+  {
+    "id": "cm8ibkbt20f8907uu57mbfekm",
+    "createdAt": "2025-03-21T05:08:04.167Z",
+    "updatedAt": "2025-03-21T05:08:10.196Z",
+    "labelId": "cm8ibet8q0byw07hq8of2hvke",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm7ks5oqb08p90730h66i8mfg",
+    "createdById": "cm5tkocek04uo0746hq0kbpyb",
+    "resolvedById": null,
+    "content": "There is a cut",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 143,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    286.379,
+                    17.674
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 59,
+    "labelerId": "cm5tkocek04uo0746hq0kbpyb",
+    "externalDataRowId": "oJDzh2mVBms.1.5.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm8iauuny0ew807uia566cn9v",
+    "createdAt": "2025-03-21T04:48:15.567Z",
+    "updatedAt": "2025-03-21T04:48:22.221Z",
+    "labelId": "cm8ia39500ze507hb4q0r872k",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm7ks5oqb08p50730fwi22rw0",
+    "createdById": "cm5tkocek04uo0746hq0kbpyb",
+    "resolvedById": null,
+    "content": "There is a cut",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 178,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    655.482,
+                    0
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 58,
+    "labelerId": "cm5tkocek04uo0746hq0kbpyb",
+    "externalDataRowId": "3esyihbPQm8.0.1.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm8f9lffj0hqr07y672zvc6la",
+    "createdAt": "2025-03-19T01:49:37.760Z",
+    "updatedAt": "2025-03-19T01:49:37.760Z",
+    "labelId": "cm8b1926b01uv07iccee4c0mo",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm7ks5oqb08os0730ozx6g4e9",
+    "createdById": "cm0a9e5qy1atw07tobrqh9cxd",
+    "resolvedById": null,
+    "content": "There is a cut",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 13,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    1029.818,
+                    545.236
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 175,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    1029.818,
+                    545.236
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 56,
+    "labelerId": "cm5tkocek04uo0746hq0kbpyb",
+    "externalDataRowId": "qU7YXMAicK4.0.9.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm81nn0oc093307105bdigp6q",
+    "createdAt": "2025-03-09T13:14:00.109Z",
+    "updatedAt": "2025-03-09T13:14:07.141Z",
+    "labelId": "cm81mycj508vh07is1smp1iol",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm7ks5oqb08ny07309o7lobyr",
+    "createdById": "cm5tkocek04uo0746hq0kbpyb",
+    "resolvedById": null,
+    "content": "The video has been edited.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 1,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    131.482,
+                    0
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 223,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    131.482,
+                    0
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 55,
+    "labelerId": "cm5tkocek04uo0746hq0kbpyb",
+    "externalDataRowId": "qU7YXMAicK4.0.13.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm8147fqq0gt9073r8b645sqn",
+    "createdAt": "2025-03-09T04:10:00.445Z",
+    "updatedAt": "2025-03-09T04:10:00.445Z",
+    "labelId": "cm7zpakkb08vt07ia540rdc48",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm7ks5oqb08ni0730r875talu",
+    "createdById": "cm4w8deut001w07xbh6mj8xxs",
+    "resolvedById": null,
+    "content": "cut",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 14,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    543.007,
+                    470.119
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 697,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    543.007,
+                    470.119
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 54,
+    "labelerId": "cm6q61vji0b0v07y1c4fm471a",
+    "externalDataRowId": "zR63m0JN5WY.0.2.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm7zpedap03rp070gdt926le3",
+    "createdAt": "2025-03-08T04:27:43.444Z",
+    "updatedAt": "2025-03-08T04:27:54.718Z",
+    "labelId": "cm7zpakkb08vt07ia540rdc48",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm7ks5oqb08ni0730r875talu",
+    "createdById": "cm6q61vji0b0v07y1c4fm471a",
+    "resolvedById": null,
+    "content": "\u201cThe video has a cut\"in message text boX",
+    "position": {
+      "data": [],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 53,
+    "labelerId": "cm6q61vji0b0v07y1c4fm471a",
+    "externalDataRowId": "zR63m0JN5WY.0.2.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm7yqnbzf0j1l07z7g6g91j12",
+    "createdAt": "2025-03-07T12:14:55.084Z",
+    "updatedAt": "2025-03-07T12:15:03.340Z",
+    "labelId": "cm7yqivg8040507e6dcfsbe0h",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm7ks5oqb08ne0730ow7l1fpj",
+    "createdById": "cm5tkocek04uo0746hq0kbpyb",
+    "resolvedById": null,
+    "content": "The video has been edited.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 1,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    365.629,
+                    192.383
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 844,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    365.629,
+                    192.383
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 52,
+    "labelerId": "cm5tkocek04uo0746hq0kbpyb",
+    "externalDataRowId": "zR63m0JN5WY.0.1.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm7yql2uc0h5x07zaddy107rn",
+    "createdAt": "2025-03-07T12:13:09.927Z",
+    "updatedAt": "2025-03-07T12:14:21.211Z",
+    "labelId": "cm7yqgzv206dn07e59jb14831",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm7ks5oqb08nd0730kbf9pf18",
+    "createdById": "cm5tkocek04uo0746hq0kbpyb",
+    "resolvedById": null,
+    "content": "The video has been edited.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 1,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    153,
+                    52
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 1279,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    153,
+                    52
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point",
+      "isDeleted": false
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 51,
+    "labelerId": "cm5tkocek04uo0746hq0kbpyb",
+    "externalDataRowId": "vlDzYIIOYmM.1.5.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm7t5sxhv05tc070dbymp5vdi",
+    "createdAt": "2025-03-03T14:32:33.429Z",
+    "updatedAt": "2025-03-04T00:58:35.414Z",
+    "labelId": "cm7t4g93x07zh07e39afyfv6r",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm41il2ud0cpk0877a82ihpgp",
+    "createdById": "cm6q61vji0b0v07y1c4fm471a",
+    "resolvedById": null,
+    "content": "The video has a cut\" in message text box",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 47,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    888.983,
+                    522.581
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 101,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    888.983,
+                    522.581
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 50,
+    "labelerId": "cm6q61vji0b0v07y1c4fm471a",
+    "externalDataRowId": "QDEFkpAHUcs.0.2.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5rdwlrt015n074f56eneyof",
+    "createdAt": "2025-01-10T23:24:24.762Z",
+    "updatedAt": "2025-01-10T23:24:24.762Z",
+    "labelId": "cm5gxugtx0ev907c3214hax1l",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm29okmk01flz0712hztvj1r2",
+    "createdById": "clbcbyn4g1pss07012nnt7xks",
+    "resolvedById": null,
+    "content": "The video has a cut. ",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 115,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    984.327,
+                    399.649
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 120,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    984.327,
+                    399.649
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 48,
+    "labelerId": "clv2uqu8103h8071ldna83rym",
+    "externalDataRowId": "IWv0EhEGmNI.10.1.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5pwccah0bzv07xh6udvc3wg",
+    "createdAt": "2025-01-09T22:24:59.706Z",
+    "updatedAt": "2025-01-09T22:24:59.706Z",
+    "labelId": "cm5h23snr028507hqby94d66z",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1jcw0e2y0752ppmm8436",
+    "createdById": "clbcbyn4g1pss07012nnt7xks",
+    "resolvedById": null,
+    "content": "The video has a cut. ",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 58,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    649.818,
+                    267.555
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 107,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    649.818,
+                    267.555
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 47,
+    "labelerId": "clbcbyn4g1pss07012nnt7xks",
+    "externalDataRowId": "3HYfPz8lvDI.1.2.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5puuzwf024e07yhho54bzec",
+    "createdAt": "2025-01-09T21:43:30.880Z",
+    "updatedAt": "2025-01-09T21:43:30.880Z",
+    "labelId": "cm5h1stsr049e07ig2sjwczld",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1jcv0dw30752l69o3rrh",
+    "createdById": "clbcbyn4g1pss07012nnt7xks",
+    "resolvedById": null,
+    "content": " The video has a black screen last half",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 28,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    806.29,
+                    289.345
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 53,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    806.29,
+                    289.345
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 46,
+    "labelerId": "clv2uqu8103h8071ldna83rym",
+    "externalDataRowId": "0Pzq0URbL2M.6.9.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5po6pve087407ut4oma64sn",
+    "createdAt": "2025-01-09T18:36:40.444Z",
+    "updatedAt": "2025-01-09T18:36:45.720Z",
+    "labelId": "cm5pnzv8l086x08h92y5758e3",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1jw40fbx0752s3pjusiu",
+    "createdById": "clv2uqu8103h8071ldna83rym",
+    "resolvedById": null,
+    "content": "The video is clear at the beginning but at the end it gets completely dark.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 49,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    1125.846,
+                    403.538
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 56,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    1125.846,
+                    403.538
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 45,
+    "labelerId": "clv2uqu8103h8071ldna83rym",
+    "externalDataRowId": "VaSlqE0Nx2Q.12.1.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5po0dir0g3807y5bjtvfbx0",
+    "createdAt": "2025-01-09T18:31:44.501Z",
+    "updatedAt": "2025-01-09T18:31:55.487Z",
+    "labelId": "cm5pnw40p01py07i6ffiq16u5",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1jnz0epd075274c8tt3n",
+    "createdById": "clv2uqu8103h8071ldna83rym",
+    "resolvedById": null,
+    "content": "the video should be skipped",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 24,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    845.838,
+                    452.497
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 195,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    845.838,
+                    452.497
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 44,
+    "labelerId": "clv2uqu8103h8071ldna83rym",
+    "externalDataRowId": "JGiXuXc3cao.8.4.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5pibz3a071d07xw6j8igapb",
+    "createdAt": "2025-01-09T15:52:47.976Z",
+    "updatedAt": "2025-01-09T15:52:52.364Z",
+    "labelId": "cm5pi8x7i0igf07gteyno529g",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm0qbblcs2ilk0757n76zwb1s",
+    "createdById": "clv2uqu8103h8071ldna83rym",
+    "resolvedById": null,
+    "content": "the video should be skipped",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 1,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    1206.989,
+                    662.993
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 33,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    1206.989,
+                    662.993
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 43,
+    "labelerId": "clv2uqu8103h8071ldna83rym",
+    "externalDataRowId": "4859.1.15.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5od9lj903o007yjfgsodsvl",
+    "createdAt": "2025-01-08T20:43:12.838Z",
+    "updatedAt": "2025-01-08T20:43:18.056Z",
+    "labelId": "cm5od6enq0cko07cfglhh0qyx",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1jnz0elb0752madocmz5",
+    "createdById": "clv2uqu8103h8071ldna83rym",
+    "resolvedById": null,
+    "content": "the video should be skipped",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 53,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    723.373,
+                    303.141
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 128,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    723.373,
+                    303.141
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 42,
+    "labelerId": "clv2uqu8103h8071ldna83rym",
+    "externalDataRowId": "GVr8pZmSa-c.6.0.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5o7mnig056l07zta883elm1",
+    "createdAt": "2025-01-08T18:05:24.234Z",
+    "updatedAt": "2025-01-08T18:05:31.409Z",
+    "labelId": "cm5o7iy0804z807c91n5ebrdv",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm41il32t0dij0877lvkakj9l",
+    "createdById": "clv2uqu8103h8071ldna83rym",
+    "resolvedById": null,
+    "content": "the video should be skipped",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 14,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    1209.427,
+                    549.686
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 700,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    1209.427,
+                    549.686
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 41,
+    "labelerId": "clv2uqu8103h8071ldna83rym",
+    "externalDataRowId": "GjEImPidK4g.9.4.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5o6ib260a7t07ws9ebd2f4t",
+    "createdAt": "2025-01-08T17:34:01.856Z",
+    "updatedAt": "2025-01-08T17:34:06.595Z",
+    "labelId": "cm5o6fynd03m907f97m508gq6",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm41il2jw0bvr0877snhoigi4",
+    "createdById": "clxkjaun9041007y494nze9aa",
+    "resolvedById": null,
+    "content": "This video has a cut.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 220,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    197.465,
+                    347.497
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 40,
+    "labelerId": "clxkjaun9041007y494nze9aa",
+    "externalDataRowId": "t2_J-RVP7EM.3.0.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5o2cq3f00hk07v6e562hlzq",
+    "createdAt": "2025-01-08T15:37:42.941Z",
+    "updatedAt": "2025-01-08T15:37:46.889Z",
+    "labelId": "cm5o28inx002d07io2wm0eldo",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm41il32t0dfg0877qot0w4o6",
+    "createdById": "clxkjaun9041007y494nze9aa",
+    "resolvedById": null,
+    "content": "this video has a cut.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 80,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    544.125,
+                    450.097
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 39,
+    "labelerId": "clxkjaun9041007y494nze9aa",
+    "externalDataRowId": "hI9HQfCAw64.0.5.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5n2aquu088x07wodx2ce41t",
+    "createdAt": "2025-01-07T22:48:24.441Z",
+    "updatedAt": "2025-01-07T22:48:29.250Z",
+    "labelId": "cm5n26qcv09p907imcmx3158j",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm41il2jw0bwo08772t6acupd",
+    "createdById": "clbcbyn4g1pss07012nnt7xks",
+    "resolvedById": null,
+    "content": "The video has a cut. ",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 149,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    838.606,
+                    339.207
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 237,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    838.606,
+                    339.207
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 38,
+    "labelerId": "clbcbyn4g1pss07012nnt7xks",
+    "externalDataRowId": "zu3K-bc67bo.0.1.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5n08t220e6c07zl2piu1hwe",
+    "createdAt": "2025-01-07T21:50:54.748Z",
+    "updatedAt": "2025-01-07T21:50:57.053Z",
+    "labelId": "cm5n05mmz01wo07dn6nqm6vhf",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1jjf0eer0752s7qa2yfw",
+    "createdById": "clxkjaun9041007y494nze9aa",
+    "resolvedById": null,
+    "content": "there is a cut in this video.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 85,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    131.149,
+                    409.495
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 37,
+    "labelerId": "clxkjaun9041007y494nze9aa",
+    "externalDataRowId": "bazSwSbo9rU.4.5.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5mzyopl076t07zr1bpg3s08",
+    "createdAt": "2025-01-07T21:43:02.555Z",
+    "updatedAt": "2025-01-07T21:43:06.231Z",
+    "labelId": "cm5mztua300yg07f7gliv5w8b",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm13l3arf1gue0733bcmm45qn",
+    "createdById": "clxkjaun9041007y494nze9aa",
+    "resolvedById": null,
+    "content": "there is a cut in this video.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 148,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    631.128,
+                    432.696
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 36,
+    "labelerId": "clxkjaun9041007y494nze9aa",
+    "externalDataRowId": "YSnzFyUeFS4.2.10.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5mybqd40eb507w65zed56ex",
+    "createdAt": "2025-01-07T20:57:11.993Z",
+    "updatedAt": "2025-01-07T20:57:15.949Z",
+    "labelId": "cm5my6p530apd07ga19h8gzds",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1js10f5q07526yqoujtl",
+    "createdById": "clv2uqu8103h8071ldna83rym",
+    "resolvedById": null,
+    "content": "the video should be skipped",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 231,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    642.56,
+                    504.859
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 35,
+    "labelerId": "clv2uqu8103h8071ldna83rym",
+    "externalDataRowId": "u5lhJHUwvOs.1.2.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5mtvf5k01lf07wy994f9iye",
+    "createdAt": "2025-01-07T18:52:32.506Z",
+    "updatedAt": "2025-01-07T18:52:35.096Z",
+    "labelId": "cm5mttsxi06oo07dualx8fvbw",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1jcw0e2n0752njluxttd",
+    "createdById": "clxkjaun9041007y494nze9aa",
+    "resolvedById": null,
+    "content": "there is a cut in this video.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 14,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    12.825,
+                    249.409
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 42,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    12.825,
+                    249.409
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 34,
+    "labelerId": "clxkjaun9041007y494nze9aa",
+    "externalDataRowId": "3HYfPz8lvDI.0.6.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5mtumma017q07xl9hs2fri7",
+    "createdAt": "2025-01-07T18:51:55.523Z",
+    "updatedAt": "2025-01-07T18:51:58.936Z",
+    "labelId": "cm5mtqlsu01g107e83suu5xtm",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm0qbblcs2ipm0757igm6fjek",
+    "createdById": "clxkjaun9041007y494nze9aa",
+    "resolvedById": null,
+    "content": "there is a cut in this video.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 90,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    0,
+                    200.687
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 33,
+    "labelerId": "clxkjaun9041007y494nze9aa",
+    "externalDataRowId": "6303.0.20.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5mrhszj08uy07vnehx183kg",
+    "createdAt": "2025-01-07T17:45:58.016Z",
+    "updatedAt": "2025-01-07T17:46:02.329Z",
+    "labelId": "cm5mrgjnx047p07dlhgpu7sfm",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm0qbbl5t2ibk0757wjyhrdbs",
+    "createdById": "clv2uqu8103h8071ldna83rym",
+    "resolvedById": null,
+    "content": "the video should be skipped",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 27,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    1420.998,
+                    817.614
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 32,
+    "labelerId": "clv2uqu8103h8071ldna83rym",
+    "externalDataRowId": "1265.1.24.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5moults0n8p07y37zl752ty",
+    "createdAt": "2025-01-07T16:31:56.419Z",
+    "updatedAt": "2025-01-07T16:32:01.082Z",
+    "labelId": "cm5moje8n00vr07dc7pvqayt8",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm0qbblhn2iv90757cvz844ne",
+    "createdById": "clv2uqu8103h8071ldna83rym",
+    "resolvedById": null,
+    "content": "the video should be skipped",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 107,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    737.44,
+                    523.601
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 31,
+    "labelerId": "clv2uqu8103h8071ldna83rym",
+    "externalDataRowId": "FqDKHWjpVVQ.16.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5mo3o3n0cnd07wg6j0ngk32",
+    "createdAt": "2025-01-07T16:10:59.653Z",
+    "updatedAt": "2025-01-07T16:11:04.250Z",
+    "labelId": "cm5mnzf1c008b07dx6rkzd8t9",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1jjf0e8j0752i8cwy1ms",
+    "createdById": "clv2uqu8103h8071ldna83rym",
+    "resolvedById": null,
+    "content": "the video should be skipped",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 83,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    1147.157,
+                    569.595
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 30,
+    "labelerId": "clv2uqu8103h8071ldna83rym",
+    "externalDataRowId": "5eDQ2SSsmEk.8.7.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5lpbspw0fcp07xf8urc7aq3",
+    "createdAt": "2025-01-06T23:57:32.325Z",
+    "updatedAt": "2025-01-06T23:57:37.173Z",
+    "labelId": "cm5lp7u7c066807ew6t11htr1",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm41il32t0dfi0877hkp5de21",
+    "createdById": "clbcbyn4g1pss07012nnt7xks",
+    "resolvedById": null,
+    "content": "The video has a cut.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 76,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    673.147,
+                    385.737
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 29,
+    "labelerId": "clbcbyn4g1pss07012nnt7xks",
+    "externalDataRowId": "hI9HQfCAw64.0.3.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5lm5tql07a907z86pp81kgx",
+    "createdAt": "2025-01-06T22:28:54.864Z",
+    "updatedAt": "2025-01-06T22:28:58.129Z",
+    "labelId": "cm5lm2lfa05q107e30st89g87",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm41il2ud0cte0877o4xq6tnw",
+    "createdById": "clxkjaun9041007y494nze9aa",
+    "resolvedById": null,
+    "content": "This video has a cut.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 50,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    539.936,
+                    498.283
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 28,
+    "labelerId": "clxkjaun9041007y494nze9aa",
+    "externalDataRowId": "P8JgTjTPIuk.2.4.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5lkfwo903o407z8dl7ogqbs",
+    "createdAt": "2025-01-06T21:40:45.995Z",
+    "updatedAt": "2025-01-06T21:40:49.147Z",
+    "labelId": "cm5lkefgq00z807fx212p98jl",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm41il2jw0bvq0877an31vf4a",
+    "createdById": "clxkjaun9041007y494nze9aa",
+    "resolvedById": null,
+    "content": "There is a cut in this video.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 242,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    476.395,
+                    297.682
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 27,
+    "labelerId": "clxkjaun9041007y494nze9aa",
+    "externalDataRowId": "t2_J-RVP7EM.3.1.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5ljm48d07a507z26lxagrwb",
+    "createdAt": "2025-01-06T21:17:36.112Z",
+    "updatedAt": "2025-01-06T21:17:40.428Z",
+    "labelId": "cm5ljjqbt01g607d48lgzh0de",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1jnz0eqd075207l9ai0d",
+    "createdById": "clxkjaun9041007y494nze9aa",
+    "resolvedById": null,
+    "content": "there is a cut in this video.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 36,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    342.489,
+                    366.695
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 80,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    342.489,
+                    366.695
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 26,
+    "labelerId": "clxkjaun9041007y494nze9aa",
+    "externalDataRowId": "KoJ0Pih0Ssc.1.1.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5lbhlu50e69070a12vm0vdu",
+    "createdAt": "2025-01-06T17:30:08.718Z",
+    "updatedAt": "2025-01-06T17:30:11.690Z",
+    "labelId": "cm5lberxv03x507gaewkecoip",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1jw40fk10752jjmj4obc",
+    "createdById": "clxkjaun9041007y494nze9aa",
+    "resolvedById": null,
+    "content": "this video has a cut.",
+    "position": {
+      "data": [],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 25,
+    "labelerId": "clxkjaun9041007y494nze9aa",
+    "externalDataRowId": "YBC2JaevzOI.6.3.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5laefea0afy07wy246a8ama",
+    "createdAt": "2025-01-06T16:59:40.788Z",
+    "updatedAt": "2025-01-06T16:59:44.000Z",
+    "labelId": "cm5lacrho03hm07jt9ze1ccp8",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1js10f4u0752dj6a0ggi",
+    "createdById": "clxkjaun9041007y494nze9aa",
+    "resolvedById": null,
+    "content": "this is a cut this video.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 121,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    574.7,
+                    507.554
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 24,
+    "labelerId": "clxkjaun9041007y494nze9aa",
+    "externalDataRowId": "ti231UvSvfQ.16.0.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5la7fx909fy070cayli4syr",
+    "createdAt": "2025-01-06T16:54:14.878Z",
+    "updatedAt": "2025-01-06T16:54:17.928Z",
+    "labelId": "cm5la5x2702j807hy9ldf39mk",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm0qbblcs2im00757lfbhfm4x",
+    "createdById": "clxkjaun9041007y494nze9aa",
+    "resolvedById": null,
+    "content": "this is a cut this video.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 1,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    437.665,
+                    825.064
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 35,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    437.665,
+                    825.064
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 23,
+    "labelerId": "clxkjaun9041007y494nze9aa",
+    "externalDataRowId": "4859.1.31.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5l7ams203wn070u839l4vml",
+    "createdAt": "2025-01-06T15:32:44.885Z",
+    "updatedAt": "2025-01-06T15:32:48.035Z",
+    "labelId": "cm5l767xe030v07e8hqhkgx5x",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1jjf0egz07525u6vbqqw",
+    "createdById": "clv2uqu8103h8071ldna83rym",
+    "resolvedById": null,
+    "content": "the video should be skipped",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 77,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    465.683,
+                    469.718
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 189,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    465.683,
+                    469.718
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 22,
+    "labelerId": "clv2uqu8103h8071ldna83rym",
+    "externalDataRowId": "ct7R8nnI-s0.7.2.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5heuwfe08wq08vag8hxbf44",
+    "createdAt": "2025-01-03T23:53:23.115Z",
+    "updatedAt": "2025-01-03T23:53:32.878Z",
+    "labelId": "cm5het5b304kn07hy32rbe4po",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1js10f08075286xcm53a",
+    "createdById": "clv2uqu8103h8071ldna83rym",
+    "resolvedById": null,
+    "content": "the video should be skipped",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 105,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    1040.824,
+                    278.785
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 212,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    1040.824,
+                    278.785
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 21,
+    "labelerId": "clv2uqu8103h8071ldna83rym",
+    "externalDataRowId": "pfGEdmZyVyY.0.0.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5hesply09tk07yiezzp01a1",
+    "createdAt": "2025-01-03T23:51:40.973Z",
+    "updatedAt": "2025-01-03T23:52:00.802Z",
+    "labelId": "cm5her83b04q407fa8vcf178z",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1jjf0e8g0752ws0ipv29",
+    "createdById": "clv2uqu8103h8071ldna83rym",
+    "resolvedById": null,
+    "content": "the video should be skipped",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 137,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    1176.216,
+                    615.259
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 146,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    1176.216,
+                    615.259
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 20,
+    "labelerId": "clv2uqu8103h8071ldna83rym",
+    "externalDataRowId": "5eDQ2SSsmEk.8.4.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5hep6aw08jb07y29qqbbpx4",
+    "createdAt": "2025-01-03T23:48:55.978Z",
+    "updatedAt": "2025-01-03T23:48:58.583Z",
+    "labelId": "cm5henjeh051307ez79gjb15f",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1jnz0exc07528sas9eed",
+    "createdById": "clv2uqu8103h8071ldna83rym",
+    "resolvedById": null,
+    "content": "the video should be skipped",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 179,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    1036.8,
+                    223.135
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 394,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    1036.8,
+                    223.135
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 19,
+    "labelerId": "clv2uqu8103h8071ldna83rym",
+    "externalDataRowId": "mIiPt1YVkP8.6.5.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5hdwug3076107y15kbg211q",
+    "createdAt": "2025-01-03T23:26:54.245Z",
+    "updatedAt": "2025-01-03T23:26:56.797Z",
+    "labelId": "cm5hdv86f046r07fafv0md2jv",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm0qbblcs2im90757weyaxp8r",
+    "createdById": "clxkjaun9041007y494nze9aa",
+    "resolvedById": null,
+    "content": "This video has a cut.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 117,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    0,
+                    326.512
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 18,
+    "labelerId": "clxkjaun9041007y494nze9aa",
+    "externalDataRowId": "4881.0.2.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5hdw6p4085607wy9qb6a31w",
+    "createdAt": "2025-01-03T23:26:23.465Z",
+    "updatedAt": "2025-01-03T23:26:26.406Z",
+    "labelId": "cm5hdtmif04lo08j4d2r7c56a",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm0qbbl5t2ibn0757gpwwpeb1",
+    "createdById": "clxkjaun9041007y494nze9aa",
+    "resolvedById": null,
+    "content": "This video has a cut.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 42,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    767.927,
+                    803.721
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 17,
+    "labelerId": "clxkjaun9041007y494nze9aa",
+    "externalDataRowId": "1265.1.27.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5hcdyy5037s07yg8b2s32jb",
+    "createdAt": "2025-01-03T22:44:14.000Z",
+    "updatedAt": "2025-01-03T22:44:21.165Z",
+    "labelId": "cm5hcd9tg02zi07i246ge5jck",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1jcv0e05075282zklzfv",
+    "createdById": "clv2uqu8103h8071ldna83rym",
+    "resolvedById": null,
+    "content": "the video should be skipped",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 128,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    962.076,
+                    435.892
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 16,
+    "labelerId": "clv2uqu8103h8071ldna83rym",
+    "externalDataRowId": "3epU697sU9E.1.0.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5hcdmkn05oi07x248dpeidb",
+    "createdAt": "2025-01-03T22:43:57.963Z",
+    "updatedAt": "2025-01-03T22:44:00.617Z",
+    "labelId": "cm5hc515002ta07fa2l462n38",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1jjf0e9o0752kyr7c3o1",
+    "createdById": "clv2uqu8103h8071ldna83rym",
+    "resolvedById": null,
+    "content": "the video should be skipped",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 209,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    1257.859,
+                    533.616
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 15,
+    "labelerId": "clv2uqu8103h8071ldna83rym",
+    "externalDataRowId": "5eDQ2SSsmEk.15.4.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5hc9opm05k707x22dkefkuh",
+    "createdAt": "2025-01-03T22:40:54.107Z",
+    "updatedAt": "2025-01-03T22:41:06.417Z",
+    "labelId": "cm5hc1pxa037207ezahgq8apr",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm13l3amk1gh10733qh9lxt4i",
+    "createdById": "clbcbyn4g1pss07012nnt7xks",
+    "resolvedById": null,
+    "content": "The video has some cuts. ",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 123,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    606.08,
+                    441.231
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 14,
+    "labelerId": "clbcbyn4g1pss07012nnt7xks",
+    "externalDataRowId": "OCBYMQzG44U.2.17.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5hc2rfw05ol07vicfrybng3",
+    "createdAt": "2025-01-03T22:35:31.059Z",
+    "updatedAt": "2025-01-03T22:35:36.254Z",
+    "labelId": "cm5hby42y02p907gleppkcswv",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1jcw0e3y075234ncognc",
+    "createdById": "clv2uqu8103h8071ldna83rym",
+    "resolvedById": null,
+    "content": "the video should be skipped",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 70,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    1025.597,
+                    573.97
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 13,
+    "labelerId": "clv2uqu8103h8071ldna83rym",
+    "externalDataRowId": "3zU-4Ft0MKQ.1.6.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5hbwhla07j707xn2eohg1id",
+    "createdAt": "2025-01-03T22:30:38.364Z",
+    "updatedAt": "2025-01-03T22:30:40.919Z",
+    "labelId": "cm5hbsxbw02kp07i2791ofdhe",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm0qbbl5t2iaz075703ztrxro",
+    "createdById": "clxkjaun9041007y494nze9aa",
+    "resolvedById": null,
+    "content": "There is a cut in this video.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 44,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    230.657,
+                    681.416
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 12,
+    "labelerId": "clxkjaun9041007y494nze9aa",
+    "externalDataRowId": "1265.1.3.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5hbf1d104m407x2egwy23fv",
+    "createdAt": "2025-01-03T22:17:04.167Z",
+    "updatedAt": "2025-01-03T22:17:06.636Z",
+    "labelId": "cm5harm7701w407db3yg2eqnb",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1jjf0ee10752jvsozdw6",
+    "createdById": "clxkjaun9041007y494nze9aa",
+    "resolvedById": null,
+    "content": "There is a cut in this video.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 370,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    520.465,
+                    340.708
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 11,
+    "labelerId": "clxkjaun9041007y494nze9aa",
+    "externalDataRowId": "bazSwSbo9rU.1.1.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5haaumg040x07wyg8835a7d",
+    "createdAt": "2025-01-03T21:45:49.194Z",
+    "updatedAt": "2025-01-03T21:45:53.453Z",
+    "labelId": "cm5ha8nlx01au08f2grrybu4h",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1jjg0eij075221yivw4e",
+    "createdById": "clxkjaun9041007y494nze9aa",
+    "resolvedById": null,
+    "content": "There is a cut in this video.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 141,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    294.419,
+                    511.062
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 10,
+    "labelerId": "clxkjaun9041007y494nze9aa",
+    "externalDataRowId": "e_ofen9SDeM.2.3.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5ha8key03ld07ys23mr7jcm",
+    "createdAt": "2025-01-03T21:44:02.655Z",
+    "updatedAt": "2025-01-03T21:44:06.207Z",
+    "labelId": "cm5ha605o017k08j41nm49uo7",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1jjf0ebe07521eh4oun9",
+    "createdById": "clxkjaun9041007y494nze9aa",
+    "resolvedById": null,
+    "content": "There is a cut in this video.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 8,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    266.975,
+                    265.277
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 9,
+    "labelerId": "clxkjaun9041007y494nze9aa",
+    "externalDataRowId": "8iZ8RtiJq14.10.2.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5h8nl5m01bm08va5bpwfblb",
+    "createdAt": "2025-01-03T20:59:44.219Z",
+    "updatedAt": "2025-01-03T20:59:48.823Z",
+    "labelId": "cm5h8lddr00vm07gy8fb6fapb",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1jnz0esn0752vt2h7etm",
+    "createdById": "clv2uqu8103h8071ldna83rym",
+    "resolvedById": null,
+    "content": "the video should be skipped",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 35,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    557.319,
+                    342.486
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 8,
+    "labelerId": "clv2uqu8103h8071ldna83rym",
+    "externalDataRowId": "LtXUoaZcp70.0.5.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5h499qo0qat07u2fqm403y4",
+    "createdAt": "2025-01-03T18:56:37.778Z",
+    "updatedAt": "2025-01-03T18:56:40.672Z",
+    "labelId": "cm5h42clh06ul07j30k6laxhq",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1jnz0es20752f4srs25s",
+    "createdById": "clv2uqu8103h8071ldna83rym",
+    "resolvedById": null,
+    "content": "the video should be skipped",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 75,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    780.454,
+                    499.2
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 123,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    780.454,
+                    499.2
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 7,
+    "labelerId": "clv2uqu8103h8071ldna83rym",
+    "externalDataRowId": "L0zS8z8YqJ8.3.1.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5h44nwd08w207wl7bomamtm",
+    "createdAt": "2025-01-03T18:53:02.847Z",
+    "updatedAt": "2025-01-23T22:32:21.000Z",
+    "labelId": "cm5h42i25075e07igb0vw9mki",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm13l3amk1gcw07339vro57is",
+    "createdById": "clbcbyn4g1pss07012nnt7xks",
+    "resolvedById": null,
+    "content": "The video has some cuts. ",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 64,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    1348.839,
+                    247.65
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 132,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    1348.839,
+                    247.65
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 6,
+    "labelerId": "clbcbyn4g1pss07012nnt7xks",
+    "externalDataRowId": "MuNyfqxAO6Y.8.7.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5h3xfog04rd07xre9uvhkwg",
+    "createdAt": "2025-01-03T18:47:25.602Z",
+    "updatedAt": "2025-01-03T18:47:29.399Z",
+    "labelId": "cm5h3vkoo06iw07j3hp217ac4",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1js10f7q0752vx2cebdj",
+    "createdById": "clxkjaun9041007y494nze9aa",
+    "resolvedById": null,
+    "content": "this video has a cut.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 292,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    447.801,
+                    248.218
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 5,
+    "labelerId": "clxkjaun9041007y494nze9aa",
+    "externalDataRowId": "upC8hjr2b4g.4.4.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5h1gx5805ex07tw9s3c3q2t",
+    "createdAt": "2025-01-03T17:38:35.854Z",
+    "updatedAt": "2025-01-03T17:38:39.394Z",
+    "labelId": "cm5h1djsh03xz07h410s1hns1",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1jjf0ee60752jbuydci9",
+    "createdById": "clbcbyn4g1pss07012nnt7xks",
+    "resolvedById": null,
+    "content": "The video has some cuts. ",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 352,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    619.548,
+                    179.345
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 4,
+    "labelerId": "clbcbyn4g1pss07012nnt7xks",
+    "externalDataRowId": "bazSwSbo9rU.1.6.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5gwjrd0074k07yo48xhci4d",
+    "createdAt": "2025-01-03T15:20:50.245Z",
+    "updatedAt": "2025-01-03T15:20:53.995Z",
+    "labelId": "cm5gwgtvw0dcl07gh27evdz7f",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm13l3abg1fpg07336p2eetlu",
+    "createdById": "clv2uqu8103h8071ldna83rym",
+    "resolvedById": null,
+    "content": "the video should be skipped",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 54,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    824.043,
+                    226.265
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 3,
+    "labelerId": "clv2uqu8103h8071ldna83rym",
+    "externalDataRowId": "6zblV1RyJWM.2.2.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5gwf7zc01sf07x4abaic6na",
+    "createdAt": "2025-01-03T15:17:18.506Z",
+    "updatedAt": "2025-01-03T15:17:24.399Z",
+    "labelId": "cm5gwblcd016b07g351iibf52",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm0qbblcs2inr0757lw2n70e8",
+    "createdById": "clv2uqu8103h8071ldna83rym",
+    "resolvedById": null,
+    "content": "the video should be skipped",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 157,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    407.115,
+                    542.343
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 2,
+    "labelerId": "clv2uqu8103h8071ldna83rym",
+    "externalDataRowId": "5454.1.21.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm5gwaw830mef07vm7r5leimg",
+    "createdAt": "2025-01-03T15:13:56.646Z",
+    "updatedAt": "2025-01-03T15:14:01.387Z",
+    "labelId": "cm5gwa16f0dmi07ctbns2bjj9",
+    "projectId": "cm56rp9oc0i5m071j0zy2eq8c",
+    "dataRowId": "cm3sk1jnz0em607525ruh4hub",
+    "createdById": "clbcbyn4g1pss07012nnt7xks",
+    "resolvedById": null,
+    "content": "The video has a cut.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 162,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    1186.719,
+                    196.498
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 182,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    1186.719,
+                    196.498
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 1,
+    "labelerId": "clbcbyn4g1pss07012nnt7xks",
+    "externalDataRowId": "hHG1wva1B0w.4.0.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  }
+]

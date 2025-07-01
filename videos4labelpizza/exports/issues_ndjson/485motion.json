@@ -1,0 +1,413 @@
+[
+  {
+    "id": "cm8gypwxg05pn07wdaq7n7ra6",
+    "createdAt": "2025-03-20T06:20:43.637Z",
+    "updatedAt": "2025-03-20T06:20:47.009Z",
+    "labelId": "cm8gym8l002na07ho8t5d1ntz",
+    "projectId": "cm899n7xl0gaw074g7cadewhk",
+    "dataRowId": "cm7ks5oqb08qi0730484fzvs1",
+    "createdById": "cm2fntpnx05qe071z88bq3262",
+    "resolvedById": null,
+    "content": "Hard Cut happens here",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 107,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    948.776,
+                    618.568
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 121,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    948.776,
+                    618.568
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 12,
+    "labelerId": "cm2fntpnx05qe071z88bq3262",
+    "externalDataRowId": "MQA15Yhymog.0.0.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm8gxi01b05lm07xuf65nfd96",
+    "createdAt": "2025-03-20T05:46:34.802Z",
+    "updatedAt": "2025-03-20T05:48:14.800Z",
+    "labelId": "cm8gxaqmr0vx407ho559whj38",
+    "projectId": "cm899n7xl0gaw074g7cadewhk",
+    "dataRowId": "cm7ks5oqb08q90730pwj66zaw",
+    "createdById": "cm2fntpnx05qe071z88bq3262",
+    "resolvedById": null,
+    "content": "Hard cut happens here",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 72,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    707.433,
+                    566.087
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 11,
+    "labelerId": "cm2fntpnx05qe071z88bq3262",
+    "externalDataRowId": "jVtnuLL2Kqs.0.10.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm8ckb8w802uw071fd9l6atdx",
+    "createdAt": "2025-03-17T04:26:19.978Z",
+    "updatedAt": "2025-03-17T04:26:19.978Z",
+    "labelId": "cm8citq770pkt07h94kqedegf",
+    "projectId": "cm899n7xl0gaw074g7cadewhk",
+    "dataRowId": "cm7ks5oqb08p90730h66i8mfg",
+    "createdById": "cm5un4i7p0ha4074vdh2620uq",
+    "resolvedById": null,
+    "content": "skip due to hard cut at the last frame",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 143,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    423.006,
+                    422.783
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 8,
+    "labelerId": "cm5un4i7p0ha4074vdh2620uq",
+    "externalDataRowId": "oJDzh2mVBms.1.5.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm8c5abd90d8z072of251anae",
+    "createdAt": "2025-03-16T21:25:42.302Z",
+    "updatedAt": "2025-03-16T21:25:47.887Z",
+    "labelId": "cm8c4ob6y003a07b0bz6x2u3t",
+    "projectId": "cm899n7xl0gaw074g7cadewhk",
+    "dataRowId": "cm7ks5oqb08p50730fwi22rw0",
+    "createdById": "cm5un4i7p0ha4074vdh2620uq",
+    "resolvedById": null,
+    "content": "potential hard cuts",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 172,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    849.903,
+                    410.68
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 178,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    849.903,
+                    410.68
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 7,
+    "labelerId": "cm5un4i7p0ha4074vdh2620uq",
+    "externalDataRowId": "3esyihbPQm8.0.1.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm8b9lr9i02ut073mfq8c9kcx",
+    "createdAt": "2025-03-16T06:38:48.391Z",
+    "updatedAt": "2025-03-16T06:38:53.443Z",
+    "labelId": "cm8b9erab01wk07exetca4g2d",
+    "projectId": "cm899n7xl0gaw074g7cadewhk",
+    "dataRowId": "cm7ks5oqb08os0730ozx6g4e9",
+    "createdById": "cm5un4i7p0ha4074vdh2620uq",
+    "resolvedById": null,
+    "content": "It seems there's a hard cut here, which is different from the previous videos in this series; Maybe this video should be skipped.",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 95,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    702.233,
+                    531.262
+                  ]
+                }
+              },
+              "isInferred": false
+            },
+            {
+              "frame": 175,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    702.233,
+                    531.262
+                  ]
+                }
+              },
+              "isInferred": true
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 5,
+    "labelerId": "cm5un4i7p0ha4074vdh2620uq",
+    "externalDataRowId": "qU7YXMAicK4.0.9.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm8b00hdv01xw074gbsuudepy",
+    "createdAt": "2025-03-16T02:10:19.269Z",
+    "updatedAt": "2025-03-16T02:10:39.267Z",
+    "labelId": "cm8azp8eg00ia07hfbj9o27d5",
+    "projectId": "cm899n7xl0gaw074g7cadewhk",
+    "dataRowId": "cm7ks5oqb08ni0730r875talu",
+    "createdById": "cm5un4i7p0ha4074vdh2620uq",
+    "resolvedById": null,
+    "content": "skip due to hard cuts",
+    "position": {
+      "data": [],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 3,
+    "labelerId": "cm5un4i7p0ha4074vdh2620uq",
+    "externalDataRowId": "zR63m0JN5WY.0.2.mp4",
+    "contentUpdatedAt": "2025-03-16T02:10:25.000Z",
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm8az9mw70993074xagmadcof",
+    "createdAt": "2025-03-16T01:49:26.696Z",
+    "updatedAt": "2025-03-16T01:49:32.009Z",
+    "labelId": "cm8ayv3hx00ba07hf21v5fdnf",
+    "projectId": "cm899n7xl0gaw074g7cadewhk",
+    "dataRowId": "cm7ks5oqb08ne0730ow7l1fpj",
+    "createdById": "cm5un4i7p0ha4074vdh2620uq",
+    "resolvedById": null,
+    "content": "skip due to hard cuts",
+    "position": {
+      "data": [],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 2,
+    "labelerId": "cm5un4i7p0ha4074vdh2620uq",
+    "externalDataRowId": "zR63m0JN5WY.0.1.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  },
+  {
+    "id": "cm8az4k9v06kk074qf1h0h4pd",
+    "createdAt": "2025-03-16T01:45:30.021Z",
+    "updatedAt": "2025-03-16T01:45:47.383Z",
+    "labelId": "cm8ayv34y005y07k92fztfo7y",
+    "projectId": "cm899n7xl0gaw074g7cadewhk",
+    "dataRowId": "cm7ks5oqb08nd0730kbf9pf18",
+    "createdById": "cm5un4i7p0ha4074vdh2620uq",
+    "resolvedById": null,
+    "content": "skip due to multiple hard cuts",
+    "position": {
+      "data": [
+        {
+          "keyframes": [
+            {
+              "frame": 1279,
+              "content": {
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    857.226,
+                    444.194
+                  ]
+                }
+              },
+              "isInferred": false
+            }
+          ]
+        }
+      ],
+      "type": "keyframes.geojson.point"
+    },
+    "resolvedAt": null,
+    "status": "Open",
+    "friendlyId": 1,
+    "labelerId": "cm5un4i7p0ha4074vdh2620uq",
+    "externalDataRowId": "vlDzYIIOYmM.1.5.mp4",
+    "contentUpdatedAt": null,
+    "labelerOrgId": "cm07odnla0f4y07vabssh8ewd",
+    "acknowledgedById": null,
+    "acknowledgedAt": null,
+    "forwardedById": null,
+    "forwardedAt": null,
+    "type": "Issue",
+    "receivingOrgId": null,
+    "createdByOrgId": null,
+    "updateType": null,
+    "sharedWithAllOrganizations": 0,
+    "categoryId": null,
+    "comments": []
+  }
+]

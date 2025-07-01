@@ -1,0 +1,2162 @@
+[
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/-BDGaFxkGX4_0_180.0.mp4",
+        "metadata": {
+            "original_youtube_id": "-BDGaFxkGX4",
+            "start_frame": 3,
+            "end_frame": 178,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/0FmwpU0rk80_22290_23400.1.0.mp4",
+        "metadata": {
+            "original_youtube_id": "0FmwpU0rk80",
+            "start_frame": 22918,
+            "end_frame": 23069,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/0FmwpU0rk80_26010_26280.0.mp4",
+        "metadata": {
+            "original_youtube_id": "0FmwpU0rk80",
+            "start_frame": 26013,
+            "end_frame": 26223,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/0FmwpU0rk80_47670_48000.0.mp4",
+        "metadata": {
+            "original_youtube_id": "0FmwpU0rk80",
+            "start_frame": 47768,
+            "end_frame": 47879,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/0FmwpU0rk80_48600_52200.0.0.mp4",
+        "metadata": {
+            "original_youtube_id": "0FmwpU0rk80",
+            "start_frame": 48799,
+            "end_frame": 48934,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/0FmwpU0rk80_48600_52200.1.0.mp4",
+        "metadata": {
+            "original_youtube_id": "0FmwpU0rk80",
+            "start_frame": 49195,
+            "end_frame": 49304,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/0FmwpU0rk80_48600_52200.2.0.mp4",
+        "metadata": {
+            "original_youtube_id": "0FmwpU0rk80",
+            "start_frame": 49497,
+            "end_frame": 49744,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/0FmwpU0rk80_48600_52200.3.0.mp4",
+        "metadata": {
+            "original_youtube_id": "0FmwpU0rk80",
+            "start_frame": 49749,
+            "end_frame": 49884,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/0FmwpU0rk80_48600_52200.4.0.mp4",
+        "metadata": {
+            "original_youtube_id": "0FmwpU0rk80",
+            "start_frame": 50249,
+            "end_frame": 50493,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/0FmwpU0rk80_48600_52200.5.0.mp4",
+        "metadata": {
+            "original_youtube_id": "0FmwpU0rk80",
+            "start_frame": 50499,
+            "end_frame": 50608,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/0FmwpU0rk80_48600_52200.5.1.mp4",
+        "metadata": {
+            "original_youtube_id": "0FmwpU0rk80",
+            "start_frame": 50613,
+            "end_frame": 50772,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/0FmwpU0rk80_48600_52200.6.0.mp4",
+        "metadata": {
+            "original_youtube_id": "0FmwpU0rk80",
+            "start_frame": 50858,
+            "end_frame": 50998,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/0FmwpU0rk80_48600_52200.6.1.mp4",
+        "metadata": {
+            "original_youtube_id": "0FmwpU0rk80",
+            "start_frame": 51246,
+            "end_frame": 51371,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/0wiBHEACNHs_870_1050.0.mp4",
+        "metadata": {
+            "original_youtube_id": "0wiBHEACNHs",
+            "start_frame": 914,
+            "end_frame": 1012,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/23urWKmHS6o_5130_5280.0.mp4",
+        "metadata": {
+            "original_youtube_id": "23urWKmHS6o",
+            "start_frame": 5133,
+            "end_frame": 5241,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/2PyNKmslSw8_780_870.0.mp4",
+        "metadata": {
+            "original_youtube_id": "2PyNKmslSw8",
+            "start_frame": 783,
+            "end_frame": 868,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/3j3urLdPFuE_4140_4470.0.mp4",
+        "metadata": {
+            "original_youtube_id": "3j3urLdPFuE",
+            "start_frame": 4143,
+            "end_frame": 4306,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/3j3urLdPFuE_4140_4470.1.mp4",
+        "metadata": {
+            "original_youtube_id": "3j3urLdPFuE",
+            "start_frame": 4321,
+            "end_frame": 4412,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/3puttLj7dXY_11460_11610.0.mp4",
+        "metadata": {
+            "original_youtube_id": "3puttLj7dXY",
+            "start_frame": 11463,
+            "end_frame": 11578,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/54pWL29bh1w_18120_18660.0.mp4",
+        "metadata": {
+            "original_youtube_id": "54pWL29bh1w",
+            "start_frame": 18162,
+            "end_frame": 18568,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/54pWL29bh1w_54810_55200.0.mp4",
+        "metadata": {
+            "original_youtube_id": "54pWL29bh1w",
+            "start_frame": 54813,
+            "end_frame": 55132,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/5hTMYk7orHw_600_750.0.mp4",
+        "metadata": {
+            "original_youtube_id": "5hTMYk7orHw",
+            "start_frame": 603,
+            "end_frame": 718,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/8vCnlPyBJgI_390_540.0.mp4",
+        "metadata": {
+            "original_youtube_id": "8vCnlPyBJgI",
+            "start_frame": 393,
+            "end_frame": 538,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/9RHFFeQ2tu4_3510_3660.0.mp4",
+        "metadata": {
+            "original_youtube_id": "9RHFFeQ2tu4",
+            "start_frame": 3522,
+            "end_frame": 3628,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/9Z-NbQvhzKM_4320_4530.0.mp4",
+        "metadata": {
+            "original_youtube_id": "9Z-NbQvhzKM",
+            "start_frame": 4323,
+            "end_frame": 4486,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/APB-AKpnKT4_1500_2700.0.0.mp4",
+        "metadata": {
+            "original_youtube_id": "APB-AKpnKT4",
+            "start_frame": 1503,
+            "end_frame": 1681,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/APB-AKpnKT4_1500_2700.0.1.mp4",
+        "metadata": {
+            "original_youtube_id": "APB-AKpnKT4",
+            "start_frame": 1978,
+            "end_frame": 2232,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/APB-AKpnKT4_1500_2700.1.0.mp4",
+        "metadata": {
+            "original_youtube_id": "APB-AKpnKT4",
+            "start_frame": 2319,
+            "end_frame": 2384,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/APB-AKpnKT4_1500_2700.1.1.mp4",
+        "metadata": {
+            "original_youtube_id": "APB-AKpnKT4",
+            "start_frame": 2386,
+            "end_frame": 2461,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/APB-AKpnKT4_1500_2700.1.2.mp4",
+        "metadata": {
+            "original_youtube_id": "APB-AKpnKT4",
+            "start_frame": 2529,
+            "end_frame": 2584,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/APB-AKpnKT4_1500_2700.1.3.mp4",
+        "metadata": {
+            "original_youtube_id": "APB-AKpnKT4",
+            "start_frame": 2587,
+            "end_frame": 2697,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/AWrn76kJfec_90_240.0.mp4",
+        "metadata": {
+            "original_youtube_id": "AWrn76kJfec",
+            "start_frame": 93,
+            "end_frame": 208,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/Bn-3ICGjz0U_150_300.0.mp4",
+        "metadata": {
+            "original_youtube_id": "Bn-3ICGjz0U",
+            "start_frame": 165,
+            "end_frame": 298,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/Bn-3ICGjz0U_3870_4200.0.mp4",
+        "metadata": {
+            "original_youtube_id": "Bn-3ICGjz0U",
+            "start_frame": 3876,
+            "end_frame": 4195,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/Bn-3ICGjz0U_6990_7170.0.mp4",
+        "metadata": {
+            "original_youtube_id": "Bn-3ICGjz0U",
+            "start_frame": 6993,
+            "end_frame": 7168,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/Bn-3ICGjz0U_8610_8790.0.mp4",
+        "metadata": {
+            "original_youtube_id": "Bn-3ICGjz0U",
+            "start_frame": 8621,
+            "end_frame": 8788,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/CAMWdvo71ls_780_930.0.mp4",
+        "metadata": {
+            "original_youtube_id": "CAMWdvo71ls",
+            "start_frame": 783,
+            "end_frame": 903,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/D7Hdm_iqhmA_12090_12180.0.mp4",
+        "metadata": {
+            "original_youtube_id": "D7Hdm_iqhmA",
+            "start_frame": 12093,
+            "end_frame": 12163,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/FWvya3ui7hk_2250_2460.0.mp4",
+        "metadata": {
+            "original_youtube_id": "FWvya3ui7hk",
+            "start_frame": 2253,
+            "end_frame": 2423,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/FoO7Pmx0bE4_750_900.0.mp4",
+        "metadata": {
+            "original_youtube_id": "FoO7Pmx0bE4",
+            "start_frame": 764,
+            "end_frame": 868,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/FxG-7AsbjeI_4440_4950.0.mp4",
+        "metadata": {
+            "original_youtube_id": "FxG-7AsbjeI",
+            "start_frame": 4458,
+            "end_frame": 4711,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/FxG-7AsbjeI_4440_4950.1.mp4",
+        "metadata": {
+            "original_youtube_id": "FxG-7AsbjeI",
+            "start_frame": 4713,
+            "end_frame": 4799,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/GaEV8Bquv5Q_19680_20370.0.mp4",
+        "metadata": {
+            "original_youtube_id": "GaEV8Bquv5Q",
+            "start_frame": 19683,
+            "end_frame": 19753,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/GaEV8Bquv5Q_19680_20370.1.mp4",
+        "metadata": {
+            "original_youtube_id": "GaEV8Bquv5Q",
+            "start_frame": 19809,
+            "end_frame": 19940,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/GaEV8Bquv5Q_19680_20370.2.mp4",
+        "metadata": {
+            "original_youtube_id": "GaEV8Bquv5Q",
+            "start_frame": 20101,
+            "end_frame": 20180,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/GaEV8Bquv5Q_19680_20370.3.mp4",
+        "metadata": {
+            "original_youtube_id": "GaEV8Bquv5Q",
+            "start_frame": 20797,
+            "end_frame": 21058,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/GaEV8Bquv5Q_20490_20640.0.mp4",
+        "metadata": {
+            "original_youtube_id": "GaEV8Bquv5Q",
+            "start_frame": 20493,
+            "end_frame": 20617,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/HH6tnTQUJD4_1710_1800.0.mp4",
+        "metadata": {
+            "original_youtube_id": "HH6tnTQUJD4",
+            "start_frame": 1713,
+            "end_frame": 1780,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/HH6tnTQUJD4_6120_6360.0.mp4",
+        "metadata": {
+            "original_youtube_id": "HH6tnTQUJD4",
+            "start_frame": 6123,
+            "end_frame": 6310,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/HH6tnTQUJD4_990_1230.0.mp4",
+        "metadata": {
+            "original_youtube_id": "HH6tnTQUJD4",
+            "start_frame": 994,
+            "end_frame": 1179,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/HkujLO17Ez8_900_1050.0.mp4",
+        "metadata": {
+            "original_youtube_id": "HkujLO17Ez8",
+            "start_frame": 903,
+            "end_frame": 937,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/HkujLO17Ez8_900_1050.1.mp4",
+        "metadata": {
+            "original_youtube_id": "HkujLO17Ez8",
+            "start_frame": 939,
+            "end_frame": 1018,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/I-ieGsris8w_0_600.0.mp4",
+        "metadata": {
+            "original_youtube_id": "I-ieGsris8w",
+            "start_frame": 3,
+            "end_frame": 83,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/I-ieGsris8w_0_600.1.mp4",
+        "metadata": {
+            "original_youtube_id": "I-ieGsris8w",
+            "start_frame": 233,
+            "end_frame": 478,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/I-ieGsris8w_14970_15270.0.mp4",
+        "metadata": {
+            "original_youtube_id": "I-ieGsris8w",
+            "start_frame": 14987,
+            "end_frame": 15042,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/I-ieGsris8w_14970_15270.1.mp4",
+        "metadata": {
+            "original_youtube_id": "I-ieGsris8w",
+            "start_frame": 15044,
+            "end_frame": 15083,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/I-ieGsris8w_1920_2310.0.mp4",
+        "metadata": {
+            "original_youtube_id": "I-ieGsris8w",
+            "start_frame": 1923,
+            "end_frame": 2155,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/I-ieGsris8w_1920_2310.1.mp4",
+        "metadata": {
+            "original_youtube_id": "I-ieGsris8w",
+            "start_frame": 2157,
+            "end_frame": 2230,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/I-ieGsris8w_6600_6810.0.mp4",
+        "metadata": {
+            "original_youtube_id": "I-ieGsris8w",
+            "start_frame": 6630,
+            "end_frame": 6716,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/I-ieGsris8w_6600_6810.1.mp4",
+        "metadata": {
+            "original_youtube_id": "I-ieGsris8w",
+            "start_frame": 6717,
+            "end_frame": 6766,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/IIoCHWtVhIU_0_120.0.mp4",
+        "metadata": {
+            "original_youtube_id": "IIoCHWtVhIU",
+            "start_frame": 3,
+            "end_frame": 98,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/IIoCHWtVhIU_1800_2040.0.mp4",
+        "metadata": {
+            "original_youtube_id": "IIoCHWtVhIU",
+            "start_frame": 1803,
+            "end_frame": 1895,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/IIoCHWtVhIU_1800_2040.1.mp4",
+        "metadata": {
+            "original_youtube_id": "IIoCHWtVhIU",
+            "start_frame": 1963,
+            "end_frame": 1999,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/IIoCHWtVhIU_240_600.0.mp4",
+        "metadata": {
+            "original_youtube_id": "IIoCHWtVhIU",
+            "start_frame": 265,
+            "end_frame": 538,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/IIoCHWtVhIU_3810_4050.0.mp4",
+        "metadata": {
+            "original_youtube_id": "IIoCHWtVhIU",
+            "start_frame": 3880,
+            "end_frame": 4008,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/IIoCHWtVhIU_4140_4290.0.mp4",
+        "metadata": {
+            "original_youtube_id": "IIoCHWtVhIU",
+            "start_frame": 4143,
+            "end_frame": 4263,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/IIoCHWtVhIU_5400_5550.0.mp4",
+        "metadata": {
+            "original_youtube_id": "IIoCHWtVhIU",
+            "start_frame": 5438,
+            "end_frame": 5519,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/IPi_lDf_lWA_5340_5460.0.mp4",
+        "metadata": {
+            "original_youtube_id": "IPi_lDf_lWA",
+            "start_frame": 5343,
+            "end_frame": 5434,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/IfRSk7i_DMc_4050_4440.0.mp4",
+        "metadata": {
+            "original_youtube_id": "IfRSk7i_DMc",
+            "start_frame": 4053,
+            "end_frame": 4115,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/IfRSk7i_DMc_4050_4440.1.mp4",
+        "metadata": {
+            "original_youtube_id": "IfRSk7i_DMc",
+            "start_frame": 4116,
+            "end_frame": 4169,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/IfRSk7i_DMc_4050_4440.2.mp4",
+        "metadata": {
+            "original_youtube_id": "IfRSk7i_DMc",
+            "start_frame": 4257,
+            "end_frame": 4360,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/Ith4urAYoaM_4950_5100.0.mp4",
+        "metadata": {
+            "original_youtube_id": "Ith4urAYoaM",
+            "start_frame": 4953,
+            "end_frame": 5068,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/Ith4urAYoaM_6180_6330.0.mp4",
+        "metadata": {
+            "original_youtube_id": "Ith4urAYoaM",
+            "start_frame": 6194,
+            "end_frame": 6298,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/J-fKUhF7WXs_720_1800.0.mp4",
+        "metadata": {
+            "original_youtube_id": "J-fKUhF7WXs",
+            "start_frame": 723,
+            "end_frame": 863,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/J-fKUhF7WXs_720_1800.1.mp4",
+        "metadata": {
+            "original_youtube_id": "J-fKUhF7WXs",
+            "start_frame": 940,
+            "end_frame": 1118,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/KGgOz_gRD_c_1740_1950.0.mp4",
+        "metadata": {
+            "original_youtube_id": "KGgOz_gRD_c",
+            "start_frame": 1754,
+            "end_frame": 1913,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/KGgOz_gRD_c_180_300.0.mp4",
+        "metadata": {
+            "original_youtube_id": "KGgOz_gRD_c",
+            "start_frame": 183,
+            "end_frame": 278,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/KnD_NkGTEXo_1110_1710.0.mp4",
+        "metadata": {
+            "original_youtube_id": "KnD_NkGTEXo",
+            "start_frame": 1119,
+            "end_frame": 1578,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/L2NchjI5Q0I_16200_17100.0.mp4",
+        "metadata": {
+            "original_youtube_id": "L2NchjI5Q0I",
+            "start_frame": 16202,
+            "end_frame": 16267,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/L2NchjI5Q0I_16200_17100.1.mp4",
+        "metadata": {
+            "original_youtube_id": "L2NchjI5Q0I",
+            "start_frame": 16302,
+            "end_frame": 16366,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/L2NchjI5Q0I_16200_17100.2.mp4",
+        "metadata": {
+            "original_youtube_id": "L2NchjI5Q0I",
+            "start_frame": 16478,
+            "end_frame": 16544,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/L2NchjI5Q0I_16200_17100.3.mp4",
+        "metadata": {
+            "original_youtube_id": "L2NchjI5Q0I",
+            "start_frame": 16651,
+            "end_frame": 16767,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/L2NchjI5Q0I_16200_17100.4.mp4",
+        "metadata": {
+            "original_youtube_id": "L2NchjI5Q0I",
+            "start_frame": 16859,
+            "end_frame": 16918,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/L4qM1IEhtNQ_14730_14880.0.mp4",
+        "metadata": {
+            "original_youtube_id": "L4qM1IEhtNQ",
+            "start_frame": 14733,
+            "end_frame": 14853,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/L4qM1IEhtNQ_1890_2040.0.mp4",
+        "metadata": {
+            "original_youtube_id": "L4qM1IEhtNQ",
+            "start_frame": 1900,
+            "end_frame": 2013,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/L4qM1IEhtNQ_390_600.0.mp4",
+        "metadata": {
+            "original_youtube_id": "L4qM1IEhtNQ",
+            "start_frame": 399,
+            "end_frame": 563,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/LZ2kSbSrDLs_3960_4200.0.mp4",
+        "metadata": {
+            "original_youtube_id": "LZ2kSbSrDLs",
+            "start_frame": 3964,
+            "end_frame": 4150,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/LoIBDOtHoN0_11190_11400.0.mp4",
+        "metadata": {
+            "original_youtube_id": "LoIBDOtHoN0",
+            "start_frame": 11203,
+            "end_frame": 11356,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/LoIBDOtHoN0_5760_6000.0.mp4",
+        "metadata": {
+            "original_youtube_id": "LoIBDOtHoN0",
+            "start_frame": 5763,
+            "end_frame": 5823,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/LoIBDOtHoN0_5760_6000.1.mp4",
+        "metadata": {
+            "original_youtube_id": "LoIBDOtHoN0",
+            "start_frame": 5825,
+            "end_frame": 5869,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/MLREmtVIqVQ_6900_7050.0.mp4",
+        "metadata": {
+            "original_youtube_id": "MLREmtVIqVQ",
+            "start_frame": 6903,
+            "end_frame": 7048,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/MLREmtVIqVQ_9240_9690.0.mp4",
+        "metadata": {
+            "original_youtube_id": "MLREmtVIqVQ",
+            "start_frame": 9338,
+            "end_frame": 9688,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/NtAbrYcOKyM_13650_13800.0.mp4",
+        "metadata": {
+            "original_youtube_id": "NtAbrYcOKyM",
+            "start_frame": 13653,
+            "end_frame": 13768,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/NtAbrYcOKyM_15060_15210.0.mp4",
+        "metadata": {
+            "original_youtube_id": "NtAbrYcOKyM",
+            "start_frame": 15063,
+            "end_frame": 15178,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/OK71beK9hnY_12210_12360.0.mp4",
+        "metadata": {
+            "original_youtube_id": "OK71beK9hnY",
+            "start_frame": 12213,
+            "end_frame": 12328,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/OK71beK9hnY_12480_12630.0.mp4",
+        "metadata": {
+            "original_youtube_id": "OK71beK9hnY",
+            "start_frame": 12488,
+            "end_frame": 12598,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/P1jXmJmmj3o_300_1800.0.mp4",
+        "metadata": {
+            "original_youtube_id": "P1jXmJmmj3o",
+            "start_frame": 303,
+            "end_frame": 478,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/P1jXmJmmj3o_300_1800.1.mp4",
+        "metadata": {
+            "original_youtube_id": "P1jXmJmmj3o",
+            "start_frame": 592,
+            "end_frame": 718,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/P1jXmJmmj3o_300_1800.2.mp4",
+        "metadata": {
+            "original_youtube_id": "P1jXmJmmj3o",
+            "start_frame": 742,
+            "end_frame": 952,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/P1jXmJmmj3o_300_1800.3.mp4",
+        "metadata": {
+            "original_youtube_id": "P1jXmJmmj3o",
+            "start_frame": 1085,
+            "end_frame": 1244,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/P1jXmJmmj3o_300_1800.4.mp4",
+        "metadata": {
+            "original_youtube_id": "P1jXmJmmj3o",
+            "start_frame": 1294,
+            "end_frame": 1499,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/PK5bA2owwhM_1560_1740.0.mp4",
+        "metadata": {
+            "original_youtube_id": "PK5bA2owwhM",
+            "start_frame": 1563,
+            "end_frame": 1702,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/PK5bA2owwhM_2610_2760.0.mp4",
+        "metadata": {
+            "original_youtube_id": "PK5bA2owwhM",
+            "start_frame": 2613,
+            "end_frame": 2728,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/PK5bA2owwhM_4500_4650.0.mp4",
+        "metadata": {
+            "original_youtube_id": "PK5bA2owwhM",
+            "start_frame": 4503,
+            "end_frame": 4618,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/PzZpgBAVJkU_50040_50250.0.mp4",
+        "metadata": {
+            "original_youtube_id": "PzZpgBAVJkU",
+            "start_frame": 50056,
+            "end_frame": 50112,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/PzZpgBAVJkU_50040_50250.1.mp4",
+        "metadata": {
+            "original_youtube_id": "PzZpgBAVJkU",
+            "start_frame": 50114,
+            "end_frame": 50150,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/PzZpgBAVJkU_50040_50250.2.mp4",
+        "metadata": {
+            "original_youtube_id": "PzZpgBAVJkU",
+            "start_frame": 50152,
+            "end_frame": 50229,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/Q3iIOpijMV4_0_1200.0.0.mp4",
+        "metadata": {
+            "original_youtube_id": "Q3iIOpijMV4",
+            "start_frame": 170,
+            "end_frame": 284,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/Q3iIOpijMV4_0_1200.0.1.mp4",
+        "metadata": {
+            "original_youtube_id": "Q3iIOpijMV4",
+            "start_frame": 484,
+            "end_frame": 549,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/Q3iIOpijMV4_0_1200.1.0.mp4",
+        "metadata": {
+            "original_youtube_id": "Q3iIOpijMV4",
+            "start_frame": 752,
+            "end_frame": 811,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/Q3iIOpijMV4_0_1200.1.1.mp4",
+        "metadata": {
+            "original_youtube_id": "Q3iIOpijMV4",
+            "start_frame": 813,
+            "end_frame": 919,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/Q3iIOpijMV4_0_1200.1.2.mp4",
+        "metadata": {
+            "original_youtube_id": "Q3iIOpijMV4",
+            "start_frame": 921,
+            "end_frame": 998,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/R3W9zplEiV0_2820_2970.0.mp4",
+        "metadata": {
+            "original_youtube_id": "R3W9zplEiV0",
+            "start_frame": 2823,
+            "end_frame": 2943,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/R3W9zplEiV0_6420_6570.0.mp4",
+        "metadata": {
+            "original_youtube_id": "R3W9zplEiV0",
+            "start_frame": 6430,
+            "end_frame": 6543,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/R3W9zplEiV0_780_1080.0.mp4",
+        "metadata": {
+            "original_youtube_id": "R3W9zplEiV0",
+            "start_frame": 785,
+            "end_frame": 952,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/T8PcBTvdxPs_900_1050.0.mp4",
+        "metadata": {
+            "original_youtube_id": "T8PcBTvdxPs",
+            "start_frame": 916,
+            "end_frame": 1018,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/TIqXKz-MUmU_2880_3300.0.mp4",
+        "metadata": {
+            "original_youtube_id": "TIqXKz-MUmU",
+            "start_frame": 2883,
+            "end_frame": 3214,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/UKftOH54iNU_2280_2700.0.mp4",
+        "metadata": {
+            "original_youtube_id": "UKftOH54iNU",
+            "start_frame": 2283,
+            "end_frame": 2373,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/UKftOH54iNU_2280_2700.1.mp4",
+        "metadata": {
+            "original_youtube_id": "UKftOH54iNU",
+            "start_frame": 2375,
+            "end_frame": 2628,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/UxzKSHLqdfo_1500_1650.0.mp4",
+        "metadata": {
+            "original_youtube_id": "UxzKSHLqdfo",
+            "start_frame": 1503,
+            "end_frame": 1618,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/UxzKSHLqdfo_2430_2580.0.mp4",
+        "metadata": {
+            "original_youtube_id": "UxzKSHLqdfo",
+            "start_frame": 2448,
+            "end_frame": 2548,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/UxzKSHLqdfo_390_600.0.mp4",
+        "metadata": {
+            "original_youtube_id": "UxzKSHLqdfo",
+            "start_frame": 397,
+            "end_frame": 556,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/V0qc8opGzGg_40350_40500.0.mp4",
+        "metadata": {
+            "original_youtube_id": "V0qc8opGzGg",
+            "start_frame": 40353,
+            "end_frame": 40498,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/V0qc8opGzGg_5430_5550.0.mp4",
+        "metadata": {
+            "original_youtube_id": "V0qc8opGzGg",
+            "start_frame": 5433,
+            "end_frame": 5548,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/V0qc8opGzGg_55590_55710.0.mp4",
+        "metadata": {
+            "original_youtube_id": "V0qc8opGzGg",
+            "start_frame": 55593,
+            "end_frame": 55708,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/V0qc8opGzGg_78810_78960.0.mp4",
+        "metadata": {
+            "original_youtube_id": "V0qc8opGzGg",
+            "start_frame": 78813,
+            "end_frame": 78933,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/V0qc8opGzGg_94500_95340.0.mp4",
+        "metadata": {
+            "original_youtube_id": "V0qc8opGzGg",
+            "start_frame": 94503,
+            "end_frame": 94588,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/V0qc8opGzGg_94500_95340.1.mp4",
+        "metadata": {
+            "original_youtube_id": "V0qc8opGzGg",
+            "start_frame": 94590,
+            "end_frame": 94674,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/V0qc8opGzGg_94500_95340.2.mp4",
+        "metadata": {
+            "original_youtube_id": "V0qc8opGzGg",
+            "start_frame": 94676,
+            "end_frame": 94745,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/V0qc8opGzGg_94500_95340.3.mp4",
+        "metadata": {
+            "original_youtube_id": "V0qc8opGzGg",
+            "start_frame": 95145,
+            "end_frame": 95183,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/V0qc8opGzGg_94500_95340.4.mp4",
+        "metadata": {
+            "original_youtube_id": "V0qc8opGzGg",
+            "start_frame": 95185,
+            "end_frame": 95338,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/V0qc8opGzGg_96270_96450.0.mp4",
+        "metadata": {
+            "original_youtube_id": "V0qc8opGzGg",
+            "start_frame": 96273,
+            "end_frame": 96448,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/Wbv_huklr5E_1800_2010.0.mp4",
+        "metadata": {
+            "original_youtube_id": "Wbv_huklr5E",
+            "start_frame": 1810,
+            "end_frame": 1898,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/Wbv_huklr5E_1800_2010.1.mp4",
+        "metadata": {
+            "original_youtube_id": "Wbv_huklr5E",
+            "start_frame": 1900,
+            "end_frame": 1966,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/WialDpgf5MU_5850_6000.0.mp4",
+        "metadata": {
+            "original_youtube_id": "WialDpgf5MU",
+            "start_frame": 5853,
+            "end_frame": 5968,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/Wz5gzFvzHT4_1200_1350.0.mp4",
+        "metadata": {
+            "original_youtube_id": "Wz5gzFvzHT4",
+            "start_frame": 1203,
+            "end_frame": 1323,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/Wz5gzFvzHT4_3990_4110.0.mp4",
+        "metadata": {
+            "original_youtube_id": "Wz5gzFvzHT4",
+            "start_frame": 3993,
+            "end_frame": 4088,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/XFXYC1rBcf4_6960_7110.0.mp4",
+        "metadata": {
+            "original_youtube_id": "XFXYC1rBcf4",
+            "start_frame": 6963,
+            "end_frame": 7078,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/YQ8qcoGEg4k_10290_10440.0.mp4",
+        "metadata": {
+            "original_youtube_id": "YQ8qcoGEg4k",
+            "start_frame": 10293,
+            "end_frame": 10408,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/YQ8qcoGEg4k_15390_15900.0.mp4",
+        "metadata": {
+            "original_youtube_id": "YQ8qcoGEg4k",
+            "start_frame": 15452,
+            "end_frame": 15510,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/YQ8qcoGEg4k_15390_15900.1.mp4",
+        "metadata": {
+            "original_youtube_id": "YQ8qcoGEg4k",
+            "start_frame": 15512,
+            "end_frame": 15605,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/YQ8qcoGEg4k_15390_15900.2.mp4",
+        "metadata": {
+            "original_youtube_id": "YQ8qcoGEg4k",
+            "start_frame": 15607,
+            "end_frame": 15705,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/YQ8qcoGEg4k_15390_15900.3.mp4",
+        "metadata": {
+            "original_youtube_id": "YQ8qcoGEg4k",
+            "start_frame": 15707,
+            "end_frame": 15796,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/YQ8qcoGEg4k_16410_17250.0.mp4",
+        "metadata": {
+            "original_youtube_id": "YQ8qcoGEg4k",
+            "start_frame": 16584,
+            "end_frame": 16614,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/YQ8qcoGEg4k_16410_17250.1.mp4",
+        "metadata": {
+            "original_youtube_id": "YQ8qcoGEg4k",
+            "start_frame": 16655,
+            "end_frame": 16876,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/YQ8qcoGEg4k_16410_17250.2.mp4",
+        "metadata": {
+            "original_youtube_id": "YQ8qcoGEg4k",
+            "start_frame": 16948,
+            "end_frame": 17080,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/YrbgUtCfnC0_6180_6330.0.mp4",
+        "metadata": {
+            "original_youtube_id": "YrbgUtCfnC0",
+            "start_frame": 6198,
+            "end_frame": 6298,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/YxrTRc0P_xs_3150_3300.0.mp4",
+        "metadata": {
+            "original_youtube_id": "YxrTRc0P_xs",
+            "start_frame": 3153,
+            "end_frame": 3268,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/YxrTRc0P_xs_330_480.0.mp4",
+        "metadata": {
+            "original_youtube_id": "YxrTRc0P_xs",
+            "start_frame": 335,
+            "end_frame": 448,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/YxrTRc0P_xs_5520_5670.0.mp4",
+        "metadata": {
+            "original_youtube_id": "YxrTRc0P_xs",
+            "start_frame": 5523,
+            "end_frame": 5638,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/_IJ-Dqm9E-8_780_930.0.mp4",
+        "metadata": {
+            "original_youtube_id": "_IJ-Dqm9E-8",
+            "start_frame": 798,
+            "end_frame": 898,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/a0q6JMuLBYQ_5280_5700.0.mp4",
+        "metadata": {
+            "original_youtube_id": "a0q6JMuLBYQ",
+            "start_frame": 5288,
+            "end_frame": 5396,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/a0q6JMuLBYQ_5280_5700.1.mp4",
+        "metadata": {
+            "original_youtube_id": "a0q6JMuLBYQ",
+            "start_frame": 5461,
+            "end_frame": 5614,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/a65A626Ed20_990_1110.0.mp4",
+        "metadata": {
+            "original_youtube_id": "a65A626Ed20",
+            "start_frame": 993,
+            "end_frame": 1065,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/a65A626Ed20_990_1110.1.mp4",
+        "metadata": {
+            "original_youtube_id": "a65A626Ed20",
+            "start_frame": 1067,
+            "end_frame": 1088,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/a7_e_NY-f3g_330_390.0.mp4",
+        "metadata": {
+            "original_youtube_id": "a7_e_NY-f3g",
+            "start_frame": 339,
+            "end_frame": 376,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/a7_e_NY-f3g_5520_5580.0.mp4",
+        "metadata": {
+            "original_youtube_id": "a7_e_NY-f3g",
+            "start_frame": 5528,
+            "end_frame": 5567,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/aE7iT8IUnsU_0_180.0.mp4",
+        "metadata": {
+            "original_youtube_id": "aE7iT8IUnsU",
+            "start_frame": 3,
+            "end_frame": 102,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/aE7iT8IUnsU_450_600.0.mp4",
+        "metadata": {
+            "original_youtube_id": "aE7iT8IUnsU",
+            "start_frame": 453,
+            "end_frame": 573,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/aHOaKboBvvA_0_450.0.mp4",
+        "metadata": {
+            "original_youtube_id": "aHOaKboBvvA",
+            "start_frame": 3,
+            "end_frame": 358,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/a_DoEV2b2Tg_3450_3750.0.mp4",
+        "metadata": {
+            "original_youtube_id": "a_DoEV2b2Tg",
+            "start_frame": 3453,
+            "end_frame": 3698,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/a_DoEV2b2Tg_600_1650.0.mp4",
+        "metadata": {
+            "original_youtube_id": "a_DoEV2b2Tg",
+            "start_frame": 651,
+            "end_frame": 871,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/a_DoEV2b2Tg_600_1650.1.mp4",
+        "metadata": {
+            "original_youtube_id": "a_DoEV2b2Tg",
+            "start_frame": 1079,
+            "end_frame": 1333,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/bdBuDg7mrT8_3540_3810.0.mp4",
+        "metadata": {
+            "original_youtube_id": "bdBuDg7mrT8",
+            "start_frame": 3547,
+            "end_frame": 3763,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/c7Gwd5Bzr7k_54150_54600.0.mp4",
+        "metadata": {
+            "original_youtube_id": "c7Gwd5Bzr7k",
+            "start_frame": 54153,
+            "end_frame": 54570,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/c7Gwd5Bzr7k_54150_54600.1.mp4",
+        "metadata": {
+            "original_youtube_id": "c7Gwd5Bzr7k",
+            "start_frame": 54793,
+            "end_frame": 55048,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/cAG_-GXDGME_120_450.0.mp4",
+        "metadata": {
+            "original_youtube_id": "cAG_-GXDGME",
+            "start_frame": 123,
+            "end_frame": 208,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/cAG_-GXDGME_120_450.1.mp4",
+        "metadata": {
+            "original_youtube_id": "cAG_-GXDGME",
+            "start_frame": 210,
+            "end_frame": 393,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/cAG_-GXDGME_1350_1500.0.mp4",
+        "metadata": {
+            "original_youtube_id": "cAG_-GXDGME",
+            "start_frame": 1353,
+            "end_frame": 1473,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/cAG_-GXDGME_240_390.0.mp4",
+        "metadata": {
+            "original_youtube_id": "cAG_-GXDGME",
+            "start_frame": 243,
+            "end_frame": 363,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/cRFSbeHXFwk_0_240.0.mp4",
+        "metadata": {
+            "original_youtube_id": "cRFSbeHXFwk",
+            "start_frame": 3,
+            "end_frame": 190,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/e-rgXXcDBW8_5100_5490.0.mp4",
+        "metadata": {
+            "original_youtube_id": "e-rgXXcDBW8",
+            "start_frame": 5115,
+            "end_frame": 5267,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/e-rgXXcDBW8_5100_5490.1.mp4",
+        "metadata": {
+            "original_youtube_id": "e-rgXXcDBW8",
+            "start_frame": 5269,
+            "end_frame": 5410,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/fmC6b6_ovZY_4560_4680.0.mp4",
+        "metadata": {
+            "original_youtube_id": "fmC6b6_ovZY",
+            "start_frame": 4570,
+            "end_frame": 4654,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/g1BQrq2rZ8g_0_420.0.mp4",
+        "metadata": {
+            "original_youtube_id": "g1BQrq2rZ8g",
+            "start_frame": 3,
+            "end_frame": 348,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/gQuY1ab-40s_12000_12150.0.mp4",
+        "metadata": {
+            "original_youtube_id": "gQuY1ab-40s",
+            "start_frame": 12083,
+            "end_frame": 12118,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/gQuY1ab-40s_180_330.0.mp4",
+        "metadata": {
+            "original_youtube_id": "gQuY1ab-40s",
+            "start_frame": 197,
+            "end_frame": 219,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/gQuY1ab-40s_4470_4710.0.mp4",
+        "metadata": {
+            "original_youtube_id": "gQuY1ab-40s",
+            "start_frame": 4478,
+            "end_frame": 4530,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/gQuY1ab-40s_4470_4710.1.mp4",
+        "metadata": {
+            "original_youtube_id": "gQuY1ab-40s",
+            "start_frame": 4532,
+            "end_frame": 4660,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/gQuY1ab-40s_8130_8370.0.mp4",
+        "metadata": {
+            "original_youtube_id": "gQuY1ab-40s",
+            "start_frame": 8133,
+            "end_frame": 8180,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/gQuY1ab-40s_8130_8370.1.mp4",
+        "metadata": {
+            "original_youtube_id": "gQuY1ab-40s",
+            "start_frame": 8182,
+            "end_frame": 8229,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/gQuY1ab-40s_8130_8370.2.mp4",
+        "metadata": {
+            "original_youtube_id": "gQuY1ab-40s",
+            "start_frame": 8231,
+            "end_frame": 8272,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/gQuY1ab-40s_8130_8370.3.mp4",
+        "metadata": {
+            "original_youtube_id": "gQuY1ab-40s",
+            "start_frame": 8284,
+            "end_frame": 8320,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/i1IKnWDecwA_300_600.0.mp4",
+        "metadata": {
+            "original_youtube_id": "i1IKnWDecwA",
+            "start_frame": 313,
+            "end_frame": 374,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/i1IKnWDecwA_300_600.1.mp4",
+        "metadata": {
+            "original_youtube_id": "i1IKnWDecwA",
+            "start_frame": 375,
+            "end_frame": 538,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/iD_Xi8cB_9E_0_270.0.mp4",
+        "metadata": {
+            "original_youtube_id": "iD_Xi8cB_9E",
+            "start_frame": 84,
+            "end_frame": 208,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/jtkoPngrp0w_1200_1350.0.mp4",
+        "metadata": {
+            "original_youtube_id": "jtkoPngrp0w",
+            "start_frame": 1203,
+            "end_frame": 1223,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/jtkoPngrp0w_1200_1350.1.mp4",
+        "metadata": {
+            "original_youtube_id": "jtkoPngrp0w",
+            "start_frame": 1225,
+            "end_frame": 1263,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/jtkoPngrp0w_1200_1350.2.mp4",
+        "metadata": {
+            "original_youtube_id": "jtkoPngrp0w",
+            "start_frame": 1265,
+            "end_frame": 1293,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/jtkoPngrp0w_19200_19500.0.mp4",
+        "metadata": {
+            "original_youtube_id": "jtkoPngrp0w",
+            "start_frame": 19214,
+            "end_frame": 19448,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/jtkoPngrp0w_7470_7650.0.mp4",
+        "metadata": {
+            "original_youtube_id": "jtkoPngrp0w",
+            "start_frame": 7473,
+            "end_frame": 7617,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/kQ_gCO73ieM_21240_21450.0.mp4",
+        "metadata": {
+            "original_youtube_id": "kQ_gCO73ieM",
+            "start_frame": 21245,
+            "end_frame": 21406,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/lJuDa3dslpo_2850_5220.0.0.mp4",
+        "metadata": {
+            "original_youtube_id": "lJuDa3dslpo",
+            "start_frame": 2853,
+            "end_frame": 3045,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/lJuDa3dslpo_2850_5220.1.0.mp4",
+        "metadata": {
+            "original_youtube_id": "lJuDa3dslpo",
+            "start_frame": 3819,
+            "end_frame": 4096,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/lJuDa3dslpo_2850_5220.2.0.mp4",
+        "metadata": {
+            "original_youtube_id": "lJuDa3dslpo",
+            "start_frame": 4265,
+            "end_frame": 4417,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/lt6vbE8KE7o_13590_13800.0.mp4",
+        "metadata": {
+            "original_youtube_id": "lt6vbE8KE7o",
+            "start_frame": 13593,
+            "end_frame": 13756,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/n95eekfFZZg_2100_2250.0.mp4",
+        "metadata": {
+            "original_youtube_id": "n95eekfFZZg",
+            "start_frame": 2103,
+            "end_frame": 2218,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/oGphyiMnnR0_17280_17430.0.mp4",
+        "metadata": {
+            "original_youtube_id": "oGphyiMnnR0",
+            "start_frame": 17302,
+            "end_frame": 17428,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/pHMH408ltEM_3450_3600.0.mp4",
+        "metadata": {
+            "original_youtube_id": "pHMH408ltEM",
+            "start_frame": 3473,
+            "end_frame": 3568,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/pMSYPmZT1OI_23700_23850.0.mp4",
+        "metadata": {
+            "original_youtube_id": "pMSYPmZT1OI",
+            "start_frame": 23703,
+            "end_frame": 23998,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/pjOtKC_GZ9o_8490_8640.0.mp4",
+        "metadata": {
+            "original_youtube_id": "pjOtKC_GZ9o",
+            "start_frame": 8493,
+            "end_frame": 8608,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/qpbX7SbXOtU_150_390.0.mp4",
+        "metadata": {
+            "original_youtube_id": "qpbX7SbXOtU",
+            "start_frame": 153,
+            "end_frame": 348,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/qpbX7SbXOtU_990_1140.0.mp4",
+        "metadata": {
+            "original_youtube_id": "qpbX7SbXOtU",
+            "start_frame": 993,
+            "end_frame": 1113,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/rJdy5ceEJMA_0_300.0.mp4",
+        "metadata": {
+            "original_youtube_id": "rJdy5ceEJMA",
+            "start_frame": 21,
+            "end_frame": 195,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/rSaAe1cwxas_0_120.0.mp4",
+        "metadata": {
+            "original_youtube_id": "rSaAe1cwxas",
+            "start_frame": 3,
+            "end_frame": 94,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/rSaAe1cwxas_11700_12150.0.mp4",
+        "metadata": {
+            "original_youtube_id": "rSaAe1cwxas",
+            "start_frame": 11703,
+            "end_frame": 11831,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/rSaAe1cwxas_11700_12150.1.mp4",
+        "metadata": {
+            "original_youtube_id": "rSaAe1cwxas",
+            "start_frame": 11833,
+            "end_frame": 11956,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/rSaAe1cwxas_11700_12150.2.mp4",
+        "metadata": {
+            "original_youtube_id": "rSaAe1cwxas",
+            "start_frame": 11958,
+            "end_frame": 12058,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/rSaAe1cwxas_7170_7290.0.mp4",
+        "metadata": {
+            "original_youtube_id": "rSaAe1cwxas",
+            "start_frame": 7179,
+            "end_frame": 7264,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/rSaAe1cwxas_9180_9450.0.mp4",
+        "metadata": {
+            "original_youtube_id": "rSaAe1cwxas",
+            "start_frame": 9194,
+            "end_frame": 9345,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/rSaAe1cwxas_9180_9450.1.mp4",
+        "metadata": {
+            "original_youtube_id": "rSaAe1cwxas",
+            "start_frame": 9347,
+            "end_frame": 9395,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/rY3GkI-Gp7E_2820_3000.0.mp4",
+        "metadata": {
+            "original_youtube_id": "rY3GkI-Gp7E",
+            "start_frame": 2823,
+            "end_frame": 2998,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/rY3GkI-Gp7E_720_1080.0.mp4",
+        "metadata": {
+            "original_youtube_id": "rY3GkI-Gp7E",
+            "start_frame": 723,
+            "end_frame": 778,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/rY3GkI-Gp7E_720_1080.1.mp4",
+        "metadata": {
+            "original_youtube_id": "rY3GkI-Gp7E",
+            "start_frame": 780,
+            "end_frame": 875,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/rY3GkI-Gp7E_720_1080.2.mp4",
+        "metadata": {
+            "original_youtube_id": "rY3GkI-Gp7E",
+            "start_frame": 877,
+            "end_frame": 954,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/rY3GkI-Gp7E_720_1080.3.mp4",
+        "metadata": {
+            "original_youtube_id": "rY3GkI-Gp7E",
+            "start_frame": 1015,
+            "end_frame": 1056,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/rtL5oMyBHPs_180_390.0.mp4",
+        "metadata": {
+            "original_youtube_id": "rtL5oMyBHPs",
+            "start_frame": 183,
+            "end_frame": 346,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/rtL5oMyBHPs_3840_3930.0.mp4",
+        "metadata": {
+            "original_youtube_id": "rtL5oMyBHPs",
+            "start_frame": 3850,
+            "end_frame": 3910,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/sBN1E0VmP1M_7050_7500.0.mp4",
+        "metadata": {
+            "original_youtube_id": "sBN1E0VmP1M",
+            "start_frame": 7053,
+            "end_frame": 7195,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/sBN1E0VmP1M_7050_7500.1.mp4",
+        "metadata": {
+            "original_youtube_id": "sBN1E0VmP1M",
+            "start_frame": 7197,
+            "end_frame": 7265,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/sBN1E0VmP1M_7050_7500.2.mp4",
+        "metadata": {
+            "original_youtube_id": "sBN1E0VmP1M",
+            "start_frame": 7267,
+            "end_frame": 7408,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/sBN1E0VmP1M_990_1140.0.mp4",
+        "metadata": {
+            "original_youtube_id": "sBN1E0VmP1M",
+            "start_frame": 995,
+            "end_frame": 1108,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/te1aiODa7bc_1440_1560.0.mp4",
+        "metadata": {
+            "original_youtube_id": "te1aiODa7bc",
+            "start_frame": 1445,
+            "end_frame": 1495,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/tu9NI7ZC3So_690_840.0.mp4",
+        "metadata": {
+            "original_youtube_id": "tu9NI7ZC3So",
+            "start_frame": 710,
+            "end_frame": 838,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/uJAD80bCnU0_3000_3120.0.mp4",
+        "metadata": {
+            "original_youtube_id": "uJAD80bCnU0",
+            "start_frame": 3008,
+            "end_frame": 3098,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/uiQf-VwiFOg_8190_8310.0.mp4",
+        "metadata": {
+            "original_youtube_id": "uiQf-VwiFOg",
+            "start_frame": 8204,
+            "end_frame": 8284,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/uiXcaJfBW2U_0_210.0.mp4",
+        "metadata": {
+            "original_youtube_id": "uiXcaJfBW2U",
+            "start_frame": 3,
+            "end_frame": 166,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/ujMJXnFuPk0_1950_2190.0.mp4",
+        "metadata": {
+            "original_youtube_id": "ujMJXnFuPk0",
+            "start_frame": 1954,
+            "end_frame": 2186,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/ujMJXnFuPk0_3660_3930.0.mp4",
+        "metadata": {
+            "original_youtube_id": "ujMJXnFuPk0",
+            "start_frame": 3688,
+            "end_frame": 3928,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/ujMJXnFuPk0_390_630.0.mp4",
+        "metadata": {
+            "original_youtube_id": "ujMJXnFuPk0",
+            "start_frame": 405,
+            "end_frame": 627,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/wZ2njttY3BA_0_240.0.mp4",
+        "metadata": {
+            "original_youtube_id": "wZ2njttY3BA",
+            "start_frame": 38,
+            "end_frame": 197,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/yf2vqwmH_SA_12990_13350.0.mp4",
+        "metadata": {
+            "original_youtube_id": "yf2vqwmH_SA",
+            "start_frame": 12993,
+            "end_frame": 13276,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/yf2vqwmH_SA_14250_14400.0.mp4",
+        "metadata": {
+            "original_youtube_id": "yf2vqwmH_SA",
+            "start_frame": 14269,
+            "end_frame": 14368,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/yf2vqwmH_SA_17670_17820.0.mp4",
+        "metadata": {
+            "original_youtube_id": "yf2vqwmH_SA",
+            "start_frame": 17673,
+            "end_frame": 17704,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/yf2vqwmH_SA_17670_17820.1.mp4",
+        "metadata": {
+            "original_youtube_id": "yf2vqwmH_SA",
+            "start_frame": 17706,
+            "end_frame": 17775,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/yf2vqwmH_SA_5280_5550.0.mp4",
+        "metadata": {
+            "original_youtube_id": "yf2vqwmH_SA",
+            "start_frame": 5364,
+            "end_frame": 5458,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/yf2vqwmH_SA_6210_6480.0.mp4",
+        "metadata": {
+            "original_youtube_id": "yf2vqwmH_SA",
+            "start_frame": 6250,
+            "end_frame": 6424,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/z1_tW2YPXaU_2370_2490.0.mp4",
+        "metadata": {
+            "original_youtube_id": "z1_tW2YPXaU",
+            "start_frame": 2408,
+            "end_frame": 2464,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/z1_tW2YPXaU_660_870.0.mp4",
+        "metadata": {
+            "original_youtube_id": "z1_tW2YPXaU",
+            "start_frame": 679,
+            "end_frame": 742,
+            "license": "YouTube Educational License"
+        }
+    },
+    {
+        "url": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/z1_tW2YPXaU_660_870.1.mp4",
+        "metadata": {
+            "original_youtube_id": "z1_tW2YPXaU",
+            "start_frame": 744,
+            "end_frame": 807,
+            "license": "YouTube Educational License"
+        }
+    }
+]

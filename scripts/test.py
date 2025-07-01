@@ -1,8 +1,13 @@
+
+
 import sys
 from pathlib import Path
 import os
 import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from label_pizza.db import init_database
+
+init_database()
 from sqlalchemy import select, insert, update, func, delete, exists, join, distinct, and_, or_, case, text
 from sqlalchemy.orm import Session, selectinload, joinedload, contains_eager  
 
@@ -520,75 +525,6 @@ def delete_all_table_data_with_progress(confirm=True, batch_size=1000):
 
 # Usage
 if __name__ == "__main__":
-    
-    # paths = glob.glob('./annotations/lighting/*.json')
-    # for path in paths:
-    #     if '.ndjson' in path:
-    #         new_path = path.replace('.ndjson', '')
-    #         os.rename(path, new_path)
-    
-    # count_table_records()
-    # count_table_records()
-    # issues = set()
-    # with open('/Users/censiyuan/Desktop/2025CVPR_VideoAnnotation/temp_branch/video_annotation/exports/issues_ndjson/Video_Segment_Classification_Camera_Movement_cm2iljzsz00rg07117sq10jiw_issues.json', 'r') as f:
-    #     data = json.load(f)
-    #     for item in data:
-    #         uid = item['externalDataRowId']
-    #         issues.add(uid)
-    
-    # res = []
-    # with open('./reviews/movement/Camera_Movement_motion_attributes.json', 'r') as f:
-    #     data = json.load(f)
-    #     for item in data:
-    #         new_item = {}
-    #         uid = item['video_uid']
-    #         new_item['question_group_title'] = 'Shot Transition'
-    #         new_item['project_name'] = item['project_name']
-    #         new_item['user_email'] = item['user_email']
-    #         new_item['reviewer_email'] = item['reviewer_email']
-    #         new_item['video_uid'] = uid
-    #         new_item['answers'] = {}
-    #         if uid in issues:
-    #             new_item['answers']['Are there any shot transition?'] = 'Yes'
-    #         else:
-    #             new_item['answers']['Are there any shot transition?'] = 'No'
-    #         res.append(new_item)
-    # with open('./reviews/movement/Camera_Movement_motion_shot_transition.json', 'w') as f:
-    #     json.dump(res, f, indent=2)
-    #                 "question_group_title": "Camera Movement Attributes",
-    # "project_name": "Camera Movement 0",
-    # "user_email": "drjiang@andrew.cmu.edu",
-    # "video_uid": "__F5dY2-N50.1.mp4",
-                
-    # reset_database()
-    # reset_and_create_admin()
-    
-    
-    # paths = glob.glob('./annotations/movement/*.json')
-    # for path in paths:
-    #     with open(path, 'r') as f:
-    #         if 'Camera_Movement_motion_attributes' in path:
-    #             data1 = json.load(f)
-    #         elif 'Camera_Movement_motion_effects' in path:
-    #             data2 = json.load(f)
-    #         elif 'Camera_Movement_tracking_shot' in path:
-    #             data3 = json.load(f)
-    # v1 = {}
-    # v2 = {}
-    # v3 = {}
-    # for i1, i2, i3 in zip(data1, data2, data3):
-    #     v1[i1['video_uid']] = i1['project_name']
-    #     v2[i2['video_uid']] = i2['project_name']
-    #     v3[i3['video_uid']] = i3['project_name']
-    # for vid in v1:
-    #     if vid not in v2 or vid not in v3:
-    #         print(vid)
-    #     p1 = v1[vid]
-    #     p2 = v2[vid]
-    #     p3 = v3[vid]
-    #     if not (p1 == p2 == p3):
-    #         print(vid)
-
 
     # name_email_mapping = {
     #     'Zhiqiu Lin': 'zhiqiul@andrew.cmu.edu',
@@ -706,35 +642,34 @@ if __name__ == "__main__":
     
     
     # annotators
-    # folders = glob.glob('./annotations/*')
-    # annotators = set()
+    annotators = set()
+
+    paths = glob.glob(os.path.join('./CameraLighting/annotations', '*.json'))
+    for path in paths:
+        with open(path, 'r') as f:
+            data = json.load(f)
+        for item in data:
+            annotators.add((item['user_email'], item['project_name']))
+    
+    # # reviewers
+    # folders = glob.glob('./reviews/*')
+    # reviewers = set()
     # for folder in folders:
     #     paths = glob.glob(os.path.join(folder, '*.json'))
     #     for path in paths:
     #         with open(path, 'r') as f:
     #             data = json.load(f)
     #         for item in data:
-    #             annotators.add((item['user_email'], item['project_name']))
+    #             item['reviewer_email'] = 'siyuancen096@gmail.com' if item['reviewer_email'] == '' else item['reviewer_email']
+    #             reviewers.add((item['reviewer_email'], item['project_name']))
     
-    # # # reviewers
-    # # folders = glob.glob('./reviews/*')
-    # # reviewers = set()
-    # # for folder in folders:
-    # #     paths = glob.glob(os.path.join(folder, '*.json'))
-    # #     for path in paths:
-    # #         with open(path, 'r') as f:
-    # #             data = json.load(f)
-    # #         for item in data:
-    # #             item['reviewer_email'] = 'siyuancen096@gmail.com' if item['reviewer_email'] == '' else item['reviewer_email']
-    # #             reviewers.add((item['reviewer_email'], item['project_name']))
-    
-    # final = []
-    # for annotator in annotators:
-    #     final.append({"user_email": annotator[0], "project_name": annotator[1], "role": "annotator"})
-    # # for reviewer in reviewers:
-    # #     final.append({"user_email": reviewer[0], "project_name": reviewer[1], "role": "reviewer"})
-    # with open('./assignments/user_project_assignments.json', 'w') as f:
-    #     json.dump(final, f, indent=2)
+    final = []
+    for annotator in annotators:
+        final.append({"user_email": annotator[0], "project_name": annotator[1], "role": "annotator"})
+    # for reviewer in reviewers:
+    #     final.append({"user_email": reviewer[0], "project_name": reviewer[1], "role": "reviewer"})
+    with open('./CameraLighting/user_project_assignments.json', 'w') as f:
+        json.dump(final, f, indent=2)
     
     # double_checked = {}
     # with open('./annotations/movement/double_checked.json', 'r') as f:
@@ -759,8 +694,30 @@ if __name__ == "__main__":
     #     with open(target_path, 'w') as f:
     #         json.dump(res, f, indent=2)
 
-    
-
+    # with open('./captions/movement/Camera_Movement_motion_attributes.json', 'r') as f:
+    #     data = json.load(f)
+    # reference = {}
+    # for item in data:
+    #     reference[item['video_uid']] = item
+    # with open('./videos_data.json', 'r') as f:
+    #     data = json.load(f)
+    # for item in data:
+    #     video_uid = item['video_name']
+    #     attributes = item['cam_motion']
+    #     if video_uid not in reference:
+    #         continue
+    #     reference_attributes = reference[video_uid]['cam_motion']
+    #     for key, value in attributes.items():
+    #         if key not in reference_attributes:
+    #             continue
+    #         else:
+    #             ref_attribute = reference_attributes[key]
+    #             # print(ref_attribute, value)
+    #             if ref_attribute != value:
+    #                 print(ref_attribute, value)
+    #                 print(video_uid)
+    #                 print('--------------------------------')
+    #                 break
 
 
     
