@@ -209,6 +209,67 @@ def show_personal_reviewer_accuracy(user_id: int, project_id: int, session: Sess
     except Exception as e:
         st.error(f"Error loading your reviewer accuracy data: {str(e)}")
 
+# def display_user_accuracy_simple(user_id: int, project_id: int, role: str, session: Session) -> bool:
+#     """Display simple accuracy for a single user if project is in training mode"""
+#     if not check_project_has_full_ground_truth(project_id=project_id, session=session):
+#         return False
+    
+#     try:
+#         if role == "annotator":
+#             overall_progress = calculate_user_overall_progress(user_id=user_id, project_id=project_id, session=session)
+#             if overall_progress < 100:
+#                 return False
+            
+#             accuracy_data = get_annotator_accuracy_cached(project_id=project_id, session=session)
+#             if user_id not in accuracy_data:
+#                 return False
+            
+#             overall_accuracy_dict = calculate_overall_accuracy(accuracy_data)
+#             accuracy = overall_accuracy_dict.get(user_id)
+            
+#             if accuracy is not None:
+#                 total_answered = sum(stats["total"] for stats in accuracy_data[user_id].values())
+#                 accuracy_badge = format_accuracy_badge(accuracy, total_answered)
+                
+#                 acc_col1, acc_col2 = st.columns([2, 1])
+#                 with acc_col1:
+#                     st.markdown(f"**Your Training Accuracy:** {accuracy_badge}", unsafe_allow_html=True)
+#                 with acc_col2:
+#                     if st.button("📋 View Details", key=f"personal_acc_{user_id}_{project_id}", 
+#                                 help="View detailed accuracy breakdown"):
+#                         show_personal_annotator_accuracy(user_id=user_id, project_id=project_id, session=session)
+#                 return True
+        
+#         elif role == "reviewer":
+#             accuracy_data = get_reviewer_accuracy_cached(project_id=project_id, session=session)
+#             if user_id not in accuracy_data:
+#                 return False
+            
+#             overall_accuracy_dict = calculate_overall_accuracy(accuracy_data)
+#             accuracy = overall_accuracy_dict.get(user_id)
+            
+#             if accuracy is not None:
+#                 total_reviewed = sum(stats["total"] for stats in accuracy_data[user_id].values())
+#                 accuracy_badge = format_accuracy_badge(accuracy, total_reviewed)
+                
+#                 acc_col1, acc_col2 = st.columns([2, 1])
+#                 with acc_col1:
+#                     st.markdown(f"**Your Reviewer Accuracy:** {accuracy_badge}", unsafe_allow_html=True)
+#                 with acc_col2:
+#                     if st.button("📋 View Details", key=f"personal_rev_acc_{user_id}_{project_id}", 
+#                                 help="View detailed reviewer accuracy breakdown"):
+#                         show_personal_reviewer_accuracy(user_id=user_id, project_id=project_id, session=session)
+#                 return True
+        
+#         elif role == "meta_reviewer":
+#             return False
+    
+#     except Exception:
+#         print(f"Error displaying user accuracy: {e}")
+#         pass
+    
+#     return False
+
 def display_user_accuracy_simple(user_id: int, project_id: int, role: str, session: Session) -> bool:
     """Display simple accuracy for a single user if project is in training mode"""
     if not check_project_has_full_ground_truth(project_id=project_id, session=session):
@@ -220,46 +281,98 @@ def display_user_accuracy_simple(user_id: int, project_id: int, role: str, sessi
             if overall_progress < 100:
                 return False
             
-            accuracy_data = get_annotator_accuracy_cached(project_id=project_id, session=session)
-            if user_id not in accuracy_data:
-                return False
+            # CHANGE: Clean UI matching your existing style
+            st.markdown(f"""
+            <div style="{get_card_style(COLORS['info'])}display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <div style="color: #2980b9; font-weight: 600; font-size: 0.95rem;">
+                        📊 Training Accuracy Available
+                    </div>
+                    <div style="color: #34495e; font-size: 0.85rem; margin-top: 2px;">
+                        Click to calculate and view your performance
+                    </div>
+                </div>
+                <div>
+                    <span style="background: {COLORS['info']}; color: white; padding: 6px 12px; border-radius: 8px; font-weight: 500; font-size: 0.85rem;">
+                        📋 Ready
+                    </span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
             
-            overall_accuracy_dict = calculate_overall_accuracy(accuracy_data)
-            accuracy = overall_accuracy_dict.get(user_id)
-            
-            if accuracy is not None:
-                total_answered = sum(stats["total"] for stats in accuracy_data[user_id].values())
-                accuracy_badge = format_accuracy_badge(accuracy, total_answered)
-                
-                acc_col1, acc_col2 = st.columns([2, 1])
-                with acc_col1:
-                    st.markdown(f"**Your Training Accuracy:** {accuracy_badge}", unsafe_allow_html=True)
-                with acc_col2:
-                    if st.button("📋 View Details", key=f"personal_acc_{user_id}_{project_id}", 
-                                help="View detailed accuracy breakdown"):
-                        show_personal_annotator_accuracy(user_id=user_id, project_id=project_id, session=session)
-                return True
+            if st.button("📊 View My Accuracy", key=f"personal_acc_{user_id}_{project_id}", 
+                        help="Calculate and view your training accuracy",
+                        use_container_width=True):
+                with st.spinner("Calculating your accuracy..."):
+                    accuracy_data = get_annotator_accuracy_cached(project_id=project_id, session=session)
+                    if user_id in accuracy_data:
+                        overall_accuracy_dict = calculate_overall_accuracy(accuracy_data)
+                        accuracy = overall_accuracy_dict.get(user_id)
+                        if accuracy is not None:
+                            total_answered = sum(stats["total"] for stats in accuracy_data[user_id].values())
+                            accuracy_badge = format_accuracy_badge(accuracy, total_answered)
+                            
+                            st.markdown(f"""
+                            <div style="{get_card_style(get_accuracy_color(accuracy))}text-align: center;">
+                                <div style="color: {get_accuracy_color(accuracy)}; font-weight: 600; font-size: 1.1rem;">
+                                    🎯 Your Training Accuracy: {accuracy_badge}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            show_personal_annotator_accuracy(user_id=user_id, project_id=project_id, session=session)
+                        else:
+                            custom_info("No accuracy data available")
+                    else:
+                        custom_info("No accuracy data found for your account")
+            return True
         
         elif role == "reviewer":
-            accuracy_data = get_reviewer_accuracy_cached(project_id=project_id, session=session)
-            if user_id not in accuracy_data:
-                return False
+            # CHANGE: Same clean styling for reviewers
+            st.markdown(f"""
+            <div style="{get_card_style(COLORS['warning'])}display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <div style="color: #e67e22; font-weight: 600; font-size: 0.95rem;">
+                        📊 Reviewer Accuracy Available
+                    </div>
+                    <div style="color: #34495e; font-size: 0.85rem; margin-top: 2px;">
+                        See how many of your reviews were kept by admin
+                    </div>
+                </div>
+                <div>
+                    <span style="background: {COLORS['warning']}; color: white; padding: 6px 12px; border-radius: 8px; font-weight: 500; font-size: 0.85rem;">
+                        📋 Ready
+                    </span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
             
-            overall_accuracy_dict = calculate_overall_accuracy(accuracy_data)
-            accuracy = overall_accuracy_dict.get(user_id)
-            
-            if accuracy is not None:
-                total_reviewed = sum(stats["total"] for stats in accuracy_data[user_id].values())
-                accuracy_badge = format_accuracy_badge(accuracy, total_reviewed)
-                
-                acc_col1, acc_col2 = st.columns([2, 1])
-                with acc_col1:
-                    st.markdown(f"**Your Reviewer Accuracy:** {accuracy_badge}", unsafe_allow_html=True)
-                with acc_col2:
-                    if st.button("📋 View Details", key=f"personal_rev_acc_{user_id}_{project_id}", 
-                                help="View detailed reviewer accuracy breakdown"):
-                        show_personal_reviewer_accuracy(user_id=user_id, project_id=project_id, session=session)
-                return True
+            if st.button("📊 View My Reviewer Performance", key=f"personal_rev_acc_{user_id}_{project_id}", 
+                        help="Calculate and view your reviewer accuracy",
+                        use_container_width=True):
+                with st.spinner("Calculating your reviewer performance..."):
+                    accuracy_data = get_reviewer_accuracy_cached(project_id=project_id, session=session)
+                    if user_id in accuracy_data:
+                        overall_accuracy_dict = calculate_overall_accuracy(accuracy_data)
+                        accuracy = overall_accuracy_dict.get(user_id)
+                        if accuracy is not None:
+                            total_reviewed = sum(stats["total"] for stats in accuracy_data[user_id].values())
+                            accuracy_badge = format_accuracy_badge(accuracy, total_reviewed)
+                            
+                            st.markdown(f"""
+                            <div style="{get_card_style(get_accuracy_color(accuracy))}text-align: center;">
+                                <div style="color: {get_accuracy_color(accuracy)}; font-weight: 600; font-size: 1.1rem;">
+                                    🎯 Your Reviewer Accuracy: {accuracy_badge}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            show_personal_reviewer_accuracy(user_id=user_id, project_id=project_id, session=session)
+                        else:
+                            custom_info("No accuracy data available")
+                    else:
+                        custom_info("No reviewer accuracy data found")
+            return True
         
         elif role == "meta_reviewer":
             return False
@@ -269,8 +382,7 @@ def display_user_accuracy_simple(user_id: int, project_id: int, role: str, sessi
         pass
     
     return False
-
-
+    
 ###############################################################################
 # Detailed Accuracy Analytics
 ###############################################################################
@@ -549,38 +661,6 @@ def show_reviewer_accuracy_detailed(project_id: int, session: Session):
 
 def display_accuracy_button_for_project(project_id: int, role: str, session: Session):
     """Display an elegant accuracy analytics button for training mode projects"""
-#     if not check_project_has_full_ground_truth(project_id=project_id, session=session):
-#         return False
-    
-#     try:
-#         if role in ["reviewer", "meta_reviewer"]:
-#             accuracy_data = get_annotator_accuracy_cached(project_id=project_id, session=session)
-#             if accuracy_data:
-#                 annotator_count = len(accuracy_data)
-#                 if st.button(f"📊 Annotator Analytics ({annotator_count})", 
-#                            key=f"accuracy_btn_{project_id}_{role}",
-#                            help=f"View detailed accuracy analytics for {annotator_count} annotators",
-#                            use_container_width=True):
-#                     show_annotator_accuracy_detailed(project_id=project_id, session=session)
-#                 return True
-            
-#             reviewer_accuracy_data = get_reviewer_accuracy_cached(project_id=project_id, session=session)
-#             if reviewer_accuracy_data:
-#                 reviewer_count = len(reviewer_accuracy_data)
-#                 if st.button(f"📊 Reviewer Analytics ({reviewer_count})", 
-#                            key=f"reviewer_accuracy_btn_{project_id}_{role}",
-#                            help=f"View detailed accuracy analytics for {reviewer_count} reviewers",
-#                            use_container_width=True):
-#                     show_reviewer_accuracy_detailed(project_id=project_id, session=session)
-#                 return True
-#     except Exception as e:
-#         print(f"Error displaying user accuracy: {e}")
-#         pass
-    
-#     return False
-
-# def display_lazy_accuracy_buttons(project_id: int, role: str, session: Session):
-    # """Display analytics buttons without pre-loading any data"""
     if not check_project_has_full_ground_truth(project_id=project_id, session=session):
         custom_info("📝 Analytics are only available for training mode projects with ground truth.")
         return
@@ -594,21 +674,24 @@ def display_accuracy_button_for_project(project_id: int, role: str, session: Ses
                         key=f"lazy_annotator_analytics_{project_id}_{role}",
                         help="View detailed accuracy analytics for annotators",
                         use_container_width=True):
-                show_annotator_accuracy_detailed(project_id=project_id, session=session)
+                with st.spinner("Calculating annotator accuracy data..."):
+                    show_annotator_accuracy_detailed(project_id=project_id, session=session)
         
         with col2:
             if st.button("📊 Reviewer Analytics", 
                         key=f"lazy_reviewer_analytics_{project_id}_{role}",
                         help="View detailed accuracy analytics for reviewers", 
                         use_container_width=True):
-                show_reviewer_accuracy_detailed(project_id=project_id, session=session)
+                with st.spinner("Calculating reviewer accuracy data..."):
+                    show_reviewer_accuracy_detailed(project_id=project_id, session=session)
     
     else:  # annotator role
         if st.button("📊 View Analytics", 
                     key=f"lazy_analytics_{project_id}_{role}",
                     help="View detailed accuracy analytics",
                     use_container_width=True):
-            show_annotator_accuracy_detailed(project_id=project_id, session=session)
+            with st.spinner("Calculating accuracy data..."):
+                show_annotator_accuracy_detailed(project_id=project_id, session=session)
 
 ###############################################################################
 # Accuracy Calculation Functions
