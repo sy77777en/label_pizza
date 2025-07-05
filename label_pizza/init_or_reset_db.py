@@ -134,17 +134,17 @@ def seed_sample_data(session_local: Session):
             )
             
             # Add sample videos
-            sample_videos = [
-                "https://example.com/video1.mp4",
-                "https://example.com/video2.mp4", 
-                "https://example.com/video3.mp4"
-            ]
+            sample_videos = {
+                "video1.mp4": "https://example.com/video1.mp4",
+                "video2.mp4": "https://example.com/video2.mp4", 
+                "video3.mp4": "https://example.com/video3.mp4"
+            }
             
-            for url in sample_videos:
+            for video_uid, url in sample_videos.items():
                 try:
-                    VideoService.add_video(url, session, {"sample": True})
+                    VideoService.add_video(video_uid=video_uid, url=url, session=session, metadata={"sample": True})
                 except Exception as e:
-                    print(f"   ⚠️  Skipped video {url}: {str(e)}")
+                    print(f"   ⚠️  Skipped video {video_uid}: {str(e)}")
             
             # Add sample questions
             sample_questions = [

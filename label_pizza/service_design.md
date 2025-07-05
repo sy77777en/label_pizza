@@ -52,8 +52,9 @@ Service-Layer API Spec
 | Function                           | Status | Parameters                               | Returns            | Business rules enforced                              |
 | ---------------------------------- | ------ | ---------------------------------------- | ------------------ | ---------------------------------------------------- |
 | `get_all_videos(session)`          | ✔︎     | —                                        | `pandas.DataFrame` | Uses left joins to list each video + projects + GT ✓ |
-| `add_video(url, session)`          | ✔︎     | `url:str`, `metadata:dict` (optional)    | `None`             | • `video_uid` unique 🛡️<br>• URL validation 🛡️<br>• Metadata validation 🛡️ |
+| `add_video(video_uid, url, session)`          | ✔︎     | `video_uid:str`, `url:str`, `metadata:dict` (optional)    | `None`             | • `video_uid` unique 🛡️<br>• URL validation 🛡️<br>• Metadata validation 🛡️ |
 | `get_video_by_uid(video_uid, session)` | ✔︎ | — | `Optional[Video]` | — |
+| `get_video_by_url(url, session)` | ✔︎ | — | `Optional[Video]` | — |
 | `get_video_url(video_id, session)` | ✔︎ | — | `str` | Raises if not found |
 | `get_video_metadata(video_id, session)` | ✔︎ | — | `dict` | Raises if not found |
 | `archive_video(video_id, session)` | ✔︎ | — | `None` | Raises if not found |
@@ -61,7 +62,7 @@ Service-Layer API Spec
 
 **Rules:**
 - Video UIDs must be unique
-- URLs must be valid and end with a filename (and filename must be the same as the UID)
+- URLs must be valid
 - Metadata must be valid JSON
 - Archived videos are hidden from normal operations
 - Video status includes project assignments and ground truth completion

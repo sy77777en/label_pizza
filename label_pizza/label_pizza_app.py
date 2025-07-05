@@ -989,5 +989,5 @@ def main():
         st.error(f"Unknown portal: {selected_portal}")
 
 if __name__ == "__main__":
-    with Profiler():
-        main()
+    # with Profiler():
+    main()

@@ -96,7 +96,7 @@ def display_video_answer_pair(video: Dict, project_id: int, user_id: int, role: 
         with video_col:
             autoplay = st.session_state.get(f"{role}_autoplay", True)
             loop = st.session_state.get(f"{role}_loop", True)
-            video_height = custom_video_player(video["url"], autoplay=autoplay, loop=loop, show_share_button=True)
+            video_height = custom_video_player(video["url"], video["uid"], autoplay=autoplay, loop=loop, show_share_button=True)
         
         with answer_col:
             tab_names = [group['Display Title'] for group in question_groups]

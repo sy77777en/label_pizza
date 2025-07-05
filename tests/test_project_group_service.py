@@ -242,6 +242,7 @@ def test_project_group_service_validate_project_group_uniqueness(session):
     
     # Create a video
     VideoService.add_video(
+        video_uid="video.mp4",
         url="http://example.com/video.mp4",
         session=session
     )

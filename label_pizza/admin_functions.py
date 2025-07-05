@@ -182,6 +182,7 @@ def admin_videos():
         video_tabs = st.tabs(["➕ Add Video", "✏️ Edit Video"])
         
         with video_tabs[0]:
+            video_uid = st.text_input("Video UID", key="admin_video_uid")
             url = st.text_input("Video URL", key="admin_video_url")
             metadata_json = st.text_area("Metadata (JSON, optional)", "{}", key="admin_video_metadata")
             
@@ -190,7 +191,7 @@ def admin_videos():
                     try:
                         import json
                         metadata = json.loads(metadata_json) if metadata_json.strip() else {}
-                        VideoService.add_video(url=url, session=session, metadata=metadata)
+                        VideoService.add_video(video_uid=video_uid, url=url, session=session, metadata=metadata)
                         st.success("Video added!")
                         st.rerun(scope="fragment")
                     except Exception as e:

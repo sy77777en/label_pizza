@@ -537,7 +537,7 @@ def display_improved_video_player_section(video_info: Dict[str, Any]):
     """, unsafe_allow_html=True)
     
     # Video player
-    custom_video_player(video_info["url"], autoplay=False, loop=True, show_share_button=True)
+    custom_video_player(video_url=video_info["url"], video_uid=video_info["uid"], autoplay=False, loop=True, show_share_button=True)
 
 def display_improved_project_groups_section(gt_data: Dict, video_info: Dict[str, Any], session: Session):
     """Improved project groups display with better organization"""
@@ -1455,7 +1455,7 @@ def display_criteria_search_video_result(result: Dict, user_id: int, autoplay: b
     with video_col:
         # Video player
         loop = st.session_state.get("criteria_search_loop", True)
-        video_height = custom_video_player(video_info["url"], autoplay=autoplay, loop=loop)
+        video_height = custom_video_player(video_url=video_info["url"], video_uid=video_info["uid"], autoplay=autoplay, loop=loop)
         
         # Match details if criteria exist
         if criteria:
@@ -1954,7 +1954,7 @@ def display_completion_status_results_interface(results: List[Dict], session: Se
     for result in page_results:
         display_completion_status_video_result(result, user_id, autoplay, session)
         st.markdown("---")
-        
+
 def display_completion_status_video_result(result: Dict, user_id: int, autoplay: bool, session: Session):
     """Display a single video result for completion status search with editing interface"""
     
@@ -2003,7 +2003,7 @@ def display_completion_status_video_result(result: Dict, user_id: int, autoplay:
     with video_col:
         # Video player
         loop = st.session_state.get("completion_search_loop", True)
-        video_height = custom_video_player(video_url, autoplay=autoplay, loop=loop)
+        video_height = custom_video_player(video_url=video_url, video_uid=video_uid, autoplay=autoplay, loop=loop)
     
     with question_col:
         # Show ALL question groups for this project (like reviewer/meta-reviewer portal)

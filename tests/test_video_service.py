@@ -5,7 +5,7 @@ from label_pizza.services import VideoService, ProjectService, SchemaService, Qu
 def test_video_service_get_all_videos(session):
     """Test getting all videos."""
     # Create a video
-    VideoService.add_video("http://example.com/test.mp4", session)
+    VideoService.add_video(video_uid="test.mp4", url="http://example.com/test.mp4", session=session)
     
     df = VideoService.get_all_videos(session)
     assert isinstance(df, pd.DataFrame)
@@ -17,7 +17,7 @@ def test_video_service_get_all_videos(session):
 def test_video_service_get_video_by_uid(session):
     """Test getting a video by UID."""
     # Create a video
-    VideoService.add_video("http://example.com/test.mp4", session)
+    VideoService.add_video(video_uid="test.mp4", url="http://example.com/test.mp4", session=session)
     
     # Get video by UID
     found_video = VideoService.get_video_by_uid("test.mp4", session)
@@ -32,7 +32,7 @@ def test_video_service_get_video_by_uid(session):
 def test_video_service_get_video_url(session):
     """Test getting a video's URL."""
     # Create a video
-    VideoService.add_video("http://example.com/test.mp4", session)
+    VideoService.add_video(video_uid="test.mp4", url="http://example.com/test.mp4", session=session)
     
     # Get video by UID first to get its ID
     video = VideoService.get_video_by_uid("test.mp4", session)
@@ -49,7 +49,7 @@ def test_video_service_get_video_metadata(session):
     """Test getting a video's metadata."""
     # Create a video with metadata
     metadata = {"duration": 120, "resolution": "1080p"}
-    VideoService.add_video("http://example.com/test.mp4", session, metadata=metadata)
+    VideoService.add_video(video_uid="test.mp4", url="http://example.com/test.mp4", session=session, metadata=metadata)
     
     # Get video by UID first to get its ID
     video = VideoService.get_video_by_uid("test.mp4", session)
@@ -65,7 +65,7 @@ def test_video_service_get_video_metadata(session):
 def test_video_service_archive_video(session):
     """Test archiving a video."""
     # Create a video
-    VideoService.add_video("http://example.com/test.mp4", session)
+    VideoService.add_video(video_uid="test.mp4", url="http://example.com/test.mp4", session=session)
     
     # Get video by UID first to get its ID
     video = VideoService.get_video_by_uid("test.mp4", session)
@@ -190,7 +190,7 @@ def test_video_service_get_videos_with_ground_truth(session, test_video, test_us
 
 def test_video_service_add_video(session):
     """Test adding a new video."""
-    VideoService.add_video("http://example.com/test.mp4", session)
+    VideoService.add_video(video_uid="test.mp4", url="http://example.com/test.mp4", session=session)
     
     # Verify video was added
     video = VideoService.get_video_by_uid("test.mp4", session)
@@ -202,16 +202,16 @@ def test_video_service_add_video(session):
 def test_video_service_add_video_duplicate(session, test_video):
     """Test adding a duplicate video."""
     with pytest.raises(ValueError, match="already exists"):
-        VideoService.add_video("http://example.com/test.mp4", session)
+        VideoService.add_video(video_uid="test.mp4", url="http://example.com/test.mp4", session=session)
 
 def test_video_service_add_video_invalid_url(session):
     """Test adding a video with invalid URL."""
     with pytest.raises(ValueError, match="must start with http:// or https://"):
-        VideoService.add_video("invalid_url", session)
+        VideoService.add_video(video_uid="invalid_url", url="invalid_url", session=session)
 
 def test_video_service_add_video_special_chars(session):
     """Test adding a video with special characters in filename."""
-    VideoService.add_video("http://example.com/test video (1).mp4", session)
+    VideoService.add_video(video_uid="test video (1).mp4", url="http://example.com/test video (1).mp4", session=session)
     
     # Verify video was added
     video = VideoService.get_video_by_uid("test video (1).mp4", session)
@@ -221,7 +221,7 @@ def test_video_service_add_video_special_chars(session):
 
 def test_video_service_add_video_query_params(session):
     """Test adding a video with query parameters in URL."""
-    VideoService.add_video("http://example.com/test.mp4?param=value", session)
+    VideoService.add_video(video_uid="test.mp4?param=value", url="http://example.com/test.mp4?param=value", session=session)
     
     # Verify video was added
     video = VideoService.get_video_by_uid("test.mp4?param=value", session)
@@ -239,13 +239,10 @@ def test_video_metadata_validation(session):
     """Test video metadata validation."""
     # Test invalid metadata types
     with pytest.raises(ValueError, match="must be a dictionary"):
-        VideoService.add_video("http://example.com/test.mp4", session, metadata="invalid")
-    
-    with pytest.raises(ValueError, match="must be a non-empty dictionary"):
-        VideoService.add_video("http://example.com/test.mp4", session, metadata={})
-    
+        VideoService.add_video(video_uid="test.mp4", url="http://example.com/test.mp4", session=session, metadata="invalid")
+
     with pytest.raises(ValueError, match="Invalid metadata value type"):
-        VideoService.add_video("http://example.com/test.mp4", session, metadata={"key": object()})
+        VideoService.add_video(video_uid="test.mp4", url="http://example.com/test.mp4", session=session, metadata={"key": object()})
     
     # Test valid metadata
     metadata = {
@@ -254,7 +251,7 @@ def test_video_metadata_validation(session):
         "tags": ["action", "drama"],
         "info": {"year": 2023, "genre": "action"}
     }
-    VideoService.add_video("http://example.com/test.mp4", session, metadata=metadata)
+    VideoService.add_video(video_uid="test.mp4", url="http://example.com/test.mp4", session=session, metadata=metadata)
     
     # Verify metadata was added
     video = VideoService.get_video_by_uid("test.mp4", session)
@@ -294,7 +291,7 @@ def test_video_uid_special_chars(session):
     
     for uid in test_cases:
         url = f"http://example.com/{uid}"
-        VideoService.add_video(url, session)
+        VideoService.add_video(video_uid=uid, url=url, session=session)
         
         # Verify video was added by checking get_video_by_uid
         video = VideoService.get_video_by_uid(uid, session)
@@ -359,7 +356,7 @@ def test_video_service_get_all_videos_with_metadata(session):
     """Test getting videos with metadata."""
     # Create a video with metadata
     metadata = {"duration": 120, "resolution": "1080p"}
-    VideoService.add_video("http://example.com/test.mp4", session, metadata=metadata)
+    VideoService.add_video(video_uid="test.mp4", url="http://example.com/test.mp4", session=session, metadata=metadata)
     
     df = VideoService.get_all_videos(session)
     assert len(df) == 1

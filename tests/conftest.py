@@ -63,7 +63,7 @@ def test_user(session):
 
 @pytest.fixture
 def test_video(session):
-    VideoService.add_video("http://example.com/test.mp4", session)
+    VideoService.add_video(video_uid="test.mp4", url="http://example.com/test.mp4", session=session)
     return VideoService.get_video_by_uid("test.mp4", session)
 
 @pytest.fixture

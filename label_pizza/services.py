@@ -42,6 +42,20 @@ class VideoService:
         """
         return session.scalar(select(Video).where(Video.video_uid == video_uid))
     
+    @staticmethod
+    def get_video_by_url(url: str, session: Session) -> Optional[Video]:
+        """Get a video by its URL.
+        
+        Args:
+            url: The URL of the video
+            session: Database session
+
+        Returns:
+            Video object if found, None otherwise
+        """
+        return session.scalar(select(Video).where(Video.url == url))
+    
+    @staticmethod
     def get_video_info_by_uid(video_uid: str, session: Session) -> Dict[str, Any]:
         """Get video info by UID.
         
@@ -118,7 +132,6 @@ class VideoService:
             raise ValueError(f"Video with ID {video_id} not found")
         video.is_archived = True
         session.commit()
-
     
     @staticmethod
     def get_all_videos(session: Session) -> pd.DataFrame:
@@ -147,7 +160,6 @@ class VideoService:
             for v in videos
         ])
 
-    
     @staticmethod
     def get_videos_with_project_status(session: Session) -> pd.DataFrame:
         """Get all videos with their project assignments and ground truth status.
@@ -226,10 +238,11 @@ class VideoService:
         return pd.DataFrame(rows)
 
     @staticmethod
-    def verify_add_video(url: str, session: Session, metadata: dict = None) -> None:
+    def verify_add_video(video_uid: str=None, url: str=None, session: Session=None, metadata: dict = None) -> None:
         """Verify parameters for adding a new video.
 
         Args:
+            video_uid: The UID of the video
             url: The URL of the video
             session: Database session
             metadata: Optional dictionary containing video metadata
@@ -237,24 +250,20 @@ class VideoService:
         Raises:
             ValueError: If URL is invalid, metadata is invalid, or video already exists
         """
+        if video_uid is None or url is None:
+            raise ValueError("video_uid and url must be provided")
+
         # Validate URL format
         if not url.startswith(("http://", "https://")):
             raise ValueError("URL must start with http:// or https://")
 
-        # Extract filename and check for extension
-        filename = url.split("/")[-1]
-        if not filename or "." not in filename:
-            raise ValueError("URL must end with a filename with extension")
-
-        if len(filename) > 255:
+        if len(video_uid) > 255:
             raise ValueError("Video UID is too long")
 
         # Validate metadata type - must be None or a dictionary
         if metadata is not None:
             if not isinstance(metadata, dict):
                 raise ValueError("Metadata must be a dictionary")
-            if not metadata:
-                raise ValueError("Metadata must be a non-empty dictionary")
 
             # Validate metadata value types if metadata is provided
             for key, value in metadata.items():
@@ -272,16 +281,21 @@ class VideoService:
                             raise ValueError(f"Invalid nested metadata value type for key '{key}.{k}': {type(v)}")
 
         # Check if video already exists (case-sensitive check)
-        filename = url.split("/")[-1]
-        existing = VideoService.get_video_by_uid(filename, session)
+        existing = VideoService.get_video_by_uid(video_uid, session)
         if existing:
-            raise ValueError(f"Video with UID '{filename}' already exists")
+            raise ValueError(f"Video with UID '{video_uid}' already exists")
+        
+        # Check if video url already exists
+        existing = VideoService.get_video_by_url(url, session)
+        if existing:
+            raise ValueError(f"Video with URL '{url}' already exists")
 
     @staticmethod
-    def add_video(url: str, session: Session, metadata: dict = None) -> None:
+    def add_video(video_uid: str=None, url: str=None, session: Session=None, metadata: dict = None) -> None:
         """Add a new video to the database.
 
         Args:
+            video_uid: The UID of the video
             url: The URL of the video
             session: Database session
             metadata: Optional dictionary containing video metadata
@@ -290,12 +304,11 @@ class VideoService:
             ValueError: If URL is invalid, video already exists, or metadata is invalid
         """
         # Verify input parameters and get the filename
-        VideoService.verify_add_video(url, session, metadata)
+        VideoService.verify_add_video(video_uid, url, session, metadata)
 
-        filename = url.split("/")[-1]
         # Create video
         video = Video(
-            video_uid=filename,
+            video_uid=video_uid,
             url=url,
             video_metadata=metadata or {}
         )
@@ -360,21 +373,10 @@ class VideoService:
             if not new_url.startswith(("http://", "https://")):
                 raise ValueError("URL must start with http:// or https://")
 
-            # ---- new check ----
-            # Strip any query string, then compare the filename to the UID
-            filename = new_url.split("/")[-1]
-            if filename != video_uid:
-                raise ValueError(
-                    f"URL filename '{filename}' must exactly match the video UID '{video_uid}'"
-                )
-            # -------------------
-
         # Validate new metadata if provided
         if new_metadata is not None:
             if not isinstance(new_metadata, dict):
                 raise ValueError("Metadata must be a dictionary")
-            if not new_metadata:
-                raise ValueError("Metadata must be a non-empty dictionary")
 
             # Validate metadata value types
             for key, value in new_metadata.items():
@@ -2381,6 +2383,95 @@ class CustomDisplayService:
             raise ValueError(f"Question {question_id} is not in project {project_id}'s schema")
 
     @staticmethod
+    def verify_set_custom_display_for_question(
+        schema_id: int,
+        question_id: int,
+        custom_display_text: Optional[str] = None,
+        custom_option_display_map: Optional[Dict[str, str]] = None,
+        session: Session = None
+    ) -> None:
+        """Verify parameters for setting custom display for a question (without a project or video).
+        
+        Args:
+            schema_id: Schema ID
+            question_id: Question ID
+            custom_display_text: Custom display text for question
+            custom_option_display_map: Dict mapping option values to custom display text
+            session: Database session
+            
+        Raises:
+            ValueError: If validation fails
+        """
+        # Validate question exists and is not archived
+        question_dict = QuestionService.get_question_by_id(question_id=question_id, session=session)
+        if question_dict["archived"]:
+            raise ValueError(f"Question {question_id} is archived")
+        
+        reusable_group_count = session.scalar(
+            select(func.count())
+            .select_from(QuestionGroup)
+            .join(QuestionGroupQuestion, QuestionGroup.id == QuestionGroupQuestion.question_group_id)
+            .where(
+                QuestionGroupQuestion.question_id == question_id,
+                QuestionGroup.is_reusable == True,
+                QuestionGroup.is_archived == False
+            )
+        )
+
+        if reusable_group_count > 0:
+            # Get the reusable group names for a better error message
+            reusable_groups = session.scalars(
+                select(QuestionGroup.title)
+                .join(QuestionGroupQuestion, QuestionGroup.id == QuestionGroupQuestion.question_group_id)
+                .where(
+                    QuestionGroupQuestion.question_id == question_id,
+                    QuestionGroup.is_reusable == True,
+                    QuestionGroup.is_archived == False
+                )
+            ).all()
+            
+            group_names = ", ".join(reusable_groups)
+            raise ValueError(
+                f"Cannot set custom display for question {question_id}. "
+                f"Question belongs to reusable question group(s): {group_names}. "
+                f"Reusable groups must maintain consistent display across all schemas."
+            )
+        
+        # Check if question is in schema
+        question_in_schema = session.scalar(
+            select(func.count())
+            .select_from(Question)
+            .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
+            .join(SchemaQuestionGroup, QuestionGroupQuestion.question_group_id == SchemaQuestionGroup.question_group_id)
+            .where(
+                SchemaQuestionGroup.schema_id == schema_id,
+                Question.id == question_id
+            )
+        )
+        if not question_in_schema:
+            raise ValueError(f"Question {question_id} is not in schema {schema_id}")
+        
+        # Check that schema has custom display enabled
+        schema = session.get(Schema, schema_id)
+        if not schema.has_custom_display:
+            raise ValueError(f"Schema {schema.id} does not have custom display enabled")
+        
+        # For single-choice questions with custom option mapping
+        if custom_option_display_map is not None:
+            if question_dict["type"] != "single":
+                raise ValueError(f"Custom option display mapping can only be set for single-choice questions, not {question_dict['type']}")
+            
+            if not question_dict["options"]:
+                raise ValueError(f"Question {question_id} has no options defined")
+            
+            # Check that all keys in the mapping are valid option values
+            valid_options = set(question_dict["options"])
+            invalid_options = set(custom_option_display_map.keys()) - valid_options
+            if invalid_options:
+                raise ValueError(f"Invalid option values in custom mapping: {invalid_options}. Valid options: {valid_options}")
+
+
+    @staticmethod
     def verify_set_custom_display(
         project_id: int,
         video_id: int, 
@@ -3262,18 +3353,34 @@ class AuthService:
         session.commit()
 
     @staticmethod
-    def remove_user_from_project(user_id: int, project_id: int, session: Session) -> None:
-        """Remove a user's assignment from a project."""
+    def verify_remove_user_from_project(user_id: int, project_id: int, session: Session) -> None:
+        """Verify that a user can be removed from a project."""
         assignment = session.scalar(
             select(ProjectUserRole).where(
                 ProjectUserRole.user_id == user_id,
                 ProjectUserRole.project_id == project_id
             )
         )
-        
         if not assignment:
             raise ValueError(f"No assignment found for user {user_id} in project {project_id}")
         
+        # If the user is admin, then cannot remove them from the project
+        if assignment.role == "admin":
+            raise ValueError(f"Cannot remove admin user {user_id} from project {project_id}")
+        
+        
+    @staticmethod
+    def remove_user_from_project(user_id: int, project_id: int, session: Session) -> None:
+        """Remove a user's assignment from a project."""
+        AuthService.verify_remove_user_from_project(user_id, project_id, session)
+
+        assignment = session.scalar(
+            select(ProjectUserRole).where(
+                ProjectUserRole.user_id == user_id,
+                ProjectUserRole.project_id == project_id
+            )
+        )
+
         # Instead of deleting, mark as archived
         assignment.is_archived = True
         session.commit()

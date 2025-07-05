@@ -229,31 +229,30 @@ def upload_videos(session):
     """Upload all the video URLs"""
     print("Uploading videos...")
     
-    video_urls = [
-        "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/RGSN4S5jn4o.0.0.mp4",
-        "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/PIvOfcR77SQ.4.3.mp4", 
-        "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/PrjpmqAsCZQ.0.1.mp4",
-        "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/1934.1.26.mp4",
-        "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/1470.0.35.mp4",
-        "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/fSWFUFdV5TU.0.1.mp4",
-        "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/1560.0.17.mp4", 
-        "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/1470.0.34.mp4",
-        "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/1018.1.0.mp4",
-        "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/0UthxdAH0ks.0.2.mp4",
-        "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/sKJeTaIEldM.1.1.mp4",
-        "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/uWCGK4nneeU.4.5.mp4",
-        "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/1934.1.25.mp4",
-        "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/190.2.14.mp4",
-        "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/tCRbVEGHZlQ.0.4.mp4",
-        "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/mlasEBKtDAM.2.1.mp4",
-        "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/x6P57x1gx94.0.4.mp4"
-    ]
+    video_urls = {
+        "RGSN4S5jn4o.0.0.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/RGSN4S5jn4o.0.0.mp4",
+        "PIvOfcR77SQ.4.3.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/PIvOfcR77SQ.4.3.mp4", 
+        "PrjpmqAsCZQ.0.1.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/PrjpmqAsCZQ.0.1.mp4",
+        "1934.1.26.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/1934.1.26.mp4",
+        "1470.0.35.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/1470.0.35.mp4",
+        "fSWFUFdV5TU.0.1.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/fSWFUFdV5TU.0.1.mp4",
+        "1560.0.17.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/1560.0.17.mp4", 
+        "1470.0.34.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/1470.0.34.mp4",
+        "1018.1.0.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/1018.1.0.mp4",
+        "0UthxdAH0ks.0.2.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/0UthxdAH0ks.0.2.mp4",
+        "sKJeTaIEldM.1.1.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/sKJeTaIEldM.1.1.mp4",
+        "uWCGK4nneeU.4.5.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/uWCGK4nneeU.4.5.mp4",
+        "1934.1.25.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/1934.1.25.mp4",
+        "190.2.14.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/190.2.14.mp4",
+        "tCRbVEGHZlQ.0.4.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/tCRbVEGHZlQ.0.4.mp4",
+        "mlasEBKtDAM.2.1.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/mlasEBKtDAM.2.1.mp4",
+        "x6P57x1gx94.0.4.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/x6P57x1gx94.0.4.mp4"
+    }
     
     video_ids = []
-    for url in video_urls:
-        filename = url.split("/")[-1]
+    for filename, url in video_urls.items():
         try:
-            VideoService.add_video(url=url, session=session)
+            VideoService.add_video(video_uid=filename, url=url, session=session)
             video = VideoService.get_video_by_uid(filename, session)
             video_ids.append(video.id)
             print(f"✓ Uploaded: {filename}")

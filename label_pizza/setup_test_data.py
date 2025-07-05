@@ -46,17 +46,17 @@ class TestDataSetup:
     """Handles creation of comprehensive test data for Label Pizza"""
     
     def __init__(self):
-        self.test_videos = [
-            "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/RGSN4S5jn4o.0.0.mp4",
-            "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/PIvOfcR77SQ.4.3.mp4",
-            "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/PrjpmqAsCZQ.0.1.mp4",
-            "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/1934.1.26.mp4",
-            "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/1470.0.35.mp4",
-            "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/fSWFUFdV5TU.0.1.mp4",
-            "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/1560.0.17.mp4",
-            "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/1470.0.34.mp4",
-            "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/1018.1.0.mp4",
-        ]
+        self.test_videos = {
+            "RGSN4S5jn4o.0.0.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/RGSN4S5jn4o.0.0.mp4",
+            "PIvOfcR77SQ.4.3.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/PIvOfcR77SQ.4.3.mp4",
+            "PrjpmqAsCZQ.0.1.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/PrjpmqAsCZQ.0.1.mp4",
+            "1934.1.26.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/1934.1.26.mp4",
+            "1470.0.35.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/1470.0.35.mp4",
+            "fSWFUFdV5TU.0.1.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/fSWFUFdV5TU.0.1.mp4",
+            "1560.0.17.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/1560.0.17.mp4",
+            "1470.0.34.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/1470.0.34.mp4",
+            "1018.1.0.mp4": "https://huggingface.co/datasets/zhiqiulin/video_captioning/resolve/main/1018.1.0.mp4",
+        }
         
         self.created_items = {
             "users": [],
@@ -205,13 +205,14 @@ class TestDataSetup:
             {"title": "Work Environment", "category": "workplace", "duration": "unknown"},
         ]
         
-        for i, (url, metadata) in enumerate(zip(self.test_videos, video_metadata)):
+        video_uids = list(self.test_videos.keys())
+        for i, (video_uid, metadata) in enumerate(zip(video_uids, video_metadata)):
             try:
-                VideoService.add_video(url, session, metadata)
+                VideoService.add_video(video_uid=video_uid, url=self.test_videos[video_uid], session=session, metadata=metadata)
                 self.created_items["videos"].append({
                     "title": metadata["title"],
                     "category": metadata["category"],
-                    "url": url
+                    "url": self.test_videos[video_uid]
                 })
                 print(f"   ✅ Added video: {metadata['title']}")
                 

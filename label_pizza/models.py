@@ -33,7 +33,7 @@ class Video(Base):
     __tablename__ = "videos"
     id = Column(Integer, primary_key=True)
     video_uid = Column(String(255), unique=True, nullable=False)  # file-name or UUID
-    url = Column(Text)
+    url = Column(Text, unique=True)
     video_metadata = Column(JSONB)
     created_at = Column(DateTime(timezone=True), default=now)
     updated_at = Column(DateTime(timezone=True), default=now, onupdate=now)
