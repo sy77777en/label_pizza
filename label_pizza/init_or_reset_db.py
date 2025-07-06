@@ -13,16 +13,16 @@ FIXES:
 
 Usage:
     # Initialize database (safe, won't affect existing tables)
-    python label_pizza/init_or_reset_db.py --mode init --email admin@example.com --password mypass --user-id "Admin"
+    python label_pizza/init_or_reset_db.py --database-url-name DBURL --mode init --email admin@example.com --password mypass --user-id "Admin"
     
     # Nuclear reset with automatic backup (RECOMMENDED)
-    python label_pizza/init_or_reset_db.py --mode reset --email admin@example.com --password mypass --user-id "Admin" --database-url-name DBURL --auto-backup
+    python label_pizza/init_or_reset_db.py --database-url-name DBURL --mode reset --email admin@example.com --password mypass --user-id "Admin" --auto-backup
     
     # Nuclear reset with custom backup location
-    python label_pizza/init_or_reset_db.py --mode reset --email admin@example.com --password mypass --user-id "Admin" --auto-backup --backup-dir ./backups --backup-file my_backup.sql.gz
+    python label_pizza/init_or_reset_db.py --database-url-name DBURL --mode reset --email admin@example.com --password mypass --user-id "Admin" --auto-backup --backup-dir ./backups --backup-file my_backup.sql.gz
     
     # Reset from existing backup
-    python label_pizza/init_or_reset_db.py --mode restore --backup-dir ./backups --backup-file my_backup.sql.gz --email admin@example.com --password mypass --user-id "Admin"
+    python label_pizza/init_or_reset_db.py --database-url-name DBURL --mode restore --backup-dir ./backups --backup-file my_backup.sql.gz --email admin@example.com --password mypass --user-id "Admin"
 """
 
 import argparse
