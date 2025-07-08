@@ -412,7 +412,7 @@ def admin_videos():
                         import json
                         metadata = json.loads(metadata_json) if metadata_json.strip() else {}
                         VideoService.add_video(video_uid=video_uid, url=url, session=session, metadata=metadata)
-                        st.success("Video added!")
+                        custom_info("Video added!")
                         # st.rerun(scope="fragment")
                     except Exception as e:
                         st.error(f"Error: {str(e)}")
@@ -444,7 +444,7 @@ def show_video_edit_interface(session: Session):
                 if len(matching_videos) == 20:
                     st.warning(f"⚠️ Showing first 20 results. **Too many matches!** Try a more specific search term.")
                 else:
-                    st.success(f"✅ Found {len(matching_videos)} matching videos")
+                    custom_info(f"✅ Found {len(matching_videos)} matching videos")
                 
                 # Show matching videos for selection
                 video_options = {f"{v['uid']} - {v['url']}": v['uid'] for v in matching_videos}
@@ -459,11 +459,11 @@ def show_video_edit_interface(session: Session):
                     selected_video_uid = video_options[selected_video_display]
                     show_video_edit_form(selected_video_uid, session)
             else:
-                st.info(f"No videos found matching '{search_term}'")
+                custom_info(f"No videos found matching '{search_term}'")
         except Exception as e:
             st.error(f"Error searching videos: {str(e)}")
     else:
-        st.info("Enter at least 3 characters in the search box to find videos to edit")
+        custom_info("Enter at least 3 characters in the search box to find videos to edit")
 
 def show_video_edit_form(video_uid: str, session: Session):
     """Show the actual video editing form."""
@@ -502,7 +502,7 @@ def show_video_edit_form(video_uid: str, session: Session):
             
             try:
                 updated_metadata = json.loads(metadata_json)
-                st.success("✅ Valid JSON")
+                custom_info("✅ Valid JSON")
             except json.JSONDecodeError as e:
                 st.error(f"❌ Invalid JSON: {str(e)}")
                 updated_metadata = current_metadata
@@ -529,7 +529,7 @@ def show_video_edit_form(video_uid: str, session: Session):
                                 new_metadata=updated_metadata, 
                                 session=session
                             )
-                            st.success(f"✅ Video '{video_uid}' updated successfully! Changed: {', '.join(changes_made)}")
+                            custom_info(f"✅ Video '{video_uid}' updated successfully! Changed: {', '.join(changes_made)}")
                             # st.rerun(scope="fragment")
                         else:
                             custom_info("No changes were made")
@@ -623,7 +623,7 @@ def show_project_edit_interface(session: Session):
                 if len(matching_projects) == 20:
                     st.warning(f"⚠️ Showing first 20 results. **Too many matches!** Try a more specific search term to find your project faster.")
                 else:
-                    st.success(f"✅ Found {len(matching_projects)} matching projects")
+                    custom_info(f"✅ Found {len(matching_projects)} matching projects")
                 
                 # Show matching projects for selection
                 project_options = {f"{p['name']} (ID: {p['id']})": p['id'] for p in matching_projects}
@@ -638,11 +638,11 @@ def show_project_edit_interface(session: Session):
                     selected_project_id = project_options[selected_project_display]
                     show_project_edit_form(selected_project_id, session)
             else:
-                st.info(f"No projects found matching '{search_term}'. Try a different search term.")
+                custom_info(f"No projects found matching '{search_term}'. Try a different search term.")
         except Exception as e:
             st.error(f"Error searching projects: {str(e)}")
     else:
-        st.info("Enter at least 3 characters in the search box to find projects to edit")
+        custom_info("Enter at least 3 characters in the search box to find projects to edit")
 
 def show_project_create_form(session: Session):
     """Show project creation form with optimized video selection."""
@@ -685,7 +685,7 @@ def show_project_create_form(session: Session):
                 if len(matching_videos) == 20:
                     st.warning(f"⚠️ Showing first 20 results. **Too many matches!** Try a more specific search term to find your videos faster.")
                 else:
-                    st.success(f"✅ Found {len(matching_videos)} matching videos")
+                    custom_info(f"✅ Found {len(matching_videos)} matching videos")
                 
                 for video in matching_videos:
                     video_col1, video_col2 = st.columns([1, 3])
@@ -702,11 +702,11 @@ def show_project_create_form(session: Session):
                     with video_col2:
                         st.markdown(f"**{video['uid']}** - {video['url'][:80]}{'...' if len(video['url']) > 80 else ''}")
             else:
-                st.info(f"No videos found matching '{video_search}'. Try a different search term.")
+                custom_info(f"No videos found matching '{video_search}'. Try a different search term.")
         except Exception as e:
             st.error(f"Error searching videos: {str(e)}")
     else:
-        st.info("Enter at least 3 characters in the search box to find videos to add")
+        custom_info("Enter at least 3 characters in the search box to find videos to add")
     
     # Show selected videos
     if st.session_state.create_project_selected_videos:
@@ -725,7 +725,7 @@ def show_project_create_form(session: Session):
             if len(st.session_state.create_project_selected_videos) > 10:
                 st.caption(f"... and {len(st.session_state.create_project_selected_videos) - 10} more")
     else:
-        st.info("Search and select videos above to continue")
+        custom_info("Search and select videos above to continue")
     
     if st.button("🚀 Create Project", key="admin_create_project_btn", type="primary", use_container_width=True):
         if name and schema_name and st.session_state.create_project_selected_videos:
@@ -736,7 +736,7 @@ def show_project_create_form(session: Session):
                 
                 # Clear selection after successful creation
                 st.session_state.create_project_selected_videos = []
-                st.success("✅ Project created successfully!")
+                custom_info("✅ Project created successfully!")
                 # st.rerun(scope="fragment")
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
@@ -816,7 +816,7 @@ def show_project_edit_form(project_id: int, session: Session):
                 if current_archived:
                     st.warning("⚠️ This project is currently archived")
                 else:
-                    st.success("✅ This project is active")
+                    custom_info("✅ This project is active")
             
             # Project statistics
             st.markdown("### 📊 Project Statistics")
@@ -882,7 +882,7 @@ def show_project_edit_form(project_id: int, session: Session):
                             )
                         
                         if changes_made:
-                            st.success(f"✅ Project updated successfully! Changed: {', '.join(changes_made)}")
+                            custom_info(f"✅ Project updated successfully! Changed: {', '.join(changes_made)}")
                             get_cached_project_metadata.clear()
                         else:
                             custom_info("No changes were made")
@@ -980,7 +980,7 @@ def show_assignment_management_optimized(session: Session):
                 if len(matching_projects) == 20:
                     st.warning(f"⚠️ Showing first 20 results. **Too many matches!** Try a more specific search term to find your projects faster.")
                 else:
-                    st.success(f"✅ Found {len(matching_projects)} matching projects")
+                    custom_info(f"✅ Found {len(matching_projects)} matching projects")
                 
                 # Batch selection buttons
                 batch_col1, batch_col2 = st.columns(2)
@@ -1012,34 +1012,63 @@ def show_assignment_management_optimized(session: Session):
                     with col2:
                         st.markdown(f"**{project['name']}** (ID: {project['id']})")
             else:
-                st.info(f"No projects found matching '{project_search}'")
+                custom_info(f"No projects found matching '{project_search}'")
         except Exception as e:
             st.error(f"Error searching projects: {str(e)}")
     
     # Show selected projects with consistent styling
     if st.session_state.selected_project_ids_opt:
         try:
-            # Get project names for selected IDs
-            selected_project_names = []
+            # Get project names organized by groups
+            selected_by_group = {}
             for project_id in st.session_state.selected_project_ids_opt:
                 try:
                     project_info = ProjectService.get_project_dict_by_id(project_id=project_id, session=session)
                     if project_info:
-                        selected_project_names.append(project_info['name'])
+                        project_name = project_info['name']
+                        # Get project group if available
+                        try:
+                            project_groups = ProjectGroupService.list_project_groups(session=session)
+                            project_group = "Ungrouped"
+                            for group in project_groups:
+                                group_info = ProjectGroupService.get_project_group_by_id(group_id=group["id"], session=session)
+                                if any(p["id"] == project_id for p in group_info["projects"]):
+                                    project_group = group["name"]
+                                    break
+                        except:
+                            project_group = "Ungrouped"
+                        
+                        if project_group not in selected_by_group:
+                            selected_by_group[project_group] = []
+                        selected_by_group[project_group].append(project_name)
                     else:
-                        selected_project_names.append(f"Project {project_id}")
+                        if "Ungrouped" not in selected_by_group:
+                            selected_by_group["Ungrouped"] = []
+                        selected_by_group["Ungrouped"].append(f"Project {project_id}")
                 except:
-                    selected_project_names.append(f"Project {project_id}")
+                    if "Ungrouped" not in selected_by_group:
+                        selected_by_group["Ungrouped"] = []
+                    selected_by_group["Ungrouped"].append(f"Project {project_id}")
             
-            # Use info style for consistency and show all projects
-            project_list = ", ".join(selected_project_names)
-            st.info(f"📁 Selected {len(st.session_state.selected_project_ids_opt)} projects: {project_list}")
+            selected_count = len(st.session_state.selected_project_ids_opt)
+            if selected_by_group:
+                custom_info(f"✅ <b>{selected_count}</b> projects selected")
+
+                # Display selected projects organized by group
+                for group_name, project_names in selected_by_group.items():
+                    if len(selected_by_group) > 1:  # Only show group headers if multiple groups
+                        custom_info(f"📁 <b>{group_name}</b> ({len(project_names)} projects): {', '.join(project_names)}")
+                    else:
+                        # If only one group, don't show group header
+                        custom_info(f"📁 Selected {len(project_names)} projects from <b>{group_name}</b>: {', '.join(project_names)}")
+            else:
+                custom_info(f"✅ <b>{selected_count}</b> projects selected")
                     
         except Exception as e:
             st.error(f"Error loading project names: {str(e)}")
-            st.info(f"📁 Selected {len(st.session_state.selected_project_ids_opt)} projects")
+            custom_info(f"📁 Selected {len(st.session_state.selected_project_ids_opt)} projects")
     else:
-        st.info("Search and select projects above to continue.")
+        custom_info("Search and select projects above to continue.")
         return
     
     # Step 2: User Selection with Search
@@ -1068,7 +1097,7 @@ def show_assignment_management_optimized(session: Session):
                 if len(matching_users) == 20:
                     st.warning(f"⚠️ Showing first 20 results. **Too many matches!** Try a more specific search term to find your users faster.")
                 else:
-                    st.success(f"✅ Found {len(matching_users)} matching users")
+                    custom_info(f"✅ Found {len(matching_users)} matching users")
                 
                 # Batch selection buttons
                 batch_user_col1, batch_user_col2 = st.columns(2)
@@ -1104,38 +1133,58 @@ def show_assignment_management_optimized(session: Session):
                         else:
                             st.markdown(f"{role_emoji} **{user['name']}** ({user['email']}) - {user['role']}")
             else:
-                st.info(f"No users found matching '{user_search}' with role filter '{user_role_filter}'")
+                custom_info(f"No users found matching '{user_search}' with role filter '{user_role_filter}'")
         except Exception as e:
             st.error(f"Error searching users: {str(e)}")
     
     # Show selected users with consistent styling
     if st.session_state.selected_user_ids_opt:
         try:
-            # Get user names for selected IDs
-            selected_user_names = []
+            # Get user names organized by role
+            selected_by_role = {}
             for user_id in st.session_state.selected_user_ids_opt:
                 try:
                     user_info = AuthService.get_user_info_by_id(user_id=user_id, session=session)
                     if user_info:
-                        role_emoji = {"human": "👤", "admin": "👑", "model": "🤖"}.get(user_info['user_type'], "❓")
-                        if user_info['user_type'] == 'model':
-                            selected_user_names.append(f"{role_emoji} {user_info['user_id_str']}")
+                        user_role = user_info['user_type']
+                        role_emoji = {"human": "👤", "admin": "👑", "model": "🤖"}.get(user_role, "❓")
+                        
+                        if user_role not in selected_by_role:
+                            selected_by_role[user_role] = []
+                        
+                        if user_role == 'model':
+                            selected_by_role[user_role].append(f"{role_emoji} {user_info['user_id_str']}")
                         else:
-                            selected_user_names.append(f"{role_emoji} {user_info['user_id_str']} ({user_info['email']})")
+                            selected_by_role[user_role].append(f"{role_emoji} {user_info['user_id_str']} ({user_info['email']})")
                     else:
-                        selected_user_names.append(f"User {user_id}")
+                        if "unknown" not in selected_by_role:
+                            selected_by_role["unknown"] = []
+                        selected_by_role["unknown"].append(f"❓ User {user_id}")
                 except:
-                    selected_user_names.append(f"User {user_id}")
+                    if "unknown" not in selected_by_role:
+                        selected_by_role["unknown"] = []
+                    selected_by_role["unknown"].append(f"❓ User {user_id}")
             
-            # Use info style for consistency and show all users
-            user_list = ", ".join(selected_user_names)
-            st.info(f"👥 Selected {len(st.session_state.selected_user_ids_opt)} users: {user_list}")
+            selected_count = len(st.session_state.selected_user_ids_opt)
+            if selected_by_role:
+                custom_info(f"✅ <b>{selected_count}</b> users selected")
+
+                # Display selected users organized by role
+                for role_name, user_names in selected_by_role.items():
+                    role_display = {"human": "Human Users", "admin": "Admin Users", "model": "Model Users"}.get(role_name, "Unknown Users")
+                    if len(selected_by_role) > 1:  # Only show role headers if multiple roles
+                        custom_info(f"👥 <b>{role_display}</b> ({len(user_names)} users): {', '.join(user_names)}")
+                    else:
+                        # If only one role, don't show role header
+                        custom_info(f"👥 Selected {len(user_names)} <b>{role_display.lower()}</b>: {', '.join(user_names)}")
+            else:
+                custom_info(f"✅ <b>{selected_count}</b> users selected")
                     
         except Exception as e:
             st.error(f"Error loading user names: {str(e)}")
-            st.info(f"👥 Selected {len(st.session_state.selected_user_ids_opt)} users")
+            custom_info(f"👥 Selected {len(st.session_state.selected_user_ids_opt)} users")
     else:
-        st.info("Search and select users above to continue.")
+        custom_info("Search and select users above to continue.")
         return
     
     # Step 3: Assignment Settings
@@ -1158,7 +1207,7 @@ def show_assignment_management_optimized(session: Session):
     
     # Show assignment preview
     total_operations = len(st.session_state.selected_project_ids_opt) * len(st.session_state.selected_user_ids_opt)
-    st.info(f"🎯 Ready to create {total_operations} assignments ({len(st.session_state.selected_user_ids_opt)} users × {len(st.session_state.selected_project_ids_opt)} projects)")
+    custom_info(f"🎯 Ready to create {total_operations} assignments ({len(st.session_state.selected_user_ids_opt)} users × {len(st.session_state.selected_project_ids_opt)} projects)")
     
     # Assignment actions
     action_col1, action_col2 = st.columns(2)
@@ -1183,7 +1232,7 @@ def show_assignment_management_optimized(session: Session):
                     user_weight=user_weight
                 )
                 
-                st.success(f"✅ Successfully completed {total_assignments} assignments!")
+                custom_info(f"✅ Successfully completed {total_assignments} assignments!")
                 # Clear selections after success
                 st.session_state.selected_project_ids_opt = []
                 st.session_state.selected_user_ids_opt = []
@@ -1213,7 +1262,7 @@ def show_assignment_management_optimized(session: Session):
                     session=session
                 )
                 
-                st.success(f"🗑️ Successfully removed {total_removals} assignments!")
+                custom_info(f"🗑️ Successfully removed {total_removals} assignments!")
                 # Clear selections after success
                 st.session_state.selected_project_ids_opt = []
                 st.session_state.selected_user_ids_opt = []
@@ -1263,7 +1312,7 @@ def show_assignments_interface(session: Session):
         
         # Show results info
         if result['total_count'] > 0:
-            st.info(f"Found {result['total_count']} matching assignments (Page {result['page'] + 1} of {result['total_pages']})")
+            custom_info(f"Found {result['total_count']} matching assignments (Page {result['page'] + 1} of {result['total_pages']})")
             
             # Pagination navigation with improved styling
             if result['total_pages'] > 1:
@@ -1452,7 +1501,7 @@ def display_assignments_cards(user_assignments: Dict, session: Session):
         
 #         # Show results info
 #         if result['total_count'] > 0:
-#             st.info(f"Found {result['total_count']} matching assignments (Page {result['page'] + 1} of {result['total_pages']})")
+#             custom_info(f"Found {result['total_count']} matching assignments (Page {result['page'] + 1} of {result['total_pages']})")
             
 #             # Pagination navigation
 #             if result['total_pages'] > 1:
@@ -1643,7 +1692,7 @@ def show_schema_create_form(session: Session):
                         if len(matching_groups) == 20:
                             st.warning(f"⚠️ Showing first 20 results. **Too many matches!** Try a more specific search term to find your groups faster.")
                         else:
-                            st.success(f"✅ Found {len(matching_groups)} matching groups")
+                            custom_info(f"✅ Found {len(matching_groups)} matching groups")
                         
                         for group in matching_groups:
                             if not group.get('archived', False):  # Only show non-archived
@@ -1675,11 +1724,11 @@ def show_schema_create_form(session: Session):
                                     if description_preview:
                                         st.caption(description_preview)
                     else:
-                        st.info(f"No question groups found matching '{group_search}'. Try a different search term.")
+                        custom_info(f"No question groups found matching '{group_search}'. Try a different search term.")
                 except Exception as e:
                     st.error(f"Error searching question groups: {str(e)}")
             else:
-                st.info("Enter at least 3 characters in the search box to find question groups")
+                custom_info("Enter at least 3 characters in the search box to find question groups")
             
             # Show selected groups - NOW WITH PROPER NAMES
             if st.session_state.create_schema_selected_groups:
@@ -1752,7 +1801,7 @@ def show_schema_create_form(session: Session):
                 if "create_schema_selected_groups" in st.session_state:
                     st.session_state.create_schema_selected_groups = []
                 
-                st.success("✅ Schema created successfully!")
+                custom_info("✅ Schema created successfully!")
                 # st.rerun(scope="fragment")
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
@@ -1785,7 +1834,7 @@ def show_schema_edit_interface(session: Session):
                 if len(matching_schemas) == 20:
                     st.warning(f"⚠️ Showing first 20 results. **Too many matches!** Try a more specific search term.")
                 else:
-                    st.success(f"✅ Found {len(matching_schemas)} matching schemas")
+                    custom_info(f"✅ Found {len(matching_schemas)} matching schemas")
                 
                 # Show matching schemas for selection
                 schema_options = {}
@@ -1803,11 +1852,11 @@ def show_schema_edit_interface(session: Session):
                     selected_schema_id = schema_options[selected_schema_display]
                     show_schema_edit_form(selected_schema_id, session)
             else:
-                st.info(f"No schemas found matching '{search_term}'")
+                custom_info(f"No schemas found matching '{search_term}'")
         except Exception as e:
             st.error(f"Error searching schemas: {str(e)}")
     else:
-        st.info("Enter at least 3 characters in the search box to find schemas to edit")
+        custom_info("Enter at least 3 characters in the search box to find schemas to edit")
 
 def show_schema_edit_form(schema_id: int, session: Session):
     """Show the actual schema editing form."""
@@ -1926,7 +1975,7 @@ def show_schema_edit_form(schema_id: int, session: Session):
                 if working_order != current_order:
                     st.warning("⚠️ Group order changed - click 'Update Schema' to save")
                 else:
-                    st.success("✅ Order matches saved state")
+                    custom_info("✅ Order matches saved state")
             
             new_group_order = working_order
         else:
@@ -1986,7 +2035,7 @@ def show_schema_edit_form(schema_id: int, session: Session):
                         if order_key in st.session_state:
                             del st.session_state[order_key]
                         
-                        st.success(f"✅ Schema updated successfully! Changed: {', '.join(changes_made)}")
+                        custom_info(f"✅ Schema updated successfully! Changed: {', '.join(changes_made)}")
                         # st.rerun(scope="fragment")
                     else:
                         custom_info("No changes were made")
@@ -2140,7 +2189,7 @@ def admin_questions():
                                     if len(matching_questions) == 20:
                                         st.warning(f"⚠️ Showing first 20 results. **Too many matches!** Try a more specific search term to find your questions faster.")
                                     else:
-                                        st.success(f"✅ Found {len(matching_questions)} matching questions")
+                                        custom_info(f"✅ Found {len(matching_questions)} matching questions")
                                     
                                     for question in matching_questions:
                                         if not question.get('archived', False):  # Only show non-archived
@@ -2173,11 +2222,11 @@ def admin_questions():
                                                 st.markdown(f"{type_emoji} **{text_preview}**")
                                                 st.caption(f"Type: {question_type}")
                                 else:
-                                    st.info(f"No questions found matching '{question_search}'. Try a different search term.")
+                                    custom_info(f"No questions found matching '{question_search}'. Try a different search term.")
                             except Exception as e:
                                 st.error(f"Error searching questions: {str(e)}")
                         else:
-                            st.info("Enter at least 3 characters in the search box to find questions")
+                            custom_info("Enter at least 3 characters in the search box to find questions")
                         
                         # Show selected questions - WITH PROPER TEXT
                         if st.session_state.create_group_selected_questions:
@@ -2237,7 +2286,7 @@ def admin_questions():
                             if "create_group_selected_questions" in st.session_state:
                                 st.session_state.create_group_selected_questions = []
 
-                            st.success("✅ Question group created successfully!")
+                            custom_info("✅ Question group created successfully!")
                             # st.rerun(scope="fragment")
                         except Exception as e:
                             st.error(f"❌ Error: {str(e)}")
@@ -2345,7 +2394,7 @@ def admin_questions():
                                 default=default, session=session,
                                 display_text=display_text, option_weights=option_weights if q_type == "single" else None
                             )
-                            st.success("✅ Question created successfully!")
+                            custom_info("✅ Question created successfully!")
                             # st.rerun(scope="fragment")
                         except Exception as e:
                             st.error(f"❌ Error: {str(e)}")
@@ -2377,7 +2426,7 @@ def show_group_edit_interface(session):
                 if len(matching_groups) == 20:
                     st.warning(f"⚠️ Showing first 20 results. **Too many matches!** Try a more specific search term.")
                 else:
-                    st.success(f"✅ Found {len(matching_groups)} matching groups")
+                    custom_info(f"✅ Found {len(matching_groups)} matching groups")
                 
                 # Show matching groups for selection
                 group_options = {}
@@ -2395,11 +2444,11 @@ def show_group_edit_interface(session):
                     selected_group_id = group_options[selected_group_display]
                     show_group_edit_form(selected_group_id, session)
             else:
-                st.info(f"No groups found matching '{search_term}'")
+                custom_info(f"No groups found matching '{search_term}'")
         except Exception as e:
             st.error(f"Error searching groups: {str(e)}")
     else:
-        st.info("Enter at least 3 characters in the search box to find groups to edit")
+        custom_info("Enter at least 3 characters in the search box to find groups to edit")
 
 def show_group_edit_form(group_id: int, session):
     """Show the actual group editing form."""
@@ -2549,7 +2598,7 @@ def show_group_edit_form(group_id: int, session):
                         if order_key in st.session_state:
                             del st.session_state[order_key]
                         
-                        st.success(f"✅ Question group updated successfully! Changed: {', '.join(changes_made)}")
+                        custom_info(f"✅ Question group updated successfully! Changed: {', '.join(changes_made)}")
                         # st.rerun(scope="fragment")
                     else:
                         custom_info("No changes were made")
@@ -2620,7 +2669,7 @@ def show_question_edit_interface(session):
                 if len(matching_questions) == 20:
                     st.warning(f"⚠️ Showing first 20 results. **Too many matches!** Try a more specific search term.")
                 else:
-                    st.success(f"✅ Found {len(matching_questions)} matching questions")
+                    custom_info(f"✅ Found {len(matching_questions)} matching questions")
                 
                 # Show matching questions for selection
                 question_options = {}
@@ -2639,11 +2688,11 @@ def show_question_edit_interface(session):
                     selected_question_id = question_options[selected_question_display]
                     show_question_edit_form(selected_question_id, session)
             else:
-                st.info(f"No questions found matching '{search_term}'")
+                custom_info(f"No questions found matching '{search_term}'")
         except Exception as e:
             st.error(f"Error searching questions: {str(e)}")
     else:
-        st.info("Enter at least 3 characters in the search box to find questions to edit")
+        custom_info("Enter at least 3 characters in the search box to find questions to edit")
 
 
 def show_question_edit_form(question_id: int, session):
@@ -2844,7 +2893,7 @@ def show_question_edit_form(question_id: int, session):
                             new_display_values=final_display_values, new_option_weights=final_option_weights,
                             session=session
                         )
-                        st.success(f"✅ Question updated successfully! Changed: {', '.join(changes_made)}")
+                        custom_info(f"✅ Question updated successfully! Changed: {', '.join(changes_made)}")
                         # st.rerun(scope="fragment")
                     else:
                         custom_info("No changes were made")
@@ -2900,7 +2949,6 @@ def show_question_edit_form(question_id: int, session):
 # These dialog functions are called but not implemented:
 
 
-
 @st.fragment
 def admin_export():
     st.subheader("📤 Ground Truth Export")
@@ -2943,6 +2991,7 @@ def admin_export():
             st.session_state['show_export_dialog'] = False
             show_export_dialog()
 
+
 @st.fragment
 @st.dialog("📤 Ground Truth Export - Project Selection", width="large")
 def show_export_dialog():
@@ -2964,6 +3013,7 @@ def show_export_dialog():
             
         except Exception as e:
             st.error(f"Error loading projects for export: {str(e)}")
+
 
 def show_export_project_interface(grouped_projects, session):
     """Show the full export project selection interface."""
@@ -3158,7 +3208,25 @@ def show_export_project_interface(grouped_projects, session):
     if selected_count == 0:
         st.warning("No projects selected for export.")
     else:
-        st.success(f"✅ {selected_count} projects selected")
+        # Show selected projects organized by groups (like assignment tab)
+        selected_by_group = {}
+        for group_name, projects in grouped_projects.items():
+            selected_in_group = [p for p in projects if p["id"] in current_selections]
+            if selected_in_group:
+                selected_by_group[group_name] = [p["name"] for p in selected_in_group]
+        
+        if selected_by_group:
+            custom_info(f"✅ <b>{selected_count}</b> projects selected")
+            
+            # Display selected projects organized by group
+            for group_name, project_names in selected_by_group.items():
+                if len(selected_by_group) > 1:  # Only show group headers if multiple groups
+                    custom_info(f"📁 <b>{group_name}</b> ({len(project_names)} projects): {', '.join(project_names)}")
+                else:
+                    # If only one group, don't show group header
+                    custom_info(f"📁 Selected {len(project_names)} projects from <b>{group_name}</b>: {', '.join(project_names)}")
+        else:
+            custom_info(f"✅ <b>{selected_count}</b> projects selected")
         
         config_col1, config_col2 = st.columns(2)
         with config_col1:
@@ -3176,7 +3244,7 @@ def show_export_project_interface(grouped_projects, session):
                     validation_result = validate_projects_for_export(project_ids, session)
                 
                 if validation_result["success"]:
-                    st.success("✅ Validation passed! Ready to export.")
+                    custom_info("✅ Validation passed! Ready to export.")
                 else:
                     st.error("❌ **Validation Failed**: Found conflicts in question group usage")
                     
@@ -3268,7 +3336,7 @@ def show_export_project_interface(grouped_projects, session):
                             if validation_result["non_reusable_details"]:
                                 resolution_text.append("**Non-reusable violations**: Separate into different projects")
                             
-                            st.info(f"💡 **Next Steps**: {' and '.join(resolution_text)}. Download the comprehensive error report above for detailed guidance.")
+                            custom_info(f"💡 **Next Steps**: {' and '.join(resolution_text)}. Download the comprehensive error report above for detailed guidance.")
                             
                         except Exception as excel_error:
                             st.warning(f"Could not generate Excel report: {str(excel_error)}")
@@ -3295,7 +3363,7 @@ def show_export_project_interface(grouped_projects, session):
                             st.download_button("📥 Download Excel", buffer.getvalue(), final_filename, 
                                              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
                     
-                    st.success(f"✅ Exported {len(export_data)} videos!")
+                    custom_info(f"✅ Exported {len(export_data)} videos!")
                 except ValueError as e:
                     st.error(f"❌ Export failed:\n\n{str(e)}")
         
@@ -3377,8 +3445,8 @@ def show_user_create_form(session: Session):
                     user_id=user_id, email=email, password_hash=password, 
                     user_type=user_type, is_archived=is_archived, session=session
                 )
-                st.success(f"✅ User '{user_id}' created successfully!")
-                st.info("💡 Refresh the page or navigate away and back to clear the form")
+                custom_info(f"✅ User '{user_id}' created successfully!")
+                custom_info("💡 Refresh the page or navigate away and back to clear the form")
                 # Removed manual session state clearing that was causing the error
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
@@ -3418,7 +3486,7 @@ def show_user_edit_interface(session: Session):
                 if len(matching_users) == 20:
                     st.warning(f"⚠️ Showing first 20 results. **Too many matches!** Try a more specific search term.")
                 else:
-                    st.success(f"✅ Found {len(matching_users)} matching users")
+                    custom_info(f"✅ Found {len(matching_users)} matching users")
                 
                 # Show matching users for selection
                 user_options = {}
@@ -3437,11 +3505,11 @@ def show_user_edit_interface(session: Session):
                     selected_user_id = user_options[selected_user_display]
                     show_user_edit_form(selected_user_id, session)
             else:
-                st.info(f"No users found matching '{search_term}' with the selected filters")
+                custom_info(f"No users found matching '{search_term}' with the selected filters")
         except Exception as e:
             st.error(f"Error searching users: {str(e)}")
     else:
-        st.info("Enter at least 3 characters in the search box to find users to edit")
+        custom_info("Enter at least 3 characters in the search box to find users to edit")
 
 def show_user_edit_form(user_id: int, session: Session):
     """Show the actual user editing form."""
@@ -3533,7 +3601,7 @@ def show_user_edit_form(user_id: int, session: Session):
                         changes_made.append("Archive status")
                     
                     if changes_made:
-                        st.success(f"✅ User '{new_user_id}' updated successfully! Changed: {', '.join(changes_made)}")
+                        custom_info(f"✅ User '{new_user_id}' updated successfully! Changed: {', '.join(changes_made)}")
                     else:
                         custom_info("No changes were made")
                         
@@ -3652,7 +3720,7 @@ def show_project_group_create_form(session: Session):
                 if len(matching_projects) == 20:
                     st.warning(f"⚠️ Showing first 20 results. **Too many matches!** Try a more specific search term to find your projects faster.")
                 else:
-                    st.success(f"✅ Found {len(matching_projects)} matching projects")
+                    custom_info(f"✅ Found {len(matching_projects)} matching projects")
                 
                 for project in matching_projects:
                     project_col1, project_col2 = st.columns([1, 3])
@@ -3680,11 +3748,11 @@ def show_project_group_create_form(session: Session):
                         archived_indicator = " 🗄️ (ARCHIVED)" if project.get('archived', False) else ""
                         st.markdown(f"**{project['name']}**{archived_indicator} (ID: {project['id']})")
             else:
-                st.info(f"No projects found matching '{project_search}'. Try a different search term.")
+                custom_info(f"No projects found matching '{project_search}'. Try a different search term.")
         except Exception as e:
             st.error(f"Error searching projects: {str(e)}")
     else:
-        st.info("Enter at least 3 characters in the search box to find projects, or leave empty to create group without projects")
+        custom_info("Enter at least 3 characters in the search box to find projects, or leave empty to create group without projects")
     
     # Show selected projects - NOW WITH PROPER NAMES
     if st.session_state.create_pgroup_selected_projects:
@@ -3717,7 +3785,7 @@ def show_project_group_create_form(session: Session):
                 
                 # Clear selection after successful creation
                 st.session_state.create_pgroup_selected_projects = []
-                st.success("✅ Project group created successfully!")
+                custom_info("✅ Project group created successfully!")
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
         else:
@@ -3747,7 +3815,7 @@ def show_project_group_edit_interface(session: Session):
                     st.warning(f"⚠️ Found {len(matching_groups)} matches. **Too many results!** Try a more specific search term.")
                     matching_groups = matching_groups[:20]
                 else:
-                    st.success(f"✅ Found {len(matching_groups)} matching groups")
+                    custom_info(f"✅ Found {len(matching_groups)} matching groups")
                 
                 # Show matching groups for selection
                 group_options = {f"{g['name']} (ID: {g['id']})": g['id'] for g in matching_groups}
@@ -3762,11 +3830,11 @@ def show_project_group_edit_interface(session: Session):
                     selected_group_id = group_options[selected_group_display]
                     show_project_group_edit_form(selected_group_id, session)
             else:
-                st.info(f"No groups found matching '{search_term}'")
+                custom_info(f"No groups found matching '{search_term}'")
         except Exception as e:
             st.error(f"Error searching groups: {str(e)}")
     else:
-        st.info("Enter at least 3 characters in the search box to find groups to edit")
+        custom_info("Enter at least 3 characters in the search box to find groups to edit")
 
 def show_project_group_edit_form(group_id: int, session: Session):
     """Show the actual project group editing form."""
@@ -3836,7 +3904,7 @@ def show_project_group_edit_form(group_id: int, session: Session):
                             st.warning(f"⚠️ Showing first 20 results. **Too many matches!** Try a more specific search term.")
                             filtered_add_projects = filtered_add_projects.head(20)
                         else:
-                            st.success(f"✅ Found {len(filtered_add_projects)} matching projects to add")
+                            custom_info(f"✅ Found {len(filtered_add_projects)} matching projects to add")
                         
                         for _, project_row in filtered_add_projects.iterrows():
                             project_col1, project_col2 = st.columns([1, 3])
@@ -3861,13 +3929,13 @@ def show_project_group_edit_form(group_id: int, session: Session):
                                 archived_indicator = " 🗄️ (ARCHIVED)" if project_row["Archived"] else ""
                                 st.markdown(f"**{project_row['Name']}**{archived_indicator} (ID: {project_row['ID']})")
                     else:
-                        st.info(f"No available projects found matching '{add_search}'")
+                        custom_info(f"No available projects found matching '{add_search}'")
                 else:
-                    st.info("All projects are already in this group")
+                    custom_info("All projects are already in this group")
             except Exception as e:
                 st.error(f"Error searching projects to add: {str(e)}")
         else:
-            st.info("Enter at least 3 characters to search for projects to add")
+            custom_info("Enter at least 3 characters to search for projects to add")
         
         # Show selected projects to add
         if st.session_state[f"edit_pgroup_add_projects_{group_id}"]:
@@ -3904,7 +3972,7 @@ def show_project_group_edit_form(group_id: int, session: Session):
                 ]
                 
                 if filtered_remove_projects:
-                    st.success(f"✅ Found {len(filtered_remove_projects)} matching projects to remove")
+                    custom_info(f"✅ Found {len(filtered_remove_projects)} matching projects to remove")
                     
                     for project in filtered_remove_projects:
                         project_col1, project_col2 = st.columns([1, 3])
@@ -3929,9 +3997,9 @@ def show_project_group_edit_form(group_id: int, session: Session):
                             archived_indicator = " 🗄️" if project.get("is_archived", False) else " ✅"
                             st.markdown(f"**{project['name']}**{archived_indicator} (ID: {project['id']})")
                 else:
-                    st.info(f"No current projects found matching '{remove_search}'")
+                    custom_info(f"No current projects found matching '{remove_search}'")
             else:
-                st.info("Enter at least 3 characters to search for projects to remove")
+                custom_info("Enter at least 3 characters to search for projects to remove")
             
             # Show selected projects to remove
             if st.session_state[f"edit_pgroup_remove_projects_{group_id}"]:
@@ -3989,7 +4057,7 @@ def show_project_group_edit_form(group_id: int, session: Session):
                         st.session_state[f"edit_pgroup_add_projects_{group_id}"] = []
                         st.session_state[f"edit_pgroup_remove_projects_{group_id}"] = []
                         
-                        st.success(f"✅ Project group updated successfully! Changed: {', '.join(changes_made)}")
+                        custom_info(f"✅ Project group updated successfully! Changed: {', '.join(changes_made)}")
                     else:
                         custom_info("No changes were made")
                         
@@ -4565,7 +4633,7 @@ def show_videos_table_dialog():
                 )
             
             # Show results info
-            st.info(f"Showing {len(result['videos'])} of {result['total_count']} videos (Page {result['page'] + 1} of {result['total_pages']})")
+            custom_info(f"Showing {len(result['videos'])} of {result['total_count']} videos (Page {result['page'] + 1} of {result['total_pages']})")
             
             # Pagination navigation
             if result['total_pages'] > 1:
@@ -4646,7 +4714,7 @@ def show_projects_table_dialog():
                 )
             
             # Show results info
-            st.info(f"Showing {len(result['projects'])} of {result['total_count']} projects (Page {result['page'] + 1} of {result['total_pages']})")
+            custom_info(f"Showing {len(result['projects'])} of {result['total_count']} projects (Page {result['page'] + 1} of {result['total_pages']})")
             
             # Pagination navigation
             if result['total_pages'] > 1:
@@ -4727,7 +4795,7 @@ def show_schemas_table_dialog():
                 )
             
             # Show results info
-            st.info(f"Showing {len(result['schemas'])} of {result['total_count']} schemas (Page {result['page'] + 1} of {result['total_pages']})")
+            custom_info(f"Showing {len(result['schemas'])} of {result['total_count']} schemas (Page {result['page'] + 1} of {result['total_pages']})")
             
             # Pagination navigation
             if result['total_pages'] > 1:
@@ -4794,7 +4862,7 @@ def show_question_groups_table_dialog():
                 )
                 filtered_groups = filtered_groups[mask]
             
-            st.info(f"Showing {len(filtered_groups)} groups")
+            custom_info(f"Showing {len(filtered_groups)} groups")
             
             if not filtered_groups.empty:
                 st.dataframe(filtered_groups, use_container_width=True)
@@ -4845,7 +4913,7 @@ def show_questions_table_dialog():
                 )
             
             # Show results info
-            st.info(f"Showing {len(result['questions'])} of {result['total_count']} questions (Page {result['page'] + 1} of {result['total_pages']})")
+            custom_info(f"Showing {len(result['questions'])} of {result['total_count']} questions (Page {result['page'] + 1} of {result['total_pages']})")
             
             # Pagination navigation
             if result['total_pages'] > 1:
@@ -4947,7 +5015,7 @@ def show_project_groups_table_dialog():
                 else:
                     filtered_data = group_data
                 
-                st.info(f"Showing {len(filtered_data)} of {len(group_data)} total groups")
+                custom_info(f"Showing {len(filtered_data)} of {len(group_data)} total groups")
                 
                 if filtered_data:
                     st.dataframe(pd.DataFrame(filtered_data), use_container_width=True)
@@ -4993,7 +5061,7 @@ def show_users_table_dialog():
                 )
                 filtered_users = filtered_users[mask]
             
-            st.info(f"Showing {len(filtered_users)} of {len(users_df)} total users")
+            custom_info(f"Showing {len(filtered_users)} of {len(users_df)} total users")
             
             if not filtered_users.empty:
                 st.dataframe(filtered_users, use_container_width=True)
@@ -5045,7 +5113,7 @@ def show_assignments_table_dialog():
             
             # Show results info
             if result['total_count'] > 0:
-                st.info(f"Found {result['total_count']} users with assignments (Page {result['page'] + 1} of {result['total_pages']})")
+                custom_info(f"Found {result['total_count']} users with assignments (Page {result['page'] + 1} of {result['total_pages']})")
                 
                 # Pagination navigation
                 if result['total_pages'] > 1:
@@ -6391,7 +6459,7 @@ def display_assignments_cards_dialog(user_assignments: Dict, session: Session):
 #                                 if validation_result["non_reusable_details"]:
 #                                     resolution_text.append("**Non-reusable violations**: Separate into different projects")
                                 
-#                                 st.info(f"💡 **Next Steps**: {' and '.join(resolution_text)}. Download the comprehensive error report above for detailed guidance.")
+#                                 custom_info(f"💡 **Next Steps**: {' and '.join(resolution_text)}. Download the comprehensive error report above for detailed guidance.")
                                 
 #                             except Exception as excel_error:
 #                                 st.warning(f"Could not generate Excel report: {str(excel_error)}")
