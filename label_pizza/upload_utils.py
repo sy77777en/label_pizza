@@ -685,7 +685,7 @@ def create_projects(
                 print(f"Project {project.name} already exists")
             except Exception as e:
                 if ("not found" in str(e)):
-                    ProjectService.create_project(name = project_name, schema_id = schema_id, video_ids = video_ids, session = session)
+                    ProjectService.create_project(name = project_name, description = project_data.get('description', None), schema_id = schema_id, video_ids = video_ids, session = session)
                 else:
                     raise ValueError(f"Error creating project {project_name}: {e}")
 
