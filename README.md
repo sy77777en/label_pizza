@@ -17,6 +17,7 @@ Label Pizza lets you upload video collections, teach annotators the exact policy
 5. [Schema Design](#schema-design)
 6. [Quick Setup](#quick-setup-in-3-minutes)
 7. [Folder Layout](#folder-layout)
+8. [Next Steps](#next-steps)
 
 ---
 
@@ -152,6 +153,11 @@ Visit **[http://localhost:8000](http://localhost:8000)** to log in.
 > Pipe the local port through **[pinggy.io](https://pinggy.io/)** (≈ US \$3 per static URL per month)
 
 
+### 4 · Load your own videos, questions, projects, and users
+
+Need to load your own data next? Head over to **[instructions.md](instructions.md)**!
+
+
 ## Folder Layout
 
 ```
@@ -159,8 +165,19 @@ label_pizza/
 ├─ label_pizza_app.py   # Streamlit interface
 ├─ models.py            # Database tables
 ├─ services.py          # Business logic
-├─ utils.py             # Caching and helpers
-└─ init_or_reset_db.py  # Init/reset the database with a seed admin user
+├─ sync_utils.py        # Upload data to the database
+└─ init_or_reset_db.py  # Init/backup/reset the database with a seed admin user
+sync_from_folder.py     # Sync data from a folder
+workspace/              # Your own data folder
 ```
 
 Enjoy your slice of perfectly-topped labels! 🍕
+
+## Next Steps
+
+* **Import or update data** – follow the helper examples in  
+  [instructions.md → Customizing your sync workflow](instructions.md#customizing-your-sync-workflow-with-sync_utilspy)
+* **Back up or reset the database** – commands in  
+  [instructions.md → Reset or backup the database](instructions.md#reset-or-backup-the-database)
+* **Custom questions or options per video** – see  
+  [instructions.md → Custom question per video](instructions.md#custom-question-per-video)

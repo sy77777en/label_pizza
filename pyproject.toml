@@ -24,7 +24,8 @@ dependencies = [
     "python-dotenv",
     "pytest",
     "reflex",
-    "openpyxl"
+    "openpyxl",
+    "tqdm"
 ]
 
 # This section tells setuptools to find packages automatically
