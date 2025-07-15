@@ -187,19 +187,15 @@ def check_human_description(answers: Dict[str, str]) -> None:
         answers: Dictionary mapping question text to answer value
       
     Raises:
-        ValueError: If any answer is empty
+        ValueError: If the description is provided when there are no people, or if the description is not provided when there are people.
     """
-    number_question = "Number of people?"
-    description_question = "If there are people, describe them."
-    count_answer = answers.get(number_question)
-    description_answer = answers.get(description_question, "")
-    has_items = count_answer.strip() != "0"
-
-    if has_items and not description_answer:
-        raise ValueError(
-            f"'{description_question}' cannot be empty when count is not zero"
-        )
-    return True
+    num_people = answers.get("Number of people?")
+    description = answers.get("If there are people, describe them.")
+    
+    if num_people == "0" and description:
+        raise ValueError("Description cannot be provided when there are no people")
+    if num_people != "0" and not description:
+        raise ValueError("Description must be provided when there are people")
 ```
 
 ### `schemas.json`
@@ -590,11 +586,11 @@ Throughout your work, you can always synchronize the database—adding new items
 
 ## Customizing your sync workflow with `sync_utils.py`
 
-Once your database is live you will probably need to add or update hundreds of videos, projects, question groups, and model answers. The simplest route is to modify the JSON  inside **[`workspace/`](workspace/)** and rerun **[`sync_from_folder.py`](sync_from_folder.py)**, but be aware of how that script works:
+Once your database is live you will likely need to add or update hundreds of videos, projects, question groups, and model answers. The simplest route is to modify the JSON  inside **[`workspace/`](workspace/)** and rerun **[`sync_from_folder.py`](sync_from_folder.py)**, but be aware of how that script works:
 
-* It reads **every** JSON file in the folder – videos, question groups, schemas, users, projects, assignments, annotations, and ground-truths.
-* It compares each record to what's already in the database.
-* Any difference (for example, you changed a video URL or added a new answer option to a question) is treated as an update.
+* Reads **every** JSON file in the folder – videos, question groups, schemas, users, projects, assignments, annotations, and ground-truths.
+* Compares each record to what's already in the database.
+* Flags *any* difference as an update.
 
 On a large workspace that full-folder scan can be slow.
 
@@ -635,7 +631,7 @@ For this guide, we'll use the Python list of dictionaries.
 
 You don’t need to keep everything in `workspace/` — just the parts that are helpful to version-control or sync in bulk. Our recommendation is to keep the following:
 
-* **✅ Videos & Projects**
+<!-- * **✅ Videos & Projects**
   These often involve hundreds or thousands of entries. It’s much easier to manage them in JSON and upload via helper scripts than to enter them manually.
 
 * **✅ Question Groups & Schemas**
@@ -645,7 +641,15 @@ You don’t need to keep everything in `workspace/` — just the parts that are 
   For small teams, the Admin UI is the simplest way to manage users and assign them to projects. Use the helpers only if you're onboarding dozens of users at once.
 
 * **🚫 Annotations & Ground-Truths**
-  These should be collected directly in the web UI. Only use the helpers if you're importing existing labels (e.g., from a model or legacy dataset).
+  These should be collected directly in the web UI. Only use the helpers if you're importing existing labels (e.g., from a model or legacy dataset). -->
+
+| Keep in JSON?                      | Why                                                             |
+| ---------------------------------- | --------------------------------------------------------------- |
+| **Videos & Projects ✅**            | usually hundreds—JSON + helper is far faster than hand entry    |
+| **Question Groups & Schemas ✅**    | version-control your labeling policy and reuse it elsewhere     |
+| **Users & Assignments 🟡**         | UI is fine for small teams; use helpers only for large batches  |
+| **Annotations & Ground-Truths 🚫** | collect via Web UI; import here only for existing labels (e.g., legacy dataset or from a model) |
+
 
 Keeping the important JSON files in `workspace/` lets you:
 
@@ -662,170 +666,30 @@ Archive      :  annotations / ground_truths → assignments → projects → sch
 
 Upload things **before** anything that depends on them, and archive in the reverse direction to avoid dependency errors.
 
-### Road-map of the helper workflow
 
-Below are **the eight helper functions** that power *all* database syncing in Label Pizza.
+#### Prerequisite: `init_database`
 
-*For adding or updating data*, run them **top-to-bottom**.
-*For archiving*, walk the same list **bottom-to-top** so nothing is left orphaned.
-
-1. **Sync videos** – upload or archive the raw clips
-2. **Sync users** – create annotators, reviewers, and admins
-3. **Sync question groups** – define reusable tabs of questions
-4. **Sync schemas** – bundle question groups into a labeling policy
-5. **Sync projects** – attach videos to a schema and set project-level options
-6. **Sync project groups** – organise related projects (optional)
-7. **Sync user ↔ project assignments** – give people roles and weights
-8. **Sync annotations / ground-truths** – import existing answers (optional)
-
-#### Prerequisite · initialize the database
+**Important:** You must run this once before **importing** any other helper functions, otherwise you will get an error.
 
 ```python
-from label_pizza.db import init_database
-init_database("DBURL")  # or change DBURL to other keys in .env
-```
-
-#### Step 1 · Sync videos
-
-```python
-from label_pizza.db import init_database
-from label_pizza.sync_utils import sync_videos
-
-init_database("DBURL")
-
-# ---- add -------------------------------------------------
-videos_data = [{
-    "video_uid": "human.mp4",
-    "url": "https://your-repo/human.mp4",
-    "is_active": True,
-    "metadata": {
-        "original_url": "https://www.youtube.com/watch?v=L3wKzyIN1yk",
-        "license": "Standard YouTube License"
-    }
-}]
-sync_videos(videos_data=videos_data)
-
-# ---- update ----------------------------------------------
-videos_data = [{
-    "video_uid": "human.mp4",
-    "url": "https://your-repo-new/human.mp4",
-    "is_active": True,
-    "metadata": {
-        "original_url": "https://www.youtube.com/watch?v=L3wKzyIN1yk",
-        "license": "Standard YouTube License (updated)"
-    }
-}]
-sync_videos(videos_data=videos_data)
-
-# ---- archive ---------------------------------------------
-videos_data = [{
-    "video_uid": "human.mp4",
-    "url": "https://your-repo/human.mp4",
-    "is_active": False,
-    "metadata": {}
-}]
-sync_videos(videos_data=videos_data)
-```
-
----
-
-## Step 2 · Sync users
-
-*(examples trimmed for brevity—pattern repeats)*
-
-```python
-from label_pizza.sync_utils import sync_users
-
-users_data = [{
-    "user_id": "User 1",
-    "email": "user1@example.com",
-    "password": "user111",
-    "user_type": "human",
-    "is_active": True
-}]
-sync_users(users_data=users_data)
-```
-
----
-
-## Step 3 · Sync question groups
-
-## Step 4 · Sync schemas
-
-## Step 5 · Sync projects
-
-## Step 6 · Sync project groups
-
-## Step 7 · Sync user-to-project assignments
-
-## Step 8 · Sync annotations and ground-truths
-
-*(The full, worked examples for each helper remain exactly as listed further down in this guide. Follow them in the order above to satisfy all dependencies.)*
-
----
-
-### Custom display text per video
-
-See **“Custom Display Text for Video Annotations”** at the end of this file for a complete walk-through of adding per-video question wording and option labels.
-
----
-
-📚 **You now have the flexibility to**:
-
-* **Blast-import** 500 new videos without touching anything else.
-* **Archive** a schema *after* first archiving the projects that rely on it.
-* **Script** repeatable updates in CI without a full folder diff.
-
-Enjoy your (much faster) slice of Label Pizza 🍕
-
-
-Each helper accepts either of the following:
-
-* a **Python list** of dictionaries that you build in code, ***or***
-* a **path to a JSON file** on disk.
-
-### Tip: Keep `workspace/` as your source of truth
-
-We still recommend storing the core definition files—**videos**, **question groups**, **schemas**, and **projects**—inside **`workspace/`** so you can version-control them.
-Commit that folder to Git, back it up, or copy it to another server and the helpers will read the JSON directly.
-
-For most teams, leave **`annotations/`** and **`ground_truths/`** empty—collect answers through the Web UI. Fill those folders only when you’re importing an existing labeled set or model outputs.
-
-
-### Tip 2: Run helpers in dependency order
-
-For adding/updating:
-```
-videos → question groups → schemas → users → projects → assignments → annotations/ground-truths
-```
-
-For archiving:
-```
-annotations/ground-truths → assignments → projects → users → schemas → question groups → videos
+from label_pizza.sync_utils import init_database
+init_database("DBURL")  # or change DBURL to another key in .env
 ```
 
 
-### Prerequisite: initialize the database
+#### 1. `sync_videos`
 
-**Important:** Initialize the database before running any other steps.
+Function for adding / updating / archiving videos
 
-```python
-from label_pizza.db import init_database
-init_database("DBURL")  # replace with your database URL name as stored in .env, e.g. init_database("DBURL2")
-```
+1.1 - Add videos
 
-### Step 1: Sync Videos
-
-Function for adding / editing / archiving videos
-
-#### - Add videos
+To add a video, you must provide a `video_uid` that does not already exist in the database.
 
 ```python
 from label_pizza.db import init_database
 init_database("DBURL")
 
 from label_pizza.sync_utils import sync_videos
-
 videos_data = [
   {
     "video_uid": "human.mp4", # Must NOT exist in the database
@@ -841,22 +705,20 @@ videos_data = [
 sync_videos(videos_data=videos_data)
 ```
 
-#### - Update videos
+1.2 - Update or archive videos
+
+To update a video record, keep the `video_uid` fixed and modify other fields such as `url`, `is_active`, or `metadata`.
 
 ```python
-from label_pizza.db import init_database
-init_database("DBURL")
-
-from label_pizza.sync_utils import sync_videos
+# ...After step 1.1
 
 videos_data = [
   {
     "video_uid": "human.mp4",                       # Must already exist in the database
     "url": "https://your-repo-new/human.mp4",       # update url (Must not exist in the database)
-    "is_active": True,
+    "is_active": False,                             # Set to False to archive the video
     "metadata": {
-      "original_url": "https://www.youtube.com/watch?v=L3wKzyIN1yk",
-      "license": "Standard YouTube License Updated" # update metadata
+       # update metadata to be an empty dictionary
     }
   }
 ]
@@ -864,31 +726,13 @@ videos_data = [
 sync_videos(videos_data=videos_data)
 ```
 
-#### - Archive videos
+### 2. `sync_users`
 
-```python
-from label_pizza.sync_utils import sync_videos
+Function for adding / updating / archiving users
 
-videos_data = [
-  {
-    "video_uid": "human.mp4", # Must already exist in the database
-    "url": "https://your-repo/human.mp4",
-    "is_active": False,       # Set to False to archive the video
-    "metadata": {
-      "original_url": "https://www.youtube.com/watch?v=L3wKzyIN1yk",
-      "license": "Standard YouTube License"
-    }
-  }
-]
+2.1 - Add users
 
-sync_videos(videos_data=videos_data)
-```
-
-### Step 2: Sync Users
-
-Function for adding / editing / archiving users
-
-#### - Add users
+To add a user, provide a unique `user_id` that does not already exist in the database. If specifying an `email`, it must also be unique.
 
 ```python
 from label_pizza.db import init_database
@@ -906,23 +750,49 @@ users_data = [
     }
 ]
 
-sync_users(user_data=users_data)
+sync_users(users_data=users_data)
 ```
 
-#### - Update users
+2.2 - Update or archive users
+
+To update a user, provide the `user_id` that already exists in the database to update the `email`, `password`, `user_type`, or `is_active`.
 
 ```python
-from label_pizza.db import init_database
-init_database("DBURL")
+# ...After step 2.1
 
-from label_pizza.sync_utils import sync_users
-
+# Update email using user_id
 users_data = [
     {
-        "user_id": "New User 1",          # must already exist OR email must match
-        "email": "user1-new@example.com", # must already exist OR user_id must match
-        "password": "user111-new",        # update password
-        "user_type": "human",             # Could only select from "admin", "human" and "model"
+        "user_id": "User 1",              # the existing user_id
+        "email": "user1-new@example.com", # new email
+        "password": "user111-new",        # new password
+        "user_type": "human",             # Could only select from "admin", "human"
+        "is_active": True
+    }
+]
+
+sync_users(users_data=users_data)
+
+# Then update user_id using email + archive the user
+users_data = [
+    {
+        "user_id": "User 1 New",          # new user_id
+        "email": "user1-new@example.com", # the existing email
+        "password": "user111-new",        
+        "user_type": "human",             # Could only select from "admin", "human"
+        "is_active": False
+    }
+]
+
+sync_users(users_data=users_data)
+
+# You can add a model user. Model users do not have `email`
+users_data = [
+    {
+        "user_id": "Model 1",          # new user_id
+        "email": "", # the existing email
+        "password": "",        
+        "user_type": "model",
         "is_active": True
     }
 ]
@@ -930,126 +800,34 @@ users_data = [
 sync_users(users_data=users_data)
 ```
 
-> **Either user_id or email must already exist in the database**
+> **Note:** You cannot change a human/admin user to a model user because model users do not have `email` and might have `confidence_score` in the `annotations` table.
 
-##### Update users via `user_id`
+### 3. Sync Question Groups
 
-```python
-from label_pizza.db import init_database
-init_database("DBURL")
-
-from label_pizza.sync_utils import sync_users
-
-users_data = [
-    {
-        "user_id":  "User 1",                  # must already exist
-        "email":    "user1-new@example.com",   # new address (must be unused)
-        "password": "user111-new",             # new password
-        "user_type": "human",                
-        "is_active": True
-    }
-]
-
-sync_users(users_data=users_data)
-```
-
-##### update users via `email`
-
-```python
-from label_pizza.db import init_database
-init_database("DBURL")
-
-from label_pizza.sync_utils import sync_users
-
-users_data = [
-    {
-        "user_id":  "New User 1",              # new_user_id (must be unused)
-        "email":    "user1@example.com",       # Must already exist
-        "password": "user111-new",             # new password
-        "user_type": "human",
-        "is_active": True
-    }
-]
-
-sync_users(users_data=users_data)
-```
-
-#### - Archive users
-
-```python
-from label_pizza.db import init_database
-init_database("DBURL")
-
-from label_pizza.sync_utils import sync_users
-
-users_data = [
-    {
-        "user_id": "User 1",          # must already exist OR email must match
-        "email": "user1@example.com", # exists in the database (optional)
-        "password": "user111",
-        "user_type": "human",
-        "is_active": False            # Set to False to archive the video
-    }
-]
-
-sync_users(users_data=users_data)
-```
-
-
-### Step 3: Sync Question Groups
-
-> Before creating question groups, it's important to understand the `verification_function`. In short, this function checks whether the answers within a group are logically consistent.
+> Before creating question groups, it's important to understand the role of the (optional) `verification_function`. This function ensures that the answers within a group are logically consistent.
 >
-> **For example:** You shouldn't be able to select that there are "0 pizzas" and still provide a description for a pizza.
+> **For example:** Annotators must describe a person if there are more than 0 people in the video; otherwise, the description should be left blank. The following `check_human_description` function enforces this rule.
 
 ```python
-def validate_pair(
-    answers: Dict[str, str],
-    number_question: str,
-    description_question: str,
-) -> None:
-    """Ensure the description answer is consistent with the count answer."""
-    count_answer = answers.get(number_question)
-
-    description_answer = answers.get(description_question, "")
-    has_items = count_answer.strip() != "0"
-
-    if has_items and not description_answer:
-        raise ValueError(
-            f"'{description_question}' cannot be empty when count is not zero"
-        )
-    if not has_items and description_answer:
-        raise ValueError(
-            f"'{description_question}' must be empty when count is zero"
-        )
-
 def check_human_description(answers: Dict[str, str]) -> None:
-    validate_pair(
-        answers,
-        number_question="Number of people?",
-        description_question="If there are people, describe them.",
-    )
-
-def check_pizza_description(answers: Dict[str, str]) -> None:
-    validate_pair(
-        answers,
-        number_question="Number of pizzas?",
-        description_question="If there are pizzas, describe them.",
-    )
+    num_people = answers.get("Number of people?")
+    description = answers.get("If there are people, describe them.")
+    
+    if num_people == "0" and description:
+        raise ValueError("Description cannot be provided when there are no people")
+    if num_people != "0" and not description:
+        raise ValueError("Description must be provided when there are people")
 ```
 
-**here you could see that if there is no pizza / human, we should provide no description.**
+If you do not wish to use a verification function, you can set `verification_function` to `None` (or `null` in JSON).
 
-Function for adding / editing / archiving question groups
-
-#### - Add Question Groups
+3.1 - Add Question Groups
 
 ```python
 from label_pizza.db import init_database
 init_database("DBURL")
 
 from label_pizza.sync_utils import sync_question_groups
-
 question_groups_data = [
     {
         "title": "Human",           # Must NOT exist in the database
@@ -1088,16 +866,16 @@ question_groups_data = [
                 "qtype": "description",
                 "text": "If there are people, describe them.",
                 "display_text": "If there are people, describe them.",
-                "default_option": null
+                "default_option": None
             }
         ]
     }
 ]
 
-sync_question_group(question_groups_data=question_groups_data)
+sync_question_groups(question_groups_data=question_groups_data)
 ```
 
-#### - Update question groups
+3.2 - Update question groups
 
 ```python
 from label_pizza.db import init_database
@@ -1112,30 +890,30 @@ question_groups_data = [
         "description": "Detect and describe all humans in the video. (Updated)", # update description here
         "is_reusable": True,               # update is_reusable
         "is_auto_submit": True,            # update is_auto_submit
-        "verification_function": "check_human_description_update",  # update verification_function, must exist in verify.py
-        "is_active": True,
-        "questions": [                     # New question order applied; questions must remain exactly the same as before
+        "verification_function": None,     # remove verification_function
+        "is_active": False,                # set False to archive the question group
+        "questions": [                     # update the question order to move description to the first question
             {
                 "qtype": "description",
                 "text": "If there are people, describe them.",
                 "display_text": "If there are people, describe them.",
-                "default_option": null
+                "default_option": "This answer will be pre-filled for all annotators."
             },
             {
                 "qtype": "single",
                 "text": "Number of people?",
                 "display_text": "Number of people?",
-                "options": [
-                    "0",
-                    "1",
-                    "2",
+                "options": [ # update the order of options
                     "3 or more"
+                    "2",
+                    "1",
+                    "0",
                 ],
-                "display_values": [
-                    "0",
-                    "1",
+                "display_values": [ # be sure to update the display_values to match the new order of options
+                    "3+",
                     "2",
-                    "3 or more"
+                    "1",
+                    "0",
                 ],
                 "option_weights": [
                     1.0,
@@ -1143,62 +921,7 @@ question_groups_data = [
                     1.0,
                     1.0
                 ],
-                "default_option": "0"
-            }
-        ]
-    }
-]
-
-sync_question_group(question_groups_data=question_groups_data)
-```
-
-#### - Archive question groups
-
-```python
-from label_pizza.db import init_database
-init_database("DBURL")
-
-from label_pizza.sync_utils import sync_question_groups
-
-question_groups_data = [
-    {
-        "title": "Human",           # Must exist in the database
-        "display_title": "Human",
-        "description": "Detect and describe all humans in the video.",
-        "is_reusable": False,
-        "is_auto_submit": False,
-        "verification_function": "check_human_description",
-        "is_active": False,         # Set False to archive the question group
-        "questions": [
-            {
-                "qtype": "single",
-                "text": "Number of people?",
-                "display_text": "Number of people?",
-                "options": [
-                    "0",
-                    "1",
-                    "2",
-                    "3 or more"
-                ],
-                "display_values": [
-                    "0",
-                    "1",
-                    "2",
-                    "3 or more"
-                ],
-                "option_weights": [
-                    1.0,
-                    1.0,
-                    1.0,
-                    1.0
-                ],
-                "default_option": "0"
-            },
-            {
-                "qtype": "description",
-                "text": "If there are people, describe them.",
-                "display_text": "If there are people, describe them.",
-                "default_option": null
+                "default_option": "3 or more" # update the default option
             }
         ]
     }
@@ -1207,9 +930,11 @@ question_groups_data = [
 sync_question_groups(question_groups_data=question_groups_data)
 ```
 
-### Step 4: Sync Schemas
+> **Note:** Updating a question in one question group will also update it in all other groups that include the same question.
 
-#### - Add schemas
+### 4. Sync Schemas
+
+4.1 - Add schemas
 
 ```python
 from label_pizza.db import init_database
@@ -1232,7 +957,7 @@ schemas_data = [
 sync_schemas(schemas_data=schemas_data)
 ```
 
-#### - Update schemas
+4.2 - Update schemas
 
 ```python
 from label_pizza.db import init_database
@@ -1255,7 +980,7 @@ schemas_data = [
 sync_schemas(schemas_data=schemas_data)
 ```
 
-#### - Archive schemas
+4.3 - Archive schemas
 
 > If you want to archive any schema, you should ensure that all the projects that use the schema have been archived. You could see Step4 and Step5 to see how to archive schemas and projects separately.
 
@@ -1280,9 +1005,9 @@ schemas_data = [
 sync_schemas(schemas_data=schemas_data)
 ```
 
-### Step 5: Sync Projects
+### 5. Sync Projects
 
-#### - Add projects
+5.1 - Add projects
 
 ```python
 from label_pizza.db import init_database
@@ -1306,7 +1031,7 @@ projects_data = [
 sync_projects(projects_data=projects_data)
 ```
 
-#### - Update projects
+5.2 - Update projects
 
 ```python
 from label_pizza.db import init_database
@@ -1330,7 +1055,7 @@ projects_data = [
 sync_projects(projects_data=projects_data)
 ```
 
-#### - Archive projects
+5.3 - Archive projects
 
 ```python
 from label_pizza.db import init_database
@@ -1354,9 +1079,9 @@ projects_data = [
 sync_projects(projects_data=projects_data)
 ```
 
-### Step 6: Sync Project Groups
+### 6. Sync Project Groups
 
-#### - Adding project group
+6.1 - Adding project group
 
 ```python
 from label_pizza.db import init_database
@@ -1416,7 +1141,7 @@ sync_project_groups(project_groups_data=project_groups_data)
 
 > If you find any videos that not exist in the database, please add them to the database according to Step 1.
 
-#### - Update project groups
+6.2 - Update project groups
 
 ```python
 from label_pizza.db import init_database
@@ -1440,9 +1165,9 @@ project_groups_data = [
 ]
 ```
 
-### Step 7: Sync Users to Projects
+### 7. Sync Users to Projects
 
-#### - Add user to project
+7.1 - Add user to project
 
 ```python
 from label_pizza.db import init_database
@@ -1465,7 +1190,7 @@ sync_users_to_projects(assignments_data=assignments_data)
 
 > Notice that you cannot assign an "Admin" user to a non-"Admin" role.
 
-#### - Remove user from project
+7.2 - Remove user from project
 
 ```python
 from label_pizza.db import init_database
@@ -1486,13 +1211,13 @@ assignments_data = [
 sync_users_to_projects(assignments_data=assignments_data)
 ```
 
-### Step 8: Sync Annotations and Reviews
+### 8. Sync Annotations and Reviews
 
 ### `annotations/` and `ground_truths/`
 
 Both directories share the same JSON structure: each file contains answers for a single question group across all projects and videos. Use `annotations/` for annotator answers and `ground_truths/` for reviewer ground truth (there can be only one ground‑truth answer per video‑question‑group pair).
 
-#### - Sync annotations
+8.1 - Sync annotations
 
 ```python
 from label_pizza.db import init_database
@@ -1517,7 +1242,7 @@ annotations_data = [
 sync_annotations(annotations_data=annotations_data)
 ```
 
-#### - Sync ground truths
+8.2 - Sync ground truths
 
 ```python
 from label_pizza.db import init_database
@@ -1542,7 +1267,7 @@ ground_truths_data = [
 sync_ground_truths(ground_truths_data=ground_truths_data)
 ```
 
-# Custom Display Text for Video Annotations
+# Custom Question Per Video
 
 ### Set Custom Display text for video in any project
 

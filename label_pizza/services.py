@@ -4930,7 +4930,7 @@ class QuestionGroupService:
         if is_auto_submit:
             for question_id in question_ids:
                 question = session.scalar(select(Question).where(Question.id == question_id))
-                if not question.default_option:
+                if question.default_option is None:
                     raise ValueError(f"Question with ID {question_id} does not have a default option")
 
     @staticmethod

@@ -1,5 +1,6 @@
 from typing import Dict
 
+# Below are three examples of verification functions.
 def verify_non_empty(answers: Dict[str, str]) -> None:
     """Verify that answers are non-empty.
     
@@ -13,36 +14,38 @@ def verify_non_empty(answers: Dict[str, str]) -> None:
         if not answer.strip():
             raise ValueError(f"Answer for '{question_text}' cannot be empty")
 
-def validate_pair(
-    answers: Dict[str, str],
-    number_question: str,
-    description_question: str,
-) -> None:
-    """Ensure the description answer is consistent with the count answer."""
-    count_answer = answers.get(number_question)
-
-    description_answer = answers.get(description_question, "")
-    has_items = count_answer.strip() != "0"
-
-    if has_items and not description_answer:
-        raise ValueError(
-            f"'{description_question}' cannot be empty when count is not zero"
-        )
-    if not has_items and description_answer:
-        raise ValueError(
-            f"'{description_question}' must be empty when count is zero"
-        )
-
 def check_human_description(answers: Dict[str, str]) -> None:
-    validate_pair(
-        answers,
-        number_question="Number of people?",
-        description_question="If there are people, describe them.",
-    )
+    """Ensure the description answer is consistent with the count answer.
+
+    Args:
+        answers: Dictionary mapping question text to answer value
+      
+    Raises:
+        ValueError: If the description is provided when there are no people, or if the description is not provided when there are people.
+    """
+    num_people = answers.get("Number of people?")
+    description = answers.get("If there are people, describe them.")
+    
+    if num_people == "0" and description:
+        raise ValueError("Description cannot be provided when there are no people")
+    if num_people != "0" and not description:
+        raise ValueError("Description must be provided when there are people")
 
 def check_pizza_description(answers: Dict[str, str]) -> None:
-    validate_pair(
-        answers,
-        number_question="Number of pizzas?",
-        description_question="If there are pizzas, describe them.",
-    )
+    """Ensure the description answer is consistent with the count answer.
+
+    Args:
+        answers: Dictionary mapping question text to answer value
+      
+    Raises:
+        ValueError: If the description is provided when there are no pizzas, or if the description is not provided when there are pizzas.
+    """
+    num_pizzas = answers.get("Number of pizzas?")
+    description = answers.get("If there are pizzas, describe them.")
+    
+    if num_pizzas == "0" and description:
+        raise ValueError("Description cannot be provided when there are no pizzas")
+    if num_pizzas != "0" and not description:
+        raise ValueError("Description must be provided when there are pizzas")
+
+# You can implement your own verification functions below.
