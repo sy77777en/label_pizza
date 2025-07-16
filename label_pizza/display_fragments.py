@@ -19,13 +19,14 @@ from label_pizza.ui_components import (
 from label_pizza.database_utils import (
     get_db_session, clear_project_cache, get_questions_by_group_cached, get_project_videos,
     get_session_cached_project_annotators, get_optimized_annotator_user_ids,
-    get_cached_video_reviewer_data, get_session_cache_key, get_schema_question_groups,
+    get_video_reviewer_data_from_bulk, get_session_cache_key, get_schema_question_groups,
     check_project_has_full_ground_truth, check_all_questions_have_ground_truth,
     check_ground_truth_exists_for_group, get_user_assignment_dates,
     get_project_groups_with_projects, calculate_user_overall_progress,
     get_cached_user_completion_progress, get_optimized_all_project_annotators,
     get_project_custom_display_data, get_questions_by_group_with_custom_display_cached,
-    clear_custom_display_cache, get_project_metadata_cached, get_project_questions_cached
+    clear_custom_display_cache, get_project_metadata_cached, get_project_questions_cached,
+    get_cached_bulk_video_display_data, get_video_reviewer_data_from_bulk
 )
 from label_pizza.autosubmit_features import (
     display_manual_auto_submit_controls, run_project_wide_auto_submit_on_entry,
@@ -39,8 +40,24 @@ from label_pizza.accuracy_analytics import display_user_accuracy_simple, display
 
 @st.fragment
 def display_video_answer_pair(video: Dict, project_id: int, user_id: int, role: str, mode: str, session: Session):
-    """Display a single video-answer pair in side-by-side layout with tabs"""
+    """Display a single video-answer pair in side-by-side layout with tabs - OPTIMIZED"""
     try:
+        # 🚀 OPTIMIZED: Pre-load bulk cache data once for this video
+        selected_annotators = st.session_state.get("selected_annotators", [])
+        annotator_user_ids = []
+        bulk_cache_data = None
+        
+        if selected_annotators and role in ["reviewer", "meta_reviewer"]:
+            annotator_user_ids = get_optimized_annotator_user_ids(
+                display_names=selected_annotators, project_id=project_id, session=session
+            )
+            
+            if annotator_user_ids:
+                bulk_cache_data = get_video_reviewer_data_from_bulk(
+                    video_id=video["id"], project_id=project_id, 
+                    annotator_user_ids=annotator_user_ids
+                )
+        
         project = get_project_metadata_cached(project_id=project_id, session=session)
         
         # Add transaction recovery for question groups
@@ -107,7 +124,8 @@ def display_video_answer_pair(video: Dict, project_id: int, user_id: int, role: 
                     display_question_group_in_fixed_container(
                         video=video, project_id=project_id, user_id=user_id, 
                         group_id=group["ID"], role=role, mode=mode, 
-                        session=session, container_height=video_height
+                        session=session, container_height=video_height,
+                        bulk_cache_data=bulk_cache_data  # 🚀 Pass bulk data
                     )
         
         if st.session_state.get(f"rerun_needed_{project_id}_{user_id}", False):
@@ -119,12 +137,10 @@ def display_video_answer_pair(video: Dict, project_id: int, user_id: int, role: 
         if st.button("🔄 Refresh Page", key=f"refresh_{video['id']}_{project_id}"):
             st.rerun()
 
-
-def display_question_group_in_fixed_container(video: Dict, project_id: int, user_id: int, group_id: int, role: str, mode: str, session: Session, container_height: int):
-    """Display question group content with preloaded answers support"""
+def display_question_group_in_fixed_container(video: Dict, project_id: int, user_id: int, group_id: int, role: str, mode: str, session: Session, container_height: int, bulk_cache_data: Dict = None):
+    """Display question group content with preloaded answers support - OPTIMIZED"""
 
     try:
-        # questions = get_questions_by_group_cached(group_id=group_id, session=session)
         questions = get_questions_with_custom_display_if_enabled(
             group_id=group_id, 
             project_id=project_id, 
@@ -134,7 +150,6 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
         
         if not questions:
             custom_info("No questions in this group.")
-            # Create empty form to prevent missing submit button error
             with st.form(f"empty_form_{video['id']}_{group_id}_{role}"):
                 custom_info("No questions available in this group.")
                 st.form_submit_button("No Actions Available", disabled=True)
@@ -145,19 +160,20 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
         
         # Get selected annotators for reviewer/meta-reviewer roles
         selected_annotators = None
-        cache_data = None
+        cache_data = bulk_cache_data  # 🚀 Use passed bulk cache data
 
         if role in ["reviewer", "meta_reviewer"]:
             selected_annotators = st.session_state.get("selected_annotators", [])
-            if selected_annotators:
+            
+            # Only get cache data if not provided (fallback for compatibility)
+            if selected_annotators and not cache_data:
                 annotator_user_ids = get_optimized_annotator_user_ids(
                     display_names=selected_annotators, project_id=project_id, session=session
                 )
                 if annotator_user_ids:
-                    session_id = get_session_cache_key()
-                    cache_data = get_cached_video_reviewer_data(
+                    cache_data = get_video_reviewer_data_from_bulk(
                         video_id=video["id"], project_id=project_id, 
-                        annotator_user_ids=annotator_user_ids, session_id=session_id
+                        annotator_user_ids=annotator_user_ids
                     )
         
         # Check admin modifications
@@ -177,7 +193,6 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
         
         if display_data["error"]:
             custom_info(display_data["error"])
-            # Create empty form to prevent missing submit button error
             with st.form(f"error_form_{video['id']}_{group_id}_{role}"):
                 st.error(display_data["error"])
                 st.form_submit_button("Unable to Load", disabled=True)
@@ -281,13 +296,13 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                         if i > 0:
                             st.markdown('<div style="margin: 8px 0;"></div>', unsafe_allow_html=True)
                         
-                        # FIXED: Pass group_id directly to avoid lookup issues
+                        # Pass group_id and cache_data to question display functions
                         if question["type"] == "single":
                             answers[question_text] = display_single_choice_question(
                                 question=question,
                                 video_id=video["id"],
                                 project_id=project_id,
-                                group_id=group_id,  # ← PASS GROUP_ID DIRECTLY
+                                group_id=group_id,
                                 role=role,
                                 existing_value=existing_value,
                                 is_modified_by_admin=is_modified_by_admin,
@@ -298,14 +313,14 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                                 mode=mode,
                                 selected_annotators=selected_annotators,
                                 preloaded_answers=preloaded_answers,
-                                cache_data=cache_data
+                                cache_data=cache_data  # 🚀 Pass bulk cache data
                             )
                         else:
                             answers[question_text] = display_description_question(
                                 question=question,
                                 video_id=video["id"],
                                 project_id=project_id,
-                                group_id=group_id,  # ← PASS GROUP_ID DIRECTLY
+                                group_id=group_id,
                                 role=role,
                                 existing_value=existing_value,
                                 is_modified_by_admin=is_modified_by_admin,
@@ -317,21 +332,18 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                                 answer_reviews=answer_reviews,
                                 selected_annotators=selected_annotators,
                                 preloaded_answers=preloaded_answers,
-                                cache_data=cache_data
+                                cache_data=cache_data  # 🚀 Pass bulk cache data
                             )
             except Exception as e:
                 st.error(f"Error displaying questions: {str(e)}")
                 # Still provide empty answers dict for form submission
                 answers = {}
             
-            # st.markdown('<div style="margin: 0px 0;"></div>', unsafe_allow_html=True)
-            
             # ALWAYS include a submit button
             submitted = st.form_submit_button(button_text, use_container_width=True, disabled=button_disabled)
             
-            # Handle form submission
+            # Handle form submission (existing logic unchanged)
             if submitted and not button_disabled:
-                
                 try:
                     if role == "annotator":
                         AnnotatorService.submit_answer_to_question_group(
@@ -348,9 +360,6 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                             print(f"Error calculating user overall progress: {e}")
                             pass
                         
-                        # if mode == "Training":
-                        #     show_training_feedback(video_id=video["id"], project_id=project_id, group_id=group_id, user_answers=answers, session=session)
-                        # else:
                         st.success("✅ Answers submitted!")
                     
                     elif role == "meta_reviewer":
@@ -403,11 +412,7 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                         else:
                             st.warning("No editable questions to submit.")
                     
-                    # Very wrong original code that deletes all preloaded answers for all videos/groups when submit for any question
                     # Clear preloaded answers after successful submission
-                    # if f"current_preloaded_answers_{role}_{project_id}" in st.session_state:
-                    #     del st.session_state[f"current_preloaded_answers_{role}_{project_id}"]
-
                     preloaded_answers = st.session_state.get(f"current_preloaded_answers_{role}_{project_id}", {})
                     if preloaded_answers:
                         # Remove only the answers for this video/group
@@ -418,8 +423,6 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                         # Update session state
                         st.session_state[f"current_preloaded_answers_{role}_{project_id}"] = preloaded_answers
                 
-                    # time.sleep(1)
-                    # st.rerun(scope="fragment")
                     st.session_state[f"rerun_needed_{project_id}_{user_id}"] = True
                     
                 except ValueError as e:
@@ -476,12 +479,13 @@ def display_single_choice_question(
     selected_annotators: List[str] = None, 
     key_prefix: str = "", 
     preloaded_answers: Dict = None,
-    cache_data: Dict = None
+    cache_data: Dict = None  # 🚀 NEW: Accept bulk cache data
 ) -> str:
     """OPTIMIZED: Display a single choice question with preloaded answer support"""
+    
     question_id = question["id"]
     question_display_text = question.get("display_text", question["text"])
-    question_original_text = question["text"]  # Always use original for logic
+    question_original_text = question["text"]
 
     original_options = question["options"]
     display_values = question.get("display_values", original_options)
@@ -522,22 +526,8 @@ def display_single_choice_question(
     # Training mode feedback
     if mode == "Training" and form_disabled and gt_value and role == "annotator":
         if existing_value == gt_value:
-            # st.markdown(f"""
-            #     <div style="{get_card_style(COLORS['success'])}">
-            #         <span style="color: #1e8449; font-weight: 600; font-size: 0.95rem;">
-            #             ✅ Excellent! You selected the correct answer.
-            #         </span>
-            #     </div>
-            # """, unsafe_allow_html=True)
             st.success(f"✅ Excellent! You selected the correct answer.")
         else:
-            # st.markdown(f"""
-            #     <div style="{get_card_style(COLORS['danger'])}">
-            #         <span style="color: #c0392b; font-weight: 600; font-size: 0.95rem;">
-            #             ❌ Incorrect. The ground truth answer is highlighted below.
-            #         </span>
-            #     </div>
-            # """, unsafe_allow_html=True)
             st.error(f"❌ Incorrect. The ground truth answer is highlighted below.")
     
     # Show unified status for reviewers/meta-reviewers - OPTIMIZED
@@ -550,7 +540,7 @@ def display_single_choice_question(
             session=session,
             show_annotators=show_annotators,
             selected_annotators=selected_annotators or [],
-            cache_data=cache_data
+            cache_data=cache_data  # 🚀 Pass bulk cache data
         )
     
     # Question content with UNIQUE KEYS using key_prefix
@@ -558,10 +548,12 @@ def display_single_choice_question(
         current_value = admin_info["current_value"]
         admin_name = admin_info["admin_name"]
 
+        # 🚀 OPTIMIZED: Pass cache_data to _get_options_for_reviewer
         enhanced_options = _get_options_for_reviewer(
             video_id=video_id, project_id=project_id, question_id=question_id, 
             original_options=original_options, display_values=display_values, session=session,
-            selected_annotators=selected_annotators or []
+            selected_annotators=selected_annotators or [],
+            cache_data=cache_data  # 🚀 Pass bulk cache data
         )
         
         admin_idx = default_idx
@@ -585,11 +577,12 @@ def display_single_choice_question(
         result = current_value
         
     elif role in ["reviewer", "meta_reviewer", "reviewer_resubmit"]:
-        # OPTIMIZED: Use cached enhanced options
+        # 🚀 OPTIMIZED: Pass cache_data to _get_options_for_reviewer
         enhanced_options = _get_options_for_reviewer(
             video_id=video_id, project_id=project_id, question_id=question_id, 
             original_options=original_options, display_values=display_values, session=session,
-            selected_annotators=selected_annotators or []
+            selected_annotators=selected_annotators or [],
+            cache_data=cache_data  # 🚀 Pass bulk cache data
         )
         
         radio_key = f"{key_prefix}q_{video_id}_{project_id}_{question_id}_{role}_stable"
@@ -848,26 +841,33 @@ def display_question_status(
     session: Session, show_annotators: bool = False, 
     selected_annotators: List[str] = None, cache_data: Dict = None
 ):
-    """OPTIMIZED: Display status using cached data"""
+    """OPTIMIZED: Display status using bulk cached data"""
     
     status_parts = []
     
-    # Get annotator status using cache
-    if show_annotators and selected_annotators and cache_data:
+    # Get annotator status using bulk cache
+    if show_annotators and selected_annotators:
         try:
             annotator_user_ids = get_optimized_annotator_user_ids(
                 display_names=selected_annotators, project_id=project_id, session=session
             )
             
             if annotator_user_ids:
-                question_answers = cache_data["annotator_answers"].get(question_id, [])
+                # Use bulk cache data - get it if not provided
+                if not cache_data:
+                    cache_data = get_video_reviewer_data_from_bulk(
+                        video_id=video_id, project_id=project_id, 
+                        annotator_user_ids=annotator_user_ids
+                    )
+                
+                question_answers = cache_data.get("annotator_answers", {}).get(question_id, [])
                 answered_user_ids = set(record["User ID"] for record in question_answers)
                 
                 annotators_with_answers = []
                 annotators_missing = []
                 
                 for user_id in annotator_user_ids:
-                    user_info = cache_data["user_info"].get(user_id, {})
+                    user_info = cache_data.get("user_info", {}).get(user_id, {})
                     user_name = user_info.get("name", f"User {user_id}")
                     
                     if user_id in answered_user_ids:
@@ -896,14 +896,10 @@ def display_question_status(
     
     # Ground truth status (always fresh)
     try:
-        # gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
-        gt_row = GroundTruthService.get_ground_truth_for_question(video_id=video_id, project_id=project_id, question_id=question_id, session=session)
+        gt_row = GroundTruthService.get_ground_truth_for_question(
+            video_id=video_id, project_id=project_id, question_id=question_id, session=session
+        )
         
-        # if not gt_df.empty:
-        #     question_gt = gt_df[gt_df["Question ID"] == question_id]
-            
-            # if not question_gt.empty:
-            #     gt_row = question_gt.iloc[0]
         if gt_row:
             try:
                 reviewer_info = AuthService.get_user_info_by_id(
@@ -923,8 +919,6 @@ def display_question_status(
                     status_parts.append(f"🏆 GT by: {reviewer_name}")
             except Exception:
                 status_parts.append("🏆 GT exists")
-            # else:
-            #     status_parts.append("📭 No GT")
         else:
             status_parts.append("📭 No GT")
             
@@ -937,13 +931,13 @@ def display_question_status(
         st.caption(" | ".join(status_parts))
 
 
-
 def _get_options_for_reviewer(
     video_id: int, project_id: int, question_id: int, 
     original_options: List[str], display_values: List[str], 
-    session: Session, selected_annotators: List[str] = None
+    session: Session, selected_annotators: List[str] = None,
+    cache_data: Dict = None  # 🚀 NEW: Accept bulk cache data
 ) -> List[str]:
-    """OPTIMIZED: Get enhanced options using cached video data"""
+    """OPTIMIZED: Get enhanced options using bulk cached data"""
     
     try:
         # Get annotator user IDs
@@ -957,11 +951,10 @@ def _get_options_for_reviewer(
             # Still check for ground truth even without annotators
             enhanced_options = display_values.copy()
             try:
-                # gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
-                gt_row = GroundTruthService.get_ground_truth_for_question(video_id=video_id, project_id=project_id, question_id=question_id, session=session)
+                gt_row = GroundTruthService.get_ground_truth_for_question(
+                    video_id=video_id, project_id=project_id, question_id=question_id, session=session
+                )
                 if gt_row:
-                    # question_gt = gt_df[gt_df["Question ID"] == question_id]
-                    # if not question_gt.empty:
                     gt_selection = gt_row["Answer Value"]
                     for i, original_option in enumerate(original_options):
                         if str(original_option) == str(gt_selection):
@@ -970,16 +963,20 @@ def _get_options_for_reviewer(
                 pass
             return enhanced_options
         
-        # Use cached data
-        session_id = get_session_cache_key()
-        cache_data = get_cached_video_reviewer_data(
-            video_id=video_id, project_id=project_id, 
-            annotator_user_ids=annotator_user_ids, session_id=session_id
-        )
+        # 🚀 OPTIMIZED: Use bulk cache data if provided, otherwise fall back to old method
+        if cache_data:
+            # Use provided bulk cache data
+            pass
+        else:
+            # Fallback to old method for compatibility
+            cache_data = get_video_reviewer_data_from_bulk(
+                video_id=video_id, project_id=project_id, 
+                annotator_user_ids=annotator_user_ids
+            )
         
         # Build option selections from cache
         option_selections = {}
-        question_answers = cache_data["annotator_answers"].get(question_id, [])
+        question_answers = cache_data.get("annotator_answers", {}).get(question_id, [])
         
         for answer_record in question_answers:
             answer_value = answer_record["Answer Value"]
@@ -988,7 +985,7 @@ def _get_options_for_reviewer(
             if answer_value not in option_selections:
                 option_selections[answer_value] = []
             
-            user_info = cache_data["user_info"].get(user_id, {})
+            user_info = cache_data.get("user_info", {}).get(user_id, {})
             user_name = user_info.get("name", "Unknown User")
             user_role = user_info.get("role", "human")
             
@@ -996,7 +993,7 @@ def _get_options_for_reviewer(
             
             # Add confidence score for models
             confidence_text = initials
-            if user_role == "model" and user_id in cache_data["confidence_scores"]:
+            if user_role == "model" and user_id in cache_data.get("confidence_scores", {}):
                 confidence = cache_data["confidence_scores"][user_id].get(question_id)
                 if confidence is not None:
                     confidence_text = f"{initials} ({confidence:.2f})"
@@ -1009,18 +1006,12 @@ def _get_options_for_reviewer(
         
         # Check ground truth
         gt_selection = None
-        # try:
-        #     gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
-        #     if not gt_df.empty:
-        #         question_gt = gt_df[gt_df["Question ID"] == question_id]
-        #         if not question_gt.empty:
-        #             gt_selection = question_gt.iloc[0]["Answer Value"]
-        # except:
-        #     pass
         try:
-            gt_df = GroundTruthService.get_ground_truth_for_question(video_id=video_id, project_id=project_id, question_id=question_id, session=session)
-            if gt_df:
-                gt_selection = gt_df["Answer Value"]
+            gt_row = GroundTruthService.get_ground_truth_for_question(
+                video_id=video_id, project_id=project_id, question_id=question_id, session=session
+            )
+            if gt_row:
+                gt_selection = gt_row["Answer Value"]
         except:
             pass
         
@@ -1062,15 +1053,14 @@ def _get_options_for_reviewer(
         # Fallback to original
         return display_values
 
-
 def _display_enhanced_helper_text_answers(
     video_id: int, project_id: int, question_id: int, 
     question_text: str, text_key: str, gt_value: str, 
     role: str, answer_reviews: Optional[Dict], 
     session: Session, selected_annotators: List[str] = None,
-    cache_data: Dict = None
+    cache_data: Dict = None  # 🚀 NEW: Accept bulk cache data
 ):
-    """OPTIMIZED: Display helper text using cached data"""
+    """OPTIMIZED: Display helper text using bulk cached data"""
     
     try:
         all_answers = []
@@ -1086,15 +1076,10 @@ def _display_enhanced_helper_text_answers(
             })
         elif not selected_annotators or len(selected_annotators) == 0:
             try:
-                # gt_df = GroundTruthService.get_ground_truth(
-                #     video_id=video_id, project_id=project_id, session=session
-                # )
                 gt_row = GroundTruthService.get_ground_truth_for_question(
                     video_id=video_id, project_id=project_id, question_id=question_id, session=session
                 )
                 if gt_row:
-                    # question_gt = gt_df[gt_df["Question ID"] == question_id]
-                    # if not question_gt.empty:
                     gt_answer = gt_row["Answer Value"]
                     if gt_answer and str(gt_answer).strip():
                         all_answers.append({
@@ -1107,9 +1092,9 @@ def _display_enhanced_helper_text_answers(
             except:
                 pass
         
-        # Add annotator answers from cache
+        # 🚀 OPTIMIZED: Add annotator answers from bulk cache
         if selected_annotators and cache_data:
-            text_answers = cache_data["text_answers"].get(question_id, [])
+            text_answers = cache_data.get("text_answers", {}).get(question_id, [])
             
             if text_answers:
                 unique_answers = []
@@ -1160,7 +1145,6 @@ def _display_enhanced_helper_text_answers(
                             
     except Exception as e:
         st.caption(f"⚠️ Could not load answer information: {str(e)}")
-
 
 def _display_single_answer_elegant(answer, text_key, question_text, answer_reviews, video_id, project_id, question_id, session):
     """Display a single answer with elegant left-right layout"""
@@ -2702,11 +2686,9 @@ def _get_submit_button_config(role: str, form_disabled: bool, all_questions_modi
 
 
 
-
-
 def _get_question_display_data(video_id: int, project_id: int, user_id: int, group_id: int, role: str, mode: str, session: Session, has_any_admin_modified_questions: bool) -> Dict:
-    """Get all the data needed to display a question group"""
-    # questions = get_questions_by_group_cached(group_id=group_id, session=session)
+    """Get all the data needed to display a question group - REVERTED TO ORIGINAL LOGIC"""
+    
     questions = get_questions_with_custom_display_if_enabled(
         group_id=group_id, project_id=project_id, video_id=video_id, session=session
     )
@@ -2718,11 +2700,12 @@ def _get_question_display_data(video_id: int, project_id: int, user_id: int, gro
         video_id=video_id, project_id=project_id, question_group_id=group_id, session=session
     )
     
+    # 🚀 REVERTED: Always get fresh data for the user's own answers/ground truth
     if role == "annotator":
         existing_answers = AnnotatorService.get_user_answers_for_question_group(
             video_id=video_id, project_id=project_id, user_id=user_id, question_group_id=group_id, session=session
         )
-    else:
+    else:  # reviewer or meta_reviewer
         existing_answers = GroundTruthService.get_ground_truth_dict_for_question_group(
             video_id=video_id, project_id=project_id, question_group_id=group_id, session=session
         )
@@ -3253,7 +3236,7 @@ def display_project_progress(user_id: int, project_id: int, role: str, session: 
             st.error(f"Error loading project progress: {str(e)}")
 
 def display_project_view(user_id: int, role: str, session: Session):
-    """Display the selected project with modern, compact layout and enhanced sorting/filtering"""
+    """Display the selected project with modern, compact layout and enhanced sorting/filtering - OPTIMIZED VERSION"""
 
     project_id = st.session_state.selected_project_id
     
@@ -3263,7 +3246,6 @@ def display_project_view(user_id: int, role: str, session: Session):
         if "selected_annotators" in st.session_state:
             del st.session_state.selected_annotators
         
-        # Use existing clear project cache function
         clear_project_cache(project_id)
         st.rerun()
     
@@ -3303,7 +3285,6 @@ def display_project_view(user_id: int, role: str, session: Session):
     if role == "annotator" and mode == "Annotation":
         auto_submit_key = f"auto_submit_done_{project_id}_{user_id}"
         if auto_submit_key not in st.session_state:
-            # Run auto-submit for entire project
             run_project_wide_auto_submit_on_entry(project_id=project_id, user_id=user_id, session=session)
             st.session_state[auto_submit_key] = True
     
@@ -3315,28 +3296,22 @@ def display_project_view(user_id: int, role: str, session: Session):
         st.error("No videos found in this project.")
         return
 
-    # 🚀 OPTIMIZED SORTING/FILTERING LOGIC
+    # OPTIMIZED SORTING/FILTERING LOGIC
     cached_videos = get_cached_sorted_and_filtered_videos(project_id, role)
 
     if cached_videos is not None:
-        # Use cached sorted/filtered videos (user clicked Apply in any tab)
         videos = cached_videos
     else:
-        # No cache - apply default behavior based on role
         if role == "annotator":
-            # Annotator default: always apply basic sorting (fast operation)
             sort_by = st.session_state.get(f"annotator_video_sort_by_{project_id}", "Default") 
             sort_order = st.session_state.get(f"annotator_video_sort_order_{project_id}", "Ascending")
             
-            # Always apply default sorting for annotators (it's fast)
             reverse = (sort_order == "Descending")
             videos.sort(key=lambda x: x.get("id", 0), reverse=reverse)
-            
         elif role in ["reviewer", "meta_reviewer"]:
-            # Reviewer/Meta-reviewer default: show unsorted videos until Apply is clicked
             pass  # Keep videos as-is (original order from get_project_videos)
         
-    # Role-specific control panels - NOW USING SORTED VIDEOS
+    # Role-specific control panels
     if role == "reviewer":
         if mode == "Training":
             analytics_tab, annotator_tab, sort_tab, filter_tab, order_tab, layout_tab, auto_submit_tab, instruction_tab = st.tabs([
@@ -3391,14 +3366,12 @@ def display_project_view(user_id: int, role: str, session: Session):
             display_layout_tab_content(videos=videos, role=role)
         
         with auto_submit_tab:
-            # 🔥 NOW PASSING SORTED VIDEOS TO AUTO-SUBMIT
             display_auto_submit_tab(project_id=project_id, user_id=user_id, role=role, videos=videos, session=session)
         
         with instruction_tab:
             display_instruction_tab_content(instructions_url=instructions_url)
     
     elif role == "meta_reviewer":
-        # NO AUTO-SUBMIT TAB FOR META-REVIEWER
         if mode == "Training":
             analytics_tab, annotator_tab, sort_tab, filter_tab, order_tab, layout_tab, instruction_tab = st.tabs([
                 "📊 Analytics", "👥 Annotators", "🔄 Sort", "🔍 Filter", "📋 Order", "🎛️ Layout", "📖 Instructions"
@@ -3467,7 +3440,6 @@ def display_project_view(user_id: int, role: str, session: Session):
             display_enhanced_sort_tab_annotator(project_id=project_id, user_id=user_id, session=session)
     
         with auto_submit_tab:
-            # 🔥 NOW PASSING SORTED VIDEOS TO AUTO-SUBMIT
             display_auto_submit_tab(project_id=project_id, user_id=user_id, role=role, videos=videos, session=session)
     
     # Get layout settings
@@ -3476,7 +3448,7 @@ def display_project_view(user_id: int, role: str, session: Session):
     
     st.markdown("---")
     
-    # Show sorting/filtering summary (updated to reflect that sorting is already applied)
+    # Show sorting/filtering summary
     if role in ["reviewer", "meta_reviewer"]:
         sort_by = st.session_state.get(f"video_sort_by_{project_id}", "Default")
         sort_applied = st.session_state.get(f"sort_applied_{project_id}", False)
@@ -3493,7 +3465,6 @@ def display_project_view(user_id: int, role: str, session: Session):
             summary_parts.append(f"📋 Default order ({sort_order})")
         
         if filter_by_gt:
-            # Get original video count for comparison
             original_videos = get_project_videos(project_id=project_id, session=session)
             filtered_count = len(videos)
             original_count = len(original_videos)
@@ -3501,7 +3472,6 @@ def display_project_view(user_id: int, role: str, session: Session):
             filter_count = len(filter_by_gt)
             filter_text = "filter" if filter_count == 1 else "filters"
             summary_parts.append(f"🔍 {filter_count} {filter_text} ({filtered_count}/{original_count} videos)")
-    
         
         if summary_parts:
             custom_info(" • ".join(summary_parts))
@@ -3518,7 +3488,7 @@ def display_project_view(user_id: int, role: str, session: Session):
             sort_order = st.session_state.get(f"annotator_video_sort_order_{project_id}", "Ascending")
             custom_info(f"📋 Default order ({sort_order})")
     
-    # Calculate pagination (now using already-sorted videos)
+    # Calculate pagination
     total_pages = (len(videos) - 1) // videos_per_page + 1 if videos else 1
     
     page_key = f"{role}_current_page_{project_id}"
@@ -3530,6 +3500,14 @@ def display_project_view(user_id: int, role: str, session: Session):
     start_idx = current_page * videos_per_page
     end_idx = min(start_idx + videos_per_page, len(videos))
     page_videos = videos[start_idx:end_idx]
+    
+    # # 🚀 OPTIMIZED: Pre-load bulk data for all videos on current page
+    # if page_videos:
+    #     video_ids = [v["id"] for v in page_videos]
+    #     bulk_video_data = get_cached_bulk_video_display_data(video_ids, project_id, user_id, role)
+        
+    #     # Store in session state for use by individual video components
+    #     st.session_state[f"bulk_video_data_{project_id}_{role}"] = bulk_video_data
     
     st.markdown('<div id="video-list-section"></div>', unsafe_allow_html=True)
     video_list_info_str = f"Showing videos {start_idx + 1}-{end_idx} of {len(videos)}"
