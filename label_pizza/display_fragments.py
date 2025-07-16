@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Dict, Optional, List, Any, Tuple
 from sqlalchemy.orm import Session
 from contextlib import contextmanager
-
+import time
 from label_pizza.custom_video_player import custom_video_player
 from label_pizza.services import (
     AuthService, AnnotatorService, GroundTruthService, 
@@ -109,6 +109,10 @@ def display_video_answer_pair(video: Dict, project_id: int, user_id: int, role: 
                         group_id=group["ID"], role=role, mode=mode, 
                         session=session, container_height=video_height
                     )
+        
+        if st.session_state.get(f"rerun_needed_{project_id}_{user_id}", False):
+            del st.session_state[f"rerun_needed_{project_id}_{user_id}"]
+            st.rerun(scope="fragment")
                     
     except ValueError as e:
         st.error(f"Error loading project data: {str(e)}")
@@ -327,9 +331,6 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
             
             # Handle form submission
             if submitted and not button_disabled:
-                # Clear preloaded answers after successful submission
-                if f"current_preloaded_answers_{role}_{project_id}" in st.session_state:
-                    del st.session_state[f"current_preloaded_answers_{role}_{project_id}"]
                 
                 try:
                     if role == "annotator":
@@ -347,10 +348,10 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                             print(f"Error calculating user overall progress: {e}")
                             pass
                         
-                        if mode == "Training":
-                            show_training_feedback(video_id=video["id"], project_id=project_id, group_id=group_id, user_answers=answers, session=session)
-                        else:
-                            st.success("✅ Answers submitted!")
+                        # if mode == "Training":
+                        #     show_training_feedback(video_id=video["id"], project_id=project_id, group_id=group_id, user_answers=answers, session=session)
+                        # else:
+                        st.success("✅ Answers submitted!")
                     
                     elif role == "meta_reviewer":
                         try:
@@ -402,7 +403,24 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                         else:
                             st.warning("No editable questions to submit.")
                     
-                    st.rerun(scope="fragment")
+                    # Very wrong original code that deletes all preloaded answers for all videos/groups when submit for any question
+                    # Clear preloaded answers after successful submission
+                    # if f"current_preloaded_answers_{role}_{project_id}" in st.session_state:
+                    #     del st.session_state[f"current_preloaded_answers_{role}_{project_id}"]
+
+                    preloaded_answers = st.session_state.get(f"current_preloaded_answers_{role}_{project_id}", {})
+                    if preloaded_answers:
+                        # Remove only the answers for this video/group
+                        keys_to_remove = [key for key in preloaded_answers.keys() if key[0] == video["id"] and key[1] == group_id]
+                        for key in keys_to_remove:
+                            del preloaded_answers[key]
+                        
+                        # Update session state
+                        st.session_state[f"current_preloaded_answers_{role}_{project_id}"] = preloaded_answers
+                
+                    # time.sleep(1)
+                    # st.rerun(scope="fragment")
+                    st.session_state[f"rerun_needed_{project_id}_{user_id}"] = True
                     
                 except ValueError as e:
                     st.error(f"Error: {str(e)}")
@@ -2126,7 +2144,7 @@ def _display_video_layout_controls(videos: List[Dict], role: str):
     # Calculate current videos per page settings
     min_videos_per_page = current_pairs_per_row
     max_videos_per_page = max(min(20, len(videos)), min_videos_per_page + 1)
-    default_videos_per_page = min(min(4, len(videos)), max_videos_per_page)
+    default_videos_per_page = min(min(10, len(videos)), max_videos_per_page)
     current_per_page = st.session_state.get(f"{role}_per_page", default_videos_per_page)
     
     # Collect new settings (don't store in session state yet)
@@ -2148,7 +2166,7 @@ def _display_video_layout_controls(videos: List[Dict], role: str):
         # Recalculate based on new pairs per row
         new_min_videos_per_page = new_pairs_per_row
         new_max_videos_per_page = max(min(20, len(videos)), new_min_videos_per_page + 1)
-        new_default_videos_per_page = min(min(4, len(videos)), new_max_videos_per_page)
+        new_default_videos_per_page = min(min(10, len(videos)), new_max_videos_per_page)
         
         # Adjust current per page if it's now invalid
         adjusted_per_page = max(new_min_videos_per_page, min(current_per_page, new_max_videos_per_page))
@@ -2240,7 +2258,7 @@ def _display_video_layout_controls(videos: List[Dict], role: str):
         # Check if we can reset (any current settings differ from defaults)
         default_settings = {
             "pairs_per_row": 1,
-            "per_page": min(4, len(videos)),
+            "per_page": min(10, len(videos)),
             "autoplay": True,
             "loop": True
         }
@@ -2338,7 +2356,7 @@ def display_auto_submit_tab(project_id: int, user_id: int, role: str, videos: Li
         
         # 🔥 FIXED: Calculate current page videos from the SORTED videos parameter
         # The videos parameter now contains the same sorted/filtered videos the user sees
-        videos_per_page = st.session_state.get(f"{role}_per_page", min(4, len(videos)))
+        videos_per_page = st.session_state.get(f"{role}_per_page", min(10, len(videos)))
         page_key = f"{role}_current_page_{project_id}"
         current_page = st.session_state.get(page_key, 0)
         
@@ -2456,7 +2474,7 @@ def display_auto_submit_tab(project_id: int, user_id: int, role: str, videos: Li
         all_project_videos = get_project_videos(project_id=project_id, session=session)
         
         # 🔥 FIXED: Calculate current page videos from the SORTED videos parameter
-        videos_per_page = st.session_state.get(f"{role}_per_page", min(4, len(videos)))
+        videos_per_page = st.session_state.get(f"{role}_per_page", min(10, len(videos)))
         page_key = f"{role}_current_page_{project_id}"
         current_page = st.session_state.get(page_key, 0)
         
@@ -3454,7 +3472,7 @@ def display_project_view(user_id: int, role: str, session: Session):
     
     # Get layout settings
     video_pairs_per_row = st.session_state.get(f"{role}_pairs_per_row", 1)
-    videos_per_page = st.session_state.get(f"{role}_per_page", min(4, len(videos)))
+    videos_per_page = st.session_state.get(f"{role}_per_page", min(10, len(videos)))
     
     st.markdown("---")
     
