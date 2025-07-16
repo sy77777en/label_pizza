@@ -2242,7 +2242,7 @@ def _display_video_layout_controls(videos: List[Dict], role: str):
         # Check if we can reset (any current settings differ from defaults)
         default_settings = {
             "pairs_per_row": 1,
-            "per_page": min(10, len(videos)),
+            "per_page": min(6, len(videos)),
             "autoplay": True,
             "loop": True
         }
@@ -2340,7 +2340,7 @@ def display_auto_submit_tab(project_id: int, user_id: int, role: str, videos: Li
         
         # 🔥 FIXED: Calculate current page videos from the SORTED videos parameter
         # The videos parameter now contains the same sorted/filtered videos the user sees
-        videos_per_page = st.session_state.get(f"{role}_per_page", min(10, len(videos)))
+        videos_per_page = st.session_state.get(f"{role}_per_page", min(6, len(videos)))
         page_key = f"{role}_current_page_{project_id}"
         current_page = st.session_state.get(page_key, 0)
         
@@ -2458,7 +2458,7 @@ def display_auto_submit_tab(project_id: int, user_id: int, role: str, videos: Li
         all_project_videos = get_project_videos(project_id=project_id, session=session)
         
         # 🔥 FIXED: Calculate current page videos from the SORTED videos parameter
-        videos_per_page = st.session_state.get(f"{role}_per_page", min(10, len(videos)))
+        videos_per_page = st.session_state.get(f"{role}_per_page", min(6, len(videos)))
         page_key = f"{role}_current_page_{project_id}"
         current_page = st.session_state.get(page_key, 0)
         
@@ -3444,7 +3444,7 @@ def display_project_view(user_id: int, role: str, session: Session):
     
     # Get layout settings
     video_pairs_per_row = st.session_state.get(f"{role}_pairs_per_row", 1)
-    videos_per_page = st.session_state.get(f"{role}_per_page", min(10, len(videos)))
+    videos_per_page = st.session_state.get(f"{role}_per_page", min(6, len(videos)))
     
     st.markdown("---")
     
