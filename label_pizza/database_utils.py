@@ -792,41 +792,6 @@ def get_project_groups_with_projects(user_id: int, role: str, session: Session) 
         st.error(f"Error getting grouped projects: {str(e)}")
         return {}
 
-@st.cache_data(ttl=300)  # Cache for 5 minutes
-def get_bulk_video_display_data(video_ids: List[int], project_id: int, user_id: int, role: str, session_id: str) -> Dict[int, Dict]:
-    """Cache bulk video display data for faster loading"""
-    
-    with SessionLocal() as session:
-        try:
-            result = {}
-            
-            if role == "annotator":
-                # Get user answers for all videos at once
-                user_answers = AnnotatorService.get_bulk_user_answers_data(video_ids, project_id, user_id, session)
-            else:
-                # Get ground truth for all videos at once
-                user_answers = GroundTruthService.get_bulk_video_ground_truth_data(video_ids, project_id, session)
-            
-            # Get ground truth data for all videos (for training mode feedback)
-            gt_data = GroundTruthService.get_bulk_video_ground_truth_data(video_ids, project_id, session)
-            
-            for video_id in video_ids:
-                result[video_id] = {
-                    "user_answers": user_answers.get(video_id, {}),
-                    "ground_truth": gt_data.get(video_id, {}),
-                    "video_id": video_id
-                }
-            
-            return result
-            
-        except Exception as e:
-            print(f"Error in get_bulk_video_display_data: {e}")
-            return {}
-
-def get_cached_bulk_video_display_data(video_ids: List[int], project_id: int, user_id: int, role: str) -> Dict[int, Dict]:
-    """Get bulk video display data with caching"""
-    session_id = get_session_cache_key()
-    return get_bulk_video_display_data(video_ids, project_id, user_id, role, session_id)
 
 def get_user_assignment_dates(user_id: int, session: Session) -> Dict[int, Dict[str, str]]:
     """Get assignment dates for all projects for a specific user"""

@@ -5785,42 +5785,6 @@ class AnnotatorService(BaseAnswerService):
         ]
 
     @staticmethod
-    def get_bulk_user_answers_data(video_ids: List[int], project_id: int, user_id: int, session: Session) -> Dict[int, Dict[int, str]]:
-        """Get user answers for multiple videos in bulk - much faster than individual calls.
-        
-        Returns: {video_id: {question_id: answer_value}}
-        """
-        
-        if not video_ids:
-            return {}
-        
-        # Single query to get all user answers
-        answers_query = select(
-            AnnotatorAnswer.video_id,
-            AnnotatorAnswer.question_id,
-            AnnotatorAnswer.answer_value
-        ).where(
-            AnnotatorAnswer.video_id.in_(video_ids),
-            AnnotatorAnswer.project_id == project_id,
-            AnnotatorAnswer.user_id == user_id
-        )
-        
-        answers_results = session.execute(answers_query).all()
-        
-        # Build nested dictionary
-        result = {}
-        for row in answers_results:
-            video_id = row.video_id
-            question_id = row.question_id
-            answer_value = row.answer_value
-            
-            if video_id not in result:
-                result[video_id] = {}
-            result[video_id][question_id] = answer_value
-        
-        return result
-
-    @staticmethod
     def verify_submit_answer_to_question_group(
         video_id: int,
         project_id: int,
@@ -6196,40 +6160,6 @@ class AnnotatorService(BaseAnswerService):
         return result
 
 class GroundTruthService(BaseAnswerService):
-    @staticmethod
-    def get_bulk_video_ground_truth_data(video_ids: List[int], project_id: int, session: Session) -> Dict[int, Dict[int, str]]:
-        """Get ground truth data for multiple videos in bulk - much faster than individual calls.
-        
-        Returns: {video_id: {question_id: answer_value}}
-        """
-        
-        if not video_ids:
-            return {}
-        
-        # Single query to get all ground truth data
-        gt_query = select(
-            ReviewerGroundTruth.video_id,
-            ReviewerGroundTruth.question_id,
-            ReviewerGroundTruth.answer_value
-        ).where(
-            ReviewerGroundTruth.video_id.in_(video_ids),
-            ReviewerGroundTruth.project_id == project_id
-        )
-        
-        gt_results = session.execute(gt_query).all()
-        
-        # Build nested dictionary
-        result = {}
-        for row in gt_results:
-            video_id = row.video_id
-            question_id = row.question_id
-            answer_value = row.answer_value
-            
-            if video_id not in result:
-                result[video_id] = {}
-            result[video_id][question_id] = answer_value
-        
-        return result
 
     @staticmethod
     def verify_submit_ground_truth_to_question_group(

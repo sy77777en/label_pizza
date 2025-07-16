@@ -26,7 +26,7 @@ from label_pizza.database_utils import (
     get_cached_user_completion_progress, get_optimized_all_project_annotators,
     get_project_custom_display_data, get_questions_by_group_with_custom_display_cached,
     clear_custom_display_cache, get_project_metadata_cached, get_project_questions_cached,
-    get_cached_bulk_video_display_data, get_video_reviewer_data_from_bulk
+    get_video_reviewer_data_from_bulk
 )
 from label_pizza.autosubmit_features import (
     display_manual_auto_submit_controls, run_project_wide_auto_submit_on_entry,
@@ -3501,14 +3501,7 @@ def display_project_view(user_id: int, role: str, session: Session):
     end_idx = min(start_idx + videos_per_page, len(videos))
     page_videos = videos[start_idx:end_idx]
     
-    # # 🚀 OPTIMIZED: Pre-load bulk data for all videos on current page
-    # if page_videos:
-    #     video_ids = [v["id"] for v in page_videos]
-    #     bulk_video_data = get_cached_bulk_video_display_data(video_ids, project_id, user_id, role)
-        
-    #     # Store in session state for use by individual video components
-    #     st.session_state[f"bulk_video_data_{project_id}_{role}"] = bulk_video_data
-    
+
     st.markdown('<div id="video-list-section"></div>', unsafe_allow_html=True)
     video_list_info_str = f"Showing videos {start_idx + 1}-{end_idx} of {len(videos)}"
     display_pagination_controls(current_page, total_pages, page_key, role, project_id, "top", video_list_info_str)
