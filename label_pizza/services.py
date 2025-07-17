@@ -6254,6 +6254,16 @@ class GroundTruthService(BaseAnswerService):
         # Get questions for submission (already validated in verify method)
         group, questions = GroundTruthService._get_question_group_with_questions(question_group_id=question_group_id, session=session)
             
+        existing_gts = session.scalars(
+            select(ReviewerGroundTruth).where(
+                ReviewerGroundTruth.video_id == video_id,
+                ReviewerGroundTruth.project_id == project_id,
+                ReviewerGroundTruth.question_id.in_([q.id for q in questions])
+            )
+        ).all()
+
+        existing_map = {gt.question_id: gt for gt in existing_gts}
+
         # Submit each ground truth answer
         for question in questions:
             answer_value = answers[question.text]
@@ -6261,7 +6271,7 @@ class GroundTruthService(BaseAnswerService):
             note = notes.get(question.text) if notes else None
             
             # Check for existing ground truth
-            existing = session.get(ReviewerGroundTruth, (video_id, question.id, project_id))
+            existing = existing_map.get(question.id)
         
             if existing:
                 # Update existing ground truth
@@ -6982,6 +6992,26 @@ class GroundTruthService(BaseAnswerService):
                 gt.modified_by_admin_at = datetime.now(timezone.utc)
         
         session.commit()
+    
+    def bulk_check_questions_modified_by_admin(video_id: int, project_id: int, 
+                                         question_ids: List[int], session: Session) -> Dict[int, bool]:
+        """Bulk check if multiple questions are modified by admin"""
+        try:
+            # Single query to check all questions at once
+            query = session.query(GroundTruth).filter(
+                GroundTruth.video_id == video_id,
+                GroundTruth.project_id == project_id,
+                GroundTruth.question_id.in_(question_ids),
+                GroundTruth.modified_by_admin.isnot(None)
+            )
+            
+            modified_questions = {gt.question_id for gt in query.all()}
+            
+            return {q_id: q_id in modified_questions for q_id in question_ids}
+            
+        except Exception as e:
+            print(f"Error in bulk_check_questions_modified_by_admin: {e}")
+            return {q_id: False for q_id in question_ids}
 
     @staticmethod
     def submit_answer_review(
