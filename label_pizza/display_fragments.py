@@ -123,15 +123,29 @@ def display_video_answer_pair(video: Dict, project_id: int, user_id: int, role: 
             st.rerun()
 
 def display_question_group_in_fixed_container(video: Dict, project_id: int, user_id: int, group_id: int, role: str, mode: str, container_height: int=None, bulk_cache_data: Dict = None):
-    """Display question group content with preloaded answers support - FIXED DATA STRUCTURE HANDLING"""
+    """Display question group content with preloaded answers support - FIXED CUSTOM DISPLAY HANDLING"""
 
     try:
+        # 🚀 ALWAYS apply custom display properly - this is crucial!
+        questions = get_questions_with_custom_display_if_enabled(
+            group_id=group_id, 
+            project_id=project_id, 
+            video_id=video["id"]
+        )
+        
+        if not questions:
+            custom_info("No questions in this group.")
+            with st.form(f"empty_form_{video['id']}_{group_id}_{role}"):
+                custom_info("No questions available in this group.")
+                st.form_submit_button("No Actions Available", disabled=True)
+            return
+        
         # Get preloaded answers if available
         preloaded_answers = st.session_state.get(f"current_preloaded_answers_{role}_{project_id}", {})
         
         # Get selected annotators for reviewer/meta-reviewer roles
         selected_annotators = None
-        cache_data = None  # This needs to be in the correct format
+        cache_data = None
 
         if role in ["reviewer", "meta_reviewer"]:
             selected_annotators = st.session_state.get("selected_annotators", [])
@@ -147,27 +161,9 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                         annotator_user_ids=annotator_user_ids
                     )
         
-        # 🚀 OPTIMIZATION: Check if we have complete bulk data, otherwise fall back to individual queries
-        if bulk_cache_data and "questions_by_group" in bulk_cache_data:
-            # Use the pre-fetched bulk data for our logic
-            questions = bulk_cache_data["questions_by_group"].get(group_id, [])
-            
-            if not questions:
-                # Apply custom display if enabled
-                questions = get_questions_with_custom_display_if_enabled(
-                    group_id=group_id, 
-                    project_id=project_id, 
-                    video_id=video["id"]
-                )
-            
-            if not questions:
-                custom_info("No questions in this group.")
-                with st.form(f"empty_form_{video['id']}_{group_id}_{role}"):
-                    custom_info("No questions available in this group.")
-                    st.form_submit_button("No Actions Available", disabled=True)
-                return
-            
-            # Extract data from bulk cache
+        # 🚀 OPTIMIZATION: Use bulk data if available, otherwise fall back to individual queries
+        if bulk_cache_data and "admin_modifications" in bulk_cache_data:
+            # Extract data from bulk cache (but questions are already handled above with custom display)
             question_ids = [q["id"] for q in questions]
             
             if role in ["reviewer", "meta_reviewer"]:
@@ -205,19 +201,6 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
             
         else:
             # FALLBACK: Use individual database queries (original behavior)
-            questions = get_questions_with_custom_display_if_enabled(
-                group_id=group_id, 
-                project_id=project_id, 
-                video_id=video["id"]
-            )
-            
-            if not questions:
-                custom_info("No questions in this group.")
-                with st.form(f"empty_form_{video['id']}_{group_id}_{role}"):
-                    custom_info("No questions available in this group.")
-                    st.form_submit_button("No Actions Available", disabled=True)
-                return
-            
             # Single database session for all operations
             with get_db_session() as session:
                 question_ids = [q["id"] for q in questions]
@@ -336,10 +319,10 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                         if i > 0:
                             st.markdown('<div style="margin: 8px 0;"></div>', unsafe_allow_html=True)
                         
-                        # 🚀 FIXED: Pass the correct cache_data structure to display functions
+                        # Display question with proper custom display applied
                         if question["type"] == "single":
                             answers[question_text] = display_single_choice_question(
-                                question=question,
+                                question=question,  # This now has custom display applied!
                                 video_id=video["id"],
                                 project_id=project_id,
                                 group_id=group_id,
@@ -352,12 +335,12 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                                 mode=mode,
                                 selected_annotators=selected_annotators,
                                 preloaded_answers=preloaded_answers,
-                                cache_data=cache_data,  # 🚀 FIXED: Use properly formatted cache_data
+                                cache_data=cache_data,
                                 preloaded_gt_status=preloaded_gt_status
                             )
                         else:
                             answers[question_text] = display_description_question(
-                                question=question,
+                                question=question,  # This now has custom display applied!
                                 video_id=video["id"],
                                 project_id=project_id,
                                 group_id=group_id,
@@ -371,17 +354,16 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                                 answer_reviews=answer_reviews,
                                 selected_annotators=selected_annotators,
                                 preloaded_answers=preloaded_answers,
-                                cache_data=cache_data,  # 🚀 FIXED: Use properly formatted cache_data
+                                cache_data=cache_data,
                                 preloaded_gt_status=preloaded_gt_status
                             )
             except Exception as e:
                 st.error(f"Error displaying questions: {str(e)}")
                 answers = {}
             
-            # Submit button
+            # Submit button and form submission logic (unchanged)
             submitted = st.form_submit_button(button_text, use_container_width=True, disabled=button_disabled)
             
-            # Handle form submission (unchanged)
             if submitted and not button_disabled:
                 try:
                     if role == "annotator":
@@ -471,7 +453,7 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
         with st.form(f"fallback_form_{video['id']}_{group_id}_{role}"):
             st.error("Failed to load question group properly")
             st.form_submit_button("Unable to Load Questions", disabled=True)
-            
+                        
 def preload_gt_status_for_questions(video_id: int, project_id: int, question_ids: List[int], session: Session) -> Dict[int, str]:
     """Preload GT status for all questions in one query"""
     try:
