@@ -138,7 +138,7 @@ def display_video_answer_pair(video: Dict, project_id: int, user_id: int, role: 
             st.rerun()
 
 def display_question_group_in_fixed_container(video: Dict, project_id: int, user_id: int, group_id: int, role: str, mode: str, container_height: int=None, bulk_cache_data: Dict = None):
-    """Display question group content with preloaded answers support - OPTIMIZED"""
+    """Display question group content with preloaded answers support - OPTIMIZED WITH SINGLE SESSION"""
 
     try:
         questions = get_questions_with_custom_display_if_enabled(
@@ -159,7 +159,7 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
         
         # Get selected annotators for reviewer/meta-reviewer roles
         selected_annotators = None
-        cache_data = bulk_cache_data  # 🚀 Use passed bulk cache data
+        cache_data = bulk_cache_data
 
         if role in ["reviewer", "meta_reviewer"]:
             selected_annotators = st.session_state.get("selected_annotators", [])
@@ -175,68 +175,80 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                         annotator_user_ids=annotator_user_ids
                     )
         
-        # Check admin modifications
-        has_any_admin_modified_questions = False
-        if role == "reviewer":
-            with get_db_session() as session:
-                for question in questions:
-                    if GroundTruthService.check_question_modified_by_admin(
-                        video_id=video["id"], project_id=project_id, question_id=question["id"], session=session
-                    ):
-                        has_any_admin_modified_questions = True
-                        break
-        
-        display_data = _get_question_display_data(
-            video["id"], project_id, user_id, group_id, role, mode,
-            has_any_admin_modified_questions
-        )
-        
-        if display_data["error"]:
-            custom_info(display_data["error"])
-            with st.form(f"error_form_{video['id']}_{group_id}_{role}"):
-                st.error(display_data["error"])
-                st.form_submit_button("Unable to Load", disabled=True)
-            return
-        
-        questions = display_data["questions"]
-        all_questions_modified_by_admin = display_data["all_questions_modified_by_admin"]
-        existing_answers = display_data["existing_answers"]
-        form_disabled = display_data["form_disabled"]
-        
-        # Get ground truth for training mode
-        gt_answers = {}
-        if mode == "Training" and role == "annotator":
-            try:
-                with get_db_session() as session:
-                    gt_df = GroundTruthService.get_ground_truth_for_question_group(video_id=video["id"], project_id=project_id, question_group_id=group_id, session=session)
-                if not gt_df.empty:
-                    question_map = {q["id"]: q for q in questions}
-                    for _, gt_row in gt_df.iterrows():
-                        question_id = gt_row["Question ID"]
-                        if question_id in question_map:
-                            question_text = question_map[question_id]["text"]
-                            gt_answers[question_text] = gt_row["Answer Value"]
-            except Exception as e:
-                print(f"Error getting ground truth: {e}")
-                pass
+        # 🚀 OPTIMIZATION: Use single database session for all operations
+        with get_db_session() as session:
+            question_ids = [q["id"] for q in questions]
+            
+            # 🚀 BATCH OPERATION: Get all admin modifications at once
+            admin_modifications = {}
+            if role in ["reviewer", "meta_reviewer"]:
+                admin_modifications = GroundTruthService.batch_check_admin_modifications(
+                    video_id=video["id"], project_id=project_id, question_ids=question_ids, session=session
+                )
+            
+            # Check if any questions are modified by admin
+            has_any_admin_modified_questions = any(
+                mod_data["is_modified"] for mod_data in admin_modifications.values()
+            )
+            
+            # 🚀 PRELOAD GT STATUS: Single query for all questions (for display_question_status)
+            preloaded_gt_status = {}
+            if role in ["reviewer", "meta_reviewer", "reviewer_resubmit"]:
+                preloaded_gt_status = preload_gt_status_for_questions(
+                    video_id=video["id"], project_id=project_id, question_ids=question_ids, session=session
+                )
+            
+            # Get display data using the same session
+            display_data = _get_question_display_data(
+                video["id"], project_id, user_id, group_id, role, mode,
+                has_any_admin_modified_questions, session
+            )
+            
+            if display_data["error"]:
+                custom_info(display_data["error"])
+                with st.form(f"error_form_{video['id']}_{group_id}_{role}"):
+                    st.error(display_data["error"])
+                    st.form_submit_button("Unable to Load", disabled=True)
+                return
+            
+            questions = display_data["questions"]
+            all_questions_modified_by_admin = display_data["all_questions_modified_by_admin"]
+            existing_answers = display_data["existing_answers"]
+            form_disabled = display_data["form_disabled"]
+            
+            # Get ground truth for training mode using same session
+            gt_answers = {}
+            if mode == "Training" and role == "annotator":
+                try:
+                    gt_df = GroundTruthService.get_ground_truth_for_question_group(
+                        video_id=video["id"], project_id=project_id, 
+                        question_group_id=group_id, session=session
+                    )
+                    if not gt_df.empty:
+                        question_map = {q["id"]: q for q in questions}
+                        for _, gt_row in gt_df.iterrows():
+                            question_id = gt_row["Question ID"]
+                            if question_id in question_map:
+                                question_text = question_map[question_id]["text"]
+                                gt_answers[question_text] = gt_row["Answer Value"]
+                except Exception as e:
+                    print(f"Error getting ground truth: {e}")
+                    pass
         
         # Check if we have editable questions
         has_any_editable_questions = False
-        with get_db_session() as session:
-            for question in questions:
-                if role == "reviewer":
-                    is_admin_modified = GroundTruthService.check_question_modified_by_admin(
-                        video_id=video["id"], project_id=project_id, question_id=question["id"], session=session
-                    )
-                    if not is_admin_modified:
-                        has_any_editable_questions = True
-                        break
-                elif role == "meta_reviewer":
+        for question in questions:
+            if role == "reviewer":
+                admin_data = admin_modifications.get(question["id"], {"is_modified": False})
+                if not admin_data["is_modified"]:
                     has_any_editable_questions = True
                     break
-                else:
-                    has_any_editable_questions = True
-                    break
+            elif role == "meta_reviewer":
+                has_any_editable_questions = True
+                break
+            else:
+                has_any_editable_questions = True
+                break
         
         is_group_complete = check_question_group_completion(
             video_id=video["id"], project_id=project_id, user_id=user_id, 
@@ -278,63 +290,58 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
             # Ensure we always display content even if questions fail to load
             try:
                 with st.container(height=content_height, border=False):
-                    with get_db_session() as session:
-                        for i, question in enumerate(questions):
-                            question_id = question["id"]
-                            question_text = question["text"]
-                            existing_value = existing_answers.get(question_text, "")
-                            gt_value = gt_answers.get(question_text, "")
-                            
-                            is_modified_by_admin = False
-                            admin_info = None
-                            if role in ["reviewer", "meta_reviewer"]:
-                                is_modified_by_admin = GroundTruthService.check_question_modified_by_admin(
-                                    video_id=video["id"], project_id=project_id, question_id=question_id, session=session
-                                )
-                                if is_modified_by_admin:
-                                    admin_info = GroundTruthService.get_admin_modification_details(
-                                        video_id=video["id"], project_id=project_id, question_id=question_id, session=session
-                                    )
+                    for i, question in enumerate(questions):
+                        question_id = question["id"]
+                        question_text = question["text"]
+                        existing_value = existing_answers.get(question_text, "")
+                        gt_value = gt_answers.get(question_text, "")
                         
-                            if i > 0:
-                                st.markdown('<div style="margin: 8px 0;"></div>', unsafe_allow_html=True)
-                            
-                            # Pass group_id and cache_data to question display functions
-                            if question["type"] == "single":
-                                answers[question_text] = display_single_choice_question(
-                                    question=question,
-                                    video_id=video["id"],
-                                    project_id=project_id,
-                                    group_id=group_id,
-                                    role=role,
-                                    existing_value=existing_value,
-                                    is_modified_by_admin=is_modified_by_admin,
-                                    admin_info=admin_info,
-                                    form_disabled=form_disabled,
-                                    gt_value=gt_value,
-                                    mode=mode,
-                                    selected_annotators=selected_annotators,
-                                    preloaded_answers=preloaded_answers,
-                                    cache_data=cache_data  # 🚀 Pass bulk cache data
-                                )
-                            else:
-                                answers[question_text] = display_description_question(
-                                    question=question,
-                                    video_id=video["id"],
-                                    project_id=project_id,
-                                    group_id=group_id,
-                                    role=role,
-                                    existing_value=existing_value,
-                                    is_modified_by_admin=is_modified_by_admin,
-                                    admin_info=admin_info,
-                                    form_disabled=form_disabled,
-                                    gt_value=gt_value,
-                                    mode=mode,
-                                    answer_reviews=answer_reviews,
-                                    selected_annotators=selected_annotators,
-                                    preloaded_answers=preloaded_answers,
-                                    cache_data=cache_data  # 🚀 Pass bulk cache data
-                                )
+                        # 🚀 USE BATCH DATA: Get admin info from batch result (no DB call)
+                        admin_data = admin_modifications.get(question_id, {"is_modified": False, "admin_info": None})
+                        is_modified_by_admin = admin_data["is_modified"]
+                        admin_info = admin_data["admin_info"]
+                        
+                        if i > 0:
+                            st.markdown('<div style="margin: 8px 0;"></div>', unsafe_allow_html=True)
+                        
+                        # Pass admin data and preloaded GT status to display functions
+                        if question["type"] == "single":
+                            answers[question_text] = display_single_choice_question(
+                                question=question,
+                                video_id=video["id"],
+                                project_id=project_id,
+                                group_id=group_id,
+                                role=role,
+                                existing_value=existing_value,
+                                is_modified_by_admin=is_modified_by_admin,
+                                admin_info=admin_info,
+                                form_disabled=form_disabled,
+                                gt_value=gt_value,
+                                mode=mode,
+                                selected_annotators=selected_annotators,
+                                preloaded_answers=preloaded_answers,
+                                cache_data=cache_data,
+                                preloaded_gt_status=preloaded_gt_status  # 🚀 NEW: Pass preloaded GT status
+                            )
+                        else:
+                            answers[question_text] = display_description_question(
+                                question=question,
+                                video_id=video["id"],
+                                project_id=project_id,
+                                group_id=group_id,
+                                role=role,
+                                existing_value=existing_value,
+                                is_modified_by_admin=is_modified_by_admin,
+                                admin_info=admin_info,
+                                form_disabled=form_disabled,
+                                gt_value=gt_value,
+                                mode=mode,
+                                answer_reviews=answer_reviews,
+                                selected_annotators=selected_annotators,
+                                preloaded_answers=preloaded_answers,
+                                cache_data=cache_data,
+                                preloaded_gt_status=preloaded_gt_status  # 🚀 NEW: Pass preloaded GT status
+                            )
             except Exception as e:
                 st.error(f"Error displaying questions: {str(e)}")
                 # Still provide empty answers dict for form submission
@@ -386,12 +393,11 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                             return
                         
                         with get_db_session() as session:
+                            # Filter out admin-modified questions using batch data
                             editable_answers = {
                                 question["text"]: answers[question["text"]]
                                 for question in questions
-                                if not GroundTruthService.check_question_modified_by_admin(
-                                    video_id=video["id"], project_id=project_id, question_id=question["id"], session=session
-                                )
+                                if not admin_modifications.get(question["id"], {"is_modified": False})["is_modified"]
                             }
                         
                             if editable_answers:
@@ -399,19 +405,20 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                                     video_id=video["id"], project_id=project_id, reviewer_id=user_id,
                                     question_group_id=group_id, answers=editable_answers, session=session
                                 )
-                                
-                                if answer_reviews:
-                                    submit_answer_reviews(answer_reviews, video["id"], project_id, user_id)
-                                
-                                try:
-                                    project_progress = ProjectService.progress(project_id=project_id, session=session)
-                                    if project_progress['completion_percentage'] >= 100 and not is_group_complete:
-                                        show_reviewer_completion(project_id=project_id)
-                                        return
-                                except Exception as e:
-                                    print(f"Error showing reviewer completion: {e}")
-                                    pass
-                                
+                            
+                            if answer_reviews:
+                                submit_answer_reviews(answer_reviews, video["id"], project_id, user_id)
+                            
+                            try:
+                                project_progress = ProjectService.progress(project_id=project_id, session=session)
+                                if project_progress['completion_percentage'] >= 100 and not is_group_complete:
+                                    show_reviewer_completion(project_id=project_id)
+                                    return
+                            except Exception as e:
+                                print(f"Error showing reviewer completion: {e}")
+                                pass
+                            
+                            if editable_answers:
                                 st.success("✅ Ground truth submitted!")
                             else:
                                 st.warning("No editable questions to submit.")
@@ -438,6 +445,136 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
         with st.form(f"fallback_form_{video['id']}_{group_id}_{role}"):
             st.error("Failed to load question group properly")
             st.form_submit_button("Unable to Load Questions", disabled=True)
+
+# 🚀 HELPER FUNCTIONS TO ADD TO YOUR CODE:
+
+def preload_gt_status_for_questions(video_id: int, project_id: int, question_ids: List[int], session: Session) -> Dict[int, str]:
+    """Preload GT status for all questions in one query"""
+    try:
+        from sqlalchemy import select
+        from label_pizza.models import ReviewerGroundTruth, User
+        
+        gt_status = {}
+        
+        if not question_ids:
+            return gt_status
+        
+        # Single query to get all GT data
+        query = select(
+            ReviewerGroundTruth.question_id,
+            ReviewerGroundTruth.reviewer_id,
+            ReviewerGroundTruth.modified_by_admin_id
+        ).where(
+            ReviewerGroundTruth.video_id == video_id,
+            ReviewerGroundTruth.project_id == project_id,
+            ReviewerGroundTruth.question_id.in_(question_ids)
+        )
+        
+        results = session.execute(query).all()
+        
+        # Get all user info in one query
+        all_user_ids = set()
+        for result in results:
+            all_user_ids.add(result.reviewer_id)
+            if result.modified_by_admin_id:
+                all_user_ids.add(result.modified_by_admin_id)
+        
+        user_info = {}
+        if all_user_ids:
+            users_query = select(User.id, User.user_id_str).where(User.id.in_(all_user_ids))
+            user_results = session.execute(users_query).all()
+            user_info = {r.id: r.user_id_str for r in user_results}
+        
+        # Build status strings
+        for result in results:
+            question_id = result.question_id
+            reviewer_name = user_info.get(result.reviewer_id, f"User {result.reviewer_id}")
+            
+            if result.modified_by_admin_id:
+                admin_name = user_info.get(result.modified_by_admin_id, f"Admin {result.modified_by_admin_id}")
+                gt_status[question_id] = f"🏆 GT by: {reviewer_name} (Overridden by {admin_name})"
+            else:
+                gt_status[question_id] = f"🏆 GT by: {reviewer_name}"
+        
+        # Add "No GT" for questions without ground truth
+        for question_id in question_ids:
+            if question_id not in gt_status:
+                gt_status[question_id] = "📭 No GT"
+        
+        return gt_status
+        
+    except Exception as e:
+        print(f"Error preloading GT status: {e}")
+        return {qid: "📭 GT error" for qid in question_ids}
+
+def _get_question_display_data(video_id: int, project_id: int, user_id: int, group_id: int, role: str, mode: str, has_any_admin_modified_questions: bool, session: Session = None) -> Dict:
+    """Get all the data needed to display a question group - OPTIMIZED WITH SESSION PARAMETER"""
+    
+    questions = get_questions_with_custom_display_if_enabled(
+        group_id=group_id, project_id=project_id, video_id=video_id
+    )
+    
+    if not questions:
+        return {"questions": [], "error": "No questions in this group."}
+    
+    # Use provided session if available, otherwise create new one (backward compatibility)
+    if session is not None:
+        # Use provided session
+        all_questions_modified_by_admin = GroundTruthService.check_all_questions_modified_by_admin(
+            video_id=video_id, project_id=project_id, question_group_id=group_id, session=session
+        )
+    
+        # Get existing answers using provided session
+        if role == "annotator":
+            existing_answers = AnnotatorService.get_user_answers_for_question_group(
+                video_id=video_id, project_id=project_id, user_id=user_id, question_group_id=group_id, session=session
+            )
+        else:  # reviewer or meta_reviewer
+            existing_answers = GroundTruthService.get_ground_truth_dict_for_question_group(
+                video_id=video_id, project_id=project_id, question_group_id=group_id, session=session
+            )
+        
+        form_disabled = False
+        if role == "annotator":
+            form_disabled = (mode == "Training" and 
+                        AnnotatorService.check_user_has_submitted_answers(
+                            video_id=video_id, project_id=project_id, user_id=user_id, question_group_id=group_id, session=session
+                        ))
+        elif role == "reviewer":
+            form_disabled = has_any_admin_modified_questions
+    else:
+        # Backward compatibility: create new session (original behavior)
+        with get_db_session() as session:
+            all_questions_modified_by_admin = GroundTruthService.check_all_questions_modified_by_admin(
+                video_id=video_id, project_id=project_id, question_group_id=group_id, session=session
+            )
+        
+            # Get existing answers
+            if role == "annotator":
+                existing_answers = AnnotatorService.get_user_answers_for_question_group(
+                    video_id=video_id, project_id=project_id, user_id=user_id, question_group_id=group_id, session=session
+                )
+            else:  # reviewer or meta_reviewer
+                existing_answers = GroundTruthService.get_ground_truth_dict_for_question_group(
+                    video_id=video_id, project_id=project_id, question_group_id=group_id, session=session
+                )
+        
+            form_disabled = False
+            if role == "annotator":
+                form_disabled = (mode == "Training" and 
+                            AnnotatorService.check_user_has_submitted_answers(
+                                video_id=video_id, project_id=project_id, user_id=user_id, question_group_id=group_id, session=session
+                            ))
+            elif role == "reviewer":
+                form_disabled = has_any_admin_modified_questions
+
+    return {
+        "questions": questions,
+        "all_questions_modified_by_admin": all_questions_modified_by_admin,
+        "existing_answers": existing_answers,
+        "form_disabled": form_disabled,
+        "error": None
+    }
 
 def get_questions_with_custom_display_if_enabled(
     group_id: int, 
@@ -480,7 +617,8 @@ def display_single_choice_question(
     selected_annotators: List[str] = None, 
     key_prefix: str = "", 
     preloaded_answers: Dict = None,
-    cache_data: Dict = None  # 🚀 NEW: Accept bulk cache data
+    cache_data: Dict = None,
+    preloaded_gt_status: Dict = None  # 🚀 NEW OPTIONAL PARAMETER - Won't break existing code
 ) -> str:
     """OPTIMIZED: Display a single choice question with preloaded answer support"""
     
@@ -540,7 +678,8 @@ def display_single_choice_question(
             question_id=question_id, 
             show_annotators=show_annotators,
             selected_annotators=selected_annotators or [],
-            cache_data=cache_data  # 🚀 Pass bulk cache data
+            cache_data=cache_data,
+            preloaded_gt_status=preloaded_gt_status  # 🚀 Pass preloaded data (None if not provided)
         )
     
     # Question content with UNIQUE KEYS using key_prefix
@@ -646,6 +785,7 @@ def display_single_choice_question(
     
     return result
 
+
 def display_description_question(
     question: Dict, 
     video_id: int, 
@@ -662,7 +802,8 @@ def display_description_question(
     selected_annotators: List[str] = None, 
     key_prefix: str = "", 
     preloaded_answers: Dict = None,
-    cache_data: Dict = None
+    cache_data: Dict = None,
+    preloaded_gt_status: Dict = None  # 🚀 NEW OPTIONAL PARAMETER - Won't break existing code
 ) -> str:
     """OPTIMIZED: Display a description question with preloaded answer support"""
     
@@ -758,7 +899,8 @@ def display_description_question(
             question_id=question_id, 
             show_annotators=show_annotators,
             selected_annotators=selected_annotators or [],
-            cache_data=cache_data
+            cache_data=cache_data,
+            preloaded_gt_status=preloaded_gt_status  # 🚀 Pass preloaded data (None if not provided)
         )
         
         # Show enhanced helper text if annotators selected OR if we have ground truth (for search portal)
@@ -798,20 +940,19 @@ def display_description_question(
     
     return result
 
-###############################################################################
-# DISPLAY HELPER FUNCTIONS
-###############################################################################
 
 def display_question_status(
     video_id: int, project_id: int, question_id: int, 
     show_annotators: bool = False, 
-    selected_annotators: List[str] = None, cache_data: Dict = None
+    selected_annotators: List[str] = None, 
+    cache_data: Dict = None,
+    preloaded_gt_status: Dict = None  # 🚀 NEW OPTIONAL PARAMETER - Won't break existing code
 ):
-    """OPTIMIZED: Display status using bulk cached data"""
+    """OPTIMIZED: Display status using bulk cached data and preloaded GT status"""
     
     status_parts = []
     
-    # Get annotator status using bulk cache
+    # Get annotator status using bulk cache (no change needed)
     if show_annotators and selected_annotators:
         try:
             annotator_user_ids = get_optimized_annotator_user_ids(
@@ -860,42 +1001,52 @@ def display_question_status(
             print(f"Error in annotator status: {e}")
             status_parts.append(f"⚠️ Status error")
     
-    # Ground truth status (always fresh)
-    with get_db_session() as session:
-        try:
-            gt_row = GroundTruthService.get_ground_truth_for_question(
-                video_id=video_id, project_id=project_id, question_id=question_id, session=session
-            )
-            
-            if gt_row:
-                try:
-                    reviewer_info = AuthService.get_user_info_by_id(
-                        user_id=int(gt_row["Reviewer ID"]), session=session
-                    )
-                    reviewer_name = reviewer_info["user_id_str"]
-                    
-                    modified_by_admin = gt_row["Modified By Admin"] is not None
-                    
-                    if modified_by_admin:
-                        admin_info = AuthService.get_user_info_by_id(
-                            user_id=int(gt_row["Modified By Admin"]), session=session
-                        )
-                        admin_name = admin_info["user_id_str"]
-                        status_parts.append(f"🏆 GT by: {reviewer_name} (Overridden by {admin_name})")
-                    else:
-                        status_parts.append(f"🏆 GT by: {reviewer_name}")
-                except Exception:
-                    status_parts.append("🏆 GT exists")
-            else:
-                status_parts.append("📭 No GT")
+    # 🚀 OPTIMIZATION: Use preloaded GT status if available, otherwise fall back to DB call
+    if preloaded_gt_status and question_id in preloaded_gt_status:
+        gt_status = preloaded_gt_status[question_id]
+        status_parts.append(gt_status)
+    else:
+        # Fallback to DB call only if not preloaded (maintains backward compatibility)
+        with get_db_session() as session:
+            try:
+                gt_row = GroundTruthService.get_ground_truth_for_question(
+                    video_id=video_id, project_id=project_id, question_id=question_id, session=session
+                )
                 
-        except Exception as e:
-            print(f"Error getting ground truth status: {e}")
-            status_parts.append("📭 GT error")
+                if gt_row:
+                    try:
+                        reviewer_info = AuthService.get_user_info_by_id(
+                            user_id=int(gt_row["Reviewer ID"]), session=session
+                        )
+                        reviewer_name = reviewer_info["user_id_str"]
+                        
+                        modified_by_admin = gt_row["Modified By Admin"] is not None
+                        
+                        if modified_by_admin:
+                            admin_info = AuthService.get_user_info_by_id(
+                                user_id=int(gt_row["Modified By Admin"]), session=session
+                            )
+                            admin_name = admin_info["user_id_str"]
+                            status_parts.append(f"🏆 GT by: {reviewer_name} (Overridden by {admin_name})")
+                        else:
+                            status_parts.append(f"🏆 GT by: {reviewer_name}")
+                    except Exception:
+                        status_parts.append("🏆 GT exists")
+                else:
+                    status_parts.append("📭 No GT")
+                    
+            except Exception as e:
+                print(f"Error getting ground truth status: {e}")
+                status_parts.append("📭 GT error")
     
     # Display combined status
     if status_parts:
         st.caption(" | ".join(status_parts))
+        
+###############################################################################
+# DISPLAY HELPER FUNCTIONS
+###############################################################################
+
 
 
 def _get_options_for_reviewer(
@@ -2660,48 +2811,6 @@ def _get_submit_button_config(role: str, form_disabled: bool, all_questions_modi
             return "Submit Ground Truth", False
 
 
-
-def _get_question_display_data(video_id: int, project_id: int, user_id: int, group_id: int, role: str, mode: str, has_any_admin_modified_questions: bool) -> Dict:
-    """Get all the data needed to display a question group - REVERTED TO ORIGINAL LOGIC"""
-    
-    questions = get_questions_with_custom_display_if_enabled(
-        group_id=group_id, project_id=project_id, video_id=video_id
-    )
-    
-    if not questions:
-        return {"questions": [], "error": "No questions in this group."}
-    
-    with get_db_session() as session:
-        all_questions_modified_by_admin = GroundTruthService.check_all_questions_modified_by_admin(
-            video_id=video_id, project_id=project_id, question_group_id=group_id, session=session
-        )
-    
-        # 🚀 REVERTED: Always get fresh data for the user's own answers/ground truth
-        if role == "annotator":
-            existing_answers = AnnotatorService.get_user_answers_for_question_group(
-                video_id=video_id, project_id=project_id, user_id=user_id, question_group_id=group_id, session=session
-            )
-        else:  # reviewer or meta_reviewer
-            existing_answers = GroundTruthService.get_ground_truth_dict_for_question_group(
-                video_id=video_id, project_id=project_id, question_group_id=group_id, session=session
-            )
-    
-        form_disabled = False
-        if role == "annotator":
-            form_disabled = (mode == "Training" and 
-                        AnnotatorService.check_user_has_submitted_answers(
-                            video_id=video_id, project_id=project_id, user_id=user_id, question_group_id=group_id, session=session
-                        ))
-        elif role == "reviewer":
-            form_disabled = has_any_admin_modified_questions
-    
-    return {
-        "questions": questions,
-        "all_questions_modified_by_admin": all_questions_modified_by_admin,
-        "existing_answers": existing_answers,
-        "form_disabled": form_disabled,
-        "error": None
-    }
 
 def check_question_group_completion(video_id: int, project_id: int, user_id: int, question_group_id: int, role: str) -> bool:
     """Check if a question group is complete for the user/role"""

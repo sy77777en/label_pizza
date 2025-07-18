@@ -7059,6 +7059,7 @@ class GroundTruthService(BaseAnswerService):
         except Exception as e:
             print(f"Error in batch_check_admin_modifications: {e}")
             return {qid: {"is_modified": False, "admin_info": None} for qid in question_ids}
+
     @staticmethod
     def submit_answer_review(
         answer_id: int,
