@@ -6993,26 +6993,72 @@ class GroundTruthService(BaseAnswerService):
         
         session.commit()
     
-    def bulk_check_questions_modified_by_admin(video_id: int, project_id: int, 
-                                         question_ids: List[int], session: Session) -> Dict[int, bool]:
-        """Bulk check if multiple questions are modified by admin"""
+
+    @staticmethod
+    def batch_check_admin_modifications(video_id: int, project_id: int, question_ids: List[int], session: Session) -> Dict[int, Dict]:
+        """Batch check admin modifications for multiple questions - MUCH FASTER"""
         try:
-            # Single query to check all questions at once
-            query = session.query(GroundTruth).filter(
-                GroundTruth.video_id == video_id,
-                GroundTruth.project_id == project_id,
-                GroundTruth.question_id.in_(question_ids),
-                GroundTruth.modified_by_admin.isnot(None)
+            from sqlalchemy import select
+            from label_pizza.models import ReviewerGroundTruth, User
+            
+            admin_modifications = {}
+            
+            if not question_ids:
+                return {}
+            
+            # Single query to get all ground truth records for these questions
+            query = select(
+                ReviewerGroundTruth.question_id,
+                ReviewerGroundTruth.modified_by_admin_id,
+                ReviewerGroundTruth.modified_by_admin_at,
+                ReviewerGroundTruth.original_answer_value,
+                ReviewerGroundTruth.answer_value
+            ).where(
+                ReviewerGroundTruth.video_id == video_id,
+                ReviewerGroundTruth.project_id == project_id,
+                ReviewerGroundTruth.question_id.in_(question_ids)
             )
             
-            modified_questions = {gt.question_id for gt in query.all()}
+            results = session.execute(query).all()
             
-            return {q_id: q_id in modified_questions for q_id in question_ids}
+            # Get all admin user names in one query if needed
+            admin_user_ids = [r.modified_by_admin_id for r in results if r.modified_by_admin_id]
+            admin_users = {}
+            
+            if admin_user_ids:
+                users_query = select(User.id, User.user_id_str).where(User.id.in_(admin_user_ids))
+                user_results = session.execute(users_query).all()
+                admin_users = {r.id: r.user_id_str for r in user_results}
+            
+            # Build result dictionary
+            for result in results:
+                question_id = result.question_id
+                is_modified = result.modified_by_admin_id is not None
+                
+                admin_modifications[question_id] = {
+                    "is_modified": is_modified,
+                    "admin_info": {
+                        "current_value": result.answer_value,
+                        "original_value": result.original_answer_value,
+                        "admin_id": result.modified_by_admin_id,
+                        "admin_name": admin_users.get(result.modified_by_admin_id, f"Admin {result.modified_by_admin_id}") if result.modified_by_admin_id else None,
+                        "modified_at": result.modified_by_admin_at
+                    } if is_modified else None
+                }
+            
+            # Fill in False for questions not found (no ground truth)
+            for question_id in question_ids:
+                if question_id not in admin_modifications:
+                    admin_modifications[question_id] = {
+                        "is_modified": False,
+                        "admin_info": None
+                    }
+            
+            return admin_modifications
             
         except Exception as e:
-            print(f"Error in bulk_check_questions_modified_by_admin: {e}")
-            return {q_id: False for q_id in question_ids}
-
+            print(f"Error in batch_check_admin_modifications: {e}")
+            return {qid: {"is_modified": False, "admin_info": None} for qid in question_ids}
     @staticmethod
     def submit_answer_review(
         answer_id: int,

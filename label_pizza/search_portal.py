@@ -95,7 +95,7 @@ def display_improved_video_selection_section() -> Optional[Dict[str, Any]]:
         videos_df = VideoService.get_all_videos(session=session)
         if videos_df.empty:
             st.warning("🚫 No videos available in the system")
-        return None
+            return None
     
     # Restore search term from session state or URL parameter
     stored_search = st.session_state.get("search_portal_search_term", "")
@@ -509,7 +509,7 @@ def display_improved_video_answers_editor(video_info: Dict[str, Any], selected_g
     
     # Get all ground truth for this video
     with get_db_session() as session:
-        gt_data = get_video_ground_truth_across_groups(video_info["id"], selected_group_ids, session)
+        gt_data = get_video_ground_truth_across_groups(video_info["id"], selected_group_ids)
     
     # Improved video player section
     display_improved_video_player_section(video_info)
