@@ -134,6 +134,23 @@ class VideoService:
         session.commit()
     
     @staticmethod
+    def unarchive_video(video_id: int, session: Session) -> None:
+        """Unarchive a video by its ID.
+        
+        Args:
+            video_id: The ID of the video to unarchive
+            session: Database session
+            
+        Raises:
+            ValueError: If video not found
+        """
+        video = session.get(Video, video_id)
+        if not video:
+            raise ValueError(f"Video with ID {video_id} not found")
+        video.is_archived = False
+        session.commit()
+    
+    @staticmethod
     def get_all_videos(session: Session) -> pd.DataFrame:
         """Get all videos.
         
@@ -811,6 +828,10 @@ class ProjectService:
                 raise ValueError(f"Video with ID {vid} not found")
             if video.is_archived:
                 raise ValueError(f"Video with ID {vid} is archived")
+        
+        # Assert that all videos are unique
+        if len(video_ids) != len(set(video_ids)):
+            raise ValueError("All videos must be unique")
 
     @staticmethod
     def create_project(
