@@ -1,4 +1,4 @@
-# Label Pizza -- Data Model
+# Label Pizza - Data Model
 
 This guide explains the core concepts behind Label Pizza: videos, users, question groups, schemas, projects, assignments, annotations, and ground truths.
 

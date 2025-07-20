@@ -1,4 +1,4 @@
-# Label Pizza -- Sync Workflows
+# Label Pizza - Sync Workflows
 
 This guide explains how to sync data from JSON dictionaries or folders into the database.
 

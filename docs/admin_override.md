@@ -1,8 +1,8 @@
-# Label Pizza -- Admin Override
+# Label Pizza - Admin Override
 
 This guide explains how to rename or delete data in the database.
 
-# ⚠️ Danger Zone: Rename or Delete Data (Use with Caution)
+## ⚠️ Danger Zone: Rename or Delete Data (Use with Caution)
 
 By default, **Label Pizza does not allow deleting** users, videos, questions, question groups, schemas, or projects through standard syncing. These records are meant to be **archived**, not removed. This prevents accidental data loss and avoids breaking dependencies—for example, deleting a schema that is still used by a project.
 

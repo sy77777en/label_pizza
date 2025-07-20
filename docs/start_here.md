@@ -1,4 +1,4 @@
-# Label Pizza — Start Here
+# Label Pizza — Start Here
 
 Welcome! In about **20 minutes** you’ll learn the core concepts behind Label Pizza and get a project up and running.
 The guides below build on one another; we recommend reading the first three in order, then jumping to the advanced topics as needed.

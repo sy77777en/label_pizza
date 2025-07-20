@@ -1,8 +1,8 @@
-# Label Pizza -- Custom Question Per Video
+# Label Pizza - Custom Question Per Video
 
 This guide explains how to customize the question text and options for each video in a project.
 
-# Custom Display: Per-Video Questions and Options
+## Custom Display: Per-Video Questions and Options
 
 Label Pizza supports an advanced feature that lets you **customize the question text and options for each video** in a project. This is useful when the same schema applies across all videos, but you want to adjust the phrasing or choices based on the video content.
 
