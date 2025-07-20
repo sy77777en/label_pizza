@@ -5,7 +5,6 @@
     "is_reusable": false,
     "is_auto_submit": false,
     "verification_function": "check_pizza_description",
-    "is_active": true,
     "questions": [
         {
             "qtype": "single",
@@ -31,10 +30,10 @@
             ],
             "default_option": "0"
         },
-      {
-        "qtype": "description",
-        "text": "If there are pizzas, describe them.",
-        "display_text": "If there are pizzas, describe them."
-      }
+        {
+            "qtype": "description",
+            "text": "If there are pizzas, describe them.",
+            "display_text": "If there are pizzas, describe them."
+        }
     ]
 }
