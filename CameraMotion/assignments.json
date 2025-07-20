@@ -1,0 +1,2676 @@
+[
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 4",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 8",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 22",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Hewei Wang",
+    "project_name": "Camera Movement 30",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Zhiqiu Lin (cmu)",
+    "project_name": "Camera Movement 11",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 13",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.67",
+    "project_name": "Camera Movement 8",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 29",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yi Xie",
+    "project_name": "Camera Movement 25",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Zhiqiu Lin (cmu)",
+    "project_name": "Camera Movement 17",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 26",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 23",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.62",
+    "project_name": "Camera Movement 15",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 4",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 29",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Kewen Wu",
+    "project_name": "Camera Movement 12",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Zhiqiu Lin (cmu)",
+    "project_name": "Camera Movement 1",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Hewen Chi",
+    "project_name": "Camera Movement 27",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 32",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 29",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 18",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 17",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Simian Wang",
+    "project_name": "Camera Movement 3",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 7",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 18",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Hewei Wang",
+    "project_name": "Camera Movement 25",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 20",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Icey Ma",
+    "project_name": "Camera Movement 22",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 27",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.67",
+    "project_name": "Camera Movement 32",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Hewei Wang",
+    "project_name": "Camera Movement 10",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.32",
+    "project_name": "Camera Movement 2",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.32",
+    "project_name": "Camera Movement 33",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 5",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 18",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 19",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.62",
+    "project_name": "Camera Movement 11",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Kewen Wu (cmu)",
+    "project_name": "Camera Movement 27",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Zhiqiu Lin (cmu)",
+    "project_name": "Camera Movement 4",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 29",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 30",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Irene Pi",
+    "project_name": "Camera Movement 9",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yinuo Zhao",
+    "project_name": "Camera Movement 33",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 25",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 14",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.62",
+    "project_name": "Camera Movement 17",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Kewen Wu",
+    "project_name": "Camera Movement 28",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Icey Ma",
+    "project_name": "Camera Movement 11",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.62",
+    "project_name": "Camera Movement 20",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 9",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 18",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Icey Ma",
+    "project_name": "Camera Movement 17",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Icey Ma",
+    "project_name": "Camera Movement 20",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Icey Ma",
+    "project_name": "Camera Movement 27",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Kewen Wu",
+    "project_name": "Camera Movement 31",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.62",
+    "project_name": "Camera Movement 14",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Hewei Wang",
+    "project_name": "Camera Movement 8",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 10",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 15",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Kewen Wu",
+    "project_name": "Camera Movement 11",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.32",
+    "project_name": "Camera Movement 5",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Zhiqiu Lin (cmu)",
+    "project_name": "Camera Movement 18",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.32",
+    "project_name": "Camera Movement 19",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 16",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.67",
+    "project_name": "Camera Movement 6",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 22",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.32",
+    "project_name": "Camera Movement 30",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Icey Ma",
+    "project_name": "Camera Movement 23",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Simian Wang",
+    "project_name": "Camera Movement 5",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 22",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yi Xie",
+    "project_name": "Camera Movement 33",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 15",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Kewen Wu",
+    "project_name": "Camera Movement 24",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 22",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Hewei Wang",
+    "project_name": "Camera Movement 32",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 21",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 11",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 3",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 11",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yongbo Yang",
+    "project_name": "Camera Movement 5",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 15",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Irene Pi",
+    "project_name": "Camera Movement 33",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.67",
+    "project_name": "Camera Movement 31",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 8",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yinuo Zhao",
+    "project_name": "Camera Movement 31",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 17",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 11",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Kewen Wu",
+    "project_name": "Camera Movement 26",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 22",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Kewen Wu",
+    "project_name": "Camera Movement 23",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.32",
+    "project_name": "Camera Movement 25",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 17",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 24",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 20",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 13",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.67",
+    "project_name": "Camera Movement 11",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 27",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 1",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 2",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 33",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 24",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 27",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 17",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Zhiqiu Lin (cmu)",
+    "project_name": "Camera Movement 21",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 19",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 24",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 20",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.67",
+    "project_name": "Camera Movement 17",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 27",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 30",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 3",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Zhiqiu Lin (cmu)",
+    "project_name": "Camera Movement 15",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.67",
+    "project_name": "Camera Movement 24",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 32",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 26",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 23",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yongbo Yang",
+    "project_name": "Camera Movement 25",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 26",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Kewen Wu",
+    "project_name": "Camera Movement 29",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 23",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.62",
+    "project_name": "Camera Movement 2",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Zhiqiu Lin (cmu)",
+    "project_name": "Camera Movement 13",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 20",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 26",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 23",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Icey Ma",
+    "project_name": "Camera Movement 2",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yi Xie",
+    "project_name": "Camera Movement 31",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.67",
+    "project_name": "Camera Movement 26",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.67",
+    "project_name": "Camera Movement 23",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Hewei Wang",
+    "project_name": "Camera Movement 28",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Kewen Wu",
+    "project_name": "Camera Movement 18",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 7",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Irene Pi",
+    "project_name": "Camera Movement 30",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 25",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 14",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yinuo Zhao",
+    "project_name": "Camera Movement 8",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 12",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 5",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.62",
+    "project_name": "Camera Movement 21",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 19",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 30",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 9",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Zhiqiu Lin (cmu)",
+    "project_name": "Camera Movement 20",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Hewei Wang",
+    "project_name": "Camera Movement 31",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Icey Ma",
+    "project_name": "Camera Movement 21",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.62",
+    "project_name": "Camera Movement 7",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.62",
+    "project_name": "Camera Movement 13",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.32",
+    "project_name": "Camera Movement 32",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.67",
+    "project_name": "Camera Movement 29",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Zhiqiu Lin (cmu)",
+    "project_name": "Camera Movement 14",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Hewen Chi",
+    "project_name": "Camera Movement 25",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.62",
+    "project_name": "Camera Movement 5",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 6",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yinuo Zhao",
+    "project_name": "Camera Movement 32",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.62",
+    "project_name": "Camera Movement 19",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Icey Ma",
+    "project_name": "Camera Movement 13",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 28",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Zhiqiu Lin (cmu)",
+    "project_name": "Camera Movement 9",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Icey Ma",
+    "project_name": "Camera Movement 5",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Hewei Wang",
+    "project_name": "Camera Movement 24",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 10",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Kewen Wu",
+    "project_name": "Camera Movement 15",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 33",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 16",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 31",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Kewen Wu",
+    "project_name": "Camera Movement 22",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Hewei Wang",
+    "project_name": "Camera Movement 26",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 3",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Hewei Wang",
+    "project_name": "Camera Movement 4",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 11",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.62",
+    "project_name": "Camera Movement 10",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 21",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 21",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Icey Ma",
+    "project_name": "Camera Movement 25",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.62",
+    "project_name": "Camera Movement 9",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.62",
+    "project_name": "Camera Movement 16",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yi Xie",
+    "project_name": "Camera Movement 32",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 2",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 33",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 15",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Icey Ma",
+    "project_name": "Camera Movement 10",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 8",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 1",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 21",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 24",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.32",
+    "project_name": "Camera Movement 28",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Simian Wang",
+    "project_name": "Camera Movement 6",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 7",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 13",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Icey Ma",
+    "project_name": "Camera Movement 16",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Zhiqiu Lin (cmu)",
+    "project_name": "Camera Movement 3",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jackie Li",
+    "project_name": "Camera Movement 26",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 13",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Simian Wang",
+    "project_name": "Camera Movement 28",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jackie Li",
+    "project_name": "Camera Movement 23",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Hewei Wang",
+    "project_name": "Camera Movement 29",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Kewen Wu",
+    "project_name": "Camera Movement 27",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 5",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Irene Pi",
+    "project_name": "Camera Movement 32",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 19",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 7",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 13",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.32",
+    "project_name": "Camera Movement 31",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 19",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 30",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 26",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Kewen Wu",
+    "project_name": "Camera Movement 25",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Kewen Wu",
+    "project_name": "Camera Movement 14",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 5",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Zhiqiu Lin (cmu)",
+    "project_name": "Camera Movement 2",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 4",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 19",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 32",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 7",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 20",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 5",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.32",
+    "project_name": "Camera Movement 1",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.32",
+    "project_name": "Camera Movement 24",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.62",
+    "project_name": "Camera Movement 3",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 25",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yi Xie",
+    "project_name": "Camera Movement 6",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 14",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 29",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 25",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 10",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.67",
+    "project_name": "Camera Movement 20",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 14",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Simian Wang",
+    "project_name": "Camera Movement 24",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 12",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yinuo Zhao",
+    "project_name": "Camera Movement 24",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Simian Wang",
+    "project_name": "Camera Movement 27",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 10",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yi Xie",
+    "project_name": "Camera Movement 28",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Icey Ma",
+    "project_name": "Camera Movement 3",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 25",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 9",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 14",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 16",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Zhiqiu Lin (cmu)",
+    "project_name": "Camera Movement 7",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 9",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 10",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.67",
+    "project_name": "Camera Movement 25",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.67",
+    "project_name": "Camera Movement 14",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 18",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.32",
+    "project_name": "Camera Movement 26",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Zhiqiu Lin (cmu)",
+    "project_name": "Camera Movement 5",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 9",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yongbo Yang",
+    "project_name": "Camera Movement 1",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 16",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Zhiqiu Lin (cmu)",
+    "project_name": "Camera Movement 19",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Simian Wang",
+    "project_name": "Camera Movement 26",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Simian Wang",
+    "project_name": "Camera Movement 23",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yinuo Zhao",
+    "project_name": "Camera Movement 23",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.62",
+    "project_name": "Camera Movement 12",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Hewei Wang",
+    "project_name": "Camera Movement 15",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 6",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 10",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yi Xie",
+    "project_name": "Camera Movement 11",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Hewei Wang",
+    "project_name": "Camera Movement 22",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Icey Ma",
+    "project_name": "Camera Movement 12",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 28",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 16",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Irene Pi",
+    "project_name": "Camera Movement 31",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.32",
+    "project_name": "Camera Movement 29",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jackie Li",
+    "project_name": "Camera Movement 21",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Kewen Wu",
+    "project_name": "Camera Movement 33",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Simian Wang",
+    "project_name": "Camera Movement 29",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.62",
+    "project_name": "Camera Movement 6",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 31",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Zhiqiu Lin (cmu)",
+    "project_name": "Camera Movement 10",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 3",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jackie Li",
+    "project_name": "Camera Movement 22",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 21",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 3",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Icey Ma",
+    "project_name": "Camera Movement 6",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 11",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Zhiqiu Lin (cmu)",
+    "project_name": "Camera Movement 16",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 8",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 15",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Simian Wang",
+    "project_name": "Camera Movement 18",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Hewei Wang",
+    "project_name": "Camera Movement 20",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Hewei Wang",
+    "project_name": "Camera Movement 27",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yi Xie",
+    "project_name": "Camera Movement 26",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 3",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Icey Ma",
+    "project_name": "Camera Movement 28",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yongbo Yang",
+    "project_name": "Camera Movement 29",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 22",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 2",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.67",
+    "project_name": "Camera Movement 3",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 2",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 13",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 1",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 24",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 2",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Hewei Wang",
+    "project_name": "Camera Movement 23",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 12",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.67",
+    "project_name": "Camera Movement 2",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.67",
+    "project_name": "Camera Movement 33",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Zhiqiu Lin (cmu)",
+    "project_name": "Camera Movement 8",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Hewei Wang",
+    "project_name": "Camera Movement 9",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 12",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 32",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jackie Li",
+    "project_name": "Camera Movement 27",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Kewen Wu",
+    "project_name": "Camera Movement 19",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yi Xie",
+    "project_name": "Camera Movement 29",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 12",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 26",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 23",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 17",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.62",
+    "project_name": "Camera Movement 1",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 4",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.32",
+    "project_name": "Camera Movement 21",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 20",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 27",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.32",
+    "project_name": "Camera Movement 15",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Icey Ma",
+    "project_name": "Camera Movement 1",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Simian Wang",
+    "project_name": "Camera Movement 21",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Icey Ma",
+    "project_name": "Camera Movement 24",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 7",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 6",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 12",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 6",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 25",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 14",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 5",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 28",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Simian Wang",
+    "project_name": "Camera Movement 22",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yinuo Zhao",
+    "project_name": "Camera Movement 22",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 28",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.62",
+    "project_name": "Camera Movement 4",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 6",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.62",
+    "project_name": "Camera Movement 8",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 23",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 29",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Hewen Chi",
+    "project_name": "Camera Movement 18",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 9",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 28",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Icey Ma",
+    "project_name": "Camera Movement 26",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.67",
+    "project_name": "Camera Movement 5",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Icey Ma",
+    "project_name": "Camera Movement 8",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Simian Wang",
+    "project_name": "Camera Movement 19",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.67",
+    "project_name": "Camera Movement 30",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yinuo Zhao",
+    "project_name": "Camera Movement 30",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 18",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 31",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Zhiqiu Lin (cmu)",
+    "project_name": "Camera Movement 12",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 6",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.32",
+    "project_name": "Camera Movement 27",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 28",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Hewei Wang",
+    "project_name": "Camera Movement 33",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Icey Ma",
+    "project_name": "Camera Movement 29",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 1",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.62",
+    "project_name": "Camera Movement 18",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 16",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 31",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yi Xie",
+    "project_name": "Camera Movement 22",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Zhiqiu Lin (cmu)",
+    "project_name": "Camera Movement 6",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Simian Wang",
+    "project_name": "Camera Movement 25",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yinuo Zhao",
+    "project_name": "Camera Movement 25",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.32",
+    "project_name": "Camera Movement 23",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Daniel Jiang",
+    "project_name": "Camera Movement 1",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Hewei Wang",
+    "project_name": "Camera Movement 21",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Icey Ma",
+    "project_name": "Camera Movement 18",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yongbo Yang",
+    "project_name": "Camera Movement 27",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 11",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.67",
+    "project_name": "Camera Movement 16",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Simian Wang",
+    "project_name": "Camera Movement 9",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Yi Xie",
+    "project_name": "Camera Movement 30",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Irene Pi",
+    "project_name": "Camera Movement 22",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 4",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 21",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 17",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Geovany",
+    "project_name": "Camera Movement 8",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 4",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 1",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Siyuan Cen",
+    "project_name": "Camera Movement 8",
+    "role": "admin",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Jiaqi Li",
+    "project_name": "Camera Movement 15",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 24",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "Kewen Wu",
+    "project_name": "Camera Movement 32",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 2",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.51",
+    "project_name": "Camera Movement 33",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  },
+  {
+    "user_name": "rater.70",
+    "project_name": "Camera Movement 27",
+    "role": "reviewer",
+    "user_weight": 1.0,
+    "is_active": true
+  }
+]

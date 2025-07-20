@@ -1,0 +1,393 @@
+When camera_movement is 'no', all direction movements must be 'no'.
+17d79cf8-1924-4566-b8a2-54e41f14b5ea.7.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+60.0.10.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+60.0.14.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+60.0.26.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+60.0.28.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+67bfa4eec893c10cba8c4fb180735bf8adc0c7de5a0cfe1ee9d1c1b44c2e56c8.0.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+190.2.6.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+1018.1.9.mp4
+--------------------------------
+When camera_movement is 'major_simple', at least one direction movement must be specified.
+1265.1.10.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+1470.0.4.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+1470.0.7.mp4
+--------------------------------
+Description is required for complex motion
+1509.0.2.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+2519.5.2.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+2519.5.17.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+2519.5.20.mp4
+--------------------------------
+When steadiness is 'static', camera_movement cannot be 'major_simple' or 'minor'.
+2530.0.18.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+4080.2.9.mp4
+--------------------------------
+Description is required for complex motion
+4505.1.2.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+4847.13.4.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+4847.13.9.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+4847.13.11.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+4847.41.2.mp4
+--------------------------------
+Description is not allowed for other motion
+4859.1.1.mp4
+--------------------------------
+Description is required for complex motion
+4859.1.10.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+4859.1.14.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+4859.1.19.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+4881.0.5.mp4
+--------------------------------
+When steadiness is 'static', camera_movement cannot be 'major_simple' or 'minor'.
+4881.0.18.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+4881.0.27.mp4
+--------------------------------
+Description is required for complex motion
+5454.1.16.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+5933.2.5.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+6303.0.19.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+00074902de412cbc6d7446dccdad033d1eb8159ed086e247d352e8d930b4da9b.0.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+852363.10.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+4021226.0.1.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+4021535.0.2.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+4021535.0.8.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+mixkit-pair-of-little-girls-on-a-beach-at-sunset-44502.0.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+-F9hoWSAX5w.0.4.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+0BmANHSUbJg.3.3.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+7O1eibuPn84.3.1.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+8LiVGDq01FU.0.0.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+8LiVGDq01FU.0.9.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+8LiVGDq01FU.0.11.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+8LiVGDq01FU.2.10.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+8LiVGDq01FU.2.15.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+8ouj_JN2ytI.0.7.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+bX8GaZ3O4-Q.0.2.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+bX8GaZ3O4-Q.3.14.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+bX8GaZ3O4-Q.3.15.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+d0yGdNEWdn0.0.6.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+fT6olrwrjnI.5.0.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+fT6olrwrjnI.5.2.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+fUjoIUTFH1I.0.19.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+h1PjJ9_Yd2c.0.5.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+h1PjJ9_Yd2c.2.1.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+h1PjJ9_Yd2c.2.5.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+h1PjJ9_Yd2c.2.16.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+h1PjJ9_Yd2c.2.19.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+h1PjJ9_Yd2c.5.3.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+Hv_DRJZZ2qI.2.6.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+iXzposKQzvs.2.3.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+LNHBMFCzznE.5.6.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+mXZ45yLpg14.0.4.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+Ni7AYED85z4.2.12.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+RYzkI_5ub58.3.3.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+RYzkI_5ub58.8.0.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+RYzkI_5ub58.8.5.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+RYzkI_5ub58.8.6.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+RYzkI_5ub58.15.14.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+u-dEnJpCGAQ.3.0.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+u-dEnJpCGAQ.8.0.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+u-dEnJpCGAQ.165.1.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+u-dEnJpCGAQ.165.5.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+YSnzFyUeFS4.2.6.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+3923c396290520b6dcedf49397a06682322bd225007879cdd4fa2b144116c293.0.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+02ea06f94c915dc668b02d893a60606cd074d74ff5cc6521f48f85fd1ebf8da3.0.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+JmPDt4SFxFU.3.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+_jli4enm3vw.2.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+CQtFHWCSeXM.5.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+cff54db6382ec81eaef2351f5319978651cec439bf358c937295d87986ab89b6.0.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+1156f206bf6ef72ed3ac9d51d28c81f40031612ca1e79e9d4fc076759bc06c23.0.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+005a89388809aac833a0dc2389ac39f396cc64e4d03a30ec3dab8944db09183e.2.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+9a2bcede65764d9e51445eb4dd3007957dfa0b33d28daf48f6932bcf0de79b28.1.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+cd248d6e8326130876d9f820943ac094463a938ba557ccff8171d483dbe01d14.0.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+05189ba8bdb22fbb387f86bf025bc9f36a20416a495efd3980d63278abc28bf8.1.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+02a1b502d0ca3cdb3107d4c962a71d1f5b69b78c9ea330965e6f786f315ee527.0.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+05814ccff31cbb051d787af6ae9375a563994d5cad18355c4d0f154f25f5d9cc.0.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+390ce06661b7e4e698fd727ac359f056cd99ef6f70a24dc8fc8f3dae82b09348.0.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+4PcpGxihPac.1.2.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+6h6bMAWLYAI.2.2.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+7Wz0RPFsuSA.0.0.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+9IQtkTqD-yc.0.0.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+9IQtkTqD-yc.0.2.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+Ao4Y7JU30zc.0.1.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+as8lT-q2_E8.3.1.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+awPo_VZabRc.0.2.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+bPZc7avrCT4.6.2.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+EFvnpRE9qC8.0.1.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+fSWFUFdV5TU.2.1.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+FUQhNGEu2KA.0.3.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+Gel59Iy3YhQ.25.1.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+hk3sjN_k3-g.0.5.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+K3U7Ybik1wM.4.4.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+ljg_EgXMjO0.2.1.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+molA_wwvFbk.1.0.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+molA_wwvFbk.2.0.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+OcSO3INDEsE.0.0.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+rfg9l66Eskw.0.0.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+RuWhYFn82SY.0.0.mp4
+--------------------------------
+Description is required for complex motion
+treWO3ys06g.1.1.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+y51VUsotZe4.1.1.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+z7HxJaKjVlU.0.1.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+-2uIa-XMJC0.4.0.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+0OFBj7EjZ-g.0.14.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+3HYfPz8lvDI.0.3.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+5eDQ2SSsmEk.4.7.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+bazSwSbo9rU.4.0.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+ct7R8nnI-s0.7.2.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+ct7R8nnI-s0.8.2.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+e_ofen9SDeM.2.6.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+JGiXuXc3cao.2.7.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+LZkl0_9xFOU.11.5.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+mIiPt1YVkP8.1.3.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+P9Z0XP6mkCg.0.1.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+y0aS2n1WmMg.0.2.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+YakCuBMlQXQ.0.3.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+YakCuBMlQXQ.3.1.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+yAgI51QvWxs.1.4.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+urgDBUXShos.0.7.mp4
+--------------------------------
+When camera_movement is 'no', all direction movements must be 'no'.
+-WjxasGriTg.0.2.mp4
+--------------------------------
