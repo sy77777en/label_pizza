@@ -144,7 +144,11 @@ python label_pizza/init_or_reset_db.py \
 
 ```bash
 # start Streamlit; feel free to change the port
-streamlit run label_pizza/label_pizza_app.py --server.port 8000  --server.address 0.0.0.0 -- --database-url-name DBURL
+streamlit run label_pizza/label_pizza_app.py \
+  --server.port 8000 \
+  --server.address 0.0.0.0 \
+  -- \
+  --database-url-name DBURL
 ```
 
 Visit **[http://localhost:8000](http://localhost:8000)** to log in.
@@ -155,29 +159,32 @@ Visit **[http://localhost:8000](http://localhost:8000)** to log in.
 
 ### 4 · Load your own videos, questions, projects, and users
 
-Need to load your own data next? Head over to **[instructions.md](instructions.md)**!
+Ready to use your own data? Start by learning the key concepts behind Label Pizza (e.g., videos, questions, schemas, and users) in **[docs/start_here.md](docs/start_here.md)** to set up your first project.
 
 
 ## Folder Layout
 
 ```
 label_pizza/
-├─ label_pizza_app.py   # Streamlit interface
-├─ models.py            # Database tables
-├─ services.py          # Business logic
-├─ sync_utils.py        # Upload data to the database
-└─ init_or_reset_db.py  # Init/backup/reset the database with a seed admin user
-sync_from_folder.py     # Sync data from a folder
-workspace/              # Your own data folder
+├─ label_pizza_app.py    # Streamlit interface
+├─ models.py             # Database tables
+├─ services.py           # Business logic
+├─ sync_utils.py         # Upload data to the database
+└─ init_or_reset_db.py   # Init/backup/reset the database with a seed admin user
+sync_from_folder.py      # Sync data from a folder
+workspace/               # Your own data folder
+example/                 # Example data folder
+example_custom_question/ # Example data folder for custom question per video
 ```
 
 Enjoy your slice of perfectly-topped labels! 🍕
 
 ## Next Steps
 
-* **Import or update data** – follow the helper examples in  
-  [instructions.md → Customizing your sync workflow](instructions.md#customizing-your-sync-workflow-with-sync_utilspy)
-* **Back up or reset the database** – commands in  
-  [instructions.md → Reset or backup the database](instructions.md#reset-or-backup-the-database)
+* **Get started with the web UI** – follow the guide in  [docs/start_here.md](docs/start_here.md)
+* **Understand the core concepts** – understand the terminology used in Label Pizza in [docs/data_model.md](docs/data_model.md)
+* **Import, update, or backup data** – follow the helper examples in  
+  [docs/sync_workflows.md](docs/sync_workflows.md)
+
 * **Custom questions or options per video** – see  
-  [instructions.md → Custom question per video](instructions.md#custom-question-per-video)
+  [docs/custom_display.md](docs/custom_display.md)

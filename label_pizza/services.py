@@ -976,8 +976,6 @@ class ProjectService:
         project = session.get(Project, project_id)
         if not project:
             raise ValueError(f"Project with ID {project_id} not found")
-        if project.is_archived:
-            raise ValueError(f"Project with ID {project_id} is archived")
     
     @staticmethod
     def update_project_description(project_id: int, description: str, session: Session) -> None:
