@@ -181,10 +181,11 @@ Enjoy your slice of perfectly-topped labels! 🍕
 
 ## Next Steps
 
-* **Get started with the web UI** – follow the guide in  [docs/start_here.md](docs/start_here.md)
-* **Understand the core concepts** – understand the terminology used in Label Pizza in [docs/data_model.md](docs/data_model.md)
+* **Get started with the web UI** – follow the setup guide in 
+  [docs/start_here.md](docs/start_here.md)
+* **Understand the core concepts** – understand the terminology in 
+  [docs/data_model.md](docs/data_model.md)
 * **Import, update, or backup data** – follow the helper examples in  
   [docs/sync_workflows.md](docs/sync_workflows.md)
-
 * **Custom questions or options per video** – see  
   [docs/custom_display.md](docs/custom_display.md)

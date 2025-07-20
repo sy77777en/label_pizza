@@ -68,4 +68,8 @@ Visit **[http://localhost:8000](http://localhost:8000)** to log in.
 > **Want to share the site externally?**
 > Pipe the local port through **[pinggy.io](https://pinggy.io/)** (≈ US \$3 per static URL per month)
 
+---
+
+[← Back to README](../README.md) | [Next → Data Model](data_model.md)
+
 
