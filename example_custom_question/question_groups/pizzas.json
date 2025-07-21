@@ -24,10 +24,10 @@
             ],
             "default_option": "Option A"
         },
-      {
-        "qtype": "description",
-        "text": "Describe one aspect of the video",
-        "display_text": "Describe one aspect of the video"
-      }
+        {
+            "qtype": "description",
+            "text": "Describe one aspect of the video",
+            "display_text": "Describe one aspect of the video"
+        }
     ]
 }
