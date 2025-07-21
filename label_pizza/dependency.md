@@ -2,71 +2,51 @@
 
 ## API Reference Tables
 
-### Delete APIs (using_id)
-| Table | API Function |
-|-------|-------------|
-| User | delete_user_using_id(id) |
-| Video | delete_video_using_id(id) |
-| VideoTag | delete_video_tag_using_id(video_id, tag) |
-| QuestionGroup | delete_question_group_using_id(id) |
-| Question | delete_question_using_id(id) |
-| QuestionGroupQuestion | delete_question_group_question_using_id(question_group_id, question_id) |
-| Schema | delete_schema_using_id(id) |
-| SchemaQuestionGroup | delete_schema_question_group_using_id(schema_id, question_group_id) |
-| Project | delete_project_using_id(id) |
-| ProjectVideo | delete_project_video_using_id(project_id, video_id) |
-| ProjectUserRole | delete_project_user_role_using_id(project_id, user_id, role) |
-| ProjectGroup | delete_project_group_using_id(id) |
-| ProjectGroupProject | delete_project_group_project_using_id(project_group_id, project_id) |
-| ProjectVideoQuestionDisplay | delete_project_video_question_display_using_id(project_id, video_id, question_id) |
-| AnnotatorAnswer | delete_annotator_answer_using_id(id) |
-| ReviewerGroundTruth | delete_reviewer_ground_truth_using_id(video_id, question_id, project_id) |
-| AnswerReview | delete_answer_review_using_id(id) |
+### Delete APIs
+**CRITICAL: All delete operations MUST first clear all child rows that depend on the parent row, as detailed in the dependency analysis below.**
 
-### Delete APIs (using names)
-| Table | API Function |
-|-------|-------------|
-| User | delete_user(user_id_str) |
-| Video | delete_video(video_uid) |
-| VideoTag | delete_video_tag(video_uid, tag) |
-| QuestionGroup | delete_question_group(title) |
-| Question | delete_question(text) |
-| QuestionGroupQuestion | delete_question_group_question(question_group_title, question_text) |
-| Schema | delete_schema(name) |
-| SchemaQuestionGroup | delete_schema_question_group(schema_name, question_group_title) |
-| Project | delete_project(name) |
-| ProjectVideo | delete_project_video(project_name, video_uid) |
-| ProjectUserRole | delete_project_user_role(project_name, user_id_str, role) |
-| ProjectGroup | delete_project_group(name) |
-| ProjectGroupProject | delete_project_group_project(project_group_name, project_name) |
-| ProjectVideoQuestionDisplay | delete_project_video_question_display(project_name, video_uid, question_text) |
-| AnnotatorAnswer | delete_annotator_answer(video_uid, question_text, user_id_str, project_name) |
-| ReviewerGroundTruth | delete_reviewer_ground_truth(video_uid, question_text, project_name) |
-| AnswerReview | delete_answer_review(answer_id) |
+**All delete functions include these backup parameters (imported from init_or_reset_db.py):**
+- `backup_first=True` - Create automatic backup before deletion
+- `backup_dir="./backups"` - Default backup directory  
+- `backup_file=None` - Auto-generated timestamp filename
+- `compress=True` - Enable gzip compression
 
-### Get Name APIs (id to name conversion)
-| Table | API Function |
-|-------|-------------|
-| User | get_user_name(id) → user_id_str |
-| Video | get_video_name(id) → video_uid |
-| QuestionGroup | get_question_group_name(id) → title |
-| Question | get_question_name(id) → text |
-| Schema | get_schema_name(id) → name |
-| Project | get_project_name(id) → name |
-| ProjectGroup | get_project_group_name(id) → name |
+| Table | Delete Using ID | Delete Using Name |
+|-------|----------------|-------------------|
+| User | `delete_user_using_id(id, **backup_params)` | `delete_user(user_id_str, **backup_params)` |
+| Video | `delete_video_using_id(id, **backup_params)` | `delete_video(video_uid, **backup_params)` |
+| VideoTag | `delete_video_tag_using_id(video_id, tag, **backup_params)` | `delete_video_tag(video_uid, tag, **backup_params)` |
+| QuestionGroup | `delete_question_group_using_id(id, **backup_params)` | `delete_question_group(title, **backup_params)` |
+| Question | `delete_question_using_id(id, **backup_params)` | `delete_question(text, **backup_params)` |
+| QuestionGroupQuestion | `delete_question_group_question_using_id(question_group_id, question_id, **backup_params)` | `delete_question_group_question(question_group_title, question_text, **backup_params)` |
+| Schema | `delete_schema_using_id(id, **backup_params)` | `delete_schema(name, **backup_params)` |
+| SchemaQuestionGroup | `delete_schema_question_group_using_id(schema_id, question_group_id, **backup_params)` | `delete_schema_question_group(schema_name, question_group_title, **backup_params)` |
+| Project | `delete_project_using_id(id, **backup_params)` | `delete_project(name, **backup_params)` |
+| ProjectVideo | `delete_project_video_using_id(project_id, video_id, **backup_params)` | `delete_project_video(project_name, video_uid, **backup_params)` |
+| ProjectUserRole | `delete_project_user_role_using_id(project_id, user_id, role, **backup_params)` | `delete_project_user_role(project_name, user_id_str, role, **backup_params)` |
+| ProjectGroup | `delete_project_group_using_id(id, **backup_params)` | `delete_project_group(name, **backup_params)` |
+| ProjectGroupProject | `delete_project_group_project_using_id(project_group_id, project_id, **backup_params)` | `delete_project_group_project(project_group_name, project_name, **backup_params)` |
+| ProjectVideoQuestionDisplay | `delete_project_video_question_display_using_id(project_id, video_id, question_id, **backup_params)` | `delete_project_video_question_display(project_name, video_uid, question_text, **backup_params)` |
+| AnnotatorAnswer | `delete_annotator_answer_using_id(id, **backup_params)` | `delete_annotator_answer(video_uid, question_text, user_id_str, project_name, **backup_params)` |
+| ReviewerGroundTruth | `delete_reviewer_ground_truth_using_id(video_id, question_id, project_id, **backup_params)` | `delete_reviewer_ground_truth(video_uid, question_text, project_name, **backup_params)` |
+| AnswerReview | `delete_answer_review_using_id(id, **backup_params)` | `delete_answer_review(answer_id, **backup_params)` |
 
-### Override Name APIs (set name using id)
-**Note: The name must be unique, otherwise an error will be raised.**
+### Name Management APIs
 
-| Table | API Function |
-|-------|-------------|
-| User | set_user_name_using_id(id, user_id_str) |
-| Video | set_video_name_using_id(id, video_uid) |
-| QuestionGroup | set_question_group_name_using_id(id, title) |
-| Question | set_question_name_using_id(id, text) |
-| Schema | set_schema_name_using_id(id, name) |
-| Project | set_project_name_using_id(id, name) |
-| ProjectGroup | set_project_group_name_using_id(id, name) |
+| Table | Get Name (ID → Name) | Set Name (ID + Name → Update) |
+|-------|---------------------|------------------------------|
+| User | `get_user_name(id) → user_id_str` | `set_user_name_using_id(id, user_id_str, **backup_params)` |
+| Video | `get_video_name(id) → video_uid` | `set_video_name_using_id(id, video_uid, **backup_params)` |
+| QuestionGroup | `get_question_group_name(id) → title` | `set_question_group_name_using_id(id, title, **backup_params)` |
+| Question | `get_question_name(id) → text` | `set_question_name_using_id(id, text, **backup_params)` |
+| Schema | `get_schema_name(id) → name` | `set_schema_name_using_id(id, name, **backup_params)` |
+| Project | `get_project_name(id) → name` | `set_project_name_using_id(id, name, **backup_params)` |
+| ProjectGroup | `get_project_group_name(id) → name` | `set_project_group_name_using_id(id, name, **backup_params)` |
+
+**Notes:**
+- **Get operations** are read-only lookups that return the current name for an ID
+- **Set operations** update the name and include backup parameters. The new name must be unique, otherwise an error will be raised.
+- **Set operations** use same backup parameters as delete APIs above
 
 ## Direct Dependency Graph
 

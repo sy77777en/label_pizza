@@ -37,7 +37,7 @@ args, _ = args.parse_known_args()
 try:
     init_database(args.database_url_name)
     print(f"✅ Database initialized using {args.database_url_name}")
-    from label_pizza.db import engine, SessionLocal
+    import label_pizza.db
 except Exception as e:
     print(f"❌ Database initialization failed: {e}")
     sys.exit(1)
@@ -78,7 +78,7 @@ class TestDataSetup:
             return False
         
         try:
-            with SessionLocal() as session:
+            with label_pizza.db.SessionLocal() as session:
                 # Step 1: Create test users
                 print("\n👥 Creating test users...")
                 self._create_test_users(session)
@@ -131,7 +131,7 @@ class TestDataSetup:
         print("🔍 Checking database connection...")
         try:
             from sqlalchemy import text
-            with engine.connect() as conn:
+            with label_pizza.db.engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
             print("✅ Database connection healthy")
             return True

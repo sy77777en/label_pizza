@@ -10,8 +10,8 @@ from label_pizza.services import (
     QuestionService, SchemaService, CustomDisplayService,
     ProjectService, VideoService, ProjectGroupService
 )
-from label_pizza.db import SessionLocal
-if SessionLocal is None:
+import label_pizza.db
+if label_pizza.db.SessionLocal is None:
     raise ValueError("SessionLocal is not initialized")
 from label_pizza.ui_components import custom_info
 import functools
@@ -25,9 +25,9 @@ from typing import Callable, Any
 @contextmanager
 def get_db_session():
     """Get database session with proper error handling"""
-    if SessionLocal is None:
+    if label_pizza.db.SessionLocal is None:
         raise ValueError("SessionLocal is not initialized")
-    session = SessionLocal()
+    session = label_pizza.db.SessionLocal()
     try:
         yield session
         # session.commit()
@@ -84,7 +84,7 @@ def handle_database_errors(func):
 @st.cache_data(ttl=3600)  # Cache for 1 hour
 def get_cached_all_users(session_id: str) -> pd.DataFrame:
     """Cache all users data - changes infrequently"""
-    with get_db_session() as session:  # Use SessionLocal directly
+    with get_db_session() as session:
         try:
             return AuthService.get_all_users(session=session)
         except Exception as e:
@@ -94,7 +94,7 @@ def get_cached_all_users(session_id: str) -> pd.DataFrame:
 @st.cache_data(ttl=3600)  # Cache for 1 hour  
 def get_cached_project_questions(project_id: int, session_id: str) -> List[Dict]:
     """Cache project questions - changes infrequently"""
-    with get_db_session() as session:  # Use SessionLocal directly
+    with get_db_session() as session:
         try:
             return ProjectService.get_project_questions(project_id=project_id, session=session)
         except Exception as e:
@@ -109,7 +109,7 @@ def get_project_questions_cached(project_id: int) -> List[Dict]:
 @st.cache_data(ttl=1800)  # Cache for 30 minutes
 def get_cached_question_answers(project_id: int, session_id: str) -> pd.DataFrame:
     """Cache ALL annotator answers for a project - annotator answers rarely change"""
-    with get_db_session() as session:  # Use SessionLocal directly
+    with get_db_session() as session:
         try:
             # Get all questions for the project first
             questions = ProjectService.get_project_questions(project_id=project_id, session=session)
@@ -139,7 +139,7 @@ def get_cached_question_answers(project_id: int, session_id: str) -> pd.DataFram
 @st.cache_data(ttl=1800)  # Cache for 30 minutes
 def get_cached_project_annotators(project_id: int, session_id: str) -> Dict[str, Dict]:
     """Cache project annotators info - changes infrequently"""
-    with get_db_session() as session:  # Use SessionLocal directly
+    with get_db_session() as session:
         try:
             # Get project assignments to determine project-specific roles
             assignments_df = AuthService.get_project_assignments(session=session)
@@ -190,7 +190,7 @@ def get_cached_project_annotators(project_id: int, session_id: str) -> Dict[str,
 @st.cache_data(ttl=1800)  # Cache for 30 minutes
 def get_cached_project_videos(project_id: int, session_id: str) -> List[Dict]:
     """Cache project videos - changes infrequently"""
-    with get_db_session() as session:  # Use SessionLocal directly
+    with get_db_session() as session:
         try:
             return VideoService.get_project_videos(project_id=project_id, session=session)
         except Exception as e:
@@ -648,7 +648,7 @@ def clear_custom_display_cache(project_id: int):
 @st.cache_data(ttl=3600)  # Cache for 1 hour - ground truth state changes infrequently
 def get_cached_project_has_full_ground_truth(project_id: int, session_id: str) -> bool:
     """Cache project full ground truth check - changes infrequently"""
-    with get_db_session() as session:  # Use SessionLocal directly
+    with get_db_session() as session:
         try:
             return ProjectService.check_project_has_full_ground_truth(project_id=project_id, session=session)
         except Exception as e:
@@ -658,7 +658,7 @@ def get_cached_project_has_full_ground_truth(project_id: int, session_id: str) -
 @st.cache_data(ttl=1800)  # Cache for 30 minutes - accuracy data changes infrequently  
 def get_cached_annotator_accuracy(project_id: int, session_id: str) -> Dict[int, Dict[int, Dict[str, int]]]:
     """Cache annotator accuracy data - changes infrequently"""
-    with get_db_session() as session:  # Use SessionLocal directly
+    with get_db_session() as session:
         try:
             return GroundTruthService.get_annotator_accuracy(project_id=project_id, session=session)
         except Exception as e:
@@ -668,7 +668,7 @@ def get_cached_annotator_accuracy(project_id: int, session_id: str) -> Dict[int,
 @st.cache_data(ttl=1800)  # Cache for 30 minutes - reviewer accuracy data changes infrequently
 def get_cached_reviewer_accuracy(project_id: int, session_id: str) -> Dict[int, Dict[int, Dict[str, int]]]:
     """Cache reviewer accuracy data - changes infrequently"""
-    with get_db_session() as session:  # Use SessionLocal directly
+    with get_db_session() as session:
         try:
             return GroundTruthService.get_reviewer_accuracy(project_id=project_id, session=session)
         except Exception as e:

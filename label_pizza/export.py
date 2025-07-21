@@ -128,7 +128,7 @@ should be quoted.
         init_database(args.database_url_name)
         if args.verbose:
             print(f"Database initialized using {args.database_url_name}")
-        from label_pizza.db import SessionLocal
+        import label_pizza.db
     except Exception as e:
         print(f"Error initializing database: {e}")
         return 1
@@ -149,7 +149,7 @@ should be quoted.
     
     
     try:
-        with SessionLocal() as session:
+        with label_pizza.db.SessionLocal() as session:
             # Parse projects - can be IDs (integers) or names (strings)
             projects = []
             for proj in args.projects:
@@ -240,13 +240,13 @@ def validate_projects_only(projects, database_url_name="DBURL", verbose=False):
         init_database(database_url_name)
         if verbose:
             print(f"Database initialized using {database_url_name}")
-        from label_pizza.db import SessionLocal
+        import label_pizza.db
     except Exception as e:
         print(f"Error: Database initialization failed: {e}")
         return False
     
     try:
-        with SessionLocal() as session:
+        with label_pizza.db.SessionLocal() as session:
             if verbose:
                 project_display = []
                 for proj in projects:
