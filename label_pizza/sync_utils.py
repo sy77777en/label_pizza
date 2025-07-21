@@ -1784,6 +1784,33 @@ def _normalize_video_data(videos: list[Any]) -> Dict[str, List[Dict]]:
         elif isinstance(item, dict) and "video_uid" in item:
             q_cfgs: List[Dict] = []
             for q in item.get("questions", []):
+                with label_pizza.db.SessionLocal() as sess:
+                    try:
+                        question = QuestionService.get_question_by_text(q.get("question_text"), sess)
+                    except ValueError as err:
+                        raise ValueError(f"Question '{q.get('question_text')}' not found in database")
+                if question["type"] == "single":
+                    if q.get("custom_question") is None:
+                        q["custom_question"] = question["display_text"]
+                    if q.get("custom_option") is None:
+                        options = question["options"]
+                        display_values = question["display_values"]
+                        q["custom_option"] = {options[i]: display_values[i] for i in range(len(options))}
+                elif question["type"] == "description":
+                    if q.get("custom_question") is None:
+                        q["custom_question"] = question["display_text"]
+                
+                # Check whether question options are valid
+                if q.get("custom_option") is not None:
+                    for opt, value in q.get("custom_option").items():
+                        if value is None:
+                            raise ValueError(f"Question '{q.get('question_text')}' has a custom option that is None")
+                    opts = set(q.get("custom_option").keys())
+                    db_opts = set(question["options"])
+                    if opts != db_opts:
+                        raise ValueError(f"Question '{q.get('question_text')}' has custom options that do not match the database options")
+                            
+                
                 q_cfgs.append(
                     {
                         "question_text": q.get("question_text"),

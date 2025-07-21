@@ -3,7 +3,13 @@
 ## API Reference Tables
 
 ### Delete APIs
-**CRITICAL: All delete operations MUST first clear all child rows that depend on the parent row, as detailed in the dependency analysis below.**
+**CRITICAL: All delete operations perform CASCADE DELETE and MUST first clear all child rows that depend on the parent row, as detailed in the dependency analysis below.**
+
+**CASCADE DELETE BEHAVIOR:**
+- All delete functions automatically identify and delete dependent child rows in the correct sequence
+- Before performing any deletion, the system will print all child row delete function calls that will be executed in sequence
+- The system will always ask for confirmation before proceeding with any deletion
+- All `delete_xxx(name, **backup_params)` functions use `delete_xxx_using_id(id, **backup_params)` under the hood after resolving the name to ID
 
 **All delete functions include these backup parameters (imported from init_or_reset_db.py):**
 - `backup_first=True` - Create automatic backup before deletion
@@ -50,7 +56,7 @@
 
 ## Direct Dependency Graph
 
-This shows what tables would be directly affected (have orphaned/inconsistent data) if we delete a row from each table:
+This shows what tables would be directly affected (have orphaned/inconsistent data) if we delete a row from each table. **All delete operations will automatically execute the dependency chain in the correct sequence after user confirmation.**
 
 ## LEAF NODES (No dependencies - safe to delete)
 
@@ -83,17 +89,18 @@ AnswerReview → must delete first: []
 ### ProjectUserRole
 **Conditional check:** `[AnnotatorAnswer, ReviewerGroundTruth]`
 
-**If deleting admin role only:**
-- No need to check
+**If deleting admin role:**
 - Call `update_reviewer_ground_truth_using_id(video_id, question_id, project_id)` where `(project_id = project_id, modified_by_admin_id = user_id)` to revert ground truth from `ReviewerGroundTruth` -- importantly, need set `answer_value` to `original_answer_value` and set to `NULL` for `(modified_at, modified_by_admin_id, and modified_by_admin_at)`
 
 **If deleting reviewer role:**
-- Must delete first from `ReviewerGroundTruth`; also must delete the user's admin role (if exists) in this project
+- Must delete first from `ReviewerGroundTruth`
+- If admin role exists for this user in this project, call `delete_project_user_role_using_id(project_id, user_id, "admin")`
 - Call `delete_reviewer_ground_truth_using_id(video_id, question_id, project_id)` where `(project_id = project_id, reviewer_id = user_id)` from `ReviewerGroundTruth`
 - Gather all answers `(answer_id)` from `AnnotatorAnswer` and call `delete_answer_review_using_id(id)` where `(answer_id, reviewer_id = user_id)` from `AnswerReview`
 
 **If deleting annotator/model role:**
-- Must delete first from `AnnotatorAnswer`; also must delete the user's reviewer role (if exists) in this project
+- Must delete first from `AnnotatorAnswer`
+- If reviewer role exists for this user in this project, call `delete_project_user_role_using_id(project_id, user_id, "reviewer")`
 - Call `delete_annotator_answer_using_id(id)` where `(project_id = project_id, user_id = user_id)` from `AnnotatorAnswer`
 
 ### QuestionGroupQuestion
