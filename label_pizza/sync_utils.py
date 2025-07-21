@@ -2474,26 +2474,66 @@ def sync_projects(*, projects_path: str | Path | None = None, projects_data: Lis
                 elif isinstance(video, dict) and "video_uid" in video:
                     video_uid = video["video_uid"]
                     if "questions" in video:
+                        # Get question types from database
+                        question_types = {}
+                        try:
+                            with SessionLocal() as sess:
+                                schema_id = SchemaService.get_schema_id_by_name(cfg["schema_name"], sess)
+                                questions_df = SchemaService.get_schema_questions(schema_id, sess)
+                                if not questions_df.empty:
+                                    question_types = dict(zip(questions_df["Text"], questions_df["Type"]))
+                        except:
+                            # Schema doesn't exist, skip validation
+                            pass
+                        
                         for question_idx, q in enumerate(video["questions"]):
-                            if not isinstance(q, dict) or "question_text" not in q:
+                            if not isinstance(q, dict):
                                 raise ValueError(f"Entry #{idx}, video '{video_uid}', question #{question_idx + 1}: Invalid format")
+                            question_type = None
+                            with SessionLocal() as sess:
+                                try:
+                                    question_type = QuestionService.get_question_by_text(q["question_text"], sess)["type"]
+                                except:
+                                    raise ValueError(f"Entry #{idx}, video '{video_uid}', question #{question_idx + 1}: Question not found in database")
+
+                            if question_type not in ["single", "description"]:
+                                raise ValueError(f"Entry #{idx}, video '{video_uid}', question #{question_idx + 1}: Question type must be 'single' or 'description'")
+                            if question_type == "single":
+                                required = {"question_text", "custom_question", "custom_option"}
+                                question_keys = set(q.keys())
+                                
+                                if question_keys != required:
+                                    missing = required - question_keys
+                                    extra = question_keys - required
+                                    
+                                    error_parts = []
+                                    if missing:
+                                        error_parts.append(f"missing: {', '.join(missing)}")
+                                    if extra:
+                                        error_parts.append(f"extra: {', '.join(extra)}")
+                                    
+                                    raise ValueError(f"Entry #{idx}, video '{video_uid}', question #{question_idx + 1}: {'; '.join(error_parts)}")
+
+                            elif question_type == "description":
+                                required = {"question_text", "custom_question"}
+                                question_keys = set(q.keys())
+                                
+                                if question_keys != required:
+                                    missing = required - question_keys
+                                    extra = question_keys - required
+                                    
+                                    error_parts = []
+                                    if missing:
+                                        error_parts.append(f"missing: {', '.join(missing)}")
+                                    if extra:
+                                        error_parts.append(f"extra: {', '.join(extra)}")
+                                    
+                                    raise ValueError(f"Entry #{idx}, video '{video_uid}', question #{question_idx + 1}: {'; '.join(error_parts)}")
+                            question_text = q["question_text"]
                             
-                            keys = set(q.keys())
-                            
-                            # Two valid formats:
-                            # 1. single: question_text + custom_question + custom_option
-                            # 2. description: question_text + custom_question
-                            valid_single = keys == {"question_text", "custom_question", "custom_option"}
-                            valid_desc = keys == {"question_text", "custom_question"}
-                            
-                            if not (valid_single or valid_desc):
-                                raise ValueError(f"Entry #{idx}, video '{video_uid}', question '{q['question_text']}': Invalid fields. Use either (question_text + custom_question + custom_option) for single or (question_text + custom_question) for description")
-                            
-                            # Check custom_option is dictionary for single questions
-                            if "custom_option" in q and not isinstance(q["custom_option"], dict):
-                                raise ValueError(f"Entry #{idx}, video '{video_uid}', question '{q['question_text']}': custom_option must be a dictionary")
-                    else:
-                        raise ValueError(f"Entry #{idx}, video #{video_idx + 1}: Invalid video format")
+                            # Check if question exists in database
+                            if question_text not in question_types:
+                                raise ValueError(f"Entry #{idx}, video '{video_uid}', question '{question_text}': Question not found in schema")
                 else:
                     raise ValueError(f"Entry #{idx}, video #{video_idx + 1}: Invalid video format. Must be string or dict with 'video_uid'")
                 
