@@ -33,18 +33,18 @@ AnswerReview → must delete first: []
 ### ProjectUserRole
 **Conditional check:** `[AnnotatorAnswer, ReviewerGroundTruth]`
 
-**If deleting annotator/model role:**
-- Must delete first from `AnnotatorAnswer`; also must delete the user's reviewer role (if exists) in this project
-- Use `(project_id = project_id, user_id = user_id)` to delete from `AnnotatorAnswer`
+**If deleting admin role only:**
+- No need to check
+- Use `(project_id = project_id, modified_by_admin_id = user_id)` to revert ground truth from `ReviewerGroundTruth` -- importantly, need set `answer_value` to `original_answer_value` and set to `NULL` for `(modified_at, modified_by_admin_id, and modified_by_admin_at)`
 
 **If deleting reviewer role:**
 - Must delete first from `ReviewerGroundTruth`; also must delete the user's admin role (if exists) in this project
 - Use `(project_id = project_id, reviewer_id = user_id)` to delete from `ReviewerGroundTruth`
 - Gather all answers `(answer_id)` from `AnnotatorAnswer` and use `(answer_id, reviewer_id = user_id)` to delete from `AnswerReview`
 
-**If deleting admin role only:**
-- No need to check
-- Use `(project_id = project_id, modified_by_admin_id = user_id)` to revert ground truth from `ReviewerGroundTruth` -- importantly, need set `answer_value` to `original_answer_value` and set to `NULL` for `(modified_at, modified_by_admin_id, and modified_by_admin_at)`
+**If deleting annotator/model role:**
+- Must delete first from `AnnotatorAnswer`; also must delete the user's reviewer role (if exists) in this project
+- Use `(project_id = project_id, user_id = user_id)` to delete from `AnnotatorAnswer`
 
 ### QuestionGroupQuestion
 **Must delete first:** `[AnnotatorAnswer, ReviewerGroundTruth, ProjectVideoQuestionDisplay]`
