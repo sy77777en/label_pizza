@@ -18,7 +18,7 @@
           },
           {
             "question_text": "Describe one aspect of the video",
-            "display_text": "If no pizza is shown, describe what is present instead."
+            "custom_question": "If no pizza is shown, describe what is present instead."
           }
         ]
       },
@@ -34,8 +34,8 @@
             }
           },
           {
-            "question_text": "Describe the object",
-            "display_text": "Describe the type of pizza shown in the video."
+            "question_text": "Describe one aspect of the video",
+            "custom_question": "Describe the type of pizza shown in the video."
           }
         ]
       }
