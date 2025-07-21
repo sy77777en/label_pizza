@@ -49,6 +49,10 @@ def check_pizza_description(answers: Dict[str, str]) -> None:
         raise ValueError("Description must be provided when there are pizzas")
 
 # You can implement your own verification functions below.
+<<<<<<< HEAD
+=======
+
+>>>>>>> 0cb22d2 (keep local changes to verify.py and sync_from_folder.py)
 def check_camera_movement(answers: Dict[str, str]) -> None:
     
     # 1. Verify complex motion must has description
@@ -98,6 +102,10 @@ def check_camera_movement(answers: Dict[str, str]) -> None:
             raise ValueError("When camera_movement is 'major_simple', at least one direction movement must be specified.")
         
 def check_tracking_shot(answers: Dict[str, str]) -> None:
+<<<<<<< HEAD
+=======
+    
+>>>>>>> 0cb22d2 (keep local changes to verify.py and sync_from_folder.py)
     # 1. If is_tracking is 'No', no tracking shot type should be specified
     is_tracking = answers.get("Does the camera track the moving subject(s)?", "")
     tracking_types = [
