@@ -14,7 +14,7 @@ from label_pizza.services import (
     CustomDisplayService,
     ProjectGroupService
 )
-from label_pizza.db import SessionLocal
+import label_pizza.db
 from pathlib import Path
 from typing import List, Dict, Optional, Any, Set, Tuple
 import pandas as pd
@@ -38,7 +38,7 @@ def _process_video_add(video_data: Dict) -> Tuple[str, bool, Optional[str]]:
     Returns:
         Tuple of (video_uid, success, error_message). Error message is None on success.
     """
-    with SessionLocal() as sess:
+    with label_pizza.db.SessionLocal() as sess:
         try:
             VideoService.verify_add_video(
                 video_uid=video_data["video_uid"],
@@ -62,7 +62,7 @@ def _add_single_video(video_data: Dict) -> Tuple[str, bool, Optional[str]]:
     Returns:
         Tuple of (video_uid, success, error_message). Error message is None on success.
     """
-    with SessionLocal() as sess:
+    with label_pizza.db.SessionLocal() as sess:
         try:
             VideoService.add_video(
                 video_uid=video_data["video_uid"],
@@ -135,7 +135,7 @@ def _process_video_update(video_data: Dict) -> Tuple[str, bool, Optional[str]]:
     Returns:
         Tuple of (video_uid, success, error_message). Error message is None on success.
     """
-    with SessionLocal() as sess:
+    with label_pizza.db.SessionLocal() as sess:
         try:
             VideoService.verify_update_video(
                 video_uid=video_data["video_uid"],
@@ -159,7 +159,7 @@ def _update_single_video(video_data: Dict) -> Tuple[str, bool, Optional[str]]:
     Returns:
         Tuple of (video_uid, success, error_message). Error message is None on success.
     """
-    with SessionLocal() as sess:
+    with label_pizza.db.SessionLocal() as sess:
         try:
             # Get existing video info
             existing_video = VideoService.get_video_by_uid(video_data["video_uid"], sess)
@@ -365,7 +365,7 @@ def sync_videos(
     
     def _check_video_exists(video_data: Dict) -> Tuple[str, bool]:
         """Check if a video exists in a thread-safe manner."""
-        with SessionLocal() as sess:
+        with label_pizza.db.SessionLocal() as sess:
             try:
                 existing = VideoService.get_video_by_uid(video_data["video_uid"], sess)
                 return video_data["video_uid"], existing is not None
@@ -417,7 +417,7 @@ def add_users(users_data: List[Dict]) -> None:
     if not isinstance(users_data, list):
         raise TypeError("users_data must be a list[dict]")
 
-    with SessionLocal() as sess:
+    with label_pizza.db.SessionLocal() as sess:
         duplicates = []
         for u in users_data:
             try:
@@ -469,7 +469,7 @@ def update_users(users_data: List[Dict]) -> None:
     skipped_entries = []
     
     print("🔍 Validating and updating users...")
-    with SessionLocal() as session:
+    with label_pizza.db.SessionLocal() as session:
         try:
             # Validation phase with progress bar
             for idx, user in enumerate(tqdm(users_data, desc="Validating", unit="users"), 1):
@@ -688,7 +688,7 @@ def sync_users(
 
     # Categorize add vs update
     to_add, to_update = [], []
-    with SessionLocal() as sess:
+    with label_pizza.db.SessionLocal() as sess:
         for user in users_data:
             user_exists = False
             
@@ -761,7 +761,7 @@ def add_question_groups(groups: List[Tuple[str, Dict]]) -> Tuple[List[Dict], Lis
     created: List[Dict] = []
     questions_created: List[str] = []
 
-    with SessionLocal() as sess:
+    with label_pizza.db.SessionLocal() as sess:
         # ── Phase 0: duplicate title check (cheap, read‑only) ───────────────
         dup_titles = []
         for _, g in groups:
@@ -978,7 +978,7 @@ def update_question_groups(groups: List[Tuple[str, Dict]]) -> List[Dict]:
     updated: List[Dict] = []
     skipped: List[Dict] = []
     
-    with SessionLocal() as sess:
+    with label_pizza.db.SessionLocal() as sess:
         # ── Phase 0: existence check (cheap, read‑only) ────────────────────
         missing = []
         for _, g in groups:
@@ -1358,7 +1358,7 @@ def sync_question_groups(
 
     # Classify add vs update with one read-only session
     to_add, to_update = [], []
-    with SessionLocal() as sess:
+    with label_pizza.db.SessionLocal() as sess:
         for g in processed:
             group_exists = False
             try:
@@ -1423,7 +1423,7 @@ def add_schemas(schemas: List[Dict]) -> List[Dict]:
 
     created: List[Dict] = []
 
-    with SessionLocal() as sess:
+    with label_pizza.db.SessionLocal() as sess:
         # ── Phase 0: duplicate name check (cheap, read‑only) ───────────────
         dup_names = []
         for s in schemas:
@@ -1492,7 +1492,7 @@ def update_schemas(schemas: List[Dict]) -> List[Dict]:
     updated: List[Dict] = []
     skipped: List[Dict] = []
     
-    with SessionLocal() as sess:
+    with label_pizza.db.SessionLocal() as sess:
         # ── Phase 0: existence check ───────────────────────────────────────
         missing = []
         for s in schemas:
@@ -1726,7 +1726,7 @@ def sync_schemas(*, schemas_path: str | Path | None = None, schemas_data: List[D
 
     # Decide add vs update ---------------------------------------------------
     to_add, to_update = [], []
-    with SessionLocal() as sess:
+    with label_pizza.db.SessionLocal() as sess:
         for s in processed:
             schema_exists = False
             try:
@@ -1968,7 +1968,7 @@ def _process_project_validation(project_data: Dict) -> Tuple[str, bool, Optional
     Returns:
         Tuple of (project_name, success, error_message). Error message is None on success.
     """
-    with SessionLocal() as sess:
+    with label_pizza.db.SessionLocal() as sess:
         try:
             project_name = project_data["project_name"]
             
@@ -2016,7 +2016,7 @@ def _create_single_project(project_data: Dict) -> Tuple[str, bool, Optional[str]
     Returns:
         Tuple of (project_name, success, error_message, result_info)
     """
-    with SessionLocal() as sess:
+    with label_pizza.db.SessionLocal() as sess:
         try:
             project_name = project_data["project_name"]
             
@@ -2132,7 +2132,7 @@ def _process_project_update_validation(project_data: Dict) -> Tuple[str, bool, O
     Returns:
         Tuple of (project_name, success, error_message). Error message is None on success.
     """
-    with SessionLocal() as sess:
+    with label_pizza.db.SessionLocal() as sess:
         try:
             proj = ProjectService.get_project_by_name(project_data["project_name"], sess)
             
@@ -2210,7 +2210,7 @@ def _process_project_update_validation(project_data: Dict) -> Tuple[str, bool, O
 
 def _update_single_project(project_data: Dict) -> Tuple[str, bool, Optional[str], Dict]:
     """Update single project in a thread-safe manner with change detection."""
-    with SessionLocal() as sess:
+    with label_pizza.db.SessionLocal() as sess:
         try:
             project_name = project_data["project_name"]
             proj = ProjectService.get_project_by_name(project_name, sess)
@@ -2477,7 +2477,7 @@ def sync_projects(*, projects_path: str | Path | None = None, projects_data: Lis
                         # Get question types from database
                         question_types = {}
                         try:
-                            with SessionLocal() as sess:
+                            with label_pizza.db.SessionLocal() as sess:
                                 schema_id = SchemaService.get_schema_id_by_name(cfg["schema_name"], sess)
                                 questions_df = SchemaService.get_schema_questions(schema_id, sess)
                                 if not questions_df.empty:
@@ -2490,7 +2490,7 @@ def sync_projects(*, projects_path: str | Path | None = None, projects_data: Lis
                             if not isinstance(q, dict):
                                 raise ValueError(f"Entry #{idx}, video '{video_uid}', question #{question_idx + 1}: Invalid format")
                             question_type = None
-                            with SessionLocal() as sess:
+                            with label_pizza.db.SessionLocal() as sess:
                                 try:
                                     question_type = QuestionService.get_question_by_text(q["question_text"], sess)["type"]
                                 except:
@@ -2557,7 +2557,7 @@ def sync_projects(*, projects_path: str | Path | None = None, projects_data: Lis
     
     def _check_project_exists(project_data: Dict) -> Tuple[str, bool]:
         """Check if project exists in a thread-safe manner."""
-        with SessionLocal() as sess:
+        with label_pizza.db.SessionLocal() as sess:
             try:
                 ProjectService.get_project_by_name(project_data["project_name"], sess)
                 return project_data["project_name"], True
@@ -2623,7 +2623,7 @@ def add_project_groups(groups: List[Tuple[str, Dict]]) -> List[Dict]:
 
     created: List[Dict] = []
 
-    with SessionLocal() as sess:
+    with label_pizza.db.SessionLocal() as sess:
         # ── Phase 0: duplicate name check (cheap, read‑only) ───────────────
         dup_names = []
         for _, g in groups:
@@ -2704,7 +2704,7 @@ def update_project_groups(groups: List[Tuple[str, Dict]]) -> List[Dict]:
     updated: List[Dict] = []
     skipped: List[Dict] = []
     
-    with SessionLocal() as sess:
+    with label_pizza.db.SessionLocal() as sess:
         # ── Phase 0: existence check (cheap, read‑only) ────────────────────
         missing = []
         for _, g in groups:
@@ -2932,7 +2932,7 @@ def sync_project_groups(
 
     # Classify add vs update with one read-only session
     to_add, to_update = [], []
-    with SessionLocal() as sess:
+    with label_pizza.db.SessionLocal() as sess:
         for g in processed:
             group_exists = False
             try:
@@ -2983,7 +2983,7 @@ def _process_assignment_validation(assignment_data: Dict) -> Tuple[int, Dict, Op
     Raises:
         ValueError: If entity lookup fails with unhandled error
     """
-    with SessionLocal() as sess:
+    with label_pizza.db.SessionLocal() as sess:
         try:
             required = {"user_name", "project_name", "role", "user_weight", "is_active", "_index"}
             assignment_keys = set(assignment_data.keys())
@@ -3042,7 +3042,7 @@ def _apply_single_assignment(assignment_data: Dict) -> Tuple[str, str, bool, Opt
         Tuple of (assignment_name, operation, success, error_message). 
         Operation is one of: "created", "updated", "removed", "skipped", "error".
     """
-    with SessionLocal() as sess:
+    with label_pizza.db.SessionLocal() as sess:
         try:
             # Check existing assignment using service method
             if assignment_data['role'] == 'model':
@@ -3236,7 +3236,7 @@ def _verify_single_assignment(assignment_data: Dict) -> Tuple[str, Optional[str]
     Returns:
         Tuple of (assignment_name, error_message). Error message is None on success.
     """
-    with SessionLocal() as sess:
+    with label_pizza.db.SessionLocal() as sess:
         try:
             assignment_name = f"{assignment_data['user_name']} -> {assignment_data['project_name']}"
             
@@ -3410,7 +3410,7 @@ def sync_annotations(annotations_folder: str = None,
             if annotation.get("is_ground_truth", False):
                 raise ValueError(f"is_ground_truth must be False for annotations")
             
-            with SessionLocal() as session:
+            with label_pizza.db.SessionLocal() as session:
                 # Resolve IDs
                 video_uid = annotation.get("video_uid", "").split("/")[-1]
                 video = VideoService.get_video_by_uid(video_uid, session)
@@ -3484,7 +3484,7 @@ def sync_annotations(annotations_folder: str = None,
         try:
             annotation = validation_result["annotation"]
             
-            with SessionLocal() as session:
+            with label_pizza.db.SessionLocal() as session:
                 # Check if answers already exist
                 existing = AnnotatorService.get_user_answers_for_question_group(
                     video_id=validation_result["video_id"],
@@ -3688,7 +3688,7 @@ def sync_ground_truths(ground_truths_folder: str = None,
             if not ground_truth.get("is_ground_truth", False):
                 raise ValueError(f"is_ground_truth must be True for ground truths")
             
-            with SessionLocal() as session:
+            with label_pizza.db.SessionLocal() as session:
                 # Resolve IDs
                 video_uid = ground_truth.get("video_uid", "").split("/")[-1]
                 video = VideoService.get_video_by_uid(video_uid, session)
@@ -3794,7 +3794,7 @@ def sync_ground_truths(ground_truths_folder: str = None,
         try:
             ground_truth = validation_result["ground_truth"]
             
-            with SessionLocal() as session:
+            with label_pizza.db.SessionLocal() as session:
                 # Check if ground truth already exists
                 existing = GroundTruthService.get_ground_truth_dict_for_question_group(
                     video_id=validation_result["video_id"],
