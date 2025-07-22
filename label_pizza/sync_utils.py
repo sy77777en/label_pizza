@@ -755,7 +755,7 @@ def add_question_groups(groups: List[Tuple[str, Dict]]) -> Tuple[List[Dict], Lis
         
     Raises:
         TypeError: If groups is not a list of tuples
-        ValueError: If groups already exist or verification fails
+        ValueError: If groups already exist, duplicate questions found, or verification fails
         
     Note:
         For existing questions, only display_text, display_values, option_weights, 
@@ -765,6 +765,7 @@ def add_question_groups(groups: List[Tuple[str, Dict]]) -> Tuple[List[Dict], Lis
     if not isinstance(groups, list):
         raise TypeError("groups must be list[(filename, dict)]")
 
+    # ── Phase -1: Check for duplicate questions within each group ──────────
     for filename, group in groups:
         group_title = group.get("title", "Unknown")
         questions = group.get("questions", [])
@@ -812,11 +813,12 @@ def add_question_groups(groups: List[Tuple[str, Dict]]) -> Tuple[List[Dict], Lis
         if dup_titles:
             raise ValueError("Add aborted – already in DB: " + ", ".join(dup_titles))
 
-        # ── Phase 1: prepare each group (create missing questions & track existing) ──────────
-        prepared: List[Tuple[Dict, List[int], List[Dict]]] = []  # (group_data, question_ids, question_updates)
+        # ── Phase 1: prepare each group (categorize questions as new vs existing) ──────────
+        prepared: List[Tuple[Dict, List[int], List[Dict], List[Dict]]] = []  # (group_data, question_ids, question_updates, questions_to_add)
         for _, g in groups:
             q_ids: List[int] = []
             question_updates: List[Dict] = []  # Track questions that need updates
+            questions_to_add: List[Dict] = []  # Track new questions to create
 
             
             for q in g["questions"]:
@@ -874,24 +876,43 @@ def add_question_groups(groups: List[Tuple[str, Dict]]) -> Tuple[List[Dict], Lis
                         })
                         
                 except ValueError:
-                    # Question doesn't exist, create it
-                    q_rec = QuestionService.add_question(
-                        text=q["text"],
-                        qtype=q["qtype"],
-                        options=q.get("options"),
-                        default=q.get("default_option"),
-                        display_values=q.get("display_values"),
-                        display_text=q.get("display_text"),
-                        option_weights=q.get("option_weights"),
-                        session=sess,
-                    )
-                    questions_created.append(q["text"])
-                    q_ids.append(q_rec.id)
+                    # Question doesn't exist, mark for creation
+                    questions_to_add.append({
+                        "question_data": q,
+                        "question_text": q["text"]
+                    })
+                    # Temporarily add a placeholder ID that will be replaced after creation
+                    q_ids.append(-1)  # Placeholder
             
-            prepared.append((g, q_ids, question_updates))
+            prepared.append((g, q_ids, question_updates, questions_to_add))
 
-        # ── Phase 2: verify ALL questions first ────────────────────────────
-        for g, q_ids, question_updates in prepared:
+        # ── Phase 2: verify ALL questions first (both new and existing) ────────────────────────────
+        for g, q_ids, question_updates, questions_to_add in prepared:
+            # Verify new questions first
+            for q_to_add in questions_to_add:
+                q_data = q_to_add["question_data"]
+                
+                # Additional validation: For auto-submit groups, don't allow None default values
+                is_auto_submit = g.get("is_auto_submit", False)
+                if is_auto_submit and q_data.get("default_option") is None:
+                    raise ValueError(
+                        f"Cannot set default_option to None for question '{q_data['text']}' "
+                        f"in auto-submit group '{g['title']}'. Auto-submit groups require non-None default values."
+                    )
+                
+                # Verify new question (this will raise ValueError if invalid)
+                QuestionService.verify_add_question(
+                    text=q_data["text"],
+                    qtype=q_data["qtype"],
+                    options=q_data.get("options"),
+                    default=q_data.get("default_option"),
+                    display_values=q_data.get("display_values"),
+                    display_text=q_data.get("display_text"),
+                    option_weights=q_data.get("option_weights"),
+                    session=sess
+                )
+            
+            # Verify existing questions being updated
             for q_update in question_updates:
                 q_data = q_update["question_data"]
                 q_id = q_update["question_id"]
@@ -917,8 +938,33 @@ def add_question_groups(groups: List[Tuple[str, Dict]]) -> Tuple[List[Dict], Lis
                     new_option_weights=q_data.get("option_weights")
                 )
 
-        # ── Phase 3: apply ALL question edits after verification ───────────
-        for g, q_ids, question_updates in prepared:
+        # ── Phase 3: create new questions and apply edits after verification ───────────
+        for g, q_ids, question_updates, questions_to_add in prepared:
+            # Create new questions first
+            placeholder_index = 0
+            for q_to_add in questions_to_add:
+                q_data = q_to_add["question_data"]
+                
+                q_rec = QuestionService.add_question(
+                    text=q_data["text"],
+                    qtype=q_data["qtype"],
+                    options=q_data.get("options"),
+                    default=q_data.get("default_option"),
+                    display_values=q_data.get("display_values"),
+                    display_text=q_data.get("display_text"),
+                    option_weights=q_data.get("option_weights"),
+                    session=sess,
+                )
+                questions_created.append(q_data["text"])
+                
+                # Replace placeholder IDs with actual IDs
+                while placeholder_index < len(q_ids) and q_ids[placeholder_index] != -1:
+                    placeholder_index += 1
+                if placeholder_index < len(q_ids):
+                    q_ids[placeholder_index] = q_rec.id
+                    placeholder_index += 1
+            
+            # Apply question edits
             for q_update in question_updates:
                 q_data = q_update["question_data"]
                 q_id = q_update["question_id"]
@@ -936,7 +982,7 @@ def add_question_groups(groups: List[Tuple[str, Dict]]) -> Tuple[List[Dict], Lis
                     )
 
         # ── Phase 4: verify ALL groups after questions are updated ──────────
-        for g, q_ids, question_updates in prepared:
+        for g, q_ids, question_updates, questions_to_add in prepared:
             QuestionGroupService.verify_create_group(
                 title=g["title"],
                 display_title=g.get("display_title", g["title"]),
@@ -949,7 +995,7 @@ def add_question_groups(groups: List[Tuple[str, Dict]]) -> Tuple[List[Dict], Lis
             )
 
         # ── Phase 5: create groups after all verifications passed ──────────
-        for g, q_ids, question_updates in prepared:
+        for g, q_ids, question_updates, questions_to_add in prepared:
             # Create the group
             grp = QuestionGroupService.create_group(
                 title=g["title"],
@@ -1737,36 +1783,6 @@ def sync_schemas(*, schemas_path: str | Path | None = None, schemas_data: List[D
         raise ValueError(f"Duplicate schema_name values found: {', '.join(duplicate_info)}")
     
     print(f"✅ No duplicates found - all {len(schema_names)} schema_name values are unique")
-
-    # Check for duplicate question groups within each schema
-    print("\n🔍 Checking for duplicate question groups within each schema...")
-    
-    for idx, schema in enumerate(schemas_data, 1):
-        schema_name = schema.get("schema_name", f"Entry #{idx}")
-        question_group_names = schema.get("question_group_names", [])
-        
-        if not isinstance(question_group_names, list):
-            continue  # This will be caught in the main validation below
-        
-        seen_groups = set()
-        duplicate_groups = []
-        
-        for group_idx, group_name in enumerate(question_group_names):
-            if group_name in seen_groups:
-                duplicate_groups.append({
-                    "group_name": group_name,
-                    "position": group_idx + 1
-                })
-            else:
-                seen_groups.add(group_name)
-        
-        if duplicate_groups:
-            error_msg = f"Found {len(duplicate_groups)} duplicate question groups in schema '{schema_name}' at entry #{idx}:\n"
-            for dup in duplicate_groups:
-                error_msg += f"  - Question group '{dup['group_name']}' at position #{dup['position']}\n"
-            raise ValueError(error_msg.rstrip())
-    
-    print(f"✅ No duplicate question groups found within schemas")
 
     processed: List[Dict] = []
     for idx, s in enumerate(schemas_data, 1):
