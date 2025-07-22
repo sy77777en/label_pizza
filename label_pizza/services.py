@@ -2520,6 +2520,54 @@ class QuestionService:
         return question
 
     @staticmethod
+    def verify_add_question(text: str, qtype: str, options: Optional[List[str]], default: Optional[str], 
+                    session: Session, display_values: Optional[List[str]] = None, display_text: Optional[str] = None,
+                    option_weights: Optional[List[float]] = None) -> None:
+        """Verify parameters for adding a new question.
+
+        Args:
+            text: Question text (immutable, unique)
+            qtype: Question type ('single' or 'description')
+            options: List of options for single-choice questions
+            default: Default option/answer for single-choice/description questions
+            session: Database session
+            display_values: Optional list of display text for options. For single-type questions, if not provided, uses options as display values.
+            display_text: Optional display text for UI. If not provided, uses text.
+            option_weights: Optional list of weights for each option. If not provided, defaults to 1.0 for each option.
+
+        Raises:
+            ValueError: If validation fails
+        """
+        # Check if question text already exists
+        existing = session.scalar(select(Question).where(Question.text == text))
+        if existing:
+            raise ValueError(f"Question with text '{text}' already exists")
+        
+        # Validate default option for single-choice questions
+        if qtype == "single":
+            if options is None:
+                raise ValueError("Single-choice questions must have options")
+            if default is not None and default not in options:
+                raise ValueError(f"Default option '{default}' must be one of the available options: {', '.join(options)}")
+            if len(options) != len(set(options)):
+                raise ValueError("Options must be unique")
+            
+            # For single-type questions, display_values must be provided or default to options
+            if display_values is not None:
+                if len(display_values) != len(options):
+                    raise ValueError("Number of display values must match number of options")
+                if len(display_values) != len(set(display_values)):
+                    raise ValueError("Display values must be unique")
+                
+            # Handle option weights
+            if option_weights is not None:
+                if len(option_weights) != len(options):
+                    raise ValueError("Number of option weights must match number of options")
+        else:
+            if options is not None or display_values is not None or option_weights is not None:
+                raise ValueError("Options, display values, and option weights are not allowed for description questions")
+
+    @staticmethod
     def add_question(text: str, qtype: str, options: Optional[List[str]], default: Optional[str], 
                     session: Session, display_values: Optional[List[str]] = None, display_text: Optional[str] = None,
                     option_weights: Optional[List[float]] = None) -> Question:
@@ -2541,38 +2589,24 @@ class QuestionService:
         Raises:
             ValueError: If question text already exists or validation fails
         """
-        # Check if question text already exists
-        existing = session.scalar(select(Question).where(Question.text == text))
-        if existing:
-            raise ValueError(f"Question with text '{text}' already exists")
-        
+        QuestionService.verify_add_question(text, qtype, options, default, session, display_values, display_text, option_weights)
         # Validate default option for single-choice questions
         if qtype == "single":
-            if not options:
-                raise ValueError("Single-choice questions must have options")
-            if default and default not in options:
-                raise ValueError(f"Default option '{default}' must be one of the available options: {', '.join(options)}")
-            
             # For single-type questions, display_values must be provided or default to options
-            if display_values:
-                if len(display_values) != len(options):
-                    raise ValueError("Number of display values must match number of options")
-            else:
+            if display_values is None:
                 display_values = options  # Use options as display values if not provided
                 
             # Handle option weights
-            if option_weights:
-                if len(option_weights) != len(options):
-                    raise ValueError("Number of option weights must match number of options")
-            else:
+            if option_weights is None:
                 option_weights = [1.0] * len(options)  # Default to 1.0 for each option
         else:
             # For description-type questions, display_values and option_weights should be None
             display_values = None
             option_weights = None
+            options = None
         
         # Set display_text
-        if not display_text:
+        if display_text is None:
             display_text = text
         
         # Create question
@@ -2627,6 +2661,8 @@ class QuestionService:
             if new_default and new_default not in new_opts:
                 raise ValueError(
                     f"Default option '{new_default}' must be one of the available options: {', '.join(new_opts)}")
+            if len(new_opts) != len(set(new_opts)):
+                raise ValueError("Options must be unique")
 
             # Validate that all existing options are included in new options
             missing_opts = set(q.options) - set(new_opts)
@@ -2637,6 +2673,8 @@ class QuestionService:
             if new_display_values:
                 if len(new_display_values) != len(new_opts):
                     raise ValueError("Number of display values must match number of options")
+                if len(new_display_values) != len(set(new_display_values)):
+                    raise ValueError("Display values must be unique")
 
             # Validate option weights
             if new_option_weights:
@@ -4952,6 +4990,10 @@ class QuestionGroupService:
                 raise ValueError(f"Question with ID {question_id} not found")
             if question.is_archived:
                 raise ValueError(f"Question with ID {question_id} is archived")
+        
+        # Validate questions are unique
+        if len(question_ids) != len(set(question_ids)):
+            raise ValueError("Question IDs must be unique")
 
         # If auto submit is TRUE, check that all questions have a default option
         if is_auto_submit:
