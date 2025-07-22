@@ -29,27 +29,6 @@ from copy import deepcopy
 # Core operations                                                             #
 # --------------------------------------------------------------------------- #
 
-import requests
-
-def is_url_valid(url: str, timeout: int = 5) -> bool:
-    """
-    Check if a single URL is valid by sending a GET request (useful for sites like YouTube).
-
-    Args:
-        url (str): URL to check
-        timeout (int): Timeout for the request
-
-    Returns:
-        bool: True if valid (status code 200), False otherwise
-    """
-    try:
-        r = requests.get(url, stream=True, timeout=timeout, headers={
-            "User-Agent": "Mozilla/5.0"
-        })
-        return r.status_code == 200
-    except requests.RequestException:
-        return False
-
 def _process_video_add(video_data: Dict) -> Tuple[str, bool, Optional[str]]:
     """Process and verify a single video addition in a thread-safe manner.
     
@@ -61,8 +40,6 @@ def _process_video_add(video_data: Dict) -> Tuple[str, bool, Optional[str]]:
     """
     with label_pizza.db.SessionLocal() as sess:
         try:
-            if not is_url_valid(video_data["url"]):
-                return video_data["video_uid"], False, "URL is not valid"
             VideoService.verify_add_video(
                 video_uid=video_data["video_uid"],
                 url=video_data["url"],
@@ -160,8 +137,6 @@ def _process_video_update(video_data: Dict) -> Tuple[str, bool, Optional[str]]:
     """
     with label_pizza.db.SessionLocal() as sess:
         try:
-            if not is_url_valid(video_data["url"]):
-                return video_data["video_uid"], False, "URL is not valid"
             VideoService.verify_update_video(
                 video_uid=video_data["video_uid"],
                 new_url=video_data["url"],
