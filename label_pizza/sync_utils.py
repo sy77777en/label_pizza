@@ -29,6 +29,27 @@ from copy import deepcopy
 # Core operations                                                             #
 # --------------------------------------------------------------------------- #
 
+import requests
+
+def is_url_valid(url: str, timeout: int = 5) -> bool:
+    """
+    Check if a single URL is valid by sending a GET request (useful for sites like YouTube).
+
+    Args:
+        url (str): URL to check
+        timeout (int): Timeout for the request
+
+    Returns:
+        bool: True if valid (status code 200), False otherwise
+    """
+    try:
+        r = requests.get(url, stream=True, timeout=timeout, headers={
+            "User-Agent": "Mozilla/5.0"
+        })
+        return r.status_code == 200
+    except requests.RequestException:
+        return False
+
 def _process_video_add(video_data: Dict) -> Tuple[str, bool, Optional[str]]:
     """Process and verify a single video addition in a thread-safe manner.
     
@@ -40,6 +61,8 @@ def _process_video_add(video_data: Dict) -> Tuple[str, bool, Optional[str]]:
     """
     with label_pizza.db.SessionLocal() as sess:
         try:
+            if not is_url_valid(video_data["url"]):
+                return video_data["video_uid"], False, "URL is not valid"
             VideoService.verify_add_video(
                 video_uid=video_data["video_uid"],
                 url=video_data["url"],
@@ -137,6 +160,8 @@ def _process_video_update(video_data: Dict) -> Tuple[str, bool, Optional[str]]:
     """
     with label_pizza.db.SessionLocal() as sess:
         try:
+            if not is_url_valid(video_data["url"]):
+                return video_data["video_uid"], False, "URL is not valid"
             VideoService.verify_update_video(
                 video_uid=video_data["video_uid"],
                 new_url=video_data["url"],
@@ -314,6 +339,7 @@ def sync_videos(
     
     # Check for duplicate video_uid values first
     print("\n🔍 Checking for duplicate video_uid values...")
+    urls = []
     video_uids = []
     duplicates = []
     
@@ -321,12 +347,18 @@ def sync_videos(
         # Basic check that video_uid exists before processing
         if "video_uid" not in item:
             raise ValueError(f"Entry #{idx} missing required field: video_uid")
-        
+        if "url" not in item:
+            raise ValueError(f"Entry #{idx} missing required field: url")
         video_uid = item["video_uid"]
+        url = item["url"]
         if video_uid in video_uids:
             duplicates.append((video_uid, idx))
         else:
             video_uids.append(video_uid)
+        if url in urls:
+            duplicates.append((url, idx))
+        else:
+            urls.append(url)
     
     if duplicates:
         duplicate_info = [f"video_uid '{uid}' at entry #{idx}" for uid, idx in duplicates]
@@ -758,6 +790,34 @@ def add_question_groups(groups: List[Tuple[str, Dict]]) -> Tuple[List[Dict], Lis
     if not isinstance(groups, list):
         raise TypeError("groups must be list[(filename, dict)]")
 
+    for filename, group in groups:
+        group_title = group.get("title", "Unknown")
+        questions = group.get("questions", [])
+        
+        seen_questions = set()
+        duplicates = []
+        
+        for idx, question in enumerate(questions):
+            question_text = question.get("text", "").strip()
+            
+            if not question_text:
+                continue  # Skip empty question texts
+                
+            if question_text in seen_questions:
+                duplicates.append({
+                    "index": idx + 1,
+                    "text": question_text,
+                    "filename": filename
+                })
+            else:
+                seen_questions.add(question_text)
+        
+        if duplicates:
+            error_msg = f"Found {len(duplicates)} duplicate questions in group '{group_title}' from {filename}:\n"
+            for dup in duplicates:
+                error_msg += f"  - Question #{dup['index']}: '{dup['text']}'\n"
+            raise ValueError(error_msg.rstrip())
+
     created: List[Dict] = []
     questions_created: List[str] = []
 
@@ -782,6 +842,7 @@ def add_question_groups(groups: List[Tuple[str, Dict]]) -> Tuple[List[Dict], Lis
         for _, g in groups:
             q_ids: List[int] = []
             question_updates: List[Dict] = []  # Track questions that need updates
+
             
             for q in g["questions"]:
                 try:
@@ -1702,6 +1763,36 @@ def sync_schemas(*, schemas_path: str | Path | None = None, schemas_data: List[D
     
     print(f"✅ No duplicates found - all {len(schema_names)} schema_name values are unique")
 
+    # Check for duplicate question groups within each schema
+    print("\n🔍 Checking for duplicate question groups within each schema...")
+    
+    for idx, schema in enumerate(schemas_data, 1):
+        schema_name = schema.get("schema_name", f"Entry #{idx}")
+        question_group_names = schema.get("question_group_names", [])
+        
+        if not isinstance(question_group_names, list):
+            continue  # This will be caught in the main validation below
+        
+        seen_groups = set()
+        duplicate_groups = []
+        
+        for group_idx, group_name in enumerate(question_group_names):
+            if group_name in seen_groups:
+                duplicate_groups.append({
+                    "group_name": group_name,
+                    "position": group_idx + 1
+                })
+            else:
+                seen_groups.add(group_name)
+        
+        if duplicate_groups:
+            error_msg = f"Found {len(duplicate_groups)} duplicate question groups in schema '{schema_name}' at entry #{idx}:\n"
+            for dup in duplicate_groups:
+                error_msg += f"  - Question group '{dup['group_name']}' at position #{dup['position']}\n"
+            raise ValueError(error_msg.rstrip())
+    
+    print(f"✅ No duplicate question groups found within schemas")
+
     processed: List[Dict] = []
     for idx, s in enumerate(schemas_data, 1):
         required = {"schema_name", "question_group_names", "instructions_url", "has_custom_display", "is_active"}
@@ -1799,7 +1890,7 @@ def _normalize_video_data(videos: list[Any]) -> Dict[str, List[Dict]]:
                 elif question["type"] == "description":
                     if q.get("custom_question") is None:
                         q["custom_question"] = question["display_text"]
-                
+
                 # Check whether question options are valid
                 if q.get("custom_option") is not None:
                     for opt, value in q.get("custom_option").items():
@@ -1809,8 +1900,6 @@ def _normalize_video_data(videos: list[Any]) -> Dict[str, List[Dict]]:
                     db_opts = set(question["options"])
                     if opts != db_opts:
                         raise ValueError(f"Question '{q.get('question_text')}' has custom options that do not match the database options")
-                            
-                
                 q_cfgs.append(
                     {
                         "question_text": q.get("question_text"),
@@ -3326,7 +3415,14 @@ def load_and_flatten_json_files(folder_path: str) -> list[dict]:
 
 
 def check_for_duplicates(data: list[dict], data_type: str) -> None:
-    """Check for duplicate entries based on video_uid, user_name, question_group_title, project_name.
+    """Check for duplicate entries with different logic for annotations vs ground truths.
+    
+    For annotations: Check duplicates based on (video_uid, user_name, question_text, project_name)
+    - Same user cannot answer the same question for the same video in the same project twice
+    
+    For ground truths: Check duplicates based on (video_uid, question_text, project_name)
+    - There can only be one ground truth answer per question per video per project
+    - User doesn't matter for ground truth uniqueness
     
     Args:
         data: List of dictionaries to check for duplicates
@@ -3338,31 +3434,59 @@ def check_for_duplicates(data: list[dict], data_type: str) -> None:
     seen = set()
     duplicates = []
     
+    # Determine checking mode based on data_type parameter
+    is_ground_truth_mode = "ground truth" in data_type.lower()
+    
     for idx, item in enumerate(data):
-        # Create a unique key based on the combination of fields
-        key = (
-            item.get("video_uid", "").split("/")[-1],
-            item.get("user_name", ""),
-            item.get("question_group_title", ""),
-            item.get("project_name", "")
-        )
+        video_uid = item.get("video_uid", "").split("/")[-1]
+        user_name = item.get("user_name", "")
+        project_name = item.get("project_name", "")
+        answers = item.get("answers", {})
         
-        if key in seen:
-            duplicates.append({
-                "index": idx,
-                "video_uid": item.get("video_uid"),
-                "user_name": item.get("user_name"),
-                "question_group_title": item.get("question_group_title"),
-                "project_name": item.get("project_name")
-            })
-        else:
-            seen.add(key)
+        # Check each question in the answers dict
+        for question_text, answer_value in answers.items():
+            if is_ground_truth_mode:
+                # For ground truths: only check (video_uid, question_text, project_name)
+                # User doesn't matter - there should be only one ground truth per question per video per project
+                key = (
+                    video_uid,
+                    question_text,
+                    project_name
+                )
+            else:
+                # For regular annotations: check (video_uid, user_name, question_text, project_name)
+                # Same user cannot answer the same question twice
+                key = (
+                    video_uid,
+                    user_name,
+                    question_text,
+                    project_name
+                )
+            
+            if key in seen:
+                duplicate_info = {
+                    "index": idx + 1,  # 1-based indexing for user-friendly error messages
+                    "video_uid": item.get("video_uid"),
+                    "user_name": user_name,
+                    "question_text": question_text,
+                    "project_name": project_name,
+                    "answer": answer_value
+                }
+                duplicates.append(duplicate_info)
+            else:
+                seen.add(key)
     
     if duplicates:
-        error_msg = f"Found {len(duplicates)} duplicate {data_type} entries:\n"
-        for dup in duplicates:
-            error_msg += f"  - Index {dup['index']}: {dup['video_uid']} | {dup['user_name']} | {dup['question_group_title']} | {dup['project_name']}\n"
-        raise ValueError(error_msg)
+        if is_ground_truth_mode:
+            error_msg = f"Found {len(duplicates)} duplicate {data_type} entries (multiple ground truths for same question/video/project):\n"
+            for dup in duplicates:
+                error_msg += f"  - Entry #{dup['index']}: {dup['video_uid']} | '{dup['question_text']}' | {dup['project_name']}\n"
+        else:
+            error_msg = f"Found {len(duplicates)} duplicate {data_type} question entries:\n"
+            for dup in duplicates:
+                error_msg += f"  - Entry #{dup['index']}: {dup['video_uid']} | {dup['user_name']} | '{dup['question_text']}' | {dup['project_name']}\n"
+        
+        raise ValueError(error_msg.rstrip())
 
 
 def sync_annotations(annotations_folder: str = None, 
