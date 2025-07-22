@@ -84,6 +84,10 @@ Throughout your work, you can always synchronize the database—adding new items
 * **`sync_from_folder.py`** → load the demo, start a fresh workspace, or migrate an entire dataset the first time.
 * **`sync_utils.py` helpers** → large or repeatable work once you’re up and running.
 
+> **Note:** Most items in Label Pizza use a fixed identifier (e.g., `video_uid`, `user_id`, `project_name`, `schema_name`, etc.) and **cannot be renamed** once created. In most cases, you can simply update the display name shown in the UI (e.g., `display_text` for a question). But if you truly need to change the identifier, you can use the rename APIs described in **[admin_override.md](admin_override.md)**.
+
+> **Warning:** This guide only supports **soft deletion** using `is_active=False`, which archives the item without removing its records. If you need to **hard delete** items—such as removing a video from all projects or deleting a question group from a schema—see **[admin_override.md](admin_override.md)** for details.
+
 
 ## Customizing your sync workflow with `sync_utils.py`
 
@@ -600,8 +604,9 @@ projects_data = [
     "schema_name": "Questions about Humans",   # must exist in the database
     "description": "Test project for human questions (Updated)",   # you could only update the description
     "is_active": True,                         # keep this True (set to False if you want to archive the project)
-    "videos": [
-      "human.mp4"
+    "videos": [ # You cannot add or remove videos from a project
+      "human.mp4",
+      "pizza.mp4"
     ]
   }
 ]
