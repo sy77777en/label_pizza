@@ -20,7 +20,7 @@ Now that you understand the key components of Label Pizza (videos, users, questi
 1. **Initialize the database once and seed the first admin account**
 
    ```bash
-   python label_pizza/init_or_reset_db.py \
+   python label_pizza/manage_db.py \
        --mode init \
        --database-url-name DBURL \
        --email admin1@example.com \
@@ -64,9 +64,9 @@ Want to save your current work or start over from a blank database? Use the comm
 
 | Action                                                       | One-liner to run                                             | Result                                                       |
 | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| **Create a backup**                                          | `python label_pizza/init_or_reset_db.py --mode backup --backup-file my_sql.sql.gz` | Saves `./backups/my_sql.sql.gz` with every table.            |
-| **Reset the database**<br>(nuclear option, makes its own backup) | `python label_pizza/init_or_reset_db.py --database-url-name DBURL --mode reset --auto-backup --backup-file my_sql.sql.gz --email admin1@example.com --password admin111 --user-id "Admin 1"` | Backs up first, then drops every table and recreates them from scratch (all tables start empty). |
-| **Restore from backup**                                      | `python label_pizza/init_or_reset_db.py --database-url-name DBURL --mode restore --backup-file my_sql.sql.gz --email admin1@example.com --password admin111 --user-id "Admin 1"` | Loads `my_sql.sql.gz` into a freshly reset database, repopulating all tables with the saved data. |
+| **Create a backup**                                          | `python label_pizza/manage_db.py --mode backup --backup-file my_sql.sql.gz` | Saves `./backups/my_sql.sql.gz` with every table.            |
+| **Reset the database**<br>(nuclear option, makes its own backup) | `python label_pizza/manage_db.py --database-url-name DBURL --mode reset --auto-backup --backup-file my_sql.sql.gz --email admin1@example.com --password admin111 --user-id "Admin 1"` | Backs up first, then drops every table and recreates them from scratch (all tables start empty). |
+| **Restore from backup**                                      | `python label_pizza/manage_db.py --database-url-name DBURL --mode restore --backup-file my_sql.sql.gz --email admin1@example.com --password admin111 --user-id "Admin 1"` | Loads `my_sql.sql.gz` into a freshly reset database, repopulating all tables with the saved data. |
 
 ### Syncing the database
 
@@ -177,7 +177,7 @@ Some steps depend on earlier ones, so we recommend running the commands in the o
 **Before you begin**, make sure to back up your current database (if you’ve already been using Label Pizza) and reset the database with the following command:
 
 ```bash
-python label_pizza/init_or_reset_db.py \
+python label_pizza/manage_db.py \
   --auto-backup \
   --mode reset \
   --database-url-name DBURL \
