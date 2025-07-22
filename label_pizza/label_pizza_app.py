@@ -22,7 +22,7 @@ args, _ = parser.parse_known_args()
 
 # Initialize database (Important to do this before importing utils which uses the database session)
 from label_pizza.db import init_database, cleanup_connections
-init_database(args.database_url_name) # This will call Base.metadata.create_all(engine)
+init_database(args.database_url_name)
 
 
 from label_pizza.services import (

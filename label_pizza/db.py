@@ -21,16 +21,14 @@ def init_database(database_url_name="DBURL"):
     """Initialize database engine and session maker"""
     global engine, SessionLocal
     
+    # Clean up existing engine if re-initializing
+    if engine is not None:
+        engine.dispose()
+        print(f"Disposed existing database engine")
+    
     url = os.environ.get(database_url_name)
     if not url:
         raise ValueError(f"Database URL '{database_url_name}' not found in environment variables")
-    
-    # # ← ADD: Enhance URL with database timeout for PostgreSQL
-    # if url.startswith('postgresql') and 'idle_in_transaction_session_timeout' not in url:
-    #     from urllib.parse import quote_plus
-    #     timeout_option = "-c idle_in_transaction_session_timeout=1800000"  # 30 minutes
-    #     separator = "&" if "?" in url else "?"
-    #     url = f"{url}{separator}options={quote_plus(timeout_option)}"
     
     engine = create_engine(
         url,
@@ -45,6 +43,11 @@ def init_database(database_url_name="DBURL"):
     )
     
     SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
+    
+    # Create tables if needed
+    Base.metadata.create_all(engine)
+    
+    print(f"Database initialized with URL: {database_url_name}")
 
 def cleanup_connections():
     """Clean up all database connections"""

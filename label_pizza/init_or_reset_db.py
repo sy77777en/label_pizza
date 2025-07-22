@@ -874,14 +874,14 @@ Nuclear Improvements:
     try:
         init_db(args.database_url_name)
         print(f"✅ Database initialized using {args.database_url_name}")
-        from label_pizza.db import engine, SessionLocal
+        import label_pizza.db
     except Exception as e:
         print(f"❌ Database initialization failed: {e}")
         sys.exit(1)
     
     # Check database connection
     try:
-        with engine.connect() as conn:
+        with label_pizza.db.engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         print("✅ Database connection successful")
     except Exception as e:
@@ -896,13 +896,13 @@ Nuclear Improvements:
     if args.mode == "init":
         success = init_database(
             args.email, args.password, args.user_id, args.force, 
-            engine, SessionLocal, db_url
+            label_pizza.db.engine, label_pizza.db.SessionLocal, db_url
         )
     elif args.mode == "reset":
         success = nuclear_reset_database(
             args.email, args.password, args.user_id, args.force,
             args.auto_backup, args.backup_dir, args.backup_file, compress,
-            engine, SessionLocal, db_url
+            label_pizza.db.engine, label_pizza.db.SessionLocal, db_url
         )
     elif args.mode == "restore":
         if not args.backup_file:
@@ -910,7 +910,7 @@ Nuclear Improvements:
             sys.exit(1)
         success = restore_mode(
             args.backup_dir, args.backup_file, args.email, args.password, args.user_id,
-            args.force, engine, SessionLocal, db_url
+            args.force, label_pizza.db.engine, label_pizza.db.SessionLocal, db_url
         )
     elif args.mode == "backup":
         success = backup_mode(
