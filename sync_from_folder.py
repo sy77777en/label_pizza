@@ -46,7 +46,7 @@ def run_label_pizza_setup(database_url_name, folder_path):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--database-url-name", default="DBURL")
-    parser.add_argument("--folder-path", default="./CameraMotion", help="Folder path containing data files")
+    parser.add_argument("--folder-path", default="./workspace", help="Folder path containing data files")
     args, _ = parser.parse_known_args()
     
     run_label_pizza_setup(args.database_url_name, args.folder_path)
