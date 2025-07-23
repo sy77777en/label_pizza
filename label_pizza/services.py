@@ -3622,8 +3622,8 @@ class AuthService:
         ).all()
 
     @staticmethod
-    def update_user_id(user_id: int, new_user_id: str, session: Session) -> None:
-        """Update a user's ID."""
+    def verify_update_user_id(user_id: int, new_user_id: str, session: Session) -> None:
+        """Verify parameters for updating a user's ID."""
         user = session.get(User, user_id)
         if not user:
             raise ValueError(f"User with ID {user_id} not found")
@@ -3635,12 +3635,19 @@ class AuthService:
         if existing and existing.id != user_id:
             raise ValueError(f"User ID '{new_user_id}' already exists")
         
+        
+    @staticmethod
+    def update_user_id(user_id: int, new_user_id: str, session: Session) -> None:
+        """Update a user's ID."""
+        AuthService.verify_update_user_id(user_id, new_user_id, session)
+
+        user = session.get(User, user_id)
         user.user_id_str = new_user_id
         session.commit()
 
     @staticmethod
-    def update_user_email(user_id: int, new_email: str, session: Session) -> None:
-        """Update a user's email."""
+    def verify_update_user_email(user_id: int, new_email: str, session: Session) -> None:
+        """Verify parameters for updating a user's email."""
         user = session.get(User, user_id)
         if not user:
             raise ValueError(f"User with ID {user_id} not found")
@@ -3659,23 +3666,33 @@ class AuthService:
         )
         if existing and existing.id != user_id:
             raise ValueError(f"Email '{new_email}' already exists")
-        
+
+    @staticmethod
+    def update_user_email(user_id: int, new_email: str, session: Session) -> None:
+        """Update a user's email."""
+        AuthService.verify_update_user_email(user_id, new_email, session)
+        user = session.get(User, user_id)    
         user.email = new_email
         session.commit()
 
     @staticmethod
-    def update_user_password(user_id: int, new_password: str, session: Session) -> None:
-        """Update a user's password."""
+    def verify_update_user_password(user_id: int, new_password: str, session: Session) -> None:
+        """Verify parameters for updating a user's password."""
         user = session.get(User, user_id)
         if not user:
             raise ValueError(f"User with ID {user_id} not found")
-        
+
+    @staticmethod
+    def update_user_password(user_id: int, new_password: str, session: Session) -> None:
+        """Update a user's password."""
+        AuthService.verify_update_user_password(user_id, new_password, session)
+        user = session.get(User, user_id)
         user.password_hash = new_password  # Note: In production, this should be hashed
         session.commit()
 
     @staticmethod
-    def update_user_role(user_id: int, new_role: str, session: Session) -> None:
-        """Update a user's role and handle admin project assignments."""
+    def verify_update_user_role(user_id: int, new_role: str, session: Session) -> None:
+        """Verify parameters for updating a user's role."""
         user = session.get(User, user_id)
         if not user:
             raise ValueError(f"User with ID {user_id} not found")
@@ -3686,12 +3703,18 @@ class AuthService:
         if user.user_type == "human" or user.user_type == "admin":
             if new_role == "model":
                 raise ValueError("Cannot change from human/admin to model")
-        
+
         # Cannot change from model to human/admin
         if user.user_type == "model":
             if new_role == "human" or new_role == "admin":
                 raise ValueError("Cannot change from model to human/admin")
-        
+
+    @staticmethod
+    def update_user_role(user_id: int, new_role: str, session: Session) -> None:
+        """Update a user's role and handle admin project assignments."""
+        AuthService.verify_update_user_role(user_id, new_role, session)
+
+        user = session.get(User, user_id)
         # If changing from admin to human, remove all project roles
         if user.user_type == "admin" and new_role == "human":
             # Get all non-archived project assignments for this user
