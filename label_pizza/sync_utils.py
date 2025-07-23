@@ -196,14 +196,12 @@ def _update_single_video(video_data: Dict) -> Tuple[str, bool, Optional[str]]:
                 session=sess,
             )
             
-            # Handle archive status if present
-            if "is_archived" in video_data:
-                rec = VideoService.get_video_by_uid(video_data["video_uid"], sess)
-                if rec and video_data["is_archived"] != rec.is_archived:
-                    if video_data["is_archived"]:
-                        VideoService.archive_video(rec.id, sess)
-                    else:
-                        VideoService.unarchive_video(rec.id, sess)
+            rec = VideoService.get_video_by_uid(video_data["video_uid"], sess)
+            if rec and video_data["is_archived"] != rec.is_archived:
+                if video_data["is_archived"]:
+                    VideoService.archive_video(rec.id, sess)
+                else:
+                    VideoService.unarchive_video(rec.id, sess)
             
             return video_data["video_uid"], True, None
         except Exception as e:
@@ -312,35 +310,6 @@ def sync_videos(
     
     print(f"\n🚀 Starting video sync pipeline with {len(videos_data)} videos...")
     
-    # Check for duplicate video_uid values first
-    print("\n🔍 Checking for duplicate video_uid values...")
-    urls = []
-    video_uids = []
-    duplicates = []
-    
-    for idx, item in enumerate(videos_data, 1):
-        # Basic check that video_uid exists before processing
-        if "video_uid" not in item:
-            raise ValueError(f"Entry #{idx} missing required field: video_uid")
-        if "url" not in item:
-            raise ValueError(f"Entry #{idx} missing required field: url")
-        video_uid = item["video_uid"]
-        url = item["url"]
-        if video_uid in video_uids:
-            duplicates.append((video_uid, idx))
-        else:
-            video_uids.append(video_uid)
-        if url in urls:
-            duplicates.append((url, idx))
-        else:
-            urls.append(url)
-    
-    if duplicates:
-        duplicate_info = [f"video_uid '{uid}' at entry #{idx}" for uid, idx in duplicates]
-        raise ValueError(f"Duplicate video_uid values found: {', '.join(duplicate_info)}")
-    
-    print(f"✅ No duplicates found - all {len(video_uids)} video_uid values are unique")
-
     # Validate & enrich each record with progress bar
     processed: List[Dict] = []
     with tqdm(total=len(videos_data), desc="Validating video data", unit="video") as pbar:
@@ -360,12 +329,38 @@ def sync_videos(
                 
                 raise ValueError(f"Entry #{idx} invalid fields: {', '.join(error_parts)}")
 
-            # optional active → archived conversion
-            if "is_active" in item:
-                item["is_archived"] = not item.pop("is_active")
+            item["is_archived"] = not item.pop("is_active")
 
             processed.append(item)
             pbar.update(1)
+    
+    # Check for duplicate video_uid values first
+    print("\n🔍 Checking for duplicate video_uid and urls values...")
+    urls = []
+    video_uids = []
+    uid_duplicates = []
+    url_duplicates = []
+    
+    for idx, item in enumerate(processed, 1):
+        video_uid = item["video_uid"]
+        url = item["url"]
+        if video_uid in video_uids:
+            uid_duplicates.append((video_uid, idx))
+        else:
+            video_uids.append(video_uid)
+        if url in urls:
+            url_duplicates.append((url, idx))
+        else:
+            urls.append(url)
+    
+    if uid_duplicates:
+        duplicate_info = [f"video_uid '{uid}' at entry #{idx}" for uid, idx in uid_duplicates]
+        raise ValueError(f"Duplicate video_uid values found: {', '.join(duplicate_info)}")
+    if url_duplicates:
+        duplicate_info = [f"url '{url}' at entry #{idx}" for url, idx in url_duplicates]
+        raise ValueError(f"Duplicate url values found: {', '.join(duplicate_info)}")
+    
+    print(f"✅ No duplicates found - all {len(video_uids)} video_uid values and {len(urls)} url values are unique")
 
     # Decide add vs update with a single read-only look‑up
     print("\n📊 Categorizing videos...")
@@ -503,13 +498,13 @@ def update_users(users_data: List[Dict]) -> None:
                     changes = []
                     
                     # Check email
-                    if "email" in user and user["email"] != user_rec.email:
+                    if user["email"] != user_rec.email:
                         AuthService.verify_update_user_email(user_rec.id, user["email"], session)
                         needs_update = True
                         changes.append("email")
                     
                     # Check password (we can't compare hashes, so we'll update if provided)
-                    if "password" in user and user["password"] != user_rec.password_hash:
+                    if user["password"] != user_rec.password_hash:
                         
                         AuthService.verify_update_user_password(user_rec.id, user["password"], session)
                         
@@ -517,7 +512,7 @@ def update_users(users_data: List[Dict]) -> None:
                         changes.append("password")
                     
                     # Check user_type
-                    if "user_type" in user and user["user_type"] != user_rec.user_type:
+                    if user["user_type"] != user_rec.user_type:
                         
                         AuthService.verify_update_user_role(user_rec.id, user["user_type"], session)
                         
@@ -525,7 +520,7 @@ def update_users(users_data: List[Dict]) -> None:
                         changes.append("user_type")
                     
                     # Check user_id
-                    if "user_id" in user and user["user_id"] != user_rec.user_id_str:
+                    if user["user_id"] != user_rec.user_id_str:
                         
                         AuthService.verify_update_user_id(user_rec.id, user["user_id"], session)
                         
@@ -533,7 +528,7 @@ def update_users(users_data: List[Dict]) -> None:
                         changes.append("user_id")
                     
                     # Check archive status
-                    if "is_archived" in user and user["is_archived"] != user_rec.is_archived:
+                    if user["is_archived"] != user_rec.is_archived:
                         needs_update = True
                         changes.append("archive_status")
                     
@@ -695,8 +690,7 @@ def sync_users(
         user["password"] = password
         
         # Convert is_active → is_archived
-        if "is_active" in user:
-            user["is_archived"] = not user.pop("is_active")
+        user["is_archived"] = not user.pop("is_active")
     
     if duplicates:
         raise ValueError(f"Duplicates found: {'; '.join(duplicates)}")
@@ -1164,10 +1158,6 @@ def sync_question_groups(
                     raise ValueError(f"Entry #{idx}, Question #{q_idx}: {'; '.join(errors)}")
     
     print(f"✅ Validation passed for {len(question_groups_data)} groups")
-    
-    # Normalize data
-    for group in question_groups_data:
-        group.setdefault("display_title", group["title"])
 
     # ═══════════════════════════════════════════════════════════════════
     # STEP 1: COLLECT AND ANALYZE ALL QUESTIONS
@@ -1648,23 +1638,6 @@ def sync_schemas(*, schemas_path: str | Path | None = None, schemas_data: List[D
     schema_names = []
     schema_name_duplicates = []
     
-    for idx, schema in enumerate(schemas_data, 1):
-        # Basic check that schema_name exists before processing duplicates
-        if "schema_name" not in schema:
-            raise ValueError(f"Entry #{idx} missing required field: schema_name")
-        
-        schema_name = schema["schema_name"]
-        if schema_name in schema_names:
-            schema_name_duplicates.append((schema_name, idx))
-        else:
-            schema_names.append(schema_name)
-    
-    if schema_name_duplicates:
-        duplicate_info = [f"schema_name '{name}' at entry #{idx}" for name, idx in schema_name_duplicates]
-        raise ValueError(f"Duplicate schema_name values found: {', '.join(duplicate_info)}")
-    
-    print(f"✅ No duplicates found - all {len(schema_names)} schema_name values are unique")
-
     processed: List[Dict] = []
     for idx, s in enumerate(schemas_data, 1):
         required = {"schema_name", "question_group_names", "instructions_url", "has_custom_display", "is_active"}
@@ -1683,9 +1656,21 @@ def sync_schemas(*, schemas_path: str | Path | None = None, schemas_data: List[D
             raise ValueError(f"Entry #{idx} {', '.join(error_parts)}")
         if not isinstance(s["question_group_names"], list):
             raise ValueError(f"Entry #{idx}: 'question_group_names' must be list")
-        if "is_active" in s:
-            s["is_archived"] = not s.pop("is_active")
+        s["is_archived"] = not s.pop("is_active")
         processed.append(s)
+    
+    for idx, schema in enumerate(processed, 1):
+        schema_name = schema["schema_name"]
+        if schema_name in schema_names:
+            schema_name_duplicates.append((schema_name, idx))
+        else:
+            schema_names.append(schema_name)
+    
+    if schema_name_duplicates:
+        duplicate_info = [f"schema_name '{name}' at entry #{idx}" for name, idx in schema_name_duplicates]
+        raise ValueError(f"Duplicate schema_name values found: {', '.join(duplicate_info)}")
+    
+    print(f"✅ No duplicates found - all {len(schema_names)} schema_name values are unique")
 
     # Decide add vs update ---------------------------------------------------
     to_add, to_update = [], []
@@ -2409,29 +2394,6 @@ def sync_projects(*, projects_path: str | Path | None = None, projects_data: Lis
     
     print(f"\n🚀 Starting project upload pipeline with {len(projects_data)} projects...")
     
-    # Check for duplicate project_name values
-    print("\n🔍 Checking for duplicate project_name values...")
-    
-    project_names = []
-    project_name_duplicates = []
-    
-    for idx, project in enumerate(projects_data, 1):
-        # Basic check that project_name exists before processing duplicates
-        if "project_name" not in project:
-            raise ValueError(f"Entry #{idx} missing required field: project_name")
-        
-        project_name = project["project_name"]
-        if project_name in project_names:
-            project_name_duplicates.append((project_name, idx))
-        else:
-            project_names.append(project_name)
-    
-    if project_name_duplicates:
-        duplicate_info = [f"project_name '{name}' at entry #{idx}" for name, idx in project_name_duplicates]
-        raise ValueError(f"Duplicate project_name values found: {', '.join(duplicate_info)}")
-    
-    print(f"✅ No duplicates found - all {len(project_names)} project_name values are unique")
-    
     # Validate and normalize project data
     processed: List[Dict] = []
     with tqdm(total=len(projects_data), desc="Validating project data", unit="project") as pbar:
@@ -2459,69 +2421,78 @@ def sync_projects(*, projects_path: str | Path | None = None, projects_data: Lis
                 # Extract video UID based on format (string or dict)
                 if isinstance(video, str):
                     video_uid = video
-                elif isinstance(video, dict) and "video_uid" in video:
-                    video_uid = video["video_uid"]
-                    if "questions" in video:
-                        # Get question types from database
-                        question_types = {}
-                        try:
-                            with label_pizza.db.SessionLocal() as sess:
-                                schema_id = SchemaService.get_schema_id_by_name(cfg["schema_name"], sess)
-                                questions_df = SchemaService.get_schema_questions(schema_id, sess)
-                                if not questions_df.empty:
-                                    question_types = dict(zip(questions_df["Text"], questions_df["Type"]))
-                        except:
-                            # Schema doesn't exist, skip validation
-                            pass
+                elif isinstance(video, dict):
+                    required_video = {'video_uid', 'questions'}
+                    video_keys = set(video.keys())
+                    if video_keys != required_video:
+                        missing = required_video - video_keys
+                        extra = video_keys - required_video
+                        if missing:
+                            raise ValueError(f"Entry #{idx}, video #{video_idx + 1}: Missing required fields: {', '.join(missing)}")
+                        if extra:
+                            raise ValueError(f"Entry #{idx}, video #{video_idx + 1}: Extra fields: {', '.join(extra)}")
                         
-                        for question_idx, q in enumerate(video["questions"]):
-                            if not isinstance(q, dict):
-                                raise ValueError(f"Entry #{idx}, video '{video_uid}', question #{question_idx + 1}: Invalid format")
-                            question_type = None
-                            with label_pizza.db.SessionLocal() as sess:
-                                try:
-                                    question_type = QuestionService.get_question_by_text(q["question_text"], sess)["type"]
-                                except:
-                                    raise ValueError(f"Entry #{idx}, video '{video_uid}', question #{question_idx + 1}: Question not found in database")
+                    video_uid = video["video_uid"]
+                    # Get question types from database
+                    question_types = {}
+                    try:
+                        with label_pizza.db.SessionLocal() as sess:
+                            schema_id = SchemaService.get_schema_id_by_name(cfg["schema_name"], sess)
+                            questions_df = SchemaService.get_schema_questions(schema_id, sess)
+                            if not questions_df.empty:
+                                question_types = dict(zip(questions_df["Text"], questions_df["Type"]))
+                    except:
+                        # Schema doesn't exist, skip validation
+                        pass
+                    
+                    for question_idx, q in enumerate(video["questions"]):
+                        if not isinstance(q, dict):
+                            raise ValueError(f"Entry #{idx}, video '{video_uid}', question #{question_idx + 1}: Invalid format")
+                        question_type = None
+                        with label_pizza.db.SessionLocal() as sess:
+                            try:
+                                question_type = QuestionService.get_question_by_text(q["question_text"], sess)["type"]
+                            except:
+                                raise ValueError(f"Entry #{idx}, video '{video_uid}', question #{question_idx + 1}: Question not found in database")
 
-                            if question_type not in ["single", "description"]:
-                                raise ValueError(f"Entry #{idx}, video '{video_uid}', question #{question_idx + 1}: Question type must be 'single' or 'description'")
-                            if question_type == "single":
-                                required = {"question_text", "custom_question", "custom_option"}
-                                question_keys = set(q.keys())
-                                
-                                if question_keys != required:
-                                    missing = required - question_keys
-                                    extra = question_keys - required
-                                    
-                                    error_parts = []
-                                    if missing:
-                                        error_parts.append(f"missing: {', '.join(missing)}")
-                                    if extra:
-                                        error_parts.append(f"extra: {', '.join(extra)}")
-                                    
-                                    raise ValueError(f"Entry #{idx}, video '{video_uid}', question #{question_idx + 1}: {'; '.join(error_parts)}")
-
-                            elif question_type == "description":
-                                required = {"question_text", "custom_question"}
-                                question_keys = set(q.keys())
-                                
-                                if question_keys != required:
-                                    missing = required - question_keys
-                                    extra = question_keys - required
-                                    
-                                    error_parts = []
-                                    if missing:
-                                        error_parts.append(f"missing: {', '.join(missing)}")
-                                    if extra:
-                                        error_parts.append(f"extra: {', '.join(extra)}")
-                                    
-                                    raise ValueError(f"Entry #{idx}, video '{video_uid}', question #{question_idx + 1}: {'; '.join(error_parts)}")
-                            question_text = q["question_text"]
+                        if question_type not in ["single", "description"]:
+                            raise ValueError(f"Entry #{idx}, video '{video_uid}', question #{question_idx + 1}: Question type must be 'single' or 'description'")
+                        if question_type == "single":
+                            required = {"question_text", "custom_question", "custom_option"}
+                            question_keys = set(q.keys())
                             
-                            # Check if question exists in database
-                            if question_text not in question_types:
-                                raise ValueError(f"Entry #{idx}, video '{video_uid}', question '{question_text}': Question not found in schema")
+                            if question_keys != required:
+                                missing = required - question_keys
+                                extra = question_keys - required
+                                
+                                error_parts = []
+                                if missing:
+                                    error_parts.append(f"missing: {', '.join(missing)}")
+                                if extra:
+                                    error_parts.append(f"extra: {', '.join(extra)}")
+                                
+                                raise ValueError(f"Entry #{idx}, video '{video_uid}', question #{question_idx + 1}: {'; '.join(error_parts)}")
+
+                        elif question_type == "description":
+                            required = {"question_text", "custom_question"}
+                            question_keys = set(q.keys())
+                            
+                            if question_keys != required:
+                                missing = required - question_keys
+                                extra = question_keys - required
+                                
+                                error_parts = []
+                                if missing:
+                                    error_parts.append(f"missing: {', '.join(missing)}")
+                                if extra:
+                                    error_parts.append(f"extra: {', '.join(extra)}")
+                                
+                                raise ValueError(f"Entry #{idx}, video '{video_uid}', question #{question_idx + 1}: {'; '.join(error_parts)}")
+                        question_text = q["question_text"]
+                        
+                        # Check if question exists in database
+                        if question_text not in question_types:
+                            raise ValueError(f"Entry #{idx}, video '{video_uid}', question '{question_text}': Question not found in schema")
                 else:
                     raise ValueError(f"Entry #{idx}, video #{video_idx + 1}: Invalid video format. Must be string or dict with 'video_uid'")
                 
@@ -2539,6 +2510,25 @@ def sync_projects(*, projects_path: str | Path | None = None, projects_data: Lis
                 
             processed.append(cfg)
             pbar.update(1)
+            
+    # Check for duplicate project_name values
+    print("\n🔍 Checking for duplicate project_name values...")
+    
+    project_names = []
+    project_name_duplicates = []
+    
+    for idx, project in enumerate(projects_data, 1):
+        project_name = project["project_name"]
+        if project_name in project_names:
+            project_name_duplicates.append((project_name, idx))
+        else:
+            project_names.append(project_name)
+    
+    if project_name_duplicates:
+        duplicate_info = [f"project_name '{name}' at entry #{idx}" for name, idx in project_name_duplicates]
+        raise ValueError(f"Duplicate project_name values found: {', '.join(duplicate_info)}")
+    
+    print(f"✅ No duplicates found - all {len(project_names)} project_name values are unique")
 
     # Separate projects to add vs sync
     to_add, to_sync = [], []
@@ -2866,29 +2856,6 @@ def sync_project_groups(
     
     print(f"\n🚀 Starting project groups sync pipeline with {len(project_groups_data)} groups...")
 
-    # Check for duplicate project_group_name values
-    print("\n🔍 Checking for duplicate project_group_name values...")
-    
-    project_group_names = []
-    project_group_name_duplicates = []
-    
-    for idx, group in enumerate(project_groups_data, 1):
-        # Basic check that project_group_name exists before processing duplicates
-        if "project_group_name" not in group:
-            raise ValueError(f"Entry #{idx} missing required field: project_group_name")
-        
-        project_group_name = group["project_group_name"]
-        if project_group_name in project_group_names:
-            project_group_name_duplicates.append((project_group_name, idx))
-        else:
-            project_group_names.append(project_group_name)
-    
-    if project_group_name_duplicates:
-        duplicate_info = [f"project_group_name '{name}' at entry #{idx}" for name, idx in project_group_name_duplicates]
-        raise ValueError(f"Duplicate project_group_name values found: {', '.join(duplicate_info)}")
-    
-    print(f"✅ No duplicates found - all {len(project_group_names)} project_group_name values are unique")
-
     # Validate and normalize project groups data
     processed: List[Dict] = []
     for idx, g in enumerate(project_groups_data, 1):
@@ -2917,6 +2884,25 @@ def sync_project_groups(
         processed.append(g)
 
     print(f"✅ JSON validation passed for {len(processed)} items")
+
+    # Check for duplicate project_group_name values
+    print("\n🔍 Checking for duplicate project_group_name values...")
+    
+    project_group_names = []
+    project_group_name_duplicates = []
+    
+    for idx, group in enumerate(project_groups_data, 1):
+        project_group_name = group["project_group_name"]
+        if project_group_name in project_group_names:
+            project_group_name_duplicates.append((project_group_name, idx))
+        else:
+            project_group_names.append(project_group_name)
+    
+    if project_group_name_duplicates:
+        duplicate_info = [f"project_group_name '{name}' at entry #{idx}" for name, idx in project_group_name_duplicates]
+        raise ValueError(f"Duplicate project_group_name values found: {', '.join(duplicate_info)}")
+    
+    print(f"✅ No duplicates found - all {len(project_group_names)} project_group_name values are unique")
 
     # Classify add vs update with one read-only session
     to_add, to_update = [], []
