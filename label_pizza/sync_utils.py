@@ -504,21 +504,31 @@ def update_users(users_data: List[Dict]) -> None:
                     
                     # Check email
                     if "email" in user and user["email"] != user_rec.email:
+                        AuthService.verify_update_user_email(user_rec.id, user["email"], session)
                         needs_update = True
                         changes.append("email")
                     
                     # Check password (we can't compare hashes, so we'll update if provided)
                     if "password" in user and user["password"] != user_rec.password_hash:
+                        
+                        AuthService.verify_update_user_password(user_rec.id, user["password"], session)
+                        
                         needs_update = True
                         changes.append("password")
                     
                     # Check user_type
                     if "user_type" in user and user["user_type"] != user_rec.user_type:
+                        
+                        AuthService.verify_update_user_role(user_rec.id, user["user_type"], session)
+                        
                         needs_update = True
                         changes.append("user_type")
                     
                     # Check user_id
                     if "user_id" in user and user["user_id"] != user_rec.user_id_str:
+                        
+                        AuthService.verify_update_user_id(user_rec.id, user["user_id"], session)
+                        
                         needs_update = True
                         changes.append("user_id")
                     
