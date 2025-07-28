@@ -115,7 +115,11 @@ def display_video_answer_pair(video: Dict, project_id: int, user_id: int, role: 
         
         if st.session_state.get(f"rerun_needed_{project_id}_{user_id}", False):
             del st.session_state[f"rerun_needed_{project_id}_{user_id}"]
-            st.rerun(scope="fragment")
+            try:
+                st.rerun(scope="fragment")
+            except Exception as e:
+                print(f"Error rerunning fragment: {e}")
+                st.rerun()
                     
     except ValueError as e:
         st.error(f"Error loading project data: {str(e)}")
