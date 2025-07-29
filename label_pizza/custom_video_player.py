@@ -176,7 +176,7 @@ def _render_custom_player(video_url, video_uid, aspect_ratio, autoplay, loop, sh
             const shareBtn = document.getElementById('shareBtn');
             if (shareBtn) {{
                 shareBtn.addEventListener('click', () => {{
-                    const currentUrl = window.parent.location.href.split('?')[0];
+                    const currentUrl = window.parent.location.origin + window.parent.location.pathname;
                     const searchPortalUrl = currentUrl + '?video_uid={video_uid}';
                     navigator.clipboard.writeText(searchPortalUrl).then(() => {{
                         shareBtn.innerHTML = '✓';
