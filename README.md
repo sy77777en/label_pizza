@@ -95,7 +95,7 @@ Lighting
 ```
 
 * **Question** – A single input field, such as radio buttons or a text box.
-* **Question Group** – A set of related questions shown together in one UI tab. Can be reused across projects or set to auto-submit defaults. May include optional Python verification checks triggered on submission—e.g., if “Key Light present?” is answered Yes, then “Describe Key Light” must not be empty.
+* **Question Group** – A set of related questions shown together in one UI tab. Can be reused across projects or set to auto-submit defaults. May include optional Python verification checks triggered on submission—e.g., if “Key Light present?” is answered Yes, then “Describe Key Light” must not be empty. Verification functions can be defined in `verify.py` files in `label_pizza/` or in any workspace folder registered in `verification_config.json`.
 * **Schema** – The full tree structure composed of one or more question groups.
 
 ---

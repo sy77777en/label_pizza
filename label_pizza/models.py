@@ -62,7 +62,7 @@ class QuestionGroup(Base):
     is_reusable = Column(Boolean, default=False)  # TRUE ⇒ can be imported by many schemas
     is_auto_submit = Column(Boolean, default=False)  # TRUE ⇒ answers are automatically submitted for annotation mode
     is_archived = Column(Boolean, default=False)
-    verification_function = Column(String(255), nullable=True)  # Name of verification function in verify.py
+    verification_function = Column(String(255), nullable=True)  # Name of verification function in label_pizza/verify.py or in any workspace folder registered in verification_config.json
 
 class Question(Base):
     """Supports both radio and free-text; single-choice values indexed, descriptions not.

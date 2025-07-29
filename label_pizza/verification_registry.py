@@ -44,6 +44,14 @@ class VerificationRegistry:
             for name, obj in inspect.getmembers(verify_module):
                 if (inspect.isfunction(obj) and 
                     not name.startswith('_')):
+                    # Check for name collision
+                    if name in self._functions:
+                        existing_source = self._function_sources[name]
+                        raise ValueError(
+                            f"Function name collision: '{name}' is defined in both "
+                            f"'{existing_source}' and '{workspace_str}'. "
+                            f"Please rename one of the functions or use prefixed names."
+                        )
                     self._functions[name] = obj
                     self._function_sources[name] = workspace_str
             
@@ -123,6 +131,28 @@ def auto_load_workspaces() -> None:
         if Path(workspace_path).exists():
             register_workspace(workspace_path)
 
+
+class VerifyModule:
+    """Backward-compatible wrapper that makes registry behave like old verify module"""
+    
+    def __getattr__(self, name: str):
+        """Get verification function by name (supports getattr(verify, function_name))"""
+        func = get_verification_function(name)
+        if func is not None:
+            return func
+        raise AttributeError(f"module 'verify' has no attribute '{name}'")
+    
+    def __hasattr__(self, name: str) -> bool:
+        """Check if verification function exists (supports hasattr(verify, function_name))"""
+        return has_verification_function(name)
+    
+    def __dir__(self):
+        """Support dir(verify) to list all functions"""
+        return list_verification_functions()
+
+
+# Create backward-compatible verify module instance
+verify = VerifyModule()
 
 # Auto-load workspaces when module is imported
 auto_load_workspaces()

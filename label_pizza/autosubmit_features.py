@@ -3,6 +3,7 @@ from typing import Dict, Optional, List, Any, Tuple
 from sqlalchemy.orm import Session
 import time
 
+from label_pizza.verification_registry import verify
 from label_pizza.services import (
     AuthService, AnnotatorService, GroundTruthService,
     QuestionService, QuestionGroupService,
@@ -809,7 +810,6 @@ def run_preload_preview(selected_groups: List[Dict], videos: List[Dict], project
                             verification_function = group_details.get("verification_function")
                             
                             if verification_function:
-                                import verify
                                 verify_func = getattr(verify, verification_function, None)
                                 if verify_func:
                                     verify_func(result["answers"])

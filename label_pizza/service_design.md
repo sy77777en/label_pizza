@@ -140,7 +140,7 @@ Service-Layer API Spec
 - Group titles must be unique
 - Question display order can be modified
 - All questions must exist
-- Verification functions must be valid (in verify.py)
+- Verification functions must be valid (in label_pizza/verify.py or in any workspace folder registered in verification_config.json)
 
 ---
 

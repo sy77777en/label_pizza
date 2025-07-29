@@ -340,9 +340,9 @@ sync_users(users_data=users_data)
 
 ### 3. Sync Question Groups and Their Questions
 
-Before creating question groups, it is important to decide whether you need a **verification function**. This optional Python function (which you can define in `label_pizza/verify.py`) checks that all answers in a group are logically consistent *before* they are submitted.
+Before creating question groups, it is important to decide whether you need a **verification function**. This optional Python function checks that all answers in a group are logically consistent *before* they are submitted. If you do not need such a check, set `verification_function` to `None` (`null` in JSON).
 
-> **For example:** Annotators must describe a person if there are more than 0 people in the video; otherwise, the description must be blank. The `check_human_description` function enforces this rule.
+> **Example:** The `check_human_description` function checks whether a description is provided (non-empty) when there are people in the video.
 
 ```python
 def check_human_description(answers: Dict[str, str]) -> None:
@@ -355,7 +355,22 @@ def check_human_description(answers: Dict[str, str]) -> None:
         raise ValueError("Description must be provided when there are people")
 ```
 
-If you do not need such a check, set `verification_function` to `None` (`null` in JSON).
+**Where to define verification functions:**
+Create a `verify.py` file in any folder, such as your `workspace/` or in `label_pizza/` if shared across projects.
+
+**To register a verify.py file**, manually edit `verification_config.json` to include the folders you want:
+
+```json
+{
+  "workspace_paths": [
+    "label_pizza",
+    "/path/to/my_workspace"
+  ]
+}
+```
+
+You can also run `python sync_from_folder.py --folder-path /path/to/my_workspace`
+→ This automatically adds the folder to `verification_config.json`.
 
 3.1 - Add question groups and their questions
 

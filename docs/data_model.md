@@ -188,7 +188,13 @@ A question group is an ordered list of logically related **`questions`** shown t
 * **`is_reusable`** – whether this group can be reused across multiple schemas (a schema is a set of question groups, introduced next).
 * **`is_auto_submit`** – if `true`, default answers are automatically submitted when the video loads. This is useful when one answer applies to the vast majority of videos — for example, if 99.9% of your videos are safe, you can auto-submit “No” to the NSFW question so annotators only need to correct it for the rare unsafe videos.
 * **`is_active`** – archive flag; set to `false` to hide this question group while preserving history.
-* **`verification_function`** – if not `null`, you can provide the name of a Python function defined in [verify.py](label_pizza/verify.py) that checks the consistency of answers before they’re submitted. If the check fails, the function should raise an error to block submission. For example, `check_human_description` ensures that if the number of people is greater than 0, the annotator must provide a non-empty description:
+* **`verification_function`** – if not `null`, you can provide the name of a Python function that checks the consistency of answers before they're submitted. If the check fails, the function should raise an error to block submission.
+
+**Verification Function Locations:**
+1. **Default functions**: Define functions in `label_pizza/verify.py` for functions used across all projects
+2. **Workspace-specific functions**: Define functions in `{workspace_folder}/verify.py` for project-specific validation
+
+For example, `check_human_description` in `example/verify.py` ensures that if the number of people is greater than 0, the annotator must provide a non-empty description:
 
 ```python
 def check_human_description(answers: Dict[str, str]) -> None:
@@ -208,6 +214,11 @@ def check_human_description(answers: Dict[str, str]) -> None:
     if num_people != "0" and not description:
         raise ValueError("Description must be provided when there are people")
 ```
+
+**Configuration:**
+- Verification functions are automatically loaded from workspaces listed in `verification_config.json`
+- The config file is updated automatically when you sync a new workspace folder using `sync_from_folder.py`
+- You can manually edit `verification_config.json` to add/remove workspace paths
 
 ### `schemas.json`
 

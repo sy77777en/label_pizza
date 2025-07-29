@@ -19,13 +19,7 @@ from pathlib import Path
 
 load_dotenv()
 
-# Import verify module
-# verify_path = Path(__file__).parent / "verify.py"
-# spec = importlib.util.spec_from_file_location("verify", verify_path)
-# verify = importlib.util.module_from_spec(spec)
-# sys.modules["verify"] = verify
-# spec.loader.exec_module(verify)
-from label_pizza import verify
+from label_pizza.verification_registry import verify
 
 
 class VideoService:
