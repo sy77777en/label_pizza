@@ -21,8 +21,11 @@ parser.add_argument("--database-url-name", default="DBURL")
 args, _ = parser.parse_known_args()
 
 # Initialize database (Important to do this before importing utils which uses the database session)
-from label_pizza.db import init_database, cleanup_connections
-init_database(args.database_url_name)
+from label_pizza.db import init_database, cleanup_connections, current_database_url_name, engine
+
+# Only initialize if not already done with the same database URL
+if engine is None or current_database_url_name != args.database_url_name:
+    init_database(args.database_url_name)
 
 
 from label_pizza.services import (
