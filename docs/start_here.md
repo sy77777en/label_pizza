@@ -11,6 +11,7 @@ The guides below build on one another; we recommend reading the first three in o
 | 4     | [workspace_management.md](workspace_management.md) | Learn how to manage your workspace folder with version control.                                                                            | 2 min            |
 | 5     | [custom_display.md](custom_display.md) | Override question wording on a per‑video basis using a shared schema.                                              | 6 min (optional) |
 | 6     | [admin_override.md](admin_override.md) | Perform dangerous override operations: rename immutable IDs or permanently delete records (with automatic backup). | 5 min (optional) |
+| 7     | [google_sheet_export.md](google_sheet_export.md) | Learn how to export data to Google Sheets. | 4 min (optional) |
 
 
 ## Quick Setup (in 3 minutes)

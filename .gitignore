@@ -3,6 +3,13 @@
 backups/
 verification_config.json
 
+# Google Sheets API credentials and tokens
+credentials.json
+google_sheets_token.json
+
+# Backup files (if any)
+*.backup
+
 # Python
 */__pycache__/
 *.py[cod]

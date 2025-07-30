@@ -25,7 +25,10 @@ dependencies = [
     "pytest",
     "reflex",
     "openpyxl",
-    "tqdm"
+    "tqdm",
+    "gspread",
+    "oauth2client",
+    "google-api-python-client"
 ]
 
 # This section tells setuptools to find packages automatically

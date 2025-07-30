@@ -9728,3 +9728,575 @@ def export_projects_ground_truth(project_ids: List[int], output_path: str, forma
     except Exception as e:
         print(f"Unexpected error during export: {e}")
         raise
+
+class GoogleSheetsExportService:
+    """Service for generating Google Sheets export data with comprehensive statistics."""
+    
+    @staticmethod
+    def get_master_sheet_annotator_data(session: Session) -> List[Dict[str, Any]]:
+        """Get master sheet data for annotators tab."""
+        annotators = []
+        
+        # Get all users who have annotator role assignments
+        annotator_users = session.scalars(
+            select(User)
+            .join(ProjectUserRole, User.id == ProjectUserRole.user_id)
+            .join(Project, ProjectUserRole.project_id == Project.id)
+            .where(
+                ProjectUserRole.role == "annotator",
+                ProjectUserRole.is_archived == False,
+                Project.is_archived == False,
+                User.is_archived == False
+            )
+            .distinct()
+        ).all()
+        
+        for user in annotator_users:
+            # Count assigned projects
+            assigned_projects = session.scalar(
+                select(func.count())
+                .select_from(ProjectUserRole)
+                .join(Project, ProjectUserRole.project_id == Project.id)
+                .where(
+                    ProjectUserRole.user_id == user.id,
+                    ProjectUserRole.role == "annotator",
+                    ProjectUserRole.is_archived == False,
+                    Project.is_archived == False
+                )
+            )
+            
+            # Count projects started (has at least one annotation)
+            projects_started = session.scalar(
+                select(func.count(func.distinct(AnnotatorAnswer.project_id)))
+                .where(AnnotatorAnswer.user_id == user.id)
+            )
+            
+            # Count projects completed (has completed_at timestamp)
+            projects_completed = session.scalar(
+                select(func.count())
+                .select_from(ProjectUserRole)
+                .join(Project, ProjectUserRole.project_id == Project.id)
+                .where(
+                    ProjectUserRole.user_id == user.id,
+                    ProjectUserRole.role == "annotator",
+                    ProjectUserRole.completed_at.isnot(None),
+                    ProjectUserRole.is_archived == False,
+                    Project.is_archived == False
+                )
+            )
+            
+            # Get last annotation time
+            last_annotation = session.scalar(
+                select(func.max(AnnotatorAnswer.modified_at))
+                .where(AnnotatorAnswer.user_id == user.id)
+            )
+            
+            annotators.append({
+                "user_name": user.user_id_str,
+                "email": user.email or "",
+                "role": user.user_type,
+                "user_id": user.id,
+                "assigned_projects": assigned_projects or 0,
+                "projects_started": projects_started or 0,
+                "projects_completed": projects_completed or 0,
+                "last_annotation_time": last_annotation
+            })
+        
+        return annotators
+    
+    @staticmethod
+    def get_master_sheet_reviewer_data(session: Session) -> List[Dict[str, Any]]:
+        """Get master sheet data for reviewers tab."""
+        reviewers = []
+        
+        # Get all users who have reviewer role assignments
+        reviewer_users = session.scalars(
+            select(User)
+            .join(ProjectUserRole, User.id == ProjectUserRole.user_id)
+            .join(Project, ProjectUserRole.project_id == Project.id)
+            .where(
+                ProjectUserRole.role == "reviewer",
+                ProjectUserRole.is_archived == False,
+                Project.is_archived == False,
+                User.is_archived == False
+            )
+            .distinct()
+        ).all()
+        
+        for user in reviewer_users:
+            # Count assigned projects
+            assigned_projects = session.scalar(
+                select(func.count())
+                .select_from(ProjectUserRole)
+                .join(Project, ProjectUserRole.project_id == Project.id)
+                .where(
+                    ProjectUserRole.user_id == user.id,
+                    ProjectUserRole.role == "reviewer",
+                    ProjectUserRole.is_archived == False,
+                    Project.is_archived == False
+                )
+            )
+            
+            # Count projects started (has ground truth or answer review)
+            gt_projects = set(session.scalars(
+                select(func.distinct(ReviewerGroundTruth.project_id))
+                .where(ReviewerGroundTruth.reviewer_id == user.id)
+            ).all() or [])
+            
+            review_projects = set(session.scalars(
+                select(func.distinct(AnnotatorAnswer.project_id))
+                .join(AnswerReview, AnnotatorAnswer.id == AnswerReview.answer_id)
+                .where(AnswerReview.reviewer_id == user.id)
+            ).all() or [])
+            
+            projects_started = len(gt_projects.union(review_projects))
+            
+            # Get last review time (latest of ground truth created_at or answer review reviewed_at)
+            last_gt = session.scalar(
+                select(func.max(ReviewerGroundTruth.created_at))
+                .where(ReviewerGroundTruth.reviewer_id == user.id)
+            )
+            
+            last_review = session.scalar(
+                select(func.max(AnswerReview.reviewed_at))
+                .where(AnswerReview.reviewer_id == user.id)
+            )
+            
+            last_review_time = None
+            if last_gt and last_review:
+                last_review_time = max(last_gt, last_review)
+            elif last_gt:
+                last_review_time = last_gt
+            elif last_review:
+                last_review_time = last_review
+            
+            reviewers.append({
+                "user_name": user.user_id_str,
+                "email": user.email or "",
+                "role": user.user_type,
+                "user_id": user.id,
+                "assigned_projects": assigned_projects or 0,
+                "projects_started": projects_started,
+                "last_review_time": last_review_time
+            })
+        
+        return reviewers
+    
+    @staticmethod
+    def get_master_sheet_meta_reviewer_data(session: Session) -> List[Dict[str, Any]]:
+        """Get master sheet data for meta-reviewers (admins) tab."""
+        meta_reviewers = []
+        
+        # Get all users who have admin role assignments
+        admin_users = session.scalars(
+            select(User)
+            .join(ProjectUserRole, User.id == ProjectUserRole.user_id)
+            .join(Project, ProjectUserRole.project_id == Project.id)
+            .where(
+                ProjectUserRole.role == "admin",
+                ProjectUserRole.is_archived == False,
+                Project.is_archived == False,
+                User.is_archived == False
+            )
+            .distinct()
+        ).all()
+        
+        # Get totals for ratio calculations
+        total_gt_records = session.scalar(select(func.count()).select_from(ReviewerGroundTruth))
+        total_admin_modified = session.scalar(
+            select(func.count())
+            .select_from(ReviewerGroundTruth)
+            .where(ReviewerGroundTruth.modified_by_admin_id.isnot(None))
+        )
+        
+        for user in admin_users:
+            # Count assigned projects
+            assigned_projects = session.scalar(
+                select(func.count())
+                .select_from(ProjectUserRole)
+                .join(Project, ProjectUserRole.project_id == Project.id)
+                .where(
+                    ProjectUserRole.user_id == user.id,
+                    ProjectUserRole.role == "admin",
+                    ProjectUserRole.is_archived == False,
+                    Project.is_archived == False
+                )
+            )
+            
+            # Count projects started (has modified ground truth)
+            projects_started = session.scalar(
+                select(func.count(func.distinct(ReviewerGroundTruth.project_id)))
+                .where(ReviewerGroundTruth.modified_by_admin_id == user.id)
+            )
+            
+            # Get modification counts and ratios
+            user_modifications = session.scalar(
+                select(func.count())
+                .select_from(ReviewerGroundTruth)
+                .where(ReviewerGroundTruth.modified_by_admin_id == user.id)
+            )
+            
+            ratio_modified_by_user = (user_modifications / total_gt_records * 100) if total_gt_records > 0 else 0
+            ratio_modified_by_all = (total_admin_modified / total_gt_records * 100) if total_gt_records > 0 else 0
+            
+            # Get last modification time
+            last_modified_time = session.scalar(
+                select(func.max(ReviewerGroundTruth.modified_by_admin_at))
+                .where(ReviewerGroundTruth.modified_by_admin_id == user.id)
+            )
+            
+            meta_reviewers.append({
+                "user_name": user.user_id_str,
+                "email": user.email or "",
+                "role": user.user_type,
+                "user_id": user.id,
+                "assigned_projects": assigned_projects or 0,
+                "projects_started": projects_started or 0,
+                "ratio_modified_by_user": ratio_modified_by_user,
+                "ratio_modified_by_all": ratio_modified_by_all,
+                "last_modified_time": last_modified_time
+            })
+        
+        return meta_reviewers
+    
+    @staticmethod
+    def get_user_project_data_annotator(user_id: int, session: Session) -> List[Dict[str, Any]]:
+        """Get individual annotator sheet data by project."""
+        projects_data = []
+        
+        # Get all projects where user has annotator role
+        project_assignments = session.scalars(
+            select(ProjectUserRole)
+            .join(Project, ProjectUserRole.project_id == Project.id)
+            .where(
+                ProjectUserRole.user_id == user_id,
+                ProjectUserRole.role == "annotator",
+                ProjectUserRole.is_archived == False,
+                Project.is_archived == False
+            )
+        ).all()
+        
+        for assignment in project_assignments:
+            project = session.get(Project, assignment.project_id)
+            schema = session.get(Schema, project.schema_id) if project.schema_id else None
+            
+            # Count total possible answers (questions × videos)
+            total_questions = session.scalar(
+                select(func.count())
+                .select_from(Question)
+                .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
+                .join(SchemaQuestionGroup, QuestionGroupQuestion.question_group_id == SchemaQuestionGroup.question_group_id)
+                .where(
+                    SchemaQuestionGroup.schema_id == project.schema_id,
+                    Question.is_archived == False
+                )
+            )
+            
+            total_videos = session.scalar(
+                select(func.count())
+                .select_from(ProjectVideo)
+                .where(ProjectVideo.project_id == project.id)
+            )
+            
+            total_possible = total_questions * total_videos
+            
+            # Count user's completed answers
+            user_answers = session.scalar(
+                select(func.count())
+                .where(
+                    AnnotatorAnswer.user_id == user_id,
+                    AnnotatorAnswer.project_id == project.id
+                )
+            )
+            
+            # Count reviewed answers (has AnswerReview)
+            reviewed_answers = session.scalar(
+                select(func.count())
+                .select_from(AnnotatorAnswer)
+                .join(AnswerReview, AnnotatorAnswer.id == AnswerReview.answer_id)
+                .where(
+                    AnnotatorAnswer.user_id == user_id,
+                    AnnotatorAnswer.project_id == project.id
+                )
+            )
+            
+            # Count approved answers
+            approved_answers = session.scalar(
+                select(func.count())
+                .select_from(AnnotatorAnswer)
+                .join(AnswerReview, AnnotatorAnswer.id == AnswerReview.answer_id)
+                .where(
+                    AnnotatorAnswer.user_id == user_id,
+                    AnnotatorAnswer.project_id == project.id,
+                    AnswerReview.status == "approved"
+                )
+            )
+            
+            # Count wrong answers (rejected)
+            wrong_answers = session.scalar(
+                select(func.count())
+                .select_from(AnnotatorAnswer)
+                .join(AnswerReview, AnnotatorAnswer.id == AnswerReview.answer_id)
+                .where(
+                    AnnotatorAnswer.user_id == user_id,
+                    AnnotatorAnswer.project_id == project.id,
+                    AnswerReview.status == "rejected"
+                )
+            )
+            
+            # Calculate ratios
+            completion_ratio = (user_answers / total_possible * 100) if total_possible > 0 else 0
+            reviewed_ratio = (reviewed_answers / user_answers * 100) if user_answers > 0 else 0
+            accuracy = (approved_answers / reviewed_answers * 100) if reviewed_answers > 0 else 0
+            
+            # Get last submission time
+            last_submitted = session.scalar(
+                select(func.max(AnnotatorAnswer.modified_at))
+                .where(
+                    AnnotatorAnswer.user_id == user_id,
+                    AnnotatorAnswer.project_id == project.id
+                )
+            )
+            
+            projects_data.append({
+                "project_name": project.name,
+                "schema_name": schema.name if schema else "Unknown",
+                "completion_ratio": completion_ratio,
+                "reviewed_ratio": reviewed_ratio,
+                "last_submitted": last_submitted,
+                "accuracy": accuracy,
+                "completion": completion_ratio,  # Same as completion_ratio for overall stats
+                "reviewed": reviewed_answers,
+                "completed": user_answers,
+                "wrong": wrong_answers
+            })
+        
+        return projects_data
+    
+    @staticmethod
+    def get_user_project_data_reviewer(user_id: int, session: Session) -> List[Dict[str, Any]]:
+        """Get individual reviewer sheet data by project."""
+        projects_data = []
+        
+        # Get all projects where user has reviewer role
+        project_assignments = session.scalars(
+            select(ProjectUserRole)
+            .join(Project, ProjectUserRole.project_id == Project.id)
+            .where(
+                ProjectUserRole.user_id == user_id,
+                ProjectUserRole.role == "reviewer",
+                ProjectUserRole.is_archived == False,
+                Project.is_archived == False
+            )
+        ).all()
+        
+        for assignment in project_assignments:
+            project = session.get(Project, assignment.project_id)
+            schema = session.get(Schema, project.schema_id) if project.schema_id else None
+            
+            # Count total possible ground truth (questions × videos)
+            total_questions = session.scalar(
+                select(func.count())
+                .select_from(Question)
+                .join(QuestionGroupQuestion, Question.id == QuestionGroupQuestion.question_id)
+                .join(SchemaQuestionGroup, QuestionGroupQuestion.question_group_id == SchemaQuestionGroup.question_group_id)
+                .where(
+                    SchemaQuestionGroup.schema_id == project.schema_id,
+                    Question.is_archived == False
+                )
+            )
+            
+            total_videos = session.scalar(
+                select(func.count())
+                .select_from(ProjectVideo)
+                .where(ProjectVideo.project_id == project.id)
+            )
+            
+            total_possible_gt = total_questions * total_videos
+            
+            # Count user's ground truth
+            user_gt = session.scalar(
+                select(func.count())
+                .where(
+                    ReviewerGroundTruth.reviewer_id == user_id,
+                    ReviewerGroundTruth.project_id == project.id
+                )
+            )
+            
+            # Count all ground truth in project
+            all_gt = session.scalar(
+                select(func.count())
+                .where(ReviewerGroundTruth.project_id == project.id)
+            )
+            
+            # Count possible reviews (completed description-type annotations)
+            total_possible_reviews = session.scalar(
+                select(func.count())
+                .select_from(AnnotatorAnswer)
+                .join(Question, AnnotatorAnswer.question_id == Question.id)
+                .where(
+                    AnnotatorAnswer.project_id == project.id,
+                    Question.qtype == "description"
+                )
+            )
+            
+            # Count user's reviews
+            user_reviews = session.scalar(
+                select(func.count())
+                .select_from(AnswerReview)
+                .join(AnnotatorAnswer, AnswerReview.answer_id == AnnotatorAnswer.id)
+                .where(
+                    AnswerReview.reviewer_id == user_id,
+                    AnnotatorAnswer.project_id == project.id
+                )
+            )
+            
+            # Count all reviews in project
+            all_reviews = session.scalar(
+                select(func.count())
+                .select_from(AnswerReview)
+                .join(AnnotatorAnswer, AnswerReview.answer_id == AnnotatorAnswer.id)
+                .where(AnnotatorAnswer.project_id == project.id)
+            )
+            
+            # Count GT wrong (modified by admin)
+            gt_wrong = session.scalar(
+                select(func.count())
+                .where(
+                    ReviewerGroundTruth.reviewer_id == user_id,
+                    ReviewerGroundTruth.project_id == project.id,
+                    ReviewerGroundTruth.modified_by_admin_id.isnot(None)
+                )
+            )
+            
+            # Calculate ratios
+            gt_ratio = (user_gt / total_possible_gt * 100) if total_possible_gt > 0 else 0
+            all_gt_ratio = (all_gt / total_possible_gt * 100) if total_possible_gt > 0 else 0
+            review_ratio = (user_reviews / total_possible_reviews * 100) if total_possible_reviews > 0 else 0
+            all_review_ratio = (all_reviews / total_possible_reviews * 100) if total_possible_reviews > 0 else 0
+            gt_accuracy = ((user_gt - gt_wrong) / user_gt * 100) if user_gt > 0 else 0
+            
+            # Get last activity time
+            last_gt = session.scalar(
+                select(func.max(ReviewerGroundTruth.created_at))
+                .where(
+                    ReviewerGroundTruth.reviewer_id == user_id,
+                    ReviewerGroundTruth.project_id == project.id
+                )
+            )
+            
+            last_review = session.scalar(
+                select(func.max(AnswerReview.reviewed_at))
+                .join(AnnotatorAnswer, AnswerReview.answer_id == AnnotatorAnswer.id)
+                .where(
+                    AnswerReview.reviewer_id == user_id,
+                    AnnotatorAnswer.project_id == project.id
+                )
+            )
+            
+            last_submitted = None
+            if last_gt and last_review:
+                last_submitted = max(last_gt, last_review)
+            elif last_gt:
+                last_submitted = last_gt
+            elif last_review:
+                last_submitted = last_review
+            
+            projects_data.append({
+                "project_name": project.name,
+                "schema_name": schema.name if schema else "Unknown",
+                "gt_ratio": gt_ratio,
+                "all_gt_ratio": all_gt_ratio,
+                "review_ratio": review_ratio,
+                "all_review_ratio": all_review_ratio,
+                "last_submitted": last_submitted,
+                "gt_completion": gt_ratio,  # Same as gt_ratio for overall stats
+                "gt_accuracy": gt_accuracy,
+                "review_completion": review_ratio,  # Same as review_ratio for overall stats
+                "gt_completed": user_gt,
+                "gt_wrong": gt_wrong,
+                "review_completed": user_reviews
+            })
+        
+        return projects_data
+    
+    @staticmethod
+    def get_user_project_data_meta_reviewer(user_id: int, session: Session) -> List[Dict[str, Any]]:
+        """Get individual meta-reviewer sheet data by project."""
+        projects_data = []
+        
+        # Get all projects where user has admin role
+        project_assignments = session.scalars(
+            select(ProjectUserRole)
+            .join(Project, ProjectUserRole.project_id == Project.id)
+            .where(
+                ProjectUserRole.user_id == user_id,
+                ProjectUserRole.role == "admin",
+                ProjectUserRole.is_archived == False,
+                Project.is_archived == False
+            )
+        ).all()
+        
+        for assignment in project_assignments:
+            project = session.get(Project, assignment.project_id)
+            schema = session.get(Schema, project.schema_id) if project.schema_id else None
+            
+            # Count total ground truth in project
+            total_gt = session.scalar(
+                select(func.count())
+                .where(ReviewerGroundTruth.project_id == project.id)
+            )
+            
+            # Count modifications by this admin
+            user_modifications = session.scalar(
+                select(func.count())
+                .where(
+                    ReviewerGroundTruth.modified_by_admin_id == user_id,
+                    ReviewerGroundTruth.project_id == project.id
+                )
+            )
+            
+            # Count all admin modifications in project
+            all_modifications = session.scalar(
+                select(func.count())
+                .where(
+                    ReviewerGroundTruth.project_id == project.id,
+                    ReviewerGroundTruth.modified_by_admin_id.isnot(None)
+                )
+            )
+            
+            # Calculate ratios
+            ratio_modified_by_user = (user_modifications / total_gt * 100) if total_gt > 0 else 0
+            ratio_modified_by_all = (all_modifications / total_gt * 100) if total_gt > 0 else 0
+            
+            # Get last modification time
+            last_modified = session.scalar(
+                select(func.max(ReviewerGroundTruth.modified_by_admin_at))
+                .where(
+                    ReviewerGroundTruth.modified_by_admin_id == user_id,
+                    ReviewerGroundTruth.project_id == project.id
+                )
+            )
+            
+            projects_data.append({
+                "project_name": project.name,
+                "schema_name": schema.name if schema else "Unknown",
+                "ratio_modified_by_user": ratio_modified_by_user,
+                "ratio_modified_by_all": ratio_modified_by_all,
+                "last_modified": last_modified
+            })
+        
+        return projects_data
+    
+    @staticmethod
+    def get_admin_users(session: Session) -> List[Dict[str, Any]]:
+        """Get all admin users for permission management."""
+        admin_users = session.scalars(
+            select(User)
+            .where(
+                User.user_type == "admin",
+                User.is_archived == False
+            )
+        ).all()
+        
+        return [{"id": user.id, "email": user.email, "user_id_str": user.user_id_str} for user in admin_users]
