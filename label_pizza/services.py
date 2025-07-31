@@ -9838,37 +9838,38 @@ class GoogleSheetsExportService:
             )
             
             # Count projects started (has ground truth or answer review)
-            gt_projects = set(session.scalars(
-                select(func.distinct(ReviewerGroundTruth.project_id))
+            gt_projects = session.scalar(
+                select(func.count(func.distinct(ReviewerGroundTruth.project_id)))
                 .where(ReviewerGroundTruth.reviewer_id == user.id)
-            ).all() or [])
+            )
             
-            review_projects = set(session.scalars(
-                select(func.distinct(AnnotatorAnswer.project_id))
-                .join(AnswerReview, AnnotatorAnswer.id == AnswerReview.answer_id)
+            review_projects = session.scalar(
+                select(func.count(func.distinct(AnnotatorAnswer.project_id)))
+                .select_from(AnswerReview)
+                .join(AnnotatorAnswer, AnswerReview.answer_id == AnnotatorAnswer.id)
                 .where(AnswerReview.reviewer_id == user.id)
-            ).all() or [])
+            )
             
-            projects_started = len(gt_projects.union(review_projects))
+            projects_started = max(gt_projects or 0, review_projects or 0)
             
-            # Get last review time (latest of ground truth created_at or answer review reviewed_at)
-            last_gt = session.scalar(
+            # Get last review time
+            last_gt_time = session.scalar(
                 select(func.max(ReviewerGroundTruth.created_at))
                 .where(ReviewerGroundTruth.reviewer_id == user.id)
             )
             
-            last_review = session.scalar(
+            last_review_time = session.scalar(
                 select(func.max(AnswerReview.reviewed_at))
                 .where(AnswerReview.reviewer_id == user.id)
             )
             
-            last_review_time = None
-            if last_gt and last_review:
-                last_review_time = max(last_gt, last_review)
-            elif last_gt:
-                last_review_time = last_gt
-            elif last_review:
-                last_review_time = last_review
+            last_activity = max(
+                last_gt_time or datetime.min.replace(tzinfo=timezone.utc),
+                last_review_time or datetime.min.replace(tzinfo=timezone.utc)
+            )
+            
+            if last_activity == datetime.min.replace(tzinfo=timezone.utc):
+                last_activity = None
             
             reviewers.append({
                 "user_name": user.user_id_str,
@@ -9877,18 +9878,31 @@ class GoogleSheetsExportService:
                 "user_id": user.id,
                 "assigned_projects": assigned_projects or 0,
                 "projects_started": projects_started,
-                "last_review_time": last_review_time
+                "last_review_time": last_activity
             })
         
         return reviewers
     
     @staticmethod
     def get_master_sheet_meta_reviewer_data(session: Session) -> List[Dict[str, Any]]:
-        """Get master sheet data for meta-reviewers (admins) tab."""
+        """Get master sheet data for meta-reviewers tab."""
         meta_reviewers = []
         
+        # Get total ground truth records for ratio calculations
+        total_gt_records = session.scalar(
+            select(func.count())
+            .select_from(ReviewerGroundTruth)
+        )
+        
+        # Get total admin-modified records
+        total_admin_modified = session.scalar(
+            select(func.count())
+            .select_from(ReviewerGroundTruth)
+            .where(ReviewerGroundTruth.modified_by_admin_id.isnot(None))
+        )
+        
         # Get all users who have admin role assignments
-        admin_users = session.scalars(
+        meta_reviewer_users = session.scalars(
             select(User)
             .join(ProjectUserRole, User.id == ProjectUserRole.user_id)
             .join(Project, ProjectUserRole.project_id == Project.id)
@@ -9901,15 +9915,7 @@ class GoogleSheetsExportService:
             .distinct()
         ).all()
         
-        # Get totals for ratio calculations
-        total_gt_records = session.scalar(select(func.count()).select_from(ReviewerGroundTruth))
-        total_admin_modified = session.scalar(
-            select(func.count())
-            .select_from(ReviewerGroundTruth)
-            .where(ReviewerGroundTruth.modified_by_admin_id.isnot(None))
-        )
-        
-        for user in admin_users:
+        for user in meta_reviewer_users:
             # Count assigned projects
             assigned_projects = session.scalar(
                 select(func.count())
@@ -9964,10 +9970,10 @@ class GoogleSheetsExportService:
         """Get individual annotator sheet data by project."""
         projects_data = []
         
-        # Get all projects where user has annotator role
-        project_assignments = session.scalars(
-            select(ProjectUserRole)
-            .join(Project, ProjectUserRole.project_id == Project.id)
+        # Get projects where user has annotator role
+        user_projects = session.scalars(
+            select(Project)
+            .join(ProjectUserRole, Project.id == ProjectUserRole.project_id)
             .where(
                 ProjectUserRole.user_id == user_id,
                 ProjectUserRole.role == "annotator",
@@ -9976,11 +9982,17 @@ class GoogleSheetsExportService:
             )
         ).all()
         
-        for assignment in project_assignments:
-            project = session.get(Project, assignment.project_id)
-            schema = session.get(Schema, project.schema_id) if project.schema_id else None
+        for project in user_projects:
+            # Get schema
+            schema = session.get(Schema, project.schema_id)
             
-            # Count total possible answers (questions × videos)
+            # Get total possible answers
+            total_videos = session.scalar(
+                select(func.count())
+                .select_from(ProjectVideo)
+                .where(ProjectVideo.project_id == project.id)
+            )
+            
             total_questions = session.scalar(
                 select(func.count())
                 .select_from(Question)
@@ -9992,13 +10004,7 @@ class GoogleSheetsExportService:
                 )
             )
             
-            total_videos = session.scalar(
-                select(func.count())
-                .select_from(ProjectVideo)
-                .where(ProjectVideo.project_id == project.id)
-            )
-            
-            total_possible = total_questions * total_videos
+            total_possible = (total_videos or 0) * (total_questions or 0)
             
             # Count user's completed answers
             user_answers = session.scalar(
@@ -10009,40 +10015,115 @@ class GoogleSheetsExportService:
                 )
             )
             
-            # Count reviewed answers (has AnswerReview)
-            reviewed_answers = session.scalar(
+            # FIXED: Count reviewed answers properly according to question type
+            # For single choice questions: count where ReviewerGroundTruth exists
+            single_choice_reviewed = session.scalar(
                 select(func.count())
                 .select_from(AnnotatorAnswer)
-                .join(AnswerReview, AnnotatorAnswer.id == AnswerReview.answer_id)
+                .join(Question, AnnotatorAnswer.question_id == Question.id)
+                .join(ReviewerGroundTruth, and_(
+                    AnnotatorAnswer.video_id == ReviewerGroundTruth.video_id,
+                    AnnotatorAnswer.question_id == ReviewerGroundTruth.question_id,
+                    AnnotatorAnswer.project_id == ReviewerGroundTruth.project_id
+                ))
                 .where(
                     AnnotatorAnswer.user_id == user_id,
-                    AnnotatorAnswer.project_id == project.id
+                    AnnotatorAnswer.project_id == project.id,
+                    Question.type == "single",
+                    Question.is_archived == False
                 )
             )
             
-            # Count approved answers
-            approved_answers = session.scalar(
+            # For description questions: count where AnswerReview exists and status is not pending
+            description_reviewed = session.scalar(
                 select(func.count())
                 .select_from(AnnotatorAnswer)
+                .join(Question, AnnotatorAnswer.question_id == Question.id)
                 .join(AnswerReview, AnnotatorAnswer.id == AnswerReview.answer_id)
                 .where(
                     AnnotatorAnswer.user_id == user_id,
                     AnnotatorAnswer.project_id == project.id,
+                    Question.type == "description",
+                    Question.is_archived == False,
+                    AnswerReview.status.in_(["approved", "rejected"])  # Not pending
+                )
+            )
+            
+            reviewed_answers = (single_choice_reviewed or 0) + (description_reviewed or 0)
+            
+            # Count approved answers for accuracy
+            # Single choice: compare with ground truth
+            single_choice_correct = session.scalar(
+                select(func.count())
+                .select_from(AnnotatorAnswer)
+                .join(Question, AnnotatorAnswer.question_id == Question.id)
+                .join(ReviewerGroundTruth, and_(
+                    AnnotatorAnswer.video_id == ReviewerGroundTruth.video_id,
+                    AnnotatorAnswer.question_id == ReviewerGroundTruth.question_id,
+                    AnnotatorAnswer.project_id == ReviewerGroundTruth.project_id,
+                    AnnotatorAnswer.answer_value == ReviewerGroundTruth.answer_value
+                ))
+                .where(
+                    AnnotatorAnswer.user_id == user_id,
+                    AnnotatorAnswer.project_id == project.id,
+                    Question.type == "single",
+                    Question.is_archived == False
+                )
+            )
+            
+            # Description: approved reviews
+            description_approved = session.scalar(
+                select(func.count())
+                .select_from(AnnotatorAnswer)
+                .join(Question, AnnotatorAnswer.question_id == Question.id)
+                .join(AnswerReview, AnnotatorAnswer.id == AnswerReview.answer_id)
+                .where(
+                    AnnotatorAnswer.user_id == user_id,
+                    AnnotatorAnswer.project_id == project.id,
+                    Question.type == "description",
+                    Question.is_archived == False,
                     AnswerReview.status == "approved"
                 )
             )
             
-            # Count wrong answers (rejected)
-            wrong_answers = session.scalar(
+            approved_answers = (single_choice_correct or 0) + (description_approved or 0)
+            
+            # Count wrong answers 
+            # Single choice: incorrect vs ground truth
+            single_choice_wrong = session.scalar(
                 select(func.count())
                 .select_from(AnnotatorAnswer)
+                .join(Question, AnnotatorAnswer.question_id == Question.id)
+                .join(ReviewerGroundTruth, and_(
+                    AnnotatorAnswer.video_id == ReviewerGroundTruth.video_id,
+                    AnnotatorAnswer.question_id == ReviewerGroundTruth.question_id,
+                    AnnotatorAnswer.project_id == ReviewerGroundTruth.project_id,
+                    AnnotatorAnswer.answer_value != ReviewerGroundTruth.answer_value
+                ))
+                .where(
+                    AnnotatorAnswer.user_id == user_id,
+                    AnnotatorAnswer.project_id == project.id,
+                    Question.type == "single",
+                    Question.is_archived == False
+                )
+            )
+            
+            # Description: rejected reviews
+            description_rejected = session.scalar(
+                select(func.count())
+                .select_from(AnnotatorAnswer)
+                .join(Question, AnnotatorAnswer.question_id == Question.id)
                 .join(AnswerReview, AnnotatorAnswer.id == AnswerReview.answer_id)
                 .where(
                     AnnotatorAnswer.user_id == user_id,
                     AnnotatorAnswer.project_id == project.id,
+                    Question.type == "description",
+                    Question.is_archived == False,
                     AnswerReview.status == "rejected"
                 )
             )
+            
+            wrong_answers = (single_choice_wrong or 0) + (description_rejected or 0)
             
             # Calculate ratios
             completion_ratio = (user_answers / total_possible * 100) if total_possible > 0 else 0
@@ -10058,9 +10139,19 @@ class GoogleSheetsExportService:
                 )
             )
             
+            # Count videos this user has worked on in this project
+            user_video_count = session.scalar(
+                select(func.count(func.distinct(AnnotatorAnswer.video_id)))
+                .where(
+                    AnnotatorAnswer.user_id == user_id,
+                    AnnotatorAnswer.project_id == project.id
+                )
+            )
+            
             projects_data.append({
                 "project_name": project.name,
                 "schema_name": schema.name if schema else "Unknown",
+                "video_count": user_video_count or 0,  # NEW: Video count for this user
                 "completion_ratio": completion_ratio,
                 "reviewed_ratio": reviewed_ratio,
                 "last_submitted": last_submitted,
@@ -10078,10 +10169,10 @@ class GoogleSheetsExportService:
         """Get individual reviewer sheet data by project."""
         projects_data = []
         
-        # Get all projects where user has reviewer role
-        project_assignments = session.scalars(
-            select(ProjectUserRole)
-            .join(Project, ProjectUserRole.project_id == Project.id)
+        # Get projects where user has reviewer role
+        user_projects = session.scalars(
+            select(Project)
+            .join(ProjectUserRole, Project.id == ProjectUserRole.project_id)
             .where(
                 ProjectUserRole.user_id == user_id,
                 ProjectUserRole.role == "reviewer",
@@ -10090,11 +10181,17 @@ class GoogleSheetsExportService:
             )
         ).all()
         
-        for assignment in project_assignments:
-            project = session.get(Project, assignment.project_id)
-            schema = session.get(Schema, project.schema_id) if project.schema_id else None
+        for project in user_projects:
+            # Get schema
+            schema = session.get(Schema, project.schema_id)
             
-            # Count total possible ground truth (questions × videos)
+            # Get total possible ground truth entries
+            total_videos = session.scalar(
+                select(func.count())
+                .select_from(ProjectVideo)
+                .where(ProjectVideo.project_id == project.id)
+            )
+            
             total_questions = session.scalar(
                 select(func.count())
                 .select_from(Question)
@@ -10106,16 +10203,10 @@ class GoogleSheetsExportService:
                 )
             )
             
-            total_videos = session.scalar(
-                select(func.count())
-                .select_from(ProjectVideo)
-                .where(ProjectVideo.project_id == project.id)
-            )
+            total_possible_gt = (total_videos or 0) * (total_questions or 0)
             
-            total_possible_gt = total_questions * total_videos
-            
-            # Count user's ground truth
-            user_gt = session.scalar(
+            # Count user's ground truth entries
+            user_gt_count = session.scalar(
                 select(func.count())
                 .where(
                     ReviewerGroundTruth.reviewer_id == user_id,
@@ -10123,25 +10214,14 @@ class GoogleSheetsExportService:
                 )
             )
             
-            # Count all ground truth in project
-            all_gt = session.scalar(
+            # Count all ground truth entries in project
+            all_gt_count = session.scalar(
                 select(func.count())
                 .where(ReviewerGroundTruth.project_id == project.id)
             )
             
-            # Count possible reviews (completed description-type annotations)
-            total_possible_reviews = session.scalar(
-                select(func.count())
-                .select_from(AnnotatorAnswer)
-                .join(Question, AnnotatorAnswer.question_id == Question.id)
-                .where(
-                    AnnotatorAnswer.project_id == project.id,
-                    Question.qtype == "description"
-                )
-            )
-            
-            # Count user's reviews
-            user_reviews = session.scalar(
+            # Count user's answer reviews
+            user_review_count = session.scalar(
                 select(func.count())
                 .select_from(AnswerReview)
                 .join(AnnotatorAnswer, AnswerReview.answer_id == AnnotatorAnswer.id)
@@ -10151,16 +10231,42 @@ class GoogleSheetsExportService:
                 )
             )
             
-            # Count all reviews in project
-            all_reviews = session.scalar(
+            # Count all reviews in project for description questions
+            total_description_answers = session.scalar(
+                select(func.count())
+                .select_from(AnnotatorAnswer)
+                .join(Question, AnnotatorAnswer.question_id == Question.id)
+                .where(
+                    AnnotatorAnswer.project_id == project.id,
+                    Question.type == "description",
+                    Question.is_archived == False
+                )
+            )
+            
+            all_review_count = session.scalar(
                 select(func.count())
                 .select_from(AnswerReview)
                 .join(AnnotatorAnswer, AnswerReview.answer_id == AnnotatorAnswer.id)
                 .where(AnnotatorAnswer.project_id == project.id)
             )
             
-            # Count GT wrong (modified by admin)
-            gt_wrong = session.scalar(
+            # Calculate ratios
+            gt_ratio = (user_gt_count / total_possible_gt * 100) if total_possible_gt > 0 else 0
+            all_gt_ratio = (all_gt_count / total_possible_gt * 100) if total_possible_gt > 0 else 0
+            review_ratio = (user_review_count / total_description_answers * 100) if total_description_answers > 0 else 0
+            all_review_ratio = (all_review_count / total_description_answers * 100) if total_description_answers > 0 else 0
+            
+            # Count ground truth accuracy (not overridden by admin)
+            gt_accuracy_count = session.scalar(
+                select(func.count())
+                .where(
+                    ReviewerGroundTruth.reviewer_id == user_id,
+                    ReviewerGroundTruth.project_id == project.id,
+                    ReviewerGroundTruth.modified_by_admin_id.is_(None)
+                )
+            )
+            
+            gt_wrong_count = session.scalar(
                 select(func.count())
                 .where(
                     ReviewerGroundTruth.reviewer_id == user_id,
@@ -10169,15 +10275,12 @@ class GoogleSheetsExportService:
                 )
             )
             
-            # Calculate ratios
-            gt_ratio = (user_gt / total_possible_gt * 100) if total_possible_gt > 0 else 0
-            all_gt_ratio = (all_gt / total_possible_gt * 100) if total_possible_gt > 0 else 0
-            review_ratio = (user_reviews / total_possible_reviews * 100) if total_possible_reviews > 0 else 0
-            all_review_ratio = (all_reviews / total_possible_reviews * 100) if total_possible_reviews > 0 else 0
-            gt_accuracy = ((user_gt - gt_wrong) / user_gt * 100) if user_gt > 0 else 0
+            gt_completion = gt_ratio  # Same as gt_ratio
+            gt_accuracy = (gt_accuracy_count / user_gt_count * 100) if user_gt_count > 0 else 0
+            review_completion = review_ratio  # Same as review_ratio
             
-            # Get last activity time
-            last_gt = session.scalar(
+            # Get last submission time
+            last_gt_time = session.scalar(
                 select(func.max(ReviewerGroundTruth.created_at))
                 .where(
                     ReviewerGroundTruth.reviewer_id == user_id,
@@ -10185,8 +10288,9 @@ class GoogleSheetsExportService:
                 )
             )
             
-            last_review = session.scalar(
+            last_review_time = session.scalar(
                 select(func.max(AnswerReview.reviewed_at))
+                .select_from(AnswerReview)
                 .join(AnnotatorAnswer, AnswerReview.answer_id == AnnotatorAnswer.id)
                 .where(
                     AnswerReview.reviewer_id == user_id,
@@ -10194,28 +10298,51 @@ class GoogleSheetsExportService:
                 )
             )
             
-            last_submitted = None
-            if last_gt and last_review:
-                last_submitted = max(last_gt, last_review)
-            elif last_gt:
-                last_submitted = last_gt
-            elif last_review:
-                last_submitted = last_review
+            last_submitted = max(
+                last_gt_time or datetime.min.replace(tzinfo=timezone.utc),
+                last_review_time or datetime.min.replace(tzinfo=timezone.utc)
+            )
+            
+            if last_submitted == datetime.min.replace(tzinfo=timezone.utc):
+                last_submitted = None
+            
+            # Count videos this user has worked on in this project (GT or Reviews)
+            gt_video_count = session.scalar(
+                select(func.count(func.distinct(ReviewerGroundTruth.video_id)))
+                .where(
+                    ReviewerGroundTruth.reviewer_id == user_id,
+                    ReviewerGroundTruth.project_id == project.id
+                )
+            )
+            
+            review_video_count = session.scalar(
+                select(func.count(func.distinct(AnnotatorAnswer.video_id)))
+                .select_from(AnswerReview)
+                .join(AnnotatorAnswer, AnswerReview.answer_id == AnnotatorAnswer.id)
+                .where(
+                    AnswerReview.reviewer_id == user_id,
+                    AnnotatorAnswer.project_id == project.id
+                )
+            )
+            
+            # Take the maximum of GT and review video counts
+            user_video_count = max(gt_video_count or 0, review_video_count or 0)
             
             projects_data.append({
                 "project_name": project.name,
                 "schema_name": schema.name if schema else "Unknown",
+                "video_count": user_video_count,  # NEW: Video count for this user
                 "gt_ratio": gt_ratio,
                 "all_gt_ratio": all_gt_ratio,
                 "review_ratio": review_ratio,
                 "all_review_ratio": all_review_ratio,
                 "last_submitted": last_submitted,
-                "gt_completion": gt_ratio,  # Same as gt_ratio for overall stats
+                "gt_completion": gt_completion,
                 "gt_accuracy": gt_accuracy,
-                "review_completion": review_ratio,  # Same as review_ratio for overall stats
-                "gt_completed": user_gt,
-                "gt_wrong": gt_wrong,
-                "review_completed": user_reviews
+                "review_completion": review_completion,
+                "gt_completed": user_gt_count,
+                "gt_wrong": gt_wrong_count,
+                "review_completed": user_review_count
             })
         
         return projects_data
@@ -10225,10 +10352,10 @@ class GoogleSheetsExportService:
         """Get individual meta-reviewer sheet data by project."""
         projects_data = []
         
-        # Get all projects where user has admin role
-        project_assignments = session.scalars(
-            select(ProjectUserRole)
-            .join(Project, ProjectUserRole.project_id == Project.id)
+        # Get projects where user has admin role
+        user_projects = session.scalars(
+            select(Project)
+            .join(ProjectUserRole, Project.id == ProjectUserRole.project_id)
             .where(
                 ProjectUserRole.user_id == user_id,
                 ProjectUserRole.role == "admin",
@@ -10237,17 +10364,17 @@ class GoogleSheetsExportService:
             )
         ).all()
         
-        for assignment in project_assignments:
-            project = session.get(Project, assignment.project_id)
-            schema = session.get(Schema, project.schema_id) if project.schema_id else None
+        for project in user_projects:
+            # Get schema
+            schema = session.get(Schema, project.schema_id)
             
             # Count total ground truth in project
-            total_gt = session.scalar(
+            total_gt_in_project = session.scalar(
                 select(func.count())
                 .where(ReviewerGroundTruth.project_id == project.id)
             )
             
-            # Count modifications by this admin
+            # Count user's modifications in this project
             user_modifications = session.scalar(
                 select(func.count())
                 .where(
@@ -10256,8 +10383,8 @@ class GoogleSheetsExportService:
                 )
             )
             
-            # Count all admin modifications in project
-            all_modifications = session.scalar(
+            # Count all admin modifications in this project
+            all_admin_modifications = session.scalar(
                 select(func.count())
                 .where(
                     ReviewerGroundTruth.project_id == project.id,
@@ -10266,8 +10393,8 @@ class GoogleSheetsExportService:
             )
             
             # Calculate ratios
-            ratio_modified_by_user = (user_modifications / total_gt * 100) if total_gt > 0 else 0
-            ratio_modified_by_all = (all_modifications / total_gt * 100) if total_gt > 0 else 0
+            ratio_modified_by_user = (user_modifications / total_gt_in_project * 100) if total_gt_in_project > 0 else 0
+            ratio_modified_by_all = (all_admin_modifications / total_gt_in_project * 100) if total_gt_in_project > 0 else 0
             
             # Get last modification time
             last_modified = session.scalar(
@@ -10278,25 +10405,22 @@ class GoogleSheetsExportService:
                 )
             )
             
+            # Count videos this admin has modified in this project
+            user_video_count = session.scalar(
+                select(func.count(func.distinct(ReviewerGroundTruth.video_id)))
+                .where(
+                    ReviewerGroundTruth.modified_by_admin_id == user_id,
+                    ReviewerGroundTruth.project_id == project.id
+                )
+            )
+            
             projects_data.append({
                 "project_name": project.name,
                 "schema_name": schema.name if schema else "Unknown",
+                "video_count": user_video_count or 0,  # NEW: Video count for this admin
                 "ratio_modified_by_user": ratio_modified_by_user,
                 "ratio_modified_by_all": ratio_modified_by_all,
                 "last_modified": last_modified
             })
         
         return projects_data
-    
-    @staticmethod
-    def get_admin_users(session: Session) -> List[Dict[str, Any]]:
-        """Get all admin users for permission management."""
-        admin_users = session.scalars(
-            select(User)
-            .where(
-                User.user_type == "admin",
-                User.is_archived == False
-            )
-        ).all()
-        
-        return [{"id": user.id, "email": user.email, "user_id_str": user.user_id_str} for user in admin_users]

@@ -104,16 +104,15 @@ The sheets use a **2-row header system** with merged cells for better organizati
 #### Common Columns (Both Tabs)
 
 ```
-Row 1: | Project Name | Schema Name | Completion Ratio | Reviewed Ratio | Last Submitted | Payment/Feedback | Overall Stats |
-Row 2: |              |             |                  |                | Timestamp      | Column           | Acc | Comp | ... |
+Row 1: | Project Name | Schema Name | Video Count | Last Submitted | Payment/Feedback | Overall Stats |
+Row 2: |              |             |             |                |                  | Accuracy % | Completion % | Reviewed % | Completed | Reviewed | Wrong |
 ```
 
 | Column Group | Description | Formula |
 |--------------|-------------|---------|
 | **Project Name** | Name of the project | Project.name from AnnotatorAnswer.project_id |
 | **Schema Name** | Name of the schema used | Schema.name from Project.schema_id |
-| **Completion Ratio** | % of project completed by this user | User's AnnotatorAnswers / (Question count × Video count) |
-| **Reviewed Ratio** | % of user's work that has been reviewed | Reviewed answers / User's completed answers |
+| **Video Count** | Total number of videos in this project | Count from ProjectVideo table |
 | **Last Submitted Timestamp** | Most recent annotation by this user | Latest AnnotatorAnswer.modified_at in this project |
 | **Payment Tab Only** | Payment Timestamp | When payment was made | **Manual Entry** |
 | | Base Salary | Base payment amount | **Manual Entry** |
@@ -124,9 +123,9 @@ Row 2: |              |             |                  |                | Timest
 
 | Column | Description | Formula |
 |--------|-------------|---------|
-| **Accuracy** | % of reviewed work that was approved | (Approved reviews + Correct single-choice) / Total reviewed |
-| **Completion** | % of project completed by user | User's answers / Total possible answers |
-| **Reviewed** | Number of questions reviewed or auto-graded | Count of non-"pending" AnswerReview + Single-choice with ground truth |
+| **Accuracy %** | % of reviewed work that was approved | (Approved reviews + Correct single-choice) / Total reviewed |
+| **Completion %** | % of project completed by user | User's answers / Total possible answers |
+| **Reviewed %** | Number of questions reviewed or auto-graded | Count of non-"pending" AnswerReview + Single-choice with ground truth |
 | **Completed** | Number of questions completed | Count of AnnotatorAnswer by user in project |
 | **Reviewed** | Number of questions that received review | Count of AnswerReview + Single-choice comparisons |
 | **Wrong** | Number of incorrect answers | Count of rejected reviews + Incorrect single-choice answers |
@@ -136,27 +135,28 @@ Row 2: |              |             |                  |                | Timest
 #### Common Columns (Both Tabs)
 
 ```
-Row 1: | Project Name | Schema Name | GT Ratio | All GT Ratio | Review Ratio | All Review Ratio | Last Submitted | Payment/Feedback | Overall Stats |
-Row 2: |              |             |          |              |              |                  | Timestamp      | Column           | GT Acc | GT Comp | ... |
+Row 1: | Project Name | Schema Name | Video Count | GT % | All GT % | Review % | All Review % | Last Submitted | Payment/Feedback | Overall Stats |
+Row 2: |              |             |             |      |          |          |              |                |                  | GT Completion % | GT Accuracy % | Review Completion % | GT Completed | GT Wrong | Review Completed |
 ```
 
 | Column Group | Description | Formula |
 |--------------|-------------|---------|
 | **Project Name** | Name of the project | Project.name from ReviewerGroundTruth.project_id |
 | **Schema Name** | Name of the schema used | Schema.name from Project.schema_id |
-| **GT Ratio** | % of ground truth set by this reviewer | User's ReviewerGroundTruth / Total possible ground truth |
-| **All GT Ratio** | % of all ground truth completed | All ReviewerGroundTruth / Total possible ground truth |
-| **Review Ratio** | % of reviews done by this reviewer | User's AnswerReview / Total possible reviews |
-| **All Review Ratio** | % of all reviews completed | All AnswerReview / Total possible reviews |
+| **Video Count** | Total number of videos in this project | Count from ProjectVideo table |
+| **GT Ratio %** | % of ground truth set by this reviewer | User's ReviewerGroundTruth / Total possible ground truth |
+| **All GT Ratio %** | % of all ground truth completed | All ReviewerGroundTruth / Total possible ground truth |
+| **Review Ratio %** | % of reviews done by this reviewer | User's AnswerReview / Total possible reviews |
+| **All Review Ratio %** | % of all reviews completed | All AnswerReview / Total possible reviews |
 | **Last Submitted Timestamp** | Most recent activity by this user | Latest of (ReviewerGroundTruth.created_at, AnswerReview.reviewed_at) |
 
 #### Overall Statistics Columns
 
 | Column | Description | Formula |
 |--------|-------------|---------|
-| **GT Completion** | % of ground truth completed by user | User's ReviewerGroundTruth / Total possible ground truth |
-| **GT Accuracy** | % of user's ground truth that wasn't overridden | Original ground truth / User's total ground truth |
-| **Review Completion** | % of reviews completed by user | User's AnswerReview / Total possible reviews |
+| **GT Completion %** | % of ground truth completed by user | User's ReviewerGroundTruth / Total possible ground truth |
+| **GT Accuracy %** | % of user's ground truth that wasn't overridden | Original ground truth / User's total ground truth |
+| **Review Completion %** | % of reviews completed by user | User's AnswerReview / Total possible reviews |
 | **GT Completed** | Number of ground truth records created | Count of ReviewerGroundTruth by user |
 | **GT Wrong** | Number of ground truth records overridden by admin | Count where modified_by_admin_id IS NOT NULL |
 | **Review Completed** | Number of answer reviews completed | Count of AnswerReview by user |
@@ -166,24 +166,23 @@ Row 2: |              |             |          |              |              |  
 #### Common Columns (Both Tabs)
 
 ```
-Row 1: | Project Name | Schema Name | Ratio Modified by This Admin | Ratio Modified by All Admins | Last Modified | Payment/Feedback | Overall Stats |
-Row 2: |              |             |                              |                              | Timestamp     | Column           | Acc | Comp | ... |
+Row 1: | Project Name | Schema Name | Video Count | Modified Ratio By | Last Modified | Payment/Feedback |
+Row 2: |              |             |             | User % | All %     |               |                  |
 ```
 
 | Column Group | Description | Formula |
 |--------------|-------------|---------|
 | **Project Name** | Name of the project | Project.name from modified ReviewerGroundTruth |
 | **Schema Name** | Name of the schema used | Schema.name from Project.schema_id |
-| **Ratio Modified by This Admin** | % of ground truth modified by this admin | Admin's modifications / Total ground truth in project |
-| **Ratio Modified by All Admins** | % of ground truth modified by any admin | All admin modifications / Total ground truth in project |
+| **Video Count** | Total number of videos in this project | Count from ProjectVideo table |
 | **Last Modified Timestamp** | Most recent override by this admin | Latest ReviewerGroundTruth.modified_by_admin_at |
 
 #### Overall Statistics Columns
 
 | Column | Description | Formula |
 |--------|-------------|---------|
-| **Ratio Modified by This Admin** | % of ground truth modified by this admin in this project | Admin's modifications in project / Total ground truth in project |
-| **Ratio Modified by All Admins** | % of ground truth modified by any admin in this project | All admin modifications in project / Total ground truth in project |
+| **User %** | % of ground truth modified by this admin in this project | Admin's modifications in project / Total ground truth in project |
+| **All %** | % of ground truth modified by any admin in this project | All admin modifications in project / Total ground truth in project |
 
 ---
 
@@ -200,7 +199,9 @@ Row 2: |              |             |                              |            
 
 2. **Reviewed Ratio**: Shows what percentage of annotator's work has been quality-checked
    ```
-   (Answers with AnswerReview OR single-choice with ground truth) / (User's completed answers)
+   For single choice questions: (Answers where ReviewerGroundTruth exists) / (User's completed answers)
+   For description questions: (Answers with AnswerReview status approved/rejected) / (User's completed answers)
+   Combined: (Single choice with GT + Description approved/rejected) / (User's completed answers)
    ```
 
 3. **Accuracy**: Quality metric across all question types
@@ -240,7 +241,7 @@ Row 2: |              |             |                              |            
 ### Status Definitions
 
 - **Completed**: Has AnnotatorAnswer record
-- **Reviewed**: Has AnswerReview record OR single-choice question with ground truth comparison
+- **Reviewed**: For single choice: has ReviewerGroundTruth record for that question. For description: has AnswerReview record with status approved or rejected (not pending)
 - **Ground Truth Set**: Has ReviewerGroundTruth record
 - **Admin Modified**: ReviewerGroundTruth has modified_by_admin_id populated
 - **Approved**: AnswerReview.status = "approved"
