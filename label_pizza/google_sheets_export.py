@@ -512,7 +512,7 @@ class GoogleSheetExporter:
             else:
                 positions = [4]  # Feedback
         elif role == "Reviewer":
-            # Columns: Project Name, Schema Name, Video Count, GT %, All GT %, Review %, All Review %, Last Submitted, [Payment/Feedback], [Overall Stats...]
+            # Columns: Project Name, Schema Name, Video Count, GT%, All GT%, Review%, All Rev%, Last Submitted, [Payment/Feedback], [Overall Stats...]
             if include_payment:
                 positions = [8, 9, 10]  # Payment Time, Base Salary, Bonus Salary
             else:
@@ -543,7 +543,7 @@ class GoogleSheetExporter:
             row2.extend(["Accuracy%", "Completion%", "Reviewed%", "Completed", "Reviewed", "Wrong"])  # FIXED: "Reviewed%" 
             
         elif role == "Reviewer":
-            row1 = ["Project Name", "Schema Name", "Video Count", "GT %", "All GT %", "Review %", "All Review %", "Last Submitted"]
+            row1 = ["Project Name", "Schema Name", "Video Count", "GT%", "All GT%", "Review%", "All Rev%", "Last Submitted"]
             if include_payment:
                 row1.extend(["Payment Time", "Base Salary", "Bonus Salary"])
             else:
@@ -553,7 +553,7 @@ class GoogleSheetExporter:
             
             # Row 2 has sub-headers only for Overall Stats
             row2 = [""] * (len(row1) - 6)  # Empty for first columns
-            row2.extend(["GT Completion%", "GT Accuracy%", "Review Completion%", "GT Completed", "GT Wrong", "Review Completed"])
+            row2.extend(["GT%", "GT Acc%", "Review%", "GT Done", "GT Wrong", "Rev Done"])
             
         else:  # Meta-Reviewer
             row1 = ["Project Name", "Schema Name", "Video Count", "Modified Ratio By", "", "Last Modified"]
@@ -871,10 +871,10 @@ class GoogleSheetExporter:
                 current_col += 1
             elif role == "Reviewer":
                 column_widths.extend([
-                    {"startIndex": current_col, "endIndex": current_col + 1, "pixelSize": 60},    # D: GT %
-                    {"startIndex": current_col + 1, "endIndex": current_col + 2, "pixelSize": 60}, # E: All GT %
-                    {"startIndex": current_col + 2, "endIndex": current_col + 3, "pixelSize": 60}, # F: Review %
-                    {"startIndex": current_col + 3, "endIndex": current_col + 4, "pixelSize": 60}, # G: All Review %
+                    {"startIndex": current_col, "endIndex": current_col + 1, "pixelSize": 60},    # D: GT%
+                    {"startIndex": current_col + 1, "endIndex": current_col + 2, "pixelSize": 60}, # E: All GT%
+                    {"startIndex": current_col + 2, "endIndex": current_col + 3, "pixelSize": 60}, # F: Review%
+                    {"startIndex": current_col + 3, "endIndex": current_col + 4, "pixelSize": 60}, # G: All Rev%
                     {"startIndex": current_col + 4, "endIndex": current_col + 5, "pixelSize": 132}, # H: Last Submitted
                 ])
                 current_col += 5
