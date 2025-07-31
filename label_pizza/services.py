@@ -10307,31 +10307,31 @@ class GoogleSheetsExportService:
                 last_submitted = None
             
             # Count videos this user has worked on in this project (GT or Reviews)
-            gt_video_count = session.scalar(
-                select(func.count(func.distinct(ReviewerGroundTruth.video_id)))
-                .where(
-                    ReviewerGroundTruth.reviewer_id == user_id,
-                    ReviewerGroundTruth.project_id == project.id
-                )
-            )
+            # gt_video_count = session.scalar(
+            #     select(func.count(func.distinct(ReviewerGroundTruth.video_id)))
+            #     .where(
+            #         ReviewerGroundTruth.reviewer_id == user_id,
+            #         ReviewerGroundTruth.project_id == project.id
+            #     )
+            # )
             
-            review_video_count = session.scalar(
-                select(func.count(func.distinct(AnnotatorAnswer.video_id)))
-                .select_from(AnswerReview)
-                .join(AnnotatorAnswer, AnswerReview.answer_id == AnnotatorAnswer.id)
-                .where(
-                    AnswerReview.reviewer_id == user_id,
-                    AnnotatorAnswer.project_id == project.id
-                )
-            )
+            # review_video_count = session.scalar(
+            #     select(func.count(func.distinct(AnnotatorAnswer.video_id)))
+            #     .select_from(AnswerReview)
+            #     .join(AnnotatorAnswer, AnswerReview.answer_id == AnnotatorAnswer.id)
+            #     .where(
+            #         AnswerReview.reviewer_id == user_id,
+            #         AnnotatorAnswer.project_id == project.id
+            #     )
+            # )
             
-            # Take the maximum of GT and review video counts
-            user_video_count = max(gt_video_count or 0, review_video_count or 0)
+            # # Take the maximum of GT and review video counts
+            # user_video_count = max(gt_video_count or 0, review_video_count or 0)
             
             projects_data.append({
                 "project_name": project.name,
                 "schema_name": schema.name if schema else "Unknown",
-                "video_count": user_video_count,  # NEW: Video count for this user
+                "video_count": total_videos or 0,  # Use total project videos like other roles
                 "gt_ratio": gt_ratio,
                 "all_gt_ratio": all_gt_ratio,
                 "review_ratio": review_ratio,
