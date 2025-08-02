@@ -1340,8 +1340,46 @@ class GoogleSheetExporter:
             except Exception as e:
                 print(f"      ⚠️ Could not update links for {tab_name}: {e}")
 
+    # def _manage_sheet_permissions(self, sheet_id: str, sheet_name: str):
+    #     """Manage sheet permissions based on database admin status"""
+    #     try:
+    #         print(f"      🔐 Managing permissions for {sheet_name}...")
+            
+    #         # Get admin users from database using service layer
+    #         with self.get_db_session() as session:
+    #             all_users_df = self.AuthService.get_all_users(session=session)
+    #             admin_users_df = all_users_df[
+    #                 (all_users_df["Role"] == "admin") & 
+    #                 (all_users_df["Archived"] == False) &
+    #                 (all_users_df["Email"].notna()) &
+    #                 (all_users_df["Email"] != "")
+    #             ]
+            
+    #         admin_emails = admin_users_df["Email"].tolist()
+            
+    #         # Set permissions: editors for admins, viewers for others
+    #         for email in admin_emails:
+    #             try:
+    #                 self._api_call_with_retry(
+    #                     self.drive_service.permissions().create,
+    #                     fileId=sheet_id,
+    #                     body={
+    #                         'type': 'user',
+    #                         'role': 'writer',
+    #                         'emailAddress': email
+    #                     },
+    #                     operation_name=f"granting editor access to {email}"
+    #                 ).execute()
+    #             except Exception as e:
+    #                 print(f"        ⚠️  Could not update permission for {email}: {e}")
+            
+    #         print(f"      ✅ Permissions managed for {sheet_name}")
+            
+    #     except Exception as e:
+    #         print(f"      ⚠️  Could not manage permissions for {sheet_name}: {e}")
+
     def _manage_sheet_permissions(self, sheet_id: str, sheet_name: str):
-        """Manage sheet permissions based on database admin status"""
+        """Manage sheet permissions - only update when necessary to avoid unnecessary emails"""
         try:
             print(f"      🔐 Managing permissions for {sheet_name}...")
             
@@ -1355,30 +1393,120 @@ class GoogleSheetExporter:
                     (all_users_df["Email"] != "")
                 ]
             
-            admin_emails = admin_users_df["Email"].tolist()
+            admin_emails = set(admin_users_df["Email"].tolist())
             
-            # Set permissions: editors for admins, viewers for others
+            # STEP 1: Get current permissions first
+            try:
+                current_permissions = self._api_call_with_retry(
+                    lambda: self.drive_service.permissions().list(
+                        fileId=sheet_id,
+                        fields="permissions(id,role,type,emailAddress,displayName)"
+                    ).execute(),
+                    operation_name=f"listing permissions for {sheet_name}"
+                )
+            except Exception as e:
+                print(f"        ⚠️ Could not list permissions: {e}")
+                return
+            
+            # STEP 2: Analyze current permissions
+            current_editors = set()
+            permissions_to_update = []
+            permissions_found = current_permissions.get('permissions', [])
+            
+            print(f"        📋 Found {len(permissions_found)} existing permissions")
+            
+            for permission in permissions_found:
+                email = permission.get('emailAddress')
+                role = permission.get('role')
+                perm_id = permission.get('id')
+                perm_type = permission.get('type')
+                
+                # Skip non-user permissions or those without email
+                if perm_type != 'user' or not email:
+                    continue
+                
+                # Check if this user should be an admin
+                if email in admin_emails:
+                    if role == 'owner':
+                        # Owner has higher permissions than writer - that's fine
+                        print(f"        👑 {email} is owner (has full access)")
+                        current_editors.add(email)
+                    elif role == 'writer':
+                        # Already has correct permission
+                        print(f"        ✅ {email} already has writer access")
+                        current_editors.add(email)
+                    else:
+                        # Needs to be updated to writer
+                        permissions_to_update.append((perm_id, 'writer', email))
+                        print(f"        📝 Will update {email} from {role} to writer")
+                # Note: We're not managing non-admin permissions in this version
+                # to keep it simple and focused on avoiding duplicate emails
+            
+            # STEP 3: Add missing admin permissions (only if they don't exist)
+            emails_to_add = []
             for email in admin_emails:
+                if email not in current_editors:
+                    emails_to_add.append(email)
+                    print(f"        ➕ Will add writer access for {email}")
+                else:
+                    print(f"        ⏭️ Skipping {email} - already has appropriate access")
+            
+            # STEP 4: Execute permission changes (only when necessary)
+            changes_made = 0
+            
+            # Add new permissions
+            for email in emails_to_add:
                 try:
                     self._api_call_with_retry(
-                        self.drive_service.permissions().create,
-                        fileId=sheet_id,
-                        body={
-                            'type': 'user',
-                            'role': 'writer',
-                            'emailAddress': email
-                        },
-                        operation_name=f"granting editor access to {email}"
-                    ).execute()
+                        lambda e=email: self.drive_service.permissions().create(
+                            fileId=sheet_id,
+                            body={
+                                'type': 'user',
+                                'role': 'writer',
+                                'emailAddress': e
+                            }
+                        ).execute(),
+                        operation_name=f"adding writer permission for {email}"
+                    )
+                    print(f"        ✅ Added writer access for {email}")
+                    changes_made += 1
                 except Exception as e:
-                    print(f"        ⚠️  Could not update permission for {email}: {e}")
+                    error_msg = str(e).lower()
+                    # Check if error is because permission already exists
+                    if any(phrase in error_msg for phrase in [
+                        'already exists', 'duplicate', 'already has access', 
+                        'already a collaborator', 'permission already granted'
+                    ]):
+                        print(f"        ⏭️ {email} already has access (confirmed by API)")
+                    else:
+                        print(f"        ⚠️ Could not add writer access for {email}: {e}")
+            
+            # Update existing permissions
+            for perm_id, new_role, email in permissions_to_update:
+                try:
+                    self._api_call_with_retry(
+                        lambda pid=perm_id, role=new_role: self.drive_service.permissions().update(
+                            fileId=sheet_id,
+                            permissionId=pid,
+                            body={'role': role}
+                        ).execute(),
+                        operation_name=f"updating permission for {email} to {new_role}"
+                    )
+                    print(f"        ✅ Updated {email} to writer access")
+                    changes_made += 1
+                except Exception as e:
+                    print(f"        ⚠️ Could not update permission for {email}: {e}")
+            
+            # STEP 5: Summary
+            if changes_made == 0:
+                print(f"        ✅ All permissions already correct - no emails sent")
+            else:
+                print(f"        ✅ Made {changes_made} permission changes - emails sent only for actual changes")
             
             print(f"      ✅ Permissions managed for {sheet_name}")
             
         except Exception as e:
-            print(f"      ⚠️  Could not manage permissions for {sheet_name}: {e}")
-
-
+            print(f"      ⚠️ Could not manage permissions for {sheet_name}: {e}")
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(description="Export annotation statistics to Google Sheets")
