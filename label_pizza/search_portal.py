@@ -1469,41 +1469,69 @@ def display_criteria_search_video_result(result: Dict, user_id: int, autoplay: b
     # Two columns layout - video and questions
     video_col, question_col = st.columns([1, 1])
     
+    # with video_col:
+    #     # Video player
+    #     loop = st.session_state.get("criteria_search_loop", True)
+    #     video_height = custom_video_player(video_url=video_info["url"], video_uid=video_info["uid"], autoplay=autoplay, loop=loop)
+        
+    #     # Match details if criteria exist
+    #     if criteria:
+    #         st.markdown("#### 📋 Criteria Match Details")
+    #         for i, (criterion, match) in enumerate(zip(criteria, matches)):
+    #             match_color = "#4caf50" if match else "#f44336"
+    #             match_icon = "✅" if match else "❌"
+                
+    #             st.markdown(f"""
+    #             <div style="background: {match_color}15; border-left: 4px solid {match_color}; padding: 8px; margin: 4px 0; border-radius: 4px;">
+    #                 <div style="color: {match_color}; font-weight: 600; font-size: 0.9rem;">
+    #                     {match_icon} {criterion['project_name']}
+    #                 </div>
+    #                 <div style="color: #424242; margin-top: 4px; font-size: 0.85rem;">
+    #                     <strong>Q:</strong> {criterion['question_text']}<br>
+    #                     <strong>Required:</strong> {criterion['required_answer']}
+    #                 </div>
+    #             </div>
+    #             """, unsafe_allow_html=True)
     with video_col:
         # Video player
         loop = st.session_state.get("criteria_search_loop", True)
         video_height = custom_video_player(video_url=video_info["url"], video_uid=video_info["uid"], autoplay=autoplay, loop=loop)
         
-        # Match details if criteria exist
+        # Match details if criteria exist - in an expander for better layout
         if criteria:
-            st.markdown("#### 📋 Criteria Match Details")
-            for i, (criterion, match) in enumerate(zip(criteria, matches)):
-                match_color = "#4caf50" if match else "#f44336"
-                match_icon = "✅" if match else "❌"
-                
-                st.markdown(f"""
-                <div style="background: {match_color}15; border-left: 4px solid {match_color}; padding: 8px; margin: 4px 0; border-radius: 4px;">
-                    <div style="color: {match_color}; font-weight: 600; font-size: 0.9rem;">
-                        {match_icon} {criterion['project_name']}
+            # Calculate summary for expander label
+            match_count = sum(matches) if matches else 0
+            total_criteria = len(criteria)
+            
+            with st.expander(f"📋 Criteria Match Details ({match_count}/{total_criteria} matched)", expanded=False):
+                for i, (criterion, match) in enumerate(zip(criteria, matches)):
+                    match_color = "#4caf50" if match else "#f44336"
+                    match_icon = "✅" if match else "❌"
+                    
+                    st.markdown(f"""
+                    <div style="background: {match_color}15; border-left: 4px solid {match_color}; padding: 8px; margin: 4px 0; border-radius: 4px;">
+                        <div style="color: {match_color}; font-weight: 600; font-size: 0.9rem;">
+                            {match_icon} {criterion['project_name']}
+                        </div>
+                        <div style="color: #424242; margin-top: 4px; font-size: 0.85rem;">
+                            <strong>Q:</strong> {criterion['question_text']}<br>
+                            <strong>Required:</strong> {criterion['required_answer']}
+                        </div>
                     </div>
-                    <div style="color: #424242; margin-top: 4px; font-size: 0.85rem;">
-                        <strong>Q:</strong> {criterion['question_text']}<br>
-                        <strong>Required:</strong> {criterion['required_answer']}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
     
     with question_col:
-        # Show questions for editing - group by project
+        # Show questions for editing - group by project (ONLY MATCHING PROJECTS)
         projects_with_criteria = {}
-        for criterion in criteria:
-            project_id = criterion["project_id"]
-            if project_id not in projects_with_criteria:
-                projects_with_criteria[project_id] = {
-                    "project_name": criterion["project_name"],
-                    "questions": []
-                }
-            projects_with_criteria[project_id]["questions"].append(criterion)
+        for i, (criterion, match) in enumerate(zip(criteria, matches)):
+            if match:  # Only include criteria that actually matched this video
+                project_id = criterion["project_id"]
+                if project_id not in projects_with_criteria:
+                    projects_with_criteria[project_id] = {
+                        "project_name": criterion["project_name"],
+                        "questions": []
+                    }
+                projects_with_criteria[project_id]["questions"].append(criterion)
         
         if projects_with_criteria:
             # Use tabs if multiple projects
