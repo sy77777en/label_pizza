@@ -1181,18 +1181,304 @@ def video_criteria_search_portal():
     st.markdown("## 📊 Video Criteria Search")
     st.markdown("*Find videos based on ground truth criteria or completion status*")
     
-    search_type_tabs = st.tabs(["🎯 Ground Truth Criteria", "📈 Completion Status"])
-    
+    search_type_tabs = st.tabs([
+        "🎯 Ground Truths (by Schema)", 
+        "🎯 Ground Truths (by Project)", 
+        "📈 Completion Status (by Project)"
+    ])
+
     with search_type_tabs[0]:
-        ground_truth_criteria_search()
-    
+        schema_based_ground_truth_search()  # NEW FUNCTION
+
     with search_type_tabs[1]:
+        ground_truth_criteria_search()
+
+    with search_type_tabs[2]:
         completion_status_search()
+
+def schema_based_ground_truth_search():
+    """Search videos by ground truth criteria using schema selection (NEW)"""
+    
+    st.markdown("### 🎯 Search by Ground Truth Answers (Schema)")
+    
+    # Step 1: Schema selection
+    with get_db_session() as session:
+        all_schemas_df = SchemaService.get_all_schemas(session=session)
+        if all_schemas_df.empty:
+            st.warning("🚫 No schemas available")
+            return
+    
+    # Archive filtering for schemas
+    archived_count = len(all_schemas_df[all_schemas_df.get("Archived", False) == True]) if not all_schemas_df.empty else 0
+    
+    schema_filter_col1, schema_filter_col2 = st.columns([2, 1])
+    
+    with schema_filter_col1:
+        st.markdown("**Step 1: Select Schemas to Search**")
+        
+    with schema_filter_col2:
+        if archived_count > 0:
+            include_archived_schemas = st.checkbox(
+                f"Include {archived_count} archived schemas",
+                value=False,  # Default to hide archived
+                key="schema_criteria_include_archived",
+                help="Include archived schemas in search"
+            )
+        else:
+            include_archived_schemas = False
+    
+    # Filter schemas based on archive setting
+    if include_archived_schemas:
+        schemas_df = all_schemas_df
+    else:
+        schemas_df = all_schemas_df[all_schemas_df.get("Archived", False) != True]
+    
+    selected_schemas = st.multiselect(
+        "Schemas",
+        schemas_df["ID"].tolist(),
+        format_func=lambda x: schemas_df[schemas_df["ID"]==x]["Name"].iloc[0],
+        key="schema_criteria_search_schemas",
+        help="Choose which schemas to include in the search"
+    )
+    
+    if not selected_schemas:
+        st.info("👆 Please select one or more schemas to continue")
+        return
+    
+    # Step 2: Get all projects that use these schemas
+    with get_db_session() as session:
+        all_projects_df = ProjectService.get_all_projects_including_archived(session=session)
+        if all_projects_df.empty:
+            st.warning("🚫 No projects available")
+            return
+    
+    # Filter projects to only those using selected schemas
+    schema_projects_df = all_projects_df[all_projects_df["Schema ID"].isin(selected_schemas)]
+    
+    if schema_projects_df.empty:
+        st.warning("🚫 No projects found using the selected schemas")
+        return
+    
+    # Show summary of found projects
+    st.markdown("---")
+    st.markdown("**📊 Projects Found Using Selected Schemas:**")
+    
+    summary_col1, summary_col2, summary_col3 = st.columns(3)
+    with summary_col1:
+        st.metric("📁 Total Projects", len(schema_projects_df))
+    with summary_col2:
+        active_projects = len(schema_projects_df[schema_projects_df.get("Archived", False) != True])
+        st.metric("✅ Active Projects", active_projects)
+    with summary_col3:
+        archived_projects = len(schema_projects_df[schema_projects_df.get("Archived", False) == True])
+        st.metric("📦 Archived Projects", archived_projects)
+    
+    # Show project details in expandable section
+    with st.expander(f"📋 View {len(schema_projects_df)} Projects", expanded=False):
+        # Group projects by schema for display
+        for schema_id in selected_schemas:
+            schema_name = schemas_df[schemas_df["ID"]==schema_id]["Name"].iloc[0]
+            schema_projects = schema_projects_df[schema_projects_df["Schema ID"] == schema_id]
+            
+            if not schema_projects.empty:
+                st.markdown(f"**{schema_name}** ({len(schema_projects)} projects)")
+                for _, project in schema_projects.iterrows():
+                    status = "📦 Archived" if project.get("Archived", False) else "✅ Active"
+                    st.markdown(f"  • {project['Name']} ({project['Videos']} videos) - {status}")
+    
+    # Step 3: Build Search Criteria (schema-based)
+    st.markdown("---")
+    st.markdown("**Step 2: Build Search Criteria**")
+    st.info("💡 **How Schema Search Works**: When you select a schema and add criteria, it automatically applies that criteria to ALL projects using that schema. This is more efficient than selecting projects individually.")
+    
+    if "search_criteria_schema_admin" not in st.session_state:
+        st.session_state.search_criteria_schema_admin = []
+    
+    # Add criteria interface (schema-based selection)
+    with st.expander("➕ Add New Criteria", expanded=True):
+        add_col1, add_col2, add_col3, add_col4 = st.columns([2, 2, 2, 1])
+        
+        with add_col1:
+            # Count projects for each selected schema
+            schema_project_counts = {}
+            for schema_id in selected_schemas:
+                project_count = len(schema_projects_df[schema_projects_df["Schema ID"] == schema_id])
+                schema_project_counts[schema_id] = project_count
+            
+            schema_for_criteria = st.selectbox(
+                "Schema",
+                selected_schemas,
+                format_func=lambda x: f"{schemas_df[schemas_df['ID']==x]['Name'].iloc[0]} ({schema_project_counts[x]} projects)",
+                key="schema_criteria_schema_select"
+            )
+        
+        with add_col2:
+            if schema_for_criteria:
+                with get_db_session() as session:
+                    question_groups_df = SchemaService.get_schema_question_groups(
+                        schema_id=schema_for_criteria, session=session
+                    )
+                
+                if not question_groups_df.empty:
+                    group_for_criteria = st.selectbox(
+                        "Question Group",
+                        question_groups_df["ID"].tolist(),
+                        format_func=lambda x: question_groups_df[question_groups_df["ID"]==x]["Title"].iloc[0],
+                        key="schema_criteria_group_select"
+                    )
+                else:
+                    st.warning("No question groups found")
+                    group_for_criteria = None
+            else:
+                group_for_criteria = None
+        
+        with add_col3:
+            if group_for_criteria:
+                with get_db_session() as session:
+                    questions = QuestionService.get_questions_by_group_id(
+                        group_id=group_for_criteria, session=session
+                    )
+                
+                if questions:
+                    question_for_criteria = st.selectbox(
+                        "Question",
+                        [q["id"] for q in questions],
+                        format_func=lambda x: next(q["text"][:50] + "..." if len(q["text"]) > 50 
+                                                 else q["text"] for q in questions if q["id"] == x),
+                        key="schema_criteria_question_select"
+                    )
+                    
+                    # Get answer options for selected question - FIXED KEY NAMES
+                    selected_question = next(q for q in questions if q["id"] == question_for_criteria)
+                    if selected_question["type"] == "single" and selected_question.get("options"):
+                        required_answer = st.selectbox(
+                            "Required Answer",
+                            selected_question["options"],
+                            key="schema_criteria_answer_select"
+                        )
+                    else:
+                        required_answer = st.text_input(
+                            "Required Answer",
+                            key="schema_criteria_answer_input",
+                            placeholder="Enter exact answer text..."
+                        )
+                else:
+                    st.warning("No questions found")
+                    question_for_criteria = None
+                    required_answer = None
+            else:
+                question_for_criteria = None
+                required_answer = None
+        
+        with add_col4:
+            if st.button("➕", key="schema_add_criteria", help="Add criteria"):
+                if all([schema_for_criteria, group_for_criteria, question_for_criteria, required_answer]):
+                    # Get names for display
+                    schema_name = schemas_df[schemas_df["ID"]==schema_for_criteria]["Name"].iloc[0]
+                    group_title = question_groups_df[question_groups_df["ID"]==group_for_criteria]["Title"].iloc[0]
+                    question_text = next(q["text"] for q in questions if q["id"] == question_for_criteria)
+                    
+                    # Get all projects using this schema for the search criteria
+                    schema_projects_list = schema_projects_df[schema_projects_df["Schema ID"] == schema_for_criteria]
+                    
+                    # Create criteria for each project using this schema
+                    for _, project_row in schema_projects_list.iterrows():
+                        new_criterion = {
+                            'project_id': project_row['ID'],
+                            'project_name': project_row['Name'],
+                            'question_id': question_for_criteria,
+                            'question_text': question_text,
+                            'required_answer': required_answer,
+                            'schema_name': schema_name,
+                            'schema_id': schema_for_criteria
+                        }
+                        st.session_state.search_criteria_schema_admin.append(new_criterion)
+                    
+                    st.rerun(scope="fragment")
+                else:
+                    st.error("Please fill all fields before adding criteria")
+    
+    # Display current criteria (grouped by schema)
+    if st.session_state.search_criteria_schema_admin:
+        st.markdown("**Current Search Criteria:**")
+        
+        # Group criteria by schema for better display
+        criteria_by_schema = {}
+        for criterion in st.session_state.search_criteria_schema_admin:
+            schema_id = criterion['schema_id']
+            schema_name = criterion['schema_name']
+            if schema_id not in criteria_by_schema:
+                criteria_by_schema[schema_id] = {
+                    'schema_name': schema_name,
+                    'criteria': []
+                }
+            criteria_by_schema[schema_id]['criteria'].append(criterion)
+        
+        # Show summary by schema
+        for schema_id, schema_data in criteria_by_schema.items():
+            schema_criteria = schema_data['criteria']
+            unique_questions = len(set(c['question_text'] for c in schema_criteria))
+            projects_count = len(set(c['project_name'] for c in schema_criteria))
+            
+            st.markdown(f"**📋 {schema_data['schema_name']}** - {unique_questions} criteria applied to {projects_count} projects")
+        
+        st.markdown("**Individual Criteria:**")
+        for i, criterion in enumerate(st.session_state.search_criteria_schema_admin):
+            crit_col1, crit_col2 = st.columns([6, 1])
+            
+            with crit_col1:
+                st.markdown(f"""
+                <div style="background: #e3f2fd; border: 1px solid #2196f3; border-radius: 8px; padding: 12px; margin: 4px 0;">
+                    <div style="color: #1976d2; font-weight: 600;">Schema: {criterion['schema_name']}</div>
+                    <div style="color: #666; font-size: 0.9em;">Project: {criterion['project_name']}</div>
+                    <div style="color: #424242; margin-top: 4px;">
+                        <strong>Question:</strong> {criterion['question_text']}<br>
+                        <strong>Required Answer:</strong> {criterion['required_answer']}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with crit_col2:
+                if st.button("🗑️", key=f"schema_remove_crit_{i}", help="Remove criteria"):
+                    st.session_state.search_criteria_schema_admin.pop(i)
+                    st.rerun(scope="fragment")
+        
+        # Search execution
+        st.markdown("**Step 3: Execute Search**")
+        
+        exec_col1, exec_col2, exec_col3 = st.columns([2, 2, 2])
+        
+        with exec_col1:
+            match_logic = st.radio(
+                "Match Logic",
+                ["Match ALL criteria", "Match ANY criteria"],
+                key="schema_criteria_match_logic",
+                help="ALL = video must match every criteria, ANY = video matches at least one"
+            )
+        
+        with exec_col2:
+            if st.button("🔍 Search Videos", key="execute_schema_criteria_search", type="primary", use_container_width=True):
+                match_all = (match_logic == "Match ALL criteria")
+                # Execute search using existing search function
+                results = execute_ground_truth_search(st.session_state.search_criteria_schema_admin, match_all)
+                st.session_state.schema_criteria_search_results = results
+                st.rerun(scope="fragment")
+        
+        with exec_col3:
+            if st.button("🧹 Clear Criteria", key="clear_schema_criteria_admin", use_container_width=True):
+                st.session_state.search_criteria_schema_admin = []
+                if "schema_criteria_search_results" in st.session_state:
+                    del st.session_state.schema_criteria_search_results
+                st.rerun(scope="fragment")
+        
+        # Display results with existing interface
+        if "schema_criteria_search_results" in st.session_state:
+            display_criteria_search_results_interface(st.session_state.schema_criteria_search_results)
 
 def ground_truth_criteria_search():
     """Search videos by ground truth criteria"""
     
-    st.markdown("### 🎯 Search by Ground Truth Answers")
+    st.markdown("### 🎯 Search by Ground Truth Answers (Project)")
     
     # Project selection
     with get_db_session() as session:
