@@ -3798,13 +3798,20 @@ def display_project_dashboard(user_id: int, role: str) -> Optional[int]:
                     st.session_state[page_key] = min(total_pages - 1, current_page + 1)
                     st.rerun()
         
-        elif search_term and total_pages > 1:
-            custom_info(f"🔍 Search results span {total_pages} pages. Showing page 1 of search results.")
+        elif search_term:
+            custom_info(f"🔍 Showing all {total_projects} search results")
         
         # Display projects
-        start_idx = current_page * projects_per_page
-        end_idx = min(start_idx + projects_per_page, total_projects)
-        page_projects = filtered_projects[start_idx:end_idx]
+        if search_term:
+            # Show all search results
+            page_projects = filtered_projects
+            start_idx = 0
+            end_idx = len(filtered_projects)
+        else:
+            # Normal pagination
+            start_idx = current_page * projects_per_page
+            end_idx = min(start_idx + projects_per_page, total_projects)
+            page_projects = filtered_projects[start_idx:end_idx]
         
         if page_projects:
             cols = st.columns(3)
