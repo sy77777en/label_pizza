@@ -48,8 +48,7 @@ Export all users including their authentication and status information.
 from label_pizza.export_utils import export_users
 
 # Export all users to users.json
-with label_pizza.db.SessionLocal() as session:
-    export_users(session=session, output_path="./workspace/users.json")
+export_users(output_path="./workspace/users.json")
 
 # Output: users.json containing user data with user_id, email, password, user_type, is_active
 ```
@@ -61,8 +60,7 @@ Export all videos with their URLs, metadata, and status.
 ```python
 from label_pizza.export_utils import export_videos
 
-with label_pizza.db.SessionLocal() as session:
-    export_videos(session=session, output_path="./workspace/videos.json")
+export_videos(output_path="./workspace/videos.json")
 
 # Output: videos.json containing video_uid, url, video_metadata, is_active
 ```
@@ -74,11 +72,9 @@ Export all question groups to separate JSON files in a folder.
 ```python
 from label_pizza.export_utils import export_question_groups
 
-with label_pizza.db.SessionLocal() as session:
-    export_question_groups(
-        session=session, 
-        output_folder="./workspace/question_groups"
-    )
+export_question_groups(
+    output_folder="./workspace/question_groups"
+)
 
 # Output: Creates question_groups/ folder with individual JSON files
 # Each file contains title, display_title, description, questions array, etc.
@@ -91,8 +87,7 @@ Export all schemas with their associated question groups.
 ```python
 from label_pizza.export_utils import export_schemas
 
-with label_pizza.db.SessionLocal() as session:
-    export_schemas(session=session, output_path="./workspace/schemas.json")
+export_schemas(output_path="./workspace/schemas.json")
 
 # Output: schemas.json containing schema_name, instructions_url, question_group_names
 ```
@@ -104,8 +99,7 @@ Export all projects with their associated schemas and videos.
 ```python
 from label_pizza.export_utils import export_projects
 
-with label_pizza.db.SessionLocal() as session:
-    export_projects(session=session, output_path="./workspace/projects.json")
+export_projects(output_path="./workspace/projects.json")
 
 # Output: projects.json containing project_name, description, schema_name, videos
 ```
@@ -117,11 +111,9 @@ Export all project groups with their associated projects.
 ```python
 from label_pizza.export_utils import export_project_groups
 
-with label_pizza.db.SessionLocal() as session:
-    export_project_groups(
-        session=session, 
-        output_path="./workspace/project_groups.json"
-    )
+export_project_groups(
+    output_path="./workspace/project_groups.json"
+)
 
 # Output: project_groups.json containing project_group_name, description, projects
 ```
@@ -133,8 +125,7 @@ Export all user project role assignments.
 ```python
 from label_pizza.export_utils import export_assignments
 
-with label_pizza.db.SessionLocal() as session:
-    export_assignments(session=session, output_path="./workspace/assignments.json")
+export_assignments(output_path="./workspace/assignments.json")
 
 # Output: assignments.json containing user_name, project_name, role, user_weight, is_active
 ```
@@ -146,8 +137,7 @@ Export all annotations grouped by question group to separate JSON files.
 ```python
 from label_pizza.export_utils import export_annotations
 
-with label_pizza.db.SessionLocal() as session:
-    export_annotations(session=session, output_folder="./workspace/annotations")
+export_annotations(output_folder="./workspace/annotations")
 
 # Output: Creates annotations/ folder with files like Safety_Assessment_annotations.json
 # Each file contains question_group_title, project_name, user_name, video_uid, answers
@@ -160,8 +150,7 @@ Export all ground truth annotations grouped by question group.
 ```python
 from label_pizza.export_utils import export_ground_truths
 
-with label_pizza.db.SessionLocal() as session:
-    export_ground_truths(session=session, output_folder="./workspace/ground_truths")
+export_ground_truths(output_folder="./workspace/ground_truths")
 
 # Output: Creates ground_truths/ folder with reviewer-verified answers
 ```
@@ -176,8 +165,7 @@ Export entire workspace to a structured folder in a single operation.
 from label_pizza.export_utils import export_workspace
 
 # Export entire workspace to workspace folder
-with label_pizza.db.SessionLocal() as session:
-    export_workspace(session=session, output_folder="./workspace")
+export_workspace(output_folder="./workspace")
 
 # Output: Creates complete workspace structure:
 # workspace/
