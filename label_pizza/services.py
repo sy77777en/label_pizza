@@ -6757,6 +6757,7 @@ class GroundTruthService(BaseAnswerService):
                 existing.answer_type = question.type
                 existing.confidence_score = confidence_score
                 existing.notes = note
+                existing.reviewer_id = reviewer_id
                 existing.modified_at = datetime.now(timezone.utc)
             else:
                 # Create new ground truth
