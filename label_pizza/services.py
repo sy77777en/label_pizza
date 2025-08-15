@@ -5698,6 +5698,118 @@ class BaseAnswerService:
 class AnnotatorService(BaseAnswerService):
 
     @staticmethod
+    def get_training_summary(video_id: int, project_id: int, user_id: int, group_id: int, questions: List[Dict], session: Session) -> str:
+        """Generate training performance summary for button text
+        
+        Args:
+            video_id: The video ID
+            project_id: The project ID  
+            user_id: The annotator user ID
+            group_id: The question group ID
+            questions: List of question dictionaries
+            session: Database session
+            
+        Returns:
+            Formatted training summary string for button text
+        """
+        try:
+            single_correct = 0
+            single_total = 0
+            desc_approved = 0
+            desc_rejected = 0
+            desc_pending = 0
+            desc_total = 0
+            
+            # Get ground truth for comparison
+            gt_data = GroundTruthService.get_ground_truth_dict_for_question_group(
+                video_id=video_id, project_id=project_id, question_group_id=group_id, session=session
+            )
+            
+            # Get annotator answers
+            annotator_answers = session.execute(
+                select(AnnotatorAnswer).where(
+                    AnnotatorAnswer.video_id == video_id,
+                    AnnotatorAnswer.project_id == project_id,
+                    AnnotatorAnswer.user_id == user_id,
+                    AnnotatorAnswer.question_id.in_([q["id"] for q in questions])
+                )
+            ).scalars().all()
+            
+            answer_dict = {ans.question_id: ans for ans in annotator_answers}
+            
+            # Get answer reviews for description questions
+            answer_reviews = {}
+            if annotator_answers:
+                reviews = session.execute(
+                    select(AnswerReview).where(
+                        AnswerReview.answer_id.in_([ans.id for ans in annotator_answers])
+                    )
+                ).scalars().all()
+                answer_reviews = {review.answer_id: review for review in reviews}
+            
+            # Analyze each question
+            for question in questions:
+                question_id = question["id"]
+                question_type = question["type"]
+                
+                if question_id not in answer_dict:
+                    continue  # Question not answered
+                
+                answer = answer_dict[question_id]
+                
+                if question_type == "single":
+                    single_total += 1
+                    # Fix: ground truth dict is keyed by question TEXT, not question ID
+                    question_text = question["text"]
+                    gt_value = gt_data.get(question_text, "")
+                    if answer.answer_value == gt_value:
+                        single_correct += 1
+                        
+                elif question_type == "description":
+                    desc_total += 1
+                    review = answer_reviews.get(answer.id)
+                    if review:
+                        if review.status == "approved":
+                            desc_approved += 1
+                        elif review.status == "rejected":
+                            desc_rejected += 1
+                        else:  # pending or None
+                            desc_pending += 1
+                    else:
+                        desc_pending += 1  # No review = pending
+            
+            # Generate summary text
+            parts = []
+            
+            # Single choice summary
+            if single_total > 0:
+                parts.append(f"{single_correct}/{single_total} correct")
+            
+            # Description summary  
+            if desc_total > 0:
+                desc_parts = []
+                if desc_pending > 0:
+                    desc_parts.append(f"{desc_pending} pending")
+                if desc_approved > 0:
+                    desc_parts.append(f"{desc_approved} approved")
+                if desc_rejected > 0:
+                    desc_parts.append(f"{desc_rejected} rejected")
+                if desc_parts:
+                    parts.append(f"{'/'.join(desc_parts)}")
+            
+            # Determine emoji based on performance
+            perfect = (single_correct == single_total if single_total > 0 else True) and \
+                    (desc_rejected == 0 if desc_total > 0 else True)
+            emoji = "🏆" if perfect else "❌"
+            
+            summary = f"{emoji} Already Submitted ({', '.join(parts)})" if parts else "🔒 Already Submitted"
+            return summary
+            
+        except Exception as e:
+            print(f"Error generating training summary: {e}")
+            return "🔒 Already Submitted"
+
+    @staticmethod
     def get_all_annotator_data_for_video(video_id: int, project_id: int, user_id: int, session: Session) -> Dict[str, Any]:
         """Get ALL annotator related data for a video in a single batch operation"""
         try:

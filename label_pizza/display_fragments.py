@@ -294,10 +294,34 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
             all(admin_modifications.get(q["id"], {"is_modified": False})["is_modified"] for q in questions)
         )
         
+        # button_text, button_disabled = _get_submit_button_config(
+        #     role, form_disabled,
+        #     has_any_editable_questions, is_group_complete, mode, ground_truth_exists,
+        #     has_any_admin_modified_questions
+        # )
+        training_summary = None
+        if role == "annotator" and form_disabled and mode == "Training":
+            # Use the service method instead of direct database access
+            with get_db_session() as session:
+                training_summary = AnnotatorService.get_training_summary(
+                    video_id=video["id"],
+                    project_id=project_id,
+                    user_id=user_id,
+                    group_id=group_id,
+                    questions=questions,
+                    session=session
+                )
+
+        # Then call the simplified function
         button_text, button_disabled = _get_submit_button_config(
-            role, form_disabled, all_questions_modified_by_admin, 
-            has_any_editable_questions, is_group_complete, mode, ground_truth_exists,
-            has_any_admin_modified_questions
+            role=role, 
+            form_disabled=form_disabled, 
+            has_any_editable_questions=has_any_editable_questions, 
+            is_group_complete=is_group_complete, 
+            mode=mode,
+            ground_truth_exists=ground_truth_exists,
+            has_any_admin_modified_questions=has_any_admin_modified_questions,
+            training_summary=training_summary
         )
         
         # Create form
@@ -2796,11 +2820,42 @@ def display_smart_annotator_selection(annotators: Dict[str, Dict], project_id: i
 # REMAINING UNCHANGED UTILITY FUNCTIONS
 ###############################################################################
 
-def _get_submit_button_config(role: str, form_disabled: bool, all_questions_modified_by_admin: bool, has_any_editable_questions: bool, is_group_complete: bool, mode: str, ground_truth_exists: bool = False, has_any_admin_modified_questions: bool = False) -> Tuple[str, bool]:
-    """Get the submit button text and disabled state with improved logic"""
+# def _get_submit_button_config(role: str, form_disabled: bool, has_any_editable_questions: bool, is_group_complete: bool, mode: str, ground_truth_exists: bool = False, has_any_admin_modified_questions: bool = False) -> Tuple[str, bool]:
+#     """Get the submit button text and disabled state with improved logic"""
+#     if role == "annotator":
+#         if form_disabled:
+#             return "🔒 Already Submitted", True
+#         elif is_group_complete and mode != "Training":
+#             return "✅ Re-submit Answers", False
+#         elif is_group_complete:
+#             return "✅ Completed", True
+#         else:
+#             return "Submit Answers", False
+#     elif role == "meta_reviewer":
+#         if not ground_truth_exists:
+#             return "🚫 No Ground Truth Yet", True
+#         else:
+#             return "🎯 Override Ground Truth", False
+#     else:  # reviewer
+#         if has_any_admin_modified_questions:
+#             return "🔒 Overridden by Admin", True
+#         elif not has_any_editable_questions:
+#             return "🔒 No Editable Questions", True
+#         elif is_group_complete:
+#             return "✅ Re-submit Ground Truth", False
+#         else:
+#             return "Submit Ground Truth", False
+
+def _get_submit_button_config(role: str, form_disabled: bool, has_any_editable_questions: bool, is_group_complete: bool, mode: str, ground_truth_exists: bool = False, has_any_admin_modified_questions: bool = False, 
+                              training_summary: str = None) -> Tuple[str, bool]:
+    """Get the submit button text and disabled state with improved logic and optional training summary"""
     if role == "annotator":
         if form_disabled:
-            return "🔒 Already Submitted", True
+            # Use training summary if provided, otherwise default text
+            if training_summary:
+                return training_summary, True
+            else:
+                return "🔒 Already Submitted", True
         elif is_group_complete and mode != "Training":
             return "✅ Re-submit Answers", False
         elif is_group_complete:
@@ -2821,7 +2876,6 @@ def _get_submit_button_config(role: str, form_disabled: bool, all_questions_modi
             return "✅ Re-submit Ground Truth", False
         else:
             return "Submit Ground Truth", False
-
 
 
 def check_question_group_completion(video_id: int, project_id: int, user_id: int, question_group_id: int, role: str) -> bool:
