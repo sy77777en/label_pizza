@@ -2284,7 +2284,7 @@ def _display_video_layout_controls(videos: List[Dict], role: str):
 
     default_settings = {
         "pairs_per_row": 1,
-        "per_page": min(6, len(videos)),
+        "per_page": min(10, len(videos)),
         "autoplay": True,
         "loop": True
     }
