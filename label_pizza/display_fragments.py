@@ -2281,17 +2281,23 @@ def display_order_tab(project_id: int, role: str, project: Dict):
 @st.fragment
 def _display_video_layout_controls(videos: List[Dict], role: str):
     """Display video layout controls"""
+
+    default_settings = {
+        "pairs_per_row": 1,
+        "per_page": min(6, len(videos)),
+        "autoplay": True,
+        "loop": True
+    }
     
     # Get current settings from session state
-    current_pairs_per_row = st.session_state.get(f"{role}_pairs_per_row", 1)
-    current_autoplay = st.session_state.get(f"{role}_autoplay", True)
-    current_loop = st.session_state.get(f"{role}_loop", True)
+    current_pairs_per_row = st.session_state.get(f"{role}_pairs_per_row", default_settings["pairs_per_row"])
+    current_autoplay = st.session_state.get(f"{role}_autoplay", default_settings["autoplay"])
+    current_loop = st.session_state.get(f"{role}_loop", default_settings["loop"])
     
     # Calculate current videos per page settings
     min_videos_per_page = current_pairs_per_row
     max_videos_per_page = max(min(20, len(videos)), min_videos_per_page + 1)
-    default_videos_per_page = min(min(10, len(videos)), max_videos_per_page)
-    current_per_page = st.session_state.get(f"{role}_per_page", default_videos_per_page)
+    current_per_page = st.session_state.get(f"{role}_per_page", default_settings["per_page"])
     
     # Collect new settings (don't store in session state yet)
     col1, col2 = st.columns(2)
@@ -2402,12 +2408,6 @@ def _display_video_layout_controls(videos: List[Dict], role: str):
     
     with apply_col2:
         # Check if we can reset (any current settings differ from defaults)
-        default_settings = {
-            "pairs_per_row": 1,
-            "per_page": min(6, len(videos)),
-            "autoplay": True,
-            "loop": True
-        }
         
         can_reset = (
             current_pairs_per_row != default_settings["pairs_per_row"] or
