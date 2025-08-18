@@ -1811,13 +1811,13 @@ def display_enhanced_sort_tab_annotator(project_id: int, user_id: int):
         st.markdown(f"""
         <div style="{get_card_style('#B180FF')}text-align: center;">
             <div style="color: #5C00BF; font-weight: 500; font-size: 0.95rem;">
-                📝 Annotation Mode - Only default sorting available.
+                📝 Annotation Mode - Sort videos by your completion status
             </div>
         </div>
         """, unsafe_allow_html=True)
         
         # Only show default sorting in annotation mode
-        sort_options = ["Default"]
+        sort_options = ["Default", "Completion Rate"]
     else:
         st.markdown(f"""
         <div style="{get_card_style('#B180FF')}text-align: center;">
@@ -1852,25 +1852,53 @@ def display_enhanced_sort_tab_annotator(project_id: int, user_id: int):
     config_messages = []
     
     # Only show configuration for training mode sorts
-    if sort_by != "Default" and is_training_mode:
+    if sort_by != "Default":
         st.markdown("**Configuration:**")
         
         if sort_by in ["Completion Rate", "Accuracy Rate"]:
-            questions = get_project_questions_cached(project_id=project_id)
-            single_choice_questions = [q for q in questions if q.get("type") == "single"]
+            # questions = get_project_questions_cached(project_id=project_id)
+            # single_choice_questions = [q for q in questions if q.get("type") == "single"]
             
-            if not single_choice_questions:
-                config_messages.append(("error", "No single-choice questions available."))
+            # if not single_choice_questions:
+            #     config_messages.append(("error", "No single-choice questions available."))
+            #     config_valid = False
+            # else:
+            #     selected_questions = st.multiselect(
+            #         "Questions:",
+            #         [f"{q['text']} (ID: {q['id']})" for q in single_choice_questions],
+            #         default=[f"{q['text']} (ID: {q['id']})" for q in single_choice_questions],
+            #         key=f"annotator_{sort_by.lower().replace(' ', '_')}_questions_{project_id}",
+            #         help=f"Select questions for {sort_by.lower()} calculation"
+            #     )
+                
+            #     if not selected_questions:
+            #         config_messages.append(("warning", "Select at least one question."))
+            #         config_valid = False
+
+            questions = get_project_questions_cached(project_id=project_id)
+            all_questions = [q for q in questions if q.get("type") in ["single", "description"]]
+
+            if not all_questions:
+                config_messages.append(("error", "No questions available for sorting."))
                 config_valid = False
             else:
+                # Group questions by type for better UI
+                single_questions = [q for q in all_questions if q.get("type") == "single"]
+                desc_questions = [q for q in all_questions if q.get("type") == "description"]
+                
+                question_options = []
+                if single_questions:
+                    question_options.extend([f"{q['text']} (ID: {q['id']}) [Single Choice]" for q in single_questions])
+                if desc_questions:
+                    question_options.extend([f"{q['text']} (ID: {q['id']}) [Description]" for q in desc_questions])
+                
                 selected_questions = st.multiselect(
                     "Questions:",
-                    [f"{q['text']} (ID: {q['id']})" for q in single_choice_questions],
-                    default=[f"{q['text']} (ID: {q['id']})" for q in single_choice_questions],
+                    question_options,
+                    default=question_options,  # Select all by default
                     key=f"annotator_{sort_by.lower().replace(' ', '_')}_questions_{project_id}",
-                    help=f"Select questions for {sort_by.lower()} calculation"
+                    help=f"Select questions for {sort_by.lower()} calculation. Description questions use review status for accuracy."
                 )
-                
                 if not selected_questions:
                     config_messages.append(("warning", "Select at least one question."))
                     config_valid = False
@@ -2281,17 +2309,23 @@ def display_order_tab(project_id: int, role: str, project: Dict):
 @st.fragment
 def _display_video_layout_controls(videos: List[Dict], role: str):
     """Display video layout controls"""
+
+    default_settings = {
+        "pairs_per_row": 1,
+        "per_page": min(10, len(videos)),
+        "autoplay": True,
+        "loop": True
+    }
     
     # Get current settings from session state
-    current_pairs_per_row = st.session_state.get(f"{role}_pairs_per_row", 1)
-    current_autoplay = st.session_state.get(f"{role}_autoplay", True)
-    current_loop = st.session_state.get(f"{role}_loop", True)
+    current_pairs_per_row = st.session_state.get(f"{role}_pairs_per_row", default_settings["pairs_per_row"])
+    current_autoplay = st.session_state.get(f"{role}_autoplay", default_settings["autoplay"])
+    current_loop = st.session_state.get(f"{role}_loop", default_settings["loop"])
     
     # Calculate current videos per page settings
     min_videos_per_page = current_pairs_per_row
     max_videos_per_page = max(min(20, len(videos)), min_videos_per_page + 1)
-    default_videos_per_page = min(min(10, len(videos)), max_videos_per_page)
-    current_per_page = st.session_state.get(f"{role}_per_page", default_videos_per_page)
+    current_per_page = st.session_state.get(f"{role}_per_page", default_settings["per_page"])
     
     # Collect new settings (don't store in session state yet)
     col1, col2 = st.columns(2)
@@ -2402,12 +2436,6 @@ def _display_video_layout_controls(videos: List[Dict], role: str):
     
     with apply_col2:
         # Check if we can reset (any current settings differ from defaults)
-        default_settings = {
-            "pairs_per_row": 1,
-            "per_page": min(6, len(videos)),
-            "autoplay": True,
-            "loop": True
-        }
         
         can_reset = (
             current_pairs_per_row != default_settings["pairs_per_row"] or
@@ -3274,53 +3302,127 @@ def apply_annotator_video_sorting(videos: List[Dict], sort_by: str, sort_order: 
                     
                     video_scores[video_id] = (completed_questions / len(question_ids)) * 100 if question_ids else 0
                     
+                # else:  # Accuracy Rate
+                #     # Calculate accuracy rate vs ground truth for this user
+                #     correct_count = 0
+                #     total_count = 0
+                    
+                #     try:
+                #         gt_df = GroundTruthService.get_ground_truth(
+                #             video_id=video_id, project_id=project_id, session=session
+                #         )
+                        
+                #         if not gt_df.empty:
+                #             for question_id in question_ids:
+                #                 # Get ground truth for this question
+                #                 question_gt = gt_df[gt_df["Question ID"] == question_id]
+                #                 if question_gt.empty:
+                #                     continue
+                                
+                #                 gt_answer = question_gt.iloc[0]["Answer Value"]
+                                
+                #                 # Get user's answer
+                #                 answers_df = AnnotatorService.get_question_answers(
+                #                     question_id=question_id, project_id=project_id, session=session
+                #                 )
+                                
+                #                 if not answers_df.empty:
+                #                     user_answers = answers_df[
+                #                         (answers_df["User ID"] == user_id) & 
+                #                         (answers_df["Video ID"] == video_id)
+                #                     ]
+                                    
+                #                     if not user_answers.empty:
+                #                         user_answer = user_answers.iloc[0]["Answer Value"]
+                #                         total_count += 1
+                #                         if user_answer == gt_answer:
+                #                             correct_count += 1
+                        
+                #         video_scores[video_id] = (correct_count / total_count) * 100 if total_count > 0 else 0
+                #     except:
+                #         video_scores[video_id] = 0
                 else:  # Accuracy Rate
                     # Calculate accuracy rate vs ground truth for this user
                     correct_count = 0
                     total_count = 0
                     
                     try:
-                        gt_df = GroundTruthService.get_ground_truth(
-                            video_id=video_id, project_id=project_id, session=session
-                        )
-                        
-                        if not gt_df.empty:
-                            for question_id in question_ids:
-                                # Get ground truth for this question
-                                question_gt = gt_df[gt_df["Question ID"] == question_id]
-                                if question_gt.empty:
-                                    continue
+                        for question_id in question_ids:
+                            # Get question details using service
+                            question_info = QuestionService.get_question_by_id(
+                                question_id=question_id, session=session
+                            )
+                            
+                            if question_info["type"] == "single":
+                                # Handle single-choice questions
+                                gt_df = GroundTruthService.get_ground_truth(
+                                    video_id=video_id, project_id=project_id, session=session
+                                )
                                 
-                                gt_answer = question_gt.iloc[0]["Answer Value"]
-                                
-                                # Get user's answer
-                                answers_df = AnnotatorService.get_question_answers(
-                                    question_id=question_id, project_id=project_id, session=session
+                                if not gt_df.empty:
+                                    question_gt = gt_df[gt_df["Question ID"] == question_id]
+                                    if not question_gt.empty:
+                                        gt_answer = question_gt.iloc[0]["Answer Value"]
+                                        
+                                        # FIXED: Use get_answers() which includes Answer ID
+                                        answers_df = AnnotatorService.get_answers(
+                                            video_id=video_id, project_id=project_id, session=session
+                                        )
+                                        
+                                        if not answers_df.empty:
+                                            user_answer = answers_df[
+                                                (answers_df["User ID"] == user_id) & 
+                                                (answers_df["Question ID"] == question_id)  # FIXED: Filter by Question ID
+                                            ]
+                                            
+                                            if not user_answer.empty:
+                                                total_count += 1
+                                                if user_answer.iloc[0]["Answer Value"] == gt_answer:
+                                                    correct_count += 1
+                                                    
+                            elif question_info["type"] == "description":
+                                # Handle description questions with review status
+                                # FIXED: Use get_answers() which includes Answer ID
+                                answers_df = AnnotatorService.get_answers(
+                                    video_id=video_id, project_id=project_id, session=session
                                 )
                                 
                                 if not answers_df.empty:
-                                    user_answers = answers_df[
+                                    user_answer = answers_df[
                                         (answers_df["User ID"] == user_id) & 
-                                        (answers_df["Video ID"] == video_id)
+                                        (answers_df["Question ID"] == question_id)  # FIXED: Filter by Question ID
                                     ]
                                     
-                                    if not user_answers.empty:
-                                        user_answer = user_answers.iloc[0]["Answer Value"]
-                                        total_count += 1
-                                        if user_answer == gt_answer:
-                                            correct_count += 1
+                                    if not user_answer.empty:
+                                        answer_id = user_answer.iloc[0]["Answer ID"]  # Now this will work!
+                                        
+                                        # Get review status using service
+                                        review = GroundTruthService.get_answer_review(
+                                            answer_id=answer_id, session=session
+                                        )
+                                        
+                                        if review and review.get("status") in ["approved", "rejected"]:
+                                            total_count += 1
+                                            if review.get("status") == "approved":
+                                                correct_count += 1
+                                        # If pending or no review, don't count towards accuracy
                         
-                        video_scores[video_id] = (correct_count / total_count) * 100 if total_count > 0 else 0
-                    except:
-                        video_scores[video_id] = 0
-        
+                        video_scores[video_id] = (correct_count / total_count * 100) if total_count > 0 else 0
+                        
+                    except Exception as e:
+                        print(f"Error calculating accuracy for video {video_id}: {e}")
+                        video_scores[video_id] = 0.0
+
         # Add scores to videos and sort
         for video in videos:
             video["sort_score"] = video_scores.get(video["id"], 0)
         
         reverse = (sort_order == "Descending")
         videos.sort(key=lambda x: x.get("sort_score", 0), reverse=reverse)
-        
+        # # print first five videos and their scores
+        # print(f"Sorting by {sort_by} with {sort_order} order")
+        # for video in videos[:5]:
+        #     print(f"Video ID: {video['id']}, Score: {video['sort_score']}")
         return videos
         
     except Exception as e:
