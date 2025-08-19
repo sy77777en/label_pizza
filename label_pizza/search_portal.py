@@ -258,12 +258,421 @@ def display_improved_video_selection_section() -> Optional[Dict[str, Any]]:
     
     return video_info
 
+# def display_improved_project_group_filter_section() -> List[int]:
+#     """Improved project group filtering interface"""
+    
+#     st.markdown("### 🗂️ Step 2: Configure Project Group Filters")
+    
+#     try:
+#         with get_db_session() as session:
+#             project_groups = ProjectGroupService.list_project_groups(session=session)
+            
+#             # Check for unassigned projects
+#             all_projects = ProjectService.get_all_projects_including_archived(session=session)
+#             unassigned_project_count = 0
+#             archived_project_count = 0
+
+#             if not all_projects.empty:
+#                 archived_project_count = len(all_projects[all_projects.get("Archived", False) == True])
+
+#                 assigned_project_ids = set()
+                
+#                 for group in project_groups:
+#                     try:
+#                         group_info = ProjectGroupService.get_project_group_by_id(group_id=group["id"], session=session)
+#                         assigned_project_ids.update(int(p["id"]) for p in group_info["projects"])
+#                     except:
+#                         continue
+                
+#                 unassigned_projects = all_projects[~all_projects["ID"].isin(assigned_project_ids)]
+#                 unassigned_project_count = len(unassigned_projects)
+            
+#             if not project_groups and unassigned_project_count == 0 and archived_project_count == 0:
+#                 st.warning("🚫 No project groups or projects found")
+#                 return []
+        
+#         # Initialize selections
+#         if "admin_selected_groups" not in st.session_state:
+#             st.session_state.admin_selected_groups = [g["id"] for g in project_groups]
+#         if "admin_include_unassigned" not in st.session_state:
+#             st.session_state.admin_include_unassigned = unassigned_project_count > 0
+#         if "admin_include_archived" not in st.session_state:
+#             st.session_state.admin_include_archived = False
+        
+#         # Quick actions for project groups only
+#         action_col1, action_col2 = st.columns([1, 1])
+
+#         with action_col1:
+#             if st.button("✅ Select All Groups", key="admin_select_all_groups", use_container_width=True):
+#                 st.session_state.admin_selected_groups = [g["id"] for g in project_groups]
+#                 st.rerun(scope="fragment")
+        
+#         with action_col2:
+#             if st.button("❌ Clear All Groups", key="admin_clear_all_groups", use_container_width=True):
+#                 st.session_state.admin_selected_groups = []
+#                 st.rerun(scope="fragment")
+        
+#         # Separate columns for checkboxes
+#         action_col3, action_col4 = st.columns([1, 1])
+
+#         with action_col3:
+#             # Unassigned projects checkbox (if any exist)
+#             include_unassigned = st.checkbox(
+#                 f"Include {unassigned_project_count} unassigned projects",
+#                 value=st.session_state.admin_include_unassigned,
+#                 key="admin_unassigned_checkbox",
+#                 disabled=unassigned_project_count == 0,
+#                 help="Include projects that are not assigned to any project group"
+#             )
+#             if include_unassigned != st.session_state.admin_include_unassigned:
+#                 st.session_state.admin_include_unassigned = include_unassigned
+#                 st.rerun(scope="fragment")
+        
+#         with action_col4:
+#             include_archived = st.checkbox(
+#                 f"Include {archived_project_count} archived projects",
+#                 value=st.session_state.admin_include_archived,
+#                 key="admin_include_archived_projects",
+#                 disabled=archived_project_count == 0,
+#                 help="Include projects that have been archived"
+#             )
+#             if include_archived != st.session_state.admin_include_archived:
+#                 st.session_state.admin_include_archived = include_archived
+#                 st.rerun(scope="fragment")
+        
+#         selected_video = st.session_state.get("search_portal_selected_video")
+#         if selected_video:
+#             video_uid = selected_video["uid"]
+            
+#             # Count projects that contain this video
+#             active_grouped_projects = 0
+#             archived_grouped_projects = 0
+#             active_unassigned_projects = 0
+#             archived_unassigned_projects = 0
+            
+#             # Count projects in selected groups that contain this video
+#             for group_id in st.session_state.admin_selected_groups:
+#                 try:
+#                     with get_db_session() as session:
+#                         group_info = ProjectGroupService.get_project_group_by_id(group_id=group_id, session=session)
+#                     for project in group_info["projects"]:
+#                         project_id = int(project["id"])
+                        
+#                         # Check if this project contains the video
+#                         project_videos = VideoService.get_project_videos(project_id=project_id, session=session)
+#                         if any(v["uid"] == video_uid for v in project_videos):
+#                             if project.get("archived", False):
+#                                 archived_grouped_projects += 1
+#                             else:
+#                                 active_grouped_projects += 1
+#                 except:
+#                     continue
+            
+#             # Count unassigned projects that contain this video
+#             if st.session_state.admin_include_unassigned:
+#                 for _, project_row in unassigned_projects.iterrows():
+#                     project_id = project_row["ID"]
+                    
+#                     # Check if this project contains the video
+#                     with get_db_session() as session:
+#                         project_videos = VideoService.get_project_videos(project_id=project_id, session=session)
+#                         if any(v["uid"] == video_uid for v in project_videos):
+#                             if project_row.get("Archived", False):
+#                                 archived_unassigned_projects += 1
+#                             else:
+#                                 active_unassigned_projects += 1
+            
+#             # Calculate totals based on checkbox setting
+#             if st.session_state.admin_include_archived:
+#                 total_projects = active_grouped_projects + archived_grouped_projects + active_unassigned_projects + archived_unassigned_projects
+#                 total_grouped = active_grouped_projects + archived_grouped_projects
+#                 total_unassigned = active_unassigned_projects + archived_unassigned_projects
+#                 total_archived = archived_grouped_projects + archived_unassigned_projects
+#             else:
+#                 total_projects = active_grouped_projects + active_unassigned_projects
+#                 total_grouped = active_grouped_projects
+#                 total_unassigned = active_unassigned_projects
+#                 total_archived = 0
+            
+#             # Display metrics
+#             if total_projects > 0:
+#                 if st.session_state.admin_include_archived and total_archived > 0:
+#                     # Show 4 columns including archived count
+#                     metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+                    
+#                     with metric_col1:
+#                         st.metric("📁 Total Projects", total_projects)
+#                     with metric_col2:
+#                         st.metric("📋 From Groups", total_grouped)
+#                     with metric_col3:
+#                         st.metric("📄 Unassigned", total_unassigned)
+#                     with metric_col4:
+#                         st.metric("🗄️ Archived", total_archived)
+#                 else:
+#                     # Show 3 columns without archived count
+#                     metric_col1, metric_col2, metric_col3 = st.columns(3)
+                    
+#                     with metric_col1:
+#                         st.metric("📁 Total Projects", total_projects)
+#                     with metric_col2:
+#                         st.metric("📋 From Groups", total_grouped)
+#                     with metric_col3:
+#                         st.metric("📄 Unassigned", total_unassigned)
+                
+#                 st.success(f"✅ Found **{total_projects} projects** containing video '{video_uid}'")
+#             else:
+#                 st.warning(f"⚠️ No projects found containing video '{video_uid}' with current filter settings")
+#         else:
+#             # No video selected yet - show general counts
+#             metric_col1, metric_col2, metric_col3 = st.columns(3)
+            
+#             with metric_col1:
+#                 selected_groups_count = len(st.session_state.admin_selected_groups)
+#                 total_groups_count = len(project_groups)
+#                 st.metric("🗂️ Groups Selected", f"{selected_groups_count}/{total_groups_count}")
+            
+#             with metric_col2:
+#                 unassigned_status = "✅ Included" if st.session_state.admin_include_unassigned else "❌ Excluded"
+#                 st.metric("📄 Unassigned", unassigned_status)
+            
+#             with metric_col3:
+#                 archived_status = "✅ Included" if st.session_state.admin_include_archived else "❌ Excluded"
+#                 st.metric("📦 Archived", archived_status)
+            
+#             custom_info("💡 Select a video above to see how many projects contain it")
+
+#         # Rest of the function remains the same...
+#         # Project groups selection
+#         if project_groups:
+#             st.markdown("**📋 Select Project Groups:**")
+            
+#             num_cols = min(2, len(project_groups))
+#             cols = st.columns(num_cols)
+            
+#             updated_selections = []
+            
+#             for i, group in enumerate(project_groups):
+#                 with cols[i % num_cols]:
+#                     # Get project count
+#                     try:
+#                         with get_db_session() as session:
+#                             group_info = ProjectGroupService.get_project_group_by_id(group_id=int(group["id"]), session=session)
+#                             project_count = len(group_info["projects"])
+#                     except:
+#                         project_count = 0
+                    
+#                     is_selected = group["id"] in st.session_state.admin_selected_groups
+                    
+#                     checkbox_value = st.checkbox(
+#                         f"**{group['name']}**",
+#                         value=is_selected,
+#                         key=f"admin_group_cb_{group['id']}",
+#                         help=f"Description: {group['description'] or 'No description'}"
+#                     )
+                    
+#                     # Project group info card
+#                     card_color = "#EAE1F9" if is_selected else "#f8f9fa"
+#                     border_color = "#B180FF" if is_selected else "#e9ecef"
+                    
+#                     st.markdown(f"""
+#                     <div style="background: {card_color}; border: 1px solid {border_color}; border-radius: 8px; padding: 12px; margin: 8px 0;">
+#                         <div style="color: #5C00BF; font-weight: 600; font-size: 0.9rem; margin-bottom: 6px;">
+#                             📁 {project_count} project{'s' if project_count != 1 else ''}
+#                         </div>
+#                         <div style="color: #424242; font-size: 0.85rem; line-height: 1.4;">
+#                             {group['description'] if group['description'] else '<em>No description provided</em>'}
+#                         </div>
+#                     </div>
+#                     """, unsafe_allow_html=True)
+                    
+#                     if checkbox_value:
+#                         updated_selections.append(int(group["id"]))
+            
+#             if set(updated_selections) != set(st.session_state.admin_selected_groups):
+#                 st.session_state.admin_selected_groups = updated_selections
+#                 st.rerun(scope="fragment")
+        
+#         return st.session_state.admin_selected_groups
+        
+#     except Exception as e:
+#         st.error(f"❌ Error loading project groups: {str(e)}")
+#         return []
+
+# Replace these functions in your search_portal.py file
+
+def get_video_ground_truth_across_groups(video_id: int, selected_group_ids: List[int]) -> Dict:
+    """Get only ground truth for a video across selected project groups - OPTIMIZED VERSION"""
+    
+    if not selected_group_ids and not st.session_state.get("admin_include_unassigned", False):
+        return {}
+    
+    results = {}
+    include_unassigned = st.session_state.get("admin_include_unassigned", False)
+    include_archived = st.session_state.get("admin_include_archived", False)
+    
+    # STEP 1: Batch load all project groups and their projects
+    all_projects_by_id = {}
+    project_to_groups = {}  # Track which groups each project belongs to
+    
+    if selected_group_ids:
+        with get_db_session() as session:
+            groups_data = ProjectGroupService.get_all_projects_for_groups_batch(
+                group_ids=selected_group_ids, session=session
+            )
+        
+        # Collect all projects and track their group memberships
+        for group_id, group_data in groups_data.items():
+            group_name = group_data["group"]["name"]
+            for project in group_data["projects"]:
+                if not include_archived and project.get("archived", False):
+                    continue
+                    
+                project_id = int(project["id"])
+                all_projects_by_id[project_id] = {
+                    "id": project_id,
+                    "name": project["name"],
+                    "description": project["description"],
+                    "archived": project.get("archived", False),
+                    "schema_id": project["schema_id"]
+                }
+                
+                # Track group membership
+                if project_id not in project_to_groups:
+                    project_to_groups[project_id] = []
+                project_to_groups[project_id].append({
+                    "group_id": group_id,
+                    "group_name": group_name
+                })
+    
+    # STEP 2: Handle unassigned projects
+    unassigned_project_ids = []
+    if include_unassigned:
+        with get_db_session() as session:
+            all_projects = ProjectService.get_all_projects_including_archived(session=session)
+        
+        if not include_archived and not all_projects.empty:
+            all_projects = all_projects[all_projects.get("Archived", False) != True]
+        
+        if not all_projects.empty:
+            assigned_project_ids = set(all_projects_by_id.keys())
+            
+            for _, project_row in all_projects.iterrows():
+                project_id = project_row["ID"]
+                if project_id not in assigned_project_ids:
+                    unassigned_project_ids.append(project_id)
+                    all_projects_by_id[project_id] = {
+                        "id": project_id,
+                        "name": project_row["Name"],
+                        "description": project_row.get("Description", ""),
+                        "archived": project_row.get("Archived", False),
+                        "schema_id": project_row["Schema ID"]
+                    }
+                    project_to_groups[project_id] = [{"group_id": -1, "group_name": "Unassigned Projects"}]
+    
+    if not all_projects_by_id:
+        return {}
+    
+    # STEP 3: Batch check which projects contain this video
+    all_project_ids = list(all_projects_by_id.keys())
+    with get_db_session() as session:
+        video_in_projects = VideoService.batch_check_videos_in_projects(
+            video_id=video_id, project_ids=all_project_ids, session=session
+        )
+    
+    # Filter to only projects that contain the video
+    relevant_project_ids = [pid for pid, has_video in video_in_projects.items() if has_video]
+    
+    if not relevant_project_ids:
+        return {}
+    
+    # STEP 4: Batch load all ground truth data for relevant projects
+    with get_db_session() as session:
+        ground_truth_data = GroundTruthService.batch_get_video_ground_truth_for_projects(
+            video_id=video_id, project_ids=relevant_project_ids, session=session
+        )
+    
+    # STEP 5: Organize results by project groups, handling overlaps
+    projects_with_multiple_groups = {}  # Track projects in multiple groups
+    
+    for project_id in relevant_project_ids:
+        project_info = all_projects_by_id[project_id]
+        project_gt_data = ground_truth_data.get(project_id, {})
+        
+        if not project_gt_data.get("has_data", False):
+            continue
+        
+        project_groups = project_to_groups.get(project_id, [])
+        
+        # Create project entry
+        project_entry = {
+            "project_name": project_info["name"],
+            "project_description": project_info["description"],
+            **project_gt_data
+        }
+        
+        if len(project_groups) == 1:
+            # Project belongs to exactly one group
+            group_info = project_groups[0]
+            group_id = group_info["group_id"]
+            group_name = group_info["group_name"]
+            
+            if group_id not in results:
+                results[group_id] = {
+                    "group_name": group_name,
+                    "projects": {}
+                }
+            
+            results[group_id]["projects"][project_id] = project_entry
+            
+        else:
+            # Project belongs to multiple groups - track for special handling
+            group_names = [g["group_name"] for g in project_groups]
+            projects_with_multiple_groups[project_id] = {
+                "project_entry": project_entry,
+                "group_names": group_names
+            }
+    
+    # STEP 6: Handle projects that appear in multiple groups
+    if projects_with_multiple_groups:
+        # Create special group for overlapping projects
+        overlap_group_id = "overlap"
+        results[overlap_group_id] = {
+            "group_name": f"Multiple Groups ({len(projects_with_multiple_groups)} projects)",
+            "projects": {}
+        }
+        
+        for project_id, overlap_data in projects_with_multiple_groups.items():
+            project_entry = overlap_data["project_entry"]
+            group_names = overlap_data["group_names"]
+            
+            # Modify project name to show which groups it belongs to
+            original_name = project_entry["project_name"]
+            project_entry["project_name"] = f"{original_name} (in: {', '.join(group_names)})"
+            
+            results[overlap_group_id]["projects"][project_id] = project_entry
+    
+    return results
+
+
+def get_project_ground_truth_for_video(video_id: int, project_id: int) -> Dict:
+    """Get only ground truth for a video in a specific project - OPTIMIZED VERSION"""
+    
+    # Use the batch method for single project (still more efficient)
+    with get_db_session() as session:
+        batch_results = GroundTruthService.batch_get_video_ground_truth_for_projects(
+            video_id=video_id, project_ids=[project_id], session=session
+        )
+    
+    return batch_results.get(project_id, {"has_data": False, "question_groups": {}})
+
+
 def display_improved_project_group_filter_section() -> List[int]:
-    """Improved project group filtering interface"""
+    """Improved project group filtering interface - OPTIMIZED VERSION with original checkbox interface"""
     
     st.markdown("### 🗂️ Step 2: Configure Project Group Filters")
     
     try:
+        # Single query to get all project groups (no projects yet)
         with get_db_session() as session:
             project_groups = ProjectGroupService.list_project_groups(session=session)
             
@@ -291,7 +700,7 @@ def display_improved_project_group_filter_section() -> List[int]:
                 st.warning("🚫 No project groups or projects found")
                 return []
         
-        # Initialize selections
+        # Initialize selections - DEFAULT TO ALL GROUPS SELECTED (like original)
         if "admin_selected_groups" not in st.session_state:
             st.session_state.admin_selected_groups = [g["id"] for g in project_groups]
         if "admin_include_unassigned" not in st.session_state:
@@ -340,90 +749,9 @@ def display_improved_project_group_filter_section() -> List[int]:
                 st.session_state.admin_include_archived = include_archived
                 st.rerun(scope="fragment")
         
+        # Show summary metrics
         selected_video = st.session_state.get("search_portal_selected_video")
         if selected_video:
-            video_uid = selected_video["uid"]
-            
-            # Count projects that contain this video
-            active_grouped_projects = 0
-            archived_grouped_projects = 0
-            active_unassigned_projects = 0
-            archived_unassigned_projects = 0
-            
-            # Count projects in selected groups that contain this video
-            for group_id in st.session_state.admin_selected_groups:
-                try:
-                    with get_db_session() as session:
-                        group_info = ProjectGroupService.get_project_group_by_id(group_id=group_id, session=session)
-                    for project in group_info["projects"]:
-                        project_id = int(project["id"])
-                        
-                        # Check if this project contains the video
-                        project_videos = VideoService.get_project_videos(project_id=project_id, session=session)
-                        if any(v["uid"] == video_uid for v in project_videos):
-                            if project.get("archived", False):
-                                archived_grouped_projects += 1
-                            else:
-                                active_grouped_projects += 1
-                except:
-                    continue
-            
-            # Count unassigned projects that contain this video
-            if st.session_state.admin_include_unassigned:
-                for _, project_row in unassigned_projects.iterrows():
-                    project_id = project_row["ID"]
-                    
-                    # Check if this project contains the video
-                    with get_db_session() as session:
-                        project_videos = VideoService.get_project_videos(project_id=project_id, session=session)
-                        if any(v["uid"] == video_uid for v in project_videos):
-                            if project_row.get("Archived", False):
-                                archived_unassigned_projects += 1
-                            else:
-                                active_unassigned_projects += 1
-            
-            # Calculate totals based on checkbox setting
-            if st.session_state.admin_include_archived:
-                total_projects = active_grouped_projects + archived_grouped_projects + active_unassigned_projects + archived_unassigned_projects
-                total_grouped = active_grouped_projects + archived_grouped_projects
-                total_unassigned = active_unassigned_projects + archived_unassigned_projects
-                total_archived = archived_grouped_projects + archived_unassigned_projects
-            else:
-                total_projects = active_grouped_projects + active_unassigned_projects
-                total_grouped = active_grouped_projects
-                total_unassigned = active_unassigned_projects
-                total_archived = 0
-            
-            # Display metrics
-            if total_projects > 0:
-                if st.session_state.admin_include_archived and total_archived > 0:
-                    # Show 4 columns including archived count
-                    metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
-                    
-                    with metric_col1:
-                        st.metric("📁 Total Projects", total_projects)
-                    with metric_col2:
-                        st.metric("📋 From Groups", total_grouped)
-                    with metric_col3:
-                        st.metric("📄 Unassigned", total_unassigned)
-                    with metric_col4:
-                        st.metric("🗄️ Archived", total_archived)
-                else:
-                    # Show 3 columns without archived count
-                    metric_col1, metric_col2, metric_col3 = st.columns(3)
-                    
-                    with metric_col1:
-                        st.metric("📁 Total Projects", total_projects)
-                    with metric_col2:
-                        st.metric("📋 From Groups", total_grouped)
-                    with metric_col3:
-                        st.metric("📄 Unassigned", total_unassigned)
-                
-                st.success(f"✅ Found **{total_projects} projects** containing video '{video_uid}'")
-            else:
-                st.warning(f"⚠️ No projects found containing video '{video_uid}' with current filter settings")
-        else:
-            # No video selected yet - show general counts
             metric_col1, metric_col2, metric_col3 = st.columns(3)
             
             with metric_col1:
@@ -441,8 +769,7 @@ def display_improved_project_group_filter_section() -> List[int]:
             
             custom_info("💡 Select a video above to see how many projects contain it")
 
-        # Rest of the function remains the same...
-        # Project groups selection
+        # Project groups selection with original checkbox interface
         if project_groups:
             st.markdown("**📋 Select Project Groups:**")
             
@@ -451,15 +778,21 @@ def display_improved_project_group_filter_section() -> List[int]:
             
             updated_selections = []
             
+            # Batch load project counts for all groups at once to avoid N+1 queries
+            group_ids = [g["id"] for g in project_groups]
+            with get_db_session() as session:
+                groups_data = ProjectGroupService.get_all_projects_for_groups_batch(
+                    group_ids=group_ids, session=session
+                )
+            
+            # Create project count lookup
+            project_counts = {}
+            for group_id, group_data in groups_data.items():
+                project_counts[group_id] = len(group_data["projects"])
+            
             for i, group in enumerate(project_groups):
                 with cols[i % num_cols]:
-                    # Get project count
-                    try:
-                        with get_db_session() as session:
-                            group_info = ProjectGroupService.get_project_group_by_id(group_id=int(group["id"]), session=session)
-                            project_count = len(group_info["projects"])
-                    except:
-                        project_count = 0
+                    project_count = project_counts.get(group["id"], 0)
                     
                     is_selected = group["id"] in st.session_state.admin_selected_groups
                     
@@ -491,6 +824,8 @@ def display_improved_project_group_filter_section() -> List[int]:
             if set(updated_selections) != set(st.session_state.admin_selected_groups):
                 st.session_state.admin_selected_groups = updated_selections
                 st.rerun(scope="fragment")
+        
+
         
         return st.session_state.admin_selected_groups
         
@@ -985,189 +1320,189 @@ def display_single_question_group_for_search(video_info: Dict, project_id: int, 
             st.form_submit_button("Form Creation Failed", disabled=True)
 
 
-def get_video_ground_truth_across_groups(video_id: int, selected_group_ids: List[int]) -> Dict:
-    """Get only ground truth for a video across selected project groups"""
+# def get_video_ground_truth_across_groups(video_id: int, selected_group_ids: List[int]) -> Dict:
+#     """Get only ground truth for a video across selected project groups"""
     
-    results = {}
+#     results = {}
 
-    # Handle unassigned projects if checkbox is selected
-    include_unassigned = st.session_state.get("admin_include_unassigned", False)
-    include_archived = st.session_state.get("admin_include_archived", False)
-    if include_unassigned:
-        # Get all projects and find unassigned ones
-        with get_db_session() as session:
-            all_projects = ProjectService.get_all_projects_including_archived(session=session)
+#     # Handle unassigned projects if checkbox is selected
+#     include_unassigned = st.session_state.get("admin_include_unassigned", False)
+#     include_archived = st.session_state.get("admin_include_archived", False)
+#     if include_unassigned:
+#         # Get all projects and find unassigned ones
+#         with get_db_session() as session:
+#             all_projects = ProjectService.get_all_projects_including_archived(session=session)
 
-        if not include_archived and not all_projects.empty:
-            all_projects = all_projects[all_projects.get("Archived", False) != True]
+#         if not include_archived and not all_projects.empty:
+#             all_projects = all_projects[all_projects.get("Archived", False) != True]
         
-        if not all_projects.empty:
-            assigned_project_ids = set()
-            for group_id in selected_group_ids:
-                try:
-                    with get_db_session() as session:
-                        group_info = ProjectGroupService.get_project_group_by_id(group_id=int(group_id), session=session)
-                    assigned_project_ids.update(int(p["id"]) for p in group_info["projects"])
-                except:
-                    continue
+#         if not all_projects.empty:
+#             assigned_project_ids = set()
+#             for group_id in selected_group_ids:
+#                 try:
+#                     with get_db_session() as session:
+#                         group_info = ProjectGroupService.get_project_group_by_id(group_id=int(group_id), session=session)
+#                     assigned_project_ids.update(int(p["id"]) for p in group_info["projects"])
+#                 except:
+#                     continue
             
-            unassigned_projects = all_projects[~all_projects["ID"].isin(assigned_project_ids)]
+#             unassigned_projects = all_projects[~all_projects["ID"].isin(assigned_project_ids)]
             
-            if not unassigned_projects.empty:
-                # Process unassigned projects
-                unassigned_results = {"group_name": "Unassigned Projects", "projects": {}}
+#             if not unassigned_projects.empty:
+#                 # Process unassigned projects
+#                 unassigned_results = {"group_name": "Unassigned Projects", "projects": {}}
                 
-                for _, project_row in unassigned_projects.iterrows():
-                    project_id = project_row["ID"]
-                    project_name = project_row["Name"]
+#                 for _, project_row in unassigned_projects.iterrows():
+#                     project_id = project_row["ID"]
+#                     project_name = project_row["Name"]
                     
-                    # Check if video is in this project
-                    with get_db_session() as session:
-                        project_videos = VideoService.get_project_videos(project_id=project_id, session=session)
-                    video_in_project = any(v["id"] == video_id for v in project_videos)
+#                     # Check if video is in this project
+#                     with get_db_session() as session:
+#                         project_videos = VideoService.get_project_videos(project_id=project_id, session=session)
+#                     video_in_project = any(v["id"] == video_id for v in project_videos)
                     
-                    if video_in_project:
-                        project_results = get_project_ground_truth_for_video(video_id, project_id)
+#                     if video_in_project:
+#                         project_results = get_project_ground_truth_for_video(video_id, project_id)
                         
-                        if project_results["has_data"]:
-                            unassigned_results["projects"][project_id] = {
-                                "project_name": project_name,
-                                "project_description": project_row.get("Description", ""),
-                                **project_results
-                            }
+#                         if project_results["has_data"]:
+#                             unassigned_results["projects"][project_id] = {
+#                                 "project_name": project_name,
+#                                 "project_description": project_row.get("Description", ""),
+#                                 **project_results
+#                             }
                 
-                if unassigned_results["projects"]:
-                    results[-1] = unassigned_results  # Use -1 as special key for unassigned
+#                 if unassigned_results["projects"]:
+#                     results[-1] = unassigned_results  # Use -1 as special key for unassigned
     
-    for group_id in selected_group_ids:
-        try:
-            # Get group info
-            with get_db_session() as session:
-                group_info = ProjectGroupService.get_project_group_by_id(group_id=group_id, session=session)
-            group_name = group_info["group"]["name"]
-            projects = group_info["projects"]
+#     for group_id in selected_group_ids:
+#         try:
+#             # Get group info
+#             with get_db_session() as session:
+#                 group_info = ProjectGroupService.get_project_group_by_id(group_id=group_id, session=session)
+#             group_name = group_info["group"]["name"]
+#             projects = group_info["projects"]
             
-            group_results = {"group_name": group_name, "projects": {}}
+#             group_results = {"group_name": group_name, "projects": {}}
             
-            for project in projects:
-                if not include_archived and project.get("archived", False): 
-                    continue  # Skip archived projects
+#             for project in projects:
+#                 if not include_archived and project.get("archived", False): 
+#                     continue  # Skip archived projects
                 
-                # Check if video is in this project
-                with get_db_session() as session:
-                    project_videos = VideoService.get_project_videos(project_id=int(project["id"]), session=session)
-                video_in_project = any(v["id"] == video_id for v in project_videos)
+#                 # Check if video is in this project
+#                 with get_db_session() as session:
+#                     project_videos = VideoService.get_project_videos(project_id=int(project["id"]), session=session)
+#                 video_in_project = any(v["id"] == video_id for v in project_videos)
                 
-                if not video_in_project:
-                    continue
+#                 if not video_in_project:
+#                     continue
                 
-                # Get project ground truth only
-                project_results = get_project_ground_truth_for_video(video_id, int(project["id"]))
+#                 # Get project ground truth only
+#                 project_results = get_project_ground_truth_for_video(video_id, int(project["id"]))
                 
-                if project_results["has_data"]:
-                    group_results["projects"][int(project["id"])] = {
-                        "project_name": project["name"],
-                        "project_description": project["description"],
-                        **project_results
-                    }
+#                 if project_results["has_data"]:
+#                     group_results["projects"][int(project["id"])] = {
+#                         "project_name": project["name"],
+#                         "project_description": project["description"],
+#                         **project_results
+#                     }
             
-            if group_results["projects"]:
-                results[group_id] = group_results
+#             if group_results["projects"]:
+#                 results[group_id] = group_results
                 
-        except Exception as e:
-            st.error(f"Error processing group {group_id}: {str(e)}")
-            continue
+#         except Exception as e:
+#             st.error(f"Error processing group {group_id}: {str(e)}")
+#             continue
     
-    return results
+#     return results
 
-def get_project_ground_truth_for_video(video_id: int, project_id: int) -> Dict:
-    """Get only ground truth for a video in a specific project"""
+# def get_project_ground_truth_for_video(video_id: int, project_id: int) -> Dict:
+#     """Get only ground truth for a video in a specific project"""
     
-    try:
-        # Get project info
-        project = get_project_metadata_cached(project_id=project_id)
+#     try:
+#         # Get project info
+#         project = get_project_metadata_cached(project_id=project_id)
         
-        # Get schema question groups
-        with get_db_session() as session:
-            question_groups = SchemaService.get_schema_question_groups_list(
-                schema_id=project["schema_id"], session=session
-            )
+#         # Get schema question groups
+#         with get_db_session() as session:
+#             question_groups = SchemaService.get_schema_question_groups_list(
+#                 schema_id=project["schema_id"], session=session
+#             )
         
-        project_results = {
-            "has_data": False,
-            "question_groups": {}
-        }
+#         project_results = {
+#             "has_data": False,
+#             "question_groups": {}
+#         }
         
-        for group in question_groups:
-            group_id = group["ID"]
-            group_title = group["Title"]
+#         for group in question_groups:
+#             group_id = group["ID"]
+#             group_title = group["Title"]
             
-            # Get questions in this group
-            # questions = QuestionService.get_questions_by_group_id(group_id=group_id, session=session)
-            questions = get_questions_with_custom_display_if_enabled(
-                group_id=group_id, 
-                project_id=project_id, 
-                video_id=video_id
-            )
+#             # Get questions in this group
+#             # questions = QuestionService.get_questions_by_group_id(group_id=group_id, session=session)
+#             questions = get_questions_with_custom_display_if_enabled(
+#                 group_id=group_id, 
+#                 project_id=project_id, 
+#                 video_id=video_id
+#             )
             
-            group_data = {
-                "title": group_title,
-                "description": group["Description"],
-                "questions": {}
-            }
+#             group_data = {
+#                 "title": group_title,
+#                 "description": group["Description"],
+#                 "questions": {}
+#             }
 
-            if not questions:
-                continue
+#             if not questions:
+#                 continue
             
-            for question in questions:
-                question_id = question["id"]
-                question_text = question["text"]
-                question_type = question["type"]
+#             for question in questions:
+#                 question_id = question["id"]
+#                 question_text = question["text"]
+#                 question_type = question["type"]
                 
-                question_data = {
-                    "text": question_text,
-                    "type": question_type,
-                    "ground_truth": None
-                }
+#                 question_data = {
+#                     "text": question_text,
+#                     "type": question_type,
+#                     "ground_truth": None
+#                 }
                 
-                # Get ground truth only
-                try:
-                    with get_db_session() as session:
-                        gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
+#                 # Get ground truth only
+#                 try:
+#                     with get_db_session() as session:
+#                         gt_df = GroundTruthService.get_ground_truth(video_id=video_id, project_id=project_id, session=session)
                         
-                    if not gt_df.empty:
-                        gt_row = gt_df[gt_df["Question ID"] == question_id]
+#                     if not gt_df.empty:
+#                         gt_row = gt_df[gt_df["Question ID"] == question_id]
                         
-                        if not gt_row.empty:
-                            gt_data = gt_row.iloc[0]
-                            with get_db_session() as session:
-                                reviewer_info = AuthService.get_user_info_by_id(
-                                    user_id=int(gt_data["Reviewer ID"]), session=session
-                                )
+#                         if not gt_row.empty:
+#                             gt_data = gt_row.iloc[0]
+#                             with get_db_session() as session:
+#                                 reviewer_info = AuthService.get_user_info_by_id(
+#                                     user_id=int(gt_data["Reviewer ID"]), session=session
+#                                 )
                             
-                            question_data["ground_truth"] = {
-                                "answer_value": gt_data["Answer Value"],
-                                "original_value": gt_data["Original Value"],
-                                "reviewer_name": reviewer_info["user_id_str"],
-                                "modified_by_admin": gt_data["Modified By Admin"] is not None,
-                                "created_at": gt_data["Created At"],
-                                "modified_at": gt_data["Modified At"]
-                            }
-                except Exception as e:
-                    print(f"Error getting ground truth: {e}")
-                    pass
+#                             question_data["ground_truth"] = {
+#                                 "answer_value": gt_data["Answer Value"],
+#                                 "original_value": gt_data["Original Value"],
+#                                 "reviewer_name": reviewer_info["user_id_str"],
+#                                 "modified_by_admin": gt_data["Modified By Admin"] is not None,
+#                                 "created_at": gt_data["Created At"],
+#                                 "modified_at": gt_data["Modified At"]
+#                             }
+#                 except Exception as e:
+#                     print(f"Error getting ground truth: {e}")
+#                     pass
                 
-                # Always include question even if no GT yet (for editing)
-                group_data["questions"][question_id] = question_data
+#                 # Always include question even if no GT yet (for editing)
+#                 group_data["questions"][question_id] = question_data
             
-            project_results["question_groups"][group_id] = group_data
-            project_results["has_data"] = True
+#             project_results["question_groups"][group_id] = group_data
+#             project_results["has_data"] = True
         
-        return project_results
+#         return project_results
         
-    except Exception as e:
-        st.error(f"Error getting project ground truth: {str(e)}")
-        return {"has_data": False, "question_groups": {}}
+#     except Exception as e:
+#         st.error(f"Error getting project ground truth: {str(e)}")
+#         return {"has_data": False, "question_groups": {}}
 
 
 ###############################################################################

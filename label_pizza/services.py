@@ -24,6 +24,34 @@ from label_pizza.verification_registry import verify
 
 class VideoService:
     @staticmethod
+    def batch_check_videos_in_projects(video_id: int, project_ids: List[int], session: Session) -> Dict[int, bool]:
+        """Check if a video exists in multiple projects in one query.
+        
+        Args:
+            video_id: The video ID to check
+            project_ids: List of project IDs to check against
+            session: Database session
+            
+        Returns:
+            Dictionary mapping project_id -> True if video is in project, False otherwise
+        """
+        if not project_ids:
+            return {}
+            
+        # Single query to check all projects at once
+        existing_assignments = session.scalars(
+            select(ProjectVideo.project_id)
+            .where(
+                ProjectVideo.video_id == video_id,
+                ProjectVideo.project_id.in_(project_ids)
+            )
+        ).all()
+        
+        existing_set = set(existing_assignments)
+        return {project_id: project_id in existing_set for project_id in project_ids}
+
+
+    @staticmethod
     def get_video_by_uid(video_uid: str, session: Session) -> Optional[Video]:
         """Get a video by its UID.
         
@@ -6389,6 +6417,176 @@ class AnnotatorService(BaseAnswerService):
 class GroundTruthService(BaseAnswerService):
 
     @staticmethod
+    def batch_get_video_ground_truth_for_projects(video_id: int, project_ids: List[int], session: Session) -> Dict[int, Dict]:
+        """Get ground truth for a video across multiple projects in batch.
+        
+        Args:
+            video_id: The video ID
+            project_ids: List of project IDs
+            session: Database session
+            
+        Returns:
+            Dictionary mapping project_id -> ground truth data
+        """
+        if not project_ids:
+            return {}
+            
+        # Get all ground truth records for this video across all projects in one query
+        ground_truths = session.scalars(
+            select(ReviewerGroundTruth)
+            .where(
+                ReviewerGroundTruth.video_id == video_id,
+                ReviewerGroundTruth.project_id.in_(project_ids)
+            )
+        ).all()
+        
+        # Get all projects and their schemas in one query
+        projects_query = select(
+            Project.id,
+            Project.name,
+            Project.description,
+            Project.schema_id
+        ).where(Project.id.in_(project_ids))
+        
+        projects = session.execute(projects_query).all()
+        projects_map = {p.id: p for p in projects}
+        
+        # Get all schema question groups for all schemas in one query
+        schema_ids = list(set(p.schema_id for p in projects))
+        schema_groups_query = select(
+            SchemaQuestionGroup.schema_id,
+            SchemaQuestionGroup.question_group_id,
+            SchemaQuestionGroup.display_order,
+            QuestionGroup.title,
+            QuestionGroup.description
+        ).select_from(
+            SchemaQuestionGroup
+        ).join(
+            QuestionGroup, SchemaQuestionGroup.question_group_id == QuestionGroup.id
+        ).where(
+            SchemaQuestionGroup.schema_id.in_(schema_ids)
+        ).order_by(SchemaQuestionGroup.display_order)
+        
+        schema_groups = session.execute(schema_groups_query).all()
+        
+        # Get all questions for all question groups in one query
+        question_group_ids = list(set(sg.question_group_id for sg in schema_groups))
+        questions_query = select(
+            QuestionGroupQuestion.question_group_id,
+            Question.id,
+            Question.text,
+            Question.type,
+            Question.display_text,
+            Question.options,
+            Question.default_option
+        ).select_from(
+            QuestionGroupQuestion
+        ).join(
+            Question, QuestionGroupQuestion.question_id == Question.id
+        ).where(
+            QuestionGroupQuestion.question_group_id.in_(question_group_ids),
+            Question.is_archived == False
+        )
+        
+        questions = session.execute(questions_query).all()
+        
+        # Organize data structures
+        questions_by_group = {}
+        for q in questions:
+            group_id = q.question_group_id
+            if group_id not in questions_by_group:
+                questions_by_group[group_id] = []
+            questions_by_group[group_id].append({
+                "id": q.id,
+                "text": q.text,
+                "type": q.type,
+                "display_text": q.display_text or q.text,
+                "options": q.options or [],
+                "default_option": q.default_option
+            })
+        
+        schema_groups_by_schema = {}
+        for sg in schema_groups:
+            schema_id = sg.schema_id
+            if schema_id not in schema_groups_by_schema:
+                schema_groups_by_schema[schema_id] = []
+            schema_groups_by_schema[schema_id].append({
+                "id": sg.question_group_id,
+                "title": sg.title,
+                "description": sg.description or "",
+                "display_order": sg.display_order
+            })
+        
+        # Organize ground truth by project and question
+        gt_by_project_question = {}
+        for gt in ground_truths:
+            project_id = gt.project_id
+            question_id = gt.question_id
+            if project_id not in gt_by_project_question:
+                gt_by_project_question[project_id] = {}
+            gt_by_project_question[project_id][question_id] = {
+                "answer_value": gt.answer_value,
+                "confidence_score": gt.confidence_score,
+                "notes": gt.notes,
+                "created_at": gt.created_at,
+                "modified_at": gt.modified_at,
+                "reviewer_id": gt.reviewer_id
+            }
+        
+        # Build final result for each project
+        result = {}
+        for project_id in project_ids:
+            project = projects_map.get(project_id)
+            if not project:
+                continue
+                
+            project_gt = gt_by_project_question.get(project_id, {})
+            question_groups = schema_groups_by_schema.get(project.schema_id, [])
+            
+            project_result = {
+                "has_data": False,
+                "question_groups": {}
+            }
+            
+            for group_info in question_groups:
+                group_id = group_info["id"]
+                group_questions = questions_by_group.get(group_id, [])
+                
+                if not group_questions:
+                    continue
+                    
+                group_data = {
+                    "title": group_info["title"],
+                    "description": group_info["description"],
+                    "questions": {}
+                }
+                
+                has_group_data = False
+                for question in group_questions:
+                    question_id = question["id"]
+                    question_gt = project_gt.get(question_id)
+                    
+                    if question_gt:
+                        group_data["questions"][question_id] = {
+                            "question_text": question["text"],
+                            "question_type": question["type"],
+                            "display_text": question["display_text"],
+                            "options": question["options"],
+                            "default_option": question["default_option"],
+                            "ground_truth": question_gt
+                        }
+                        has_group_data = True
+                        project_result["has_data"] = True
+                
+                if has_group_data:
+                    project_result["question_groups"][group_id] = group_data
+            
+            result[project_id] = project_result
+        
+        return result
+        
+        
+    @staticmethod
     def get_complete_video_data_for_display(video_id: int, project_id: int, user_id: int, role: str, session: Session) -> Dict[str, Any]:
         """Get ALL data needed to display a video with all its question groups in one massive batch operation"""
         try:
@@ -8361,6 +8559,74 @@ class GroundTruthService(BaseAnswerService):
 
 
 class ProjectGroupService:
+
+    @staticmethod
+    def get_all_projects_for_groups_batch(group_ids: List[int], session: Session) -> Dict[int, Dict]:
+        """Get all projects for multiple groups in a single batch operation.
+        
+        Args:
+            group_ids: List of project group IDs
+            session: Database session
+            
+        Returns:
+            Dictionary mapping group_id -> group info with projects
+        """
+        if not group_ids:
+            return {}
+            
+        # Single query to get all group info
+        groups_query = select(ProjectGroup).where(ProjectGroup.id.in_(group_ids))
+        groups = session.scalars(groups_query).all()
+        groups_map = {g.id: g for g in groups}
+        
+        # Single query to get all project assignments across all groups
+        assignments_query = select(
+            ProjectGroupProject.project_group_id,
+            ProjectGroupProject.project_id,
+            Project.name,
+            Project.description,
+            Project.is_archived,
+            Project.schema_id
+        ).select_from(
+            ProjectGroupProject
+        ).join(
+            Project, ProjectGroupProject.project_id == Project.id
+        ).where(
+            ProjectGroupProject.project_group_id.in_(group_ids)
+        )
+        
+        assignments = session.execute(assignments_query).all()
+        
+        # Organize results
+        result = {}
+        for group_id in group_ids:
+            group = groups_map.get(group_id)
+            if group:
+                result[group_id] = {
+                    "group": {
+                        "id": group.id,
+                        "name": group.name,
+                        "description": group.description or "",
+                        "archived": group.is_archived
+                    },
+                    "projects": []
+                }
+        
+        # Add projects to their groups
+        for assignment in assignments:
+            group_id = assignment.project_group_id
+            if group_id in result:
+                result[group_id]["projects"].append({
+                    "id": str(assignment.project_id),
+                    "name": assignment.name,
+                    "description": assignment.description or "",
+                    "archived": assignment.is_archived,
+                    "schema_id": assignment.schema_id
+                })
+        
+        return result
+
+
     @staticmethod
     def verify_create_project_group(name: str, description: str, project_ids: list[int] | None, session: Session) -> ProjectGroup:
         """Verify create project group with optional list of project IDs, enforcing uniqueness constraints."""
@@ -9373,6 +9639,7 @@ class ReviewerAutoSubmitService:
             raise ValueError(f"Error calculating weighted votes: {str(e)}")
 
 class GroundTruthExportService:
+    
     @staticmethod
     def export_ground_truth_data(project_ids: List[int], session: Session) -> List[Dict[str, Any]]:
         """Export ground truth data from a list of projects.
