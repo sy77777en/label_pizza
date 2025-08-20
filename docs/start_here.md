@@ -3,16 +3,16 @@
 Welcome! In about **20 minutes** you’ll learn the core concepts behind Label Pizza and get a project up and running.
 The guides below build on one another; we recommend reading the first three in order, then jumping to the advanced topics as needed.
 
-| Step  | Guide (file)       | What you’ll get out of it                                                                                          | Est. time        |
+| Step  | Guide (file)       | What you'll get out of it                                                                                          | Est. time        |
 | ----- | ------------------ | ------------------------------------------------------------------------------------------------------------------ | ---------------- |
-| **1** | **[start_here.md](start_here.md)** | Install dependencies, spin up the demo database, and launch the Streamlit UI.                                      | **3 min**        |
-| 2     | [data_model.md](data_model.md)     | Understand the core concepts: videos, users, question groups, schemas, projects, assignments, and answers.         | 8 min            |
-| 3     | [sync_workflows.md](sync_workflows.md) | Learn how to sync data from JSON dictionaries or folders into the database.                                        | 8 min            |
-| 4     | [workspace_management.md](workspace_management.md) | Learn how to manage your workspace folder with version control.                                                                            | 2 min            |
-| 5     | [custom_display.md](custom_display.md) | Override question wording on a per‑video basis using a shared schema.                                              | 6 min (optional) |
-| 6     | [admin_override.md](admin_override.md) | Perform dangerous override operations: rename immutable IDs or permanently delete records (with automatic backup). | 5 min (optional) |
-| 7     | [google_sheet_export.md](google_sheet_export.md) | Learn how to export data to Google Sheets. | 4 min (optional) |
-
+| **1** | **[start_here.md](start_here.md)** | Install dependencies, spin up the demo database, and launch the Streamlit UI.                                      | **3 min**        |
+| 2     | [data_model.md](data_model.md)     | Understand the core concepts: videos, users, question groups, schemas, projects, assignments, and answers.         | 8 min            |
+| 3     | [sync_workflows.md](sync_workflows.md) | Learn how to sync data from JSON dictionaries or folders into the database.                                        | 8 min            |
+| 4     | [workspace_management.md](workspace_management.md) | Learn how to manage your workspace folder with version control.                                                                            | 2 min            |
+| 5     | [export_and_merge_workspace.md](export_and_merge_workspace.md) | Export, compare, and merge workspace folders.                     | 10 min (optional) |
+| 6     | [custom_display.md](custom_display.md) | Override question wording on a per‑video basis using a shared schema.                                              | 6 min (optional) |
+| 7     | [admin_override.md](admin_override.md) | Perform dangerous override operations: rename immutable IDs or permanently delete records (with automatic backup). | 5 min (optional) |
+| 8     | [google_sheet_export.md](google_sheet_export.md) | Learn how to export data to Google Sheets. | 4 min (optional) |
 
 ## Quick Setup (in 3 minutes)
 
