@@ -6561,31 +6561,29 @@ class GroundTruthService(BaseAnswerService):
                     "questions": {}
                 }
                 
-                has_group_data = False
+                # Include ALL questions (with or without ground truth) for editing
                 for question in group_questions:
                     question_id = question["id"]
                     question_gt = project_gt.get(question_id)
                     
-                    if question_gt:
-                        group_data["questions"][question_id] = {
-                            "question_text": question["text"],
-                            "question_type": question["type"],
-                            "display_text": question["display_text"],
-                            "options": question["options"],
-                            "default_option": question["default_option"],
-                            "ground_truth": question_gt
-                        }
-                        has_group_data = True
-                        project_result["has_data"] = True
+                    group_data["questions"][question_id] = {
+                        "question_text": question["text"],
+                        "question_type": question["type"],
+                        "display_text": question["display_text"],
+                        "options": question["options"],
+                        "default_option": question["default_option"],
+                        "ground_truth": question_gt  # Can be None
+                    }
                 
-                if has_group_data:
+                # Always include question groups that have questions (for editing)
+                if group_questions:
                     project_result["question_groups"][group_id] = group_data
+                    project_result["has_data"] = True  # Show project even without GT
             
             result[project_id] = project_result
         
         return result
-        
-        
+            
     @staticmethod
     def get_complete_video_data_for_display(video_id: int, project_id: int, user_id: int, role: str, session: Session) -> Dict[str, Any]:
         """Get ALL data needed to display a video with all its question groups in one massive batch operation"""

@@ -598,8 +598,8 @@ def get_video_ground_truth_across_groups(video_id: int, selected_group_ids: List
         project_info = all_projects_by_id[project_id]
         project_gt_data = ground_truth_data.get(project_id, {})
         
-        if not project_gt_data.get("has_data", False):
-            continue
+        # if not project_gt_data.get("has_data", False):
+        #     continue
         
         project_groups = project_to_groups.get(project_id, [])
         
@@ -695,6 +695,10 @@ def display_improved_project_group_filter_section() -> List[int]:
                 
                 unassigned_projects = all_projects[~all_projects["ID"].isin(assigned_project_ids)]
                 unassigned_project_count = len(unassigned_projects)
+            else:
+                # Handle empty projects case
+                archived_project_count = 0
+                unassigned_project_count = 0
             
             if not project_groups and unassigned_project_count == 0 and archived_project_count == 0:
                 st.warning("🚫 No project groups or projects found")
