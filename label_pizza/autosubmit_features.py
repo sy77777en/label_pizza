@@ -1778,8 +1778,6 @@ def display_smart_annotator_selection_for_auto_submit(annotators: Dict[str, Dict
     
     return st.session_state[auto_submit_key]
 
-
-
 def display_annotator_checkboxes(annotators: Dict[str, Dict], project_id: int, section: str, updated_selection: List[str], disabled: bool = False):
     """Helper function to display annotator checkboxes with correct role display and model-friendly tooltips"""
     num_annotators = len(annotators)
@@ -1811,9 +1809,18 @@ def display_annotator_checkboxes(annotators: Dict[str, Dict], project_id: int, s
                 project_role = annotator_info.get('Role', annotator_info.get('role', 'annotator'))
                 system_role = annotator_info.get('system_role', project_role)
                 
-                # Enhanced display name for different user types
+                # FIXED: Enhanced display name for different user types with correct completion status
                 display_name = annotator_display
-                status_icon = "⏳" if disabled else "✅"
+                
+                # FIXED: Determine status icon based on section (completed vs incomplete)
+                # section parameter tells us if these are completed or incomplete annotators
+                if section == "completed":
+                    status_icon = "✅"  # Checkmark only for completed annotators
+                elif section == "incomplete":
+                    status_icon = "⏳"  # Hourglass for incomplete annotators
+                else:
+                    # Fallback: use old logic for other cases like "auto_submit"
+                    status_icon = "⏳" if disabled else "✅"
                 
                 if system_role == "model":
                     display_name = f"🤖 {display_name}"
@@ -1822,6 +1829,7 @@ def display_annotator_checkboxes(annotators: Dict[str, Dict], project_id: int, s
                 elif project_role == "reviewer":
                     display_name = f"🔍 {display_name}"
                 else:
+                    # FIXED: Now uses correct status icon based on completion
                     display_name = f"{status_icon} {display_name}"
                 
                 # Create tooltip - don't show email for model users
@@ -1838,7 +1846,12 @@ def display_annotator_checkboxes(annotators: Dict[str, Dict], project_id: int, s
                     if system_role != project_role:
                         tooltip_parts.append(f"System Role: {system_role}")
                 
-                if disabled:
+                # FIXED: Update tooltip to reflect completion status
+                if section == "completed":
+                    tooltip_parts.append("Status: Completed project")
+                elif section == "incomplete":
+                    tooltip_parts.append("Status: Incomplete project")
+                elif disabled:
                     tooltip_parts.append("Status: Incomplete - cannot select")
                 
                 tooltip = "\n".join(tooltip_parts)
@@ -1856,5 +1869,82 @@ def display_annotator_checkboxes(annotators: Dict[str, Dict], project_id: int, s
                 
                 if checkbox_value and not disabled:
                     updated_selection.append(annotator_display)
+
+# def display_annotator_checkboxes(annotators: Dict[str, Dict], project_id: int, section: str, updated_selection: List[str], disabled: bool = False):
+#     """Helper function to display annotator checkboxes with correct role display and model-friendly tooltips"""
+#     num_annotators = len(annotators)
+#     if num_annotators <= 3:
+#         num_cols = num_annotators
+#     elif num_annotators <= 8:
+#         num_cols = 4
+#     else:
+#         num_cols = 5
+    
+#     annotator_items = list(annotators.items())
+    
+#     for row_start in range(0, num_annotators, num_cols):
+#         cols = st.columns(num_cols)
+#         row_annotators = annotator_items[row_start:row_start + num_cols]
+        
+#         for i, (annotator_display, annotator_info) in enumerate(row_annotators):
+#             with cols[i]:
+#                 if " (" in annotator_display and annotator_display.endswith(")"):
+#                     full_name = annotator_display.split(" (")[0]
+#                     initials = annotator_display.split(" (")[1][:-1]
+#                 else:
+#                     full_name = annotator_display
+#                     initials = annotator_display[:2].upper()
+                
+#                 email = annotator_info.get('email', '')
+#                 user_id = annotator_info.get('id', '')
+#                 # Use project-specific role with correct priority
+#                 project_role = annotator_info.get('Role', annotator_info.get('role', 'annotator'))
+#                 system_role = annotator_info.get('system_role', project_role)
+                
+#                 # Enhanced display name for different user types
+#                 display_name = annotator_display
+#                 status_icon = "⏳" if disabled else "✅"
+                
+#                 if system_role == "model":
+#                     display_name = f"🤖 {display_name}"
+#                 elif project_role == "admin":
+#                     display_name = f"👑 {display_name}"
+#                 elif project_role == "reviewer":
+#                     display_name = f"🔍 {display_name}"
+#                 else:
+#                     display_name = f"{status_icon} {display_name}"
+                
+#                 # Create tooltip - don't show email for model users
+#                 tooltip_parts = []
+#                 if system_role == "model":
+#                     tooltip_parts.append("Type: AI Model")
+#                     tooltip_parts.append(f"ID: {user_id}")
+#                     tooltip_parts.append(f"Project Role: {project_role}")
+#                     tooltip_parts.append(f"System Role: {system_role}")
+#                 else:
+#                     tooltip_parts.append(f"Email: {email}")
+#                     tooltip_parts.append(f"ID: {user_id}")
+#                     tooltip_parts.append(f"Project Role: {project_role}")
+#                     if system_role != project_role:
+#                         tooltip_parts.append(f"System Role: {system_role}")
+                
+#                 if disabled:
+#                     tooltip_parts.append("Status: Incomplete - cannot select")
+                
+#                 tooltip = "\n".join(tooltip_parts)
+                
+#                 checkbox_key = f"annotator_cb_{project_id}_{section}_{row_start + i}"
+#                 is_selected = annotator_display in st.session_state.selected_annotators and not disabled
+                
+#                 checkbox_value = st.checkbox(
+#                     display_name,
+#                     value=is_selected,
+#                     key=checkbox_key,
+#                     help=tooltip,
+#                     disabled=disabled
+#                 )
+                
+#                 if checkbox_value and not disabled:
+#                     updated_selection.append(annotator_display)
 
 

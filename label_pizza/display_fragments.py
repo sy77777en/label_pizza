@@ -1089,9 +1089,9 @@ def _get_options_for_reviewer(
     video_id: int, project_id: int, question_id: int, 
     original_options: List[str], display_values: List[str], 
     selected_annotators: List[str] = None,
-    cache_data: Dict = None  # 🚀 NEW: Accept bulk cache data
+    cache_data: Dict = None
 ) -> List[str]:
-    """OPTIMIZED: Get enhanced options using bulk cached data"""
+    """FIXED: Get enhanced options with correct consensus rate calculation"""
     
     try:
         # Get annotator user IDs
@@ -1118,12 +1118,10 @@ def _get_options_for_reviewer(
                 pass
             return enhanced_options
         
-        # 🚀 OPTIMIZED: Use bulk cache data if provided, otherwise fall back to old method
+        # Use bulk cache data if provided, otherwise fall back to old method
         if cache_data:
-            # Use provided bulk cache data
             pass
         else:
-            # Fallback to old method for compatibility
             cache_data = get_video_reviewer_data_from_bulk(
                 video_id=video_id, project_id=project_id, 
                 annotator_user_ids=annotator_user_ids
@@ -1171,8 +1169,15 @@ def _get_options_for_reviewer(
         except:
             pass
         
-        # Build enhanced options
-        total_annotators = len(annotator_user_ids)
+        # FIXED: Calculate total annotators who actually answered THIS question
+        # This ensures we only count each annotator once, even if they appear in cache multiple times
+        annotators_who_answered = set()
+        for selections in option_selections.values():
+            for sel in selections:
+                # Extract user ID or name to avoid counting duplicates
+                annotators_who_answered.add(sel["name"])
+        total_annotators_who_answered = len(annotators_who_answered)
+        
         enhanced_options = []
         
         for i, display_val in enumerate(display_values):
@@ -1186,8 +1191,9 @@ def _get_options_for_reviewer(
                 annotators = [sel["initials"] for sel in option_selections[original_val]]
                 count = len(annotators)
                 
-                if total_annotators > 0:
-                    percentage = (count / total_annotators) * 100
+                # FIXED: Use only annotators who answered as denominator
+                if total_annotators_who_answered > 0:
+                    percentage = (count / total_annotators_who_answered) * 100
                     percentage_str = f"{int(percentage)}%" if percentage == int(percentage) else f"{percentage:.1f}%"
                     selection_info.append(f"{percentage_str}: {', '.join(annotators)}")
                 else:
