@@ -42,10 +42,12 @@ from label_pizza.accuracy_analytics import display_user_accuracy_simple, display
 def display_video_answer_pair(video: Dict, project_id: int, user_id: int, role: str, mode: str):
     """Display a single video-answer pair - FULLY OPTIMIZED WITH SINGLE BATCH OPERATION"""
     try:
-        # 🚀 MEGA OPTIMIZATION: Get ALL data for this video in ONE database call
+        selected_annotators = st.session_state.get("selected_annotators", []) if role in ["reviewer", "meta_reviewer"] else None
+        
         with get_db_session() as session:
             bulk_video_data = GroundTruthService.get_complete_video_data_for_display(
-                video_id=video["id"], project_id=project_id, user_id=user_id, role=role, session=session
+                video_id=video["id"], project_id=project_id, user_id=user_id, role=role, session=session,
+                selected_annotators=selected_annotators
             )
         
         if not bulk_video_data:
@@ -153,9 +155,11 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
 
         if role in ["reviewer", "meta_reviewer"]:
             selected_annotators = st.session_state.get("selected_annotators", [])
-            
-            # Get properly formatted cache data for display functions
-            if selected_annotators:
+
+            if bulk_cache_data and "reviewer_annotator_data" in bulk_cache_data:
+                cache_data = bulk_cache_data["reviewer_annotator_data"]
+            elif selected_annotators:
+                # Fallback to individual cache lookup (existing behavior)
                 annotator_user_ids = get_optimized_annotator_user_ids(
                     display_names=selected_annotators, project_id=project_id
                 )
@@ -164,6 +168,18 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                         video_id=video["id"], project_id=project_id, 
                         annotator_user_ids=annotator_user_ids
                     )
+            else:
+                cache_data = None
+            # # Get properly formatted cache data for display functions
+            # if selected_annotators:
+            #     annotator_user_ids = get_optimized_annotator_user_ids(
+            #         display_names=selected_annotators, project_id=project_id
+            #     )
+            #     if annotator_user_ids:
+            #         cache_data = get_video_reviewer_data_from_bulk(
+            #             video_id=video["id"], project_id=project_id, 
+            #             annotator_user_ids=annotator_user_ids
+            #         )
         
         # 🚀 OPTIMIZATION: Use bulk data if available, otherwise fall back to individual queries
         if bulk_cache_data and "admin_modifications" in bulk_cache_data:
@@ -251,16 +267,31 @@ def display_question_group_in_fixed_container(video: Dict, project_id: int, user
                 
                 # Get answer reviews
                 answer_reviews = {}
+                # if role in ["reviewer", "meta_reviewer"]:
+                #     for question in questions:
+                #         if question["type"] == "description":
+                #             question_text = question["text"]
+                #             existing_review_data = load_existing_answer_reviews(
+                #                 video_id=video["id"], project_id=project_id, 
+                #                 question_id=question["id"],
+                #                 cache_data=cache_data
+                #             )
+                #             answer_reviews[question_text] = existing_review_data
                 if role in ["reviewer", "meta_reviewer"]:
-                    for question in questions:
-                        if question["type"] == "description":
-                            question_text = question["text"]
-                            existing_review_data = load_existing_answer_reviews(
-                                video_id=video["id"], project_id=project_id, 
-                                question_id=question["id"],
-                                cache_data=cache_data
-                            )
-                            answer_reviews[question_text] = existing_review_data
+                    if bulk_cache_data and "answer_reviews_by_group" in bulk_cache_data:
+                        # Use pre-loaded bulk data (much faster)
+                        answer_reviews = bulk_cache_data["answer_reviews_by_group"].get(group_id, {})
+                    else:
+                        # Fallback to individual loading
+                        for question in questions:
+                            if question["type"] == "description":
+                                question_text = question["text"]
+                                existing_review_data = load_existing_answer_reviews(
+                                    video_id=video["id"], project_id=project_id, 
+                                    question_id=question["id"],
+                                    cache_data=cache_data
+                                )
+                                answer_reviews[question_text] = existing_review_data
         
         # Check if we have editable questions
         has_any_editable_questions = False
@@ -1089,9 +1120,9 @@ def _get_options_for_reviewer(
     video_id: int, project_id: int, question_id: int, 
     original_options: List[str], display_values: List[str], 
     selected_annotators: List[str] = None,
-    cache_data: Dict = None  # 🚀 NEW: Accept bulk cache data
+    cache_data: Dict = None
 ) -> List[str]:
-    """OPTIMIZED: Get enhanced options using bulk cached data"""
+    """FIXED: Get enhanced options with correct consensus rate calculation"""
     
     try:
         # Get annotator user IDs
@@ -1118,12 +1149,10 @@ def _get_options_for_reviewer(
                 pass
             return enhanced_options
         
-        # 🚀 OPTIMIZED: Use bulk cache data if provided, otherwise fall back to old method
+        # Use bulk cache data if provided, otherwise fall back to old method
         if cache_data:
-            # Use provided bulk cache data
             pass
         else:
-            # Fallback to old method for compatibility
             cache_data = get_video_reviewer_data_from_bulk(
                 video_id=video_id, project_id=project_id, 
                 annotator_user_ids=annotator_user_ids
@@ -1171,8 +1200,15 @@ def _get_options_for_reviewer(
         except:
             pass
         
-        # Build enhanced options
-        total_annotators = len(annotator_user_ids)
+        # FIXED: Calculate total annotators who actually answered THIS question
+        # This ensures we only count each annotator once, even if they appear in cache multiple times
+        annotators_who_answered = set()
+        for selections in option_selections.values():
+            for sel in selections:
+                # Extract user ID or name to avoid counting duplicates
+                annotators_who_answered.add(sel["name"])
+        total_annotators_who_answered = len(annotators_who_answered)
+        
         enhanced_options = []
         
         for i, display_val in enumerate(display_values):
@@ -1186,8 +1222,9 @@ def _get_options_for_reviewer(
                 annotators = [sel["initials"] for sel in option_selections[original_val]]
                 count = len(annotators)
                 
-                if total_annotators > 0:
-                    percentage = (count / total_annotators) * 100
+                # FIXED: Use only annotators who answered as denominator
+                if total_annotators_who_answered > 0:
+                    percentage = (count / total_annotators_who_answered) * 100
                     percentage_str = f"{int(percentage)}%" if percentage == int(percentage) else f"{percentage:.1f}%"
                     selection_info.append(f"{percentage_str}: {', '.join(annotators)}")
                 else:

@@ -6585,7 +6585,7 @@ class GroundTruthService(BaseAnswerService):
         return result
             
     @staticmethod
-    def get_complete_video_data_for_display(video_id: int, project_id: int, user_id: int, role: str, session: Session) -> Dict[str, Any]:
+    def get_complete_video_data_for_display(video_id: int, project_id: int, user_id: int, role: str, session: Session, selected_annotators: List[str] = None) -> Dict[str, Any]:
         """Get ALL data needed to display a video with all its question groups in one massive batch operation"""
         try:
             # Get project and schema info
@@ -6693,7 +6693,30 @@ class GroundTruthService(BaseAnswerService):
             
             # BATCH 5: Get ALL answer reviews for description questions (FIXED)
             answer_reviews_by_group = {}
+            reviewer_annotator_data = {}
             if role in ["reviewer", "meta_reviewer"]:
+                # **NEW: Bulk load reviewer-specific data for selected annotators**
+                if selected_annotators:
+                    try:
+                        # Get annotator user IDs
+                        annotator_user_ids = AuthService.get_annotator_user_ids_from_display_names(
+                            display_names=selected_annotators, project_id=project_id, session=session
+                        )
+                        
+                        if annotator_user_ids:
+                            # Use existing bulk cache optimization
+                            from label_pizza.database_utils import get_cached_bulk_reviewer_data, get_video_reviewer_data_from_bulk, get_session_cache_key
+                            
+                            bulk_data = get_cached_bulk_reviewer_data(project_id, get_session_cache_key())
+                            if bulk_data:
+                                reviewer_annotator_data = get_video_reviewer_data_from_bulk(
+                                    video_id=video_id, project_id=project_id, 
+                                    annotator_user_ids=annotator_user_ids
+                                )
+                    except Exception as e:
+                        print(f"Error loading reviewer annotator data: {e}")
+                        reviewer_annotator_data = {}
+
                 description_questions = [q for q in all_questions if q["type"] == "description"]
                 
                 if description_questions:
@@ -6786,7 +6809,8 @@ class GroundTruthService(BaseAnswerService):
                 "completion_status_by_group": completion_status_by_group,
                 "training_gt_by_group": training_gt_by_group,
                 "answer_reviews_by_group": answer_reviews_by_group,
-                "is_training_mode": role == "annotator" and bool(training_gt_by_group)
+                "is_training_mode": role == "annotator" and bool(training_gt_by_group),
+                "reviewer_annotator_data": reviewer_annotator_data
             }
             
         except Exception as e:

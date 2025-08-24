@@ -1792,6 +1792,7 @@ def schema_based_ground_truth_search():
                 "Match Logic",
                 ["Match ALL criteria", "Match ANY criteria"],
                 key="schema_criteria_match_logic",
+                index=1,  # This makes "Match ANY criteria" the default
                 help="ALL = video must match every criteria, ANY = video matches at least one"
             )
         
@@ -1966,6 +1967,7 @@ def ground_truth_criteria_search():
                 "Match Logic",
                 ["Match ALL criteria", "Match ANY criteria"],
                 key="criteria_match_logic",
+                index=1,  # This makes "Match ANY criteria" the default
                 help="ALL = video must match every criteria, ANY = video matches at least one"
             )
         
@@ -2120,7 +2122,7 @@ def display_criteria_search_video_result(result: Dict, user_id: int, autoplay: b
     with video_col:
         # Video player
         loop = st.session_state.get("criteria_search_loop", True)
-        video_height = custom_video_player(video_url=video_info["url"], video_uid=video_info["uid"], autoplay=autoplay, loop=loop)
+        video_height = custom_video_player(video_url=video_info["url"], video_uid=video_info["uid"], autoplay=autoplay, loop=loop, show_share_button=True)
         
         # Match details if criteria exist - in an expander for better layout
         if criteria:
@@ -2676,7 +2678,7 @@ def display_completion_status_video_result(result: Dict, user_id: int, autoplay:
     with video_col:
         # Video player
         loop = st.session_state.get("completion_search_loop", True)
-        video_height = custom_video_player(video_url=video_url, video_uid=video_uid, autoplay=autoplay, loop=loop)
+        video_height = custom_video_player(video_url=video_url, video_uid=video_uid, autoplay=autoplay, loop=loop, show_share_button=True)
     
     with question_col:
         # Show ALL question groups for this project (like reviewer/meta-reviewer portal)
