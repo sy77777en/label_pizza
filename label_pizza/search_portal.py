@@ -2006,7 +2006,7 @@ def display_criteria_search_results_interface(results: List[Dict]):
     with layout_col1:
         videos_per_page = st.slider(
             "Videos per page", 
-            5, 30, 15, 
+            5, 100, 50, 
             key="criteria_search_per_page",
             help="Number of videos to display per page"
         )
@@ -2552,7 +2552,7 @@ def display_completion_status_results_interface(results: List[Dict]):
     with layout_col1:
         videos_per_page = st.slider(
             "Videos per page", 
-            5, 30, 15, 
+            5, 100, 50, 
             key="completion_search_per_page",
             help="Number of videos to display per page"
         )
