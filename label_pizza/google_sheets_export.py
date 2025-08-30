@@ -85,6 +85,56 @@ class GoogleSheetExporter:
         creds = self._get_credentials(credentials_file)
         return build('drive', 'v3', credentials=creds)
     
+    # def _get_credentials(self, credentials_file: str):
+    #     """Get Google API credentials"""
+    #     token_file = 'google_sheets_token.json'
+    #     creds = None
+        
+    #     # Load existing token
+    #     if os.path.exists(token_file):
+    #         creds = Credentials.from_authorized_user_file(token_file, self.SCOPES)
+        
+    #     # Refresh or get new credentials
+    #     if not creds or not creds.valid:
+    #         if creds and creds.expired and creds.refresh_token:
+    #             try:
+    #                 creds.refresh(Request())
+    #             except Exception as e:
+    #                 print(f"⚠️  Token refresh failed: {e}")
+    #                 print("🔄 Will require re-authorization...")
+    #                 creds = None
+            
+    #         if not creds:
+    #             print("="*60)
+    #             print("GOOGLE SHEETS AUTHORIZATION REQUIRED")
+    #             print("="*60)
+    #             print("Required permissions:")
+    #             print("  ✅ Google Sheets: Read, write, and manage spreadsheets")
+    #             print("  ✅ Google Drive: Create and manage files")
+    #             print("="*60)
+    #             print()
+                
+    #             try:
+    #                 flow = InstalledAppFlow.from_client_secrets_file(credentials_file, self.SCOPES)
+    #                 flow.redirect_uri = 'http://localhost:8080/'
+    #                 creds = flow.run_local_server(port=8080, open_browser=True)
+    #             except Exception as e:
+    #                 print(f"❌ Error during authorization: {e}")
+    #                 print("\n💡 If the browser didn't open automatically:")
+    #                 print("   1. Copy the authorization URL from above")
+    #                 print("   2. Open it in your browser")
+    #                 print("   3. Complete the authorization")
+    #                 raise
+            
+    #         # Save credentials for next run
+    #         with open(token_file, 'w') as token:
+    #             token.write(creds.to_json())
+            
+    #         print("✅ Authorization successful! Credentials saved.")
+    #         print()
+        
+    #     return creds
+    
     def _get_credentials(self, credentials_file: str):
         """Get Google API credentials"""
         token_file = 'google_sheets_token.json'
@@ -114,17 +164,29 @@ class GoogleSheetExporter:
                 print("="*60)
                 print()
                 
-                try:
-                    flow = InstalledAppFlow.from_client_secrets_file(credentials_file, self.SCOPES)
-                    flow.redirect_uri = 'http://localhost:8080/'
-                    creds = flow.run_local_server(port=8080, open_browser=True)
-                except Exception as e:
-                    print(f"❌ Error during authorization: {e}")
-                    print("\n💡 If the browser didn't open automatically:")
-                    print("   1. Copy the authorization URL from above")
-                    print("   2. Open it in your browser")
-                    print("   3. Complete the authorization")
-                    raise
+                # Manual OAuth flow for environments without browser
+                flow = InstalledAppFlow.from_client_secrets_file(
+                    credentials_file, self.SCOPES, redirect_uri='http://localhost:8080')
+                
+                auth_url, _ = flow.authorization_url(prompt='consent')
+                
+                print('1. Go to this URL in your browser:')
+                print(auth_url)
+                print('\n2. Click "Advanced" -> "Go to [App Name] (unsafe)"')
+                print('3. Authorize the application')
+                print('4. ⚠️  IMPORTANT: Grant BOTH Sheets AND Drive permissions')
+                print('5. The browser will show "This site can\'t be reached" - this is expected!')
+                print('6. Copy the authorization code from the failed URL')
+                print('\n   Example URL: http://localhost:8080/?code=AUTHORIZATION_CODE&scope=...')
+                print('   Copy only the part after "code=" and before "&"')
+                print('='*60)
+                
+                auth_code = input('\nEnter the authorization code: ').strip()
+                if not auth_code:
+                    raise Exception('No authorization code provided')
+                
+                flow.fetch_token(code=auth_code)
+                creds = flow.credentials
             
             # Save credentials for next run
             with open(token_file, 'w') as token:
@@ -134,7 +196,7 @@ class GoogleSheetExporter:
             print()
         
         return creds
-    
+
     def _api_call_with_retry(self, func, *args, max_retries=3, operation_name="API call", **kwargs):
         """Execute API call with retry logic for rate limiting"""
         for attempt in range(max_retries):
@@ -167,7 +229,7 @@ class GoogleSheetExporter:
             return timestamp
         return timestamp.strftime("%Y-%m-%d %H:%M")
     
-    def export_all_sheets(self, master_sheet_id: str, skip_individual: bool = False, resume_from: str = None):
+    def export_all_sheets(self, master_sheet_id: str, skip_individual: bool = False, resume_from: str = None, sheet_prefix: str = "Pizza"):
         """Export all data to Google Sheets"""
         
         print("="*60)
@@ -213,10 +275,10 @@ class GoogleSheetExporter:
         
         # Determine where to start based on resume_from parameter
         skip_until_found = resume_from is not None
-        
+
         for user_data, role in all_users:
             current_user += 1
-            sheet_key = f"{user_data['user_name']} {role}"
+            sheet_key = f"{sheet_prefix}-{user_data['user_name']} {role}"  # Add prefix to key
             
             # Skip users until we reach the resume point
             if skip_until_found:
@@ -235,24 +297,24 @@ class GoogleSheetExporter:
                 time.sleep(3)
             
             try:
-                sheet_id = self._export_user_sheet(user_data, role, master_sheet_id)
+                sheet_id = self._export_user_sheet(user_data, role, master_sheet_id, sheet_prefix)
                 user_sheet_ids[sheet_key] = sheet_id
                 
                 # Manage permissions for this sheet
-                self._manage_sheet_permissions(sheet_id, f"{user_data['user_name']} {role}")
+                self._manage_sheet_permissions(sheet_id, f"{sheet_prefix}-{user_data['user_name']} {role}")
                 
-                print(f"    ✅ Successfully exported {user_data['user_name']} {role}")
+                print(f"    ✅ Successfully exported {sheet_prefix}-{user_data['user_name']} {role}")
             except Exception as e:
-                print(f"    ❌ Failed to export {user_data['user_name']} {role}: {e}")
-                self.export_failures.append(f"Failed to export {user_data['user_name']} {role}: {str(e)}")
-        
+                print(f"    ❌ Failed to export {sheet_prefix}-{user_data['user_name']} {role}: {e}")
+                self.export_failures.append(f"Failed to export {sheet_prefix}-{user_data['user_name']} {role}: {str(e)}")
+
         # Update master sheet with correct hyperlinks
         if user_sheet_ids:
             print(f"\n⏳ Pausing 5 seconds before updating master sheet links...")
             time.sleep(5)
             print("Updating master sheet hyperlinks...")
             try:
-                self._update_master_sheet_links(master_sheet_id, user_sheet_ids)
+                self._update_master_sheet_links(master_sheet_id, user_sheet_ids, sheet_prefix)
             except Exception as e:
                 print(f"❌ Failed to update master sheet links: {e}")
                 self.export_failures.append(f"Failed to update master sheet links: {str(e)}")
@@ -371,9 +433,9 @@ class GoogleSheetExporter:
             
             print(f"    ✅ Successfully updated {len(rows)-1} users in {tab_name} tab")
     
-    def _export_user_sheet(self, user_data: Dict, role: str, master_sheet_id: str) -> str:
+    def _export_user_sheet(self, user_data: Dict, role: str, master_sheet_id: str, sheet_prefix: str) -> str:
         """Export individual user sheet and return sheet ID"""
-        sheet_name = f"{user_data['user_name']} {role}"
+        sheet_name = f"{sheet_prefix}-{user_data['user_name']} {role}"  # Add prefix
         print(f"  Exporting {sheet_name} sheet...")
         
         try:
@@ -385,7 +447,6 @@ class GoogleSheetExporter:
             print(f"    Creating new sheet: {sheet_name}")
             sheet = self._api_call_with_retry(self.client.create, sheet_name, 
                                             operation_name=f"creating sheet '{sheet_name}'")
-        
         # Get user project data
         with self.get_db_session() as session:
             if role == "Annotator":
@@ -1249,7 +1310,98 @@ class GoogleSheetExporter:
         except Exception as e:
             print(f"      ⚠️ Master sheet formatting failed: {e}")
 
-    def _update_master_sheet_links(self, master_sheet_id: str, user_sheet_ids: Dict):
+    # def _update_master_sheet_links(self, master_sheet_id: str, user_sheet_ids: Dict):
+    #     """Update master sheet with smart chip links to user sheets"""
+    #     try:
+    #         sheet = self._api_call_with_retry(self.client.open_by_key, master_sheet_id,
+    #                                         operation_name="opening master sheet for links")
+    #     except:
+    #         return
+
+    #     # Update each tab with smart chip links
+    #     for tab_name in ["Annotators", "Reviewers", "Meta-Reviewers"]:
+    #         try:
+    #             worksheet = sheet.worksheet(tab_name)
+    #             all_data = worksheet.get_all_values()
+                
+    #             if len(all_data) < 2:
+    #                 continue
+                
+    #             # Find the sheet link column (usually column 4: D)
+    #             link_col_idx = 3  # Column D (0-indexed)
+                
+    #             # Process each user row
+    #             for row_idx, row in enumerate(all_data[1:], start=2):  # Skip header
+    #                 if len(row) > 0 and row[0]:  # Has user name
+    #                     user_name = row[0]
+    #                     role_name = tab_name[:-1]  # Remove 's' from tab name
+    #                     sheet_key = f"{user_name} {role_name}"
+                        
+    #                     if sheet_key in user_sheet_ids:
+    #                         sheet_id = user_sheet_ids[sheet_key]
+    #                         sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit"
+                            
+    #                         # NEW: Create smart chip using Script 2's chipRuns approach
+    #                         try:
+    #                             smart_chip_requests = [{
+    #                                 "updateCells": {
+    #                                     "rows": [{
+    #                                         "values": [{
+    #                                             "userEnteredValue": {
+    #                                                 "stringValue": "@"  # Single @ placeholder
+    #                                             },
+    #                                             "chipRuns": [{
+    #                                                 "startIndex": 0,  # @ is at position 0
+    #                                                 "chip": {
+    #                                                     "richLinkProperties": {
+    #                                                         "uri": sheet_url
+    #                                                     }
+    #                                                 }
+    #                                             }]
+    #                                         }]
+    #                                     }],
+    #                                     "fields": "userEnteredValue,chipRuns",
+    #                                     "range": {
+    #                                         "sheetId": worksheet._properties['sheetId'],
+    #                                         "startRowIndex": row_idx - 1,  # Convert to 0-indexed
+    #                                         "startColumnIndex": link_col_idx,  # Column D (0-indexed)
+    #                                         "endRowIndex": row_idx,
+    #                                         "endColumnIndex": link_col_idx + 1
+    #                                     }
+    #                                 }
+    #                             }]
+                                
+    #                             self._api_call_with_retry(
+    #                                 self.sheets_service.spreadsheets().batchUpdate,
+    #                                 spreadsheetId=sheet.id,
+    #                                 body={"requests": smart_chip_requests},
+    #                                 operation_name=f"updating smart chip for {user_name}"
+    #                             ).execute()
+                                
+    #                         except Exception as e:
+    #                             # Fallback to hyperlink formula if smart chip fails
+    #                             print(f"        ⚠️ Smart chip failed for {user_name}, using hyperlink: {e}")
+    #                             hyperlink_formula = f'=HYPERLINK("https://docs.google.com/spreadsheets/d/{sheet_id}/edit", "📊 {user_name} {role_name}")'
+                                
+    #                             # Update the cell
+    #                             cell_address = f"{self._col_num_to_letter(link_col_idx + 1)}{row_idx}"
+    #                             try:
+    #                                 self._api_call_with_retry(
+    #                                     worksheet.update,
+    #                                     cell_address,
+    #                                     [[hyperlink_formula]],
+    #                                     value_input_option='USER_ENTERED',
+    #                                     operation_name=f"updating hyperlink for {user_name}"
+    #                                 )
+    #                             except Exception as e2:
+    #                                 print(f"        ⚠️ Could not update link for {user_name}: {e2}")
+                
+    #             print(f"      ✅ Updated smart chip links in {tab_name}")
+                
+    #         except Exception as e:
+    #             print(f"      ⚠️ Could not update links for {tab_name}: {e}")
+
+    def _update_master_sheet_links(self, master_sheet_id: str, user_sheet_ids: Dict, sheet_prefix: str):
         """Update master sheet with smart chip links to user sheets"""
         try:
             sheet = self._api_call_with_retry(self.client.open_by_key, master_sheet_id,
@@ -1274,13 +1426,14 @@ class GoogleSheetExporter:
                     if len(row) > 0 and row[0]:  # Has user name
                         user_name = row[0]
                         role_name = tab_name[:-1]  # Remove 's' from tab name
-                        sheet_key = f"{user_name} {role_name}"
+                        sheet_key = f"{sheet_prefix}-{user_name} {role_name}"
                         
-                        if sheet_key in user_sheet_ids:
-                            sheet_id = user_sheet_ids[sheet_key]
+                        sheet_id = user_sheet_ids.get(sheet_key)
+                        
+                        if sheet_id:
                             sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit"
                             
-                            # NEW: Create smart chip using Script 2's chipRuns approach
+                            # Create smart chip using chipRuns approach
                             try:
                                 smart_chip_requests = [{
                                     "updateCells": {
@@ -1507,6 +1660,7 @@ class GoogleSheetExporter:
             
         except Exception as e:
             print(f"      ⚠️ Could not manage permissions for {sheet_name}: {e}")
+
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(description="Export annotation statistics to Google Sheets")
@@ -1520,6 +1674,8 @@ def main():
                        help="Skip individual user sheets and only update master sheet")
     parser.add_argument("--resume-from", type=str,
                        help="Resume from specific user (format: 'User Name Role')")
+    parser.add_argument("--sheet-prefix", type=str, default="Pizza",
+                       help="Prefix for all individual sheet names (default: 'Pizza')")
     
     args = parser.parse_args()
     
@@ -1550,7 +1706,8 @@ def main():
     exporter.export_all_sheets(
         master_sheet_id=args.master_sheet_id,
         skip_individual=args.skip_individual,
-        resume_from=args.resume_from
+        resume_from=args.resume_from,
+        sheet_prefix=args.sheet_prefix
     )
     
     print("\n" + "="*60)
