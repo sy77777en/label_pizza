@@ -1761,26 +1761,28 @@ def schema_based_ground_truth_search():
             
             st.markdown(f"**📋 {schema_data['schema_name']}** - {unique_questions} criteria applied to {projects_count} projects")
         
-        st.markdown("**Individual Criteria:**")
-        for i, criterion in enumerate(st.session_state.search_criteria_schema_admin):
-            crit_col1, crit_col2 = st.columns([6, 1])
-            
-            with crit_col1:
-                st.markdown(f"""
-                <div style="background: #e3f2fd; border: 1px solid #2196f3; border-radius: 8px; padding: 12px; margin: 4px 0;">
-                    <div style="color: #1976d2; font-weight: 600;">Schema: {criterion['schema_name']}</div>
-                    <div style="color: #666; font-size: 0.9em;">Project: {criterion['project_name']}</div>
-                    <div style="color: #424242; margin-top: 4px;">
-                        <strong>Question:</strong> {criterion['question_text']}<br>
-                        <strong>Required Answer:</strong> {criterion['required_answer']}
+        # WRAP Individual Criteria in an expander (NEW)
+        total_criteria_count = len(st.session_state.search_criteria_schema_admin)
+        with st.expander(f"📋 Individual Criteria ({total_criteria_count} total)", expanded=False):
+            for i, criterion in enumerate(st.session_state.search_criteria_schema_admin):
+                crit_col1, crit_col2 = st.columns([6, 1])
+                
+                with crit_col1:
+                    st.markdown(f"""
+                    <div style="background: #e3f2fd; border: 1px solid #2196f3; border-radius: 8px; padding: 12px; margin: 4px 0;">
+                        <div style="color: #1976d2; font-weight: 600;">Schema: {criterion['schema_name']}</div>
+                        <div style="color: #666; font-size: 0.9em;">Project: {criterion['project_name']}</div>
+                        <div style="color: #424242; margin-top: 4px;">
+                            <strong>Question:</strong> {criterion['question_text']}<br>
+                            <strong>Required Answer:</strong> {criterion['required_answer']}
+                        </div>
                     </div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with crit_col2:
-                if st.button("🗑️", key=f"schema_remove_crit_{i}", help="Remove criteria"):
-                    st.session_state.search_criteria_schema_admin.pop(i)
-                    st.rerun(scope="fragment")
+                    """, unsafe_allow_html=True)
+                
+                with crit_col2:
+                    if st.button("🗑️", key=f"schema_remove_crit_{i}", help="Remove criteria"):
+                        st.session_state.search_criteria_schema_admin.pop(i)
+                        st.rerun(scope="fragment")
         
         # Search execution
         st.markdown("**Step 3: Execute Search**")
@@ -2006,7 +2008,7 @@ def display_criteria_search_results_interface(results: List[Dict]):
     with layout_col1:
         videos_per_page = st.slider(
             "Videos per page", 
-            5, 30, 15, 
+            5, 100, 50, 
             key="criteria_search_per_page",
             help="Number of videos to display per page"
         )
@@ -2552,7 +2554,7 @@ def display_completion_status_results_interface(results: List[Dict]):
     with layout_col1:
         videos_per_page = st.slider(
             "Videos per page", 
-            5, 30, 15, 
+            5, 100, 50, 
             key="completion_search_per_page",
             help="Number of videos to display per page"
         )
