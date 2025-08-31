@@ -10553,7 +10553,7 @@ class GoogleSheetsExportService:
             projects_data.append({
                 "project_name": project.name,
                 "schema_name": schema.name if schema else "Unknown",
-                "video_count": user_video_count or 0,  # NEW: Video count for this user
+                "video_count": total_videos or 0,  # NEW: Video count for this user
                 "completion_ratio": completion_ratio,
                 "reviewed_ratio": reviewed_ratio,
                 "last_submitted": last_submitted,
@@ -10775,6 +10775,12 @@ class GoogleSheetsExportService:
                 select(func.count())
                 .where(ReviewerGroundTruth.project_id == project.id)
             )
+
+            total_videos = session.scalar(
+                select(func.count())
+                .select_from(ProjectVideo)
+                .where(ProjectVideo.project_id == project.id)
+            )
             
             # Count user's modifications in this project
             user_modifications = session.scalar(
@@ -10819,7 +10825,7 @@ class GoogleSheetsExportService:
             projects_data.append({
                 "project_name": project.name,
                 "schema_name": schema.name if schema else "Unknown",
-                "video_count": user_video_count or 0,  # NEW: Video count for this admin
+                "video_count": total_videos or 0,  # NEW: Video count for this admin
                 "ratio_modified_by_user": ratio_modified_by_user,
                 "ratio_modified_by_all": ratio_modified_by_all,
                 "last_modified": last_modified
