@@ -30,7 +30,7 @@ def run_command(command: str):
         result = subprocess.run(
             command,
             shell=True,
-            timeout=3600  # 1 hour timeout
+            timeout=7200  # 2 hour timeout
         )
         
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -44,7 +44,7 @@ def run_command(command: str):
         
     except subprocess.TimeoutExpired:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"[{timestamp}] Command timed out after 1 hour")
+        print(f"[{timestamp}] Command timed out after 2 hour")
         return 124
     except KeyboardInterrupt:
         print("\nCommand interrupted by user")

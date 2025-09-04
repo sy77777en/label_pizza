@@ -2259,6 +2259,7 @@ def display_criteria_project_questions(video_info: Dict, project_id: int, user_i
     except Exception as e:
         st.error(f"Error loading project questions: {str(e)}")
 
+@st.fragment
 def display_criteria_question_group_editor(video_info: Dict, project_id: int, user_id: int, group_id: int, group_data: Dict, video_height: int):
     """Display question group editor specifically for criteria search results"""
     
@@ -2718,7 +2719,7 @@ def display_completion_status_video_result(result: Dict, user_id: int, autoplay:
         except Exception as e:
             st.error(f"Error loading project questions: {str(e)}")
 
-
+@st.fragment
 def display_completion_question_group_editor(video_info: Dict, project_id: int, user_id: int, group_id: int, group_data: Dict, video_height: int):
     """Display question group editor for completion status search (same as criteria search)"""
     
