@@ -1792,10 +1792,11 @@ def schema_based_ground_truth_search():
         with exec_col1:
             match_logic = st.radio(
                 "Match Logic",
-                ["Match ALL criteria", "Match ANY criteria"],
+                ["Match ANY criteria"],
                 key="schema_criteria_match_logic",
-                index=1,  # This makes "Match ANY criteria" the default
-                help="ALL = video must match every criteria, ANY = video matches at least one"
+                disabled=True,
+                index=0,  # This makes "Match ANY criteria" the default
+                help=" ANY = video matches at least one"
             )
         
         with exec_col2:
