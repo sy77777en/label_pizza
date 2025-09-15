@@ -14,7 +14,8 @@ requires-python = ">=3.10"
 dependencies = [
     "sqlalchemy",
     "supabase",
-    "streamlit",
+    "streamlit==1.45.1",
+    "tornado==6.4.2",
     "streamlit-feedback",
     "opencv-python-headless",
     "numpy",
