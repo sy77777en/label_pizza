@@ -1628,8 +1628,8 @@ def admin_questions():
                                 # NOW SHOW ACTUAL QUESTION TEXT!
                                 text_preview = question_obj['text'][:60] + '...' if len(question_obj['text']) > 60 else question_obj['text']
                                 st.text(f"{i+1}. {text_preview}")
-                            if len(st.session_state.create_group_selected_questions) > 10:
-                                st.caption(f"... and {len(st.session_state.create_group_selected_questions) - 10} more")
+                            if len(st.session_state.create_group_selected_questions) > 30:
+                                st.caption(f"... and {len(st.session_state.create_group_selected_questions) - 30} more")
                     
                     # Extract just IDs for the service call
                     selected_questions = [q["id"] for q in st.session_state.create_group_selected_questions]
@@ -1744,7 +1744,7 @@ def admin_questions():
                 st.markdown("**🎯 Options and Weights:**")
                 custom_info("💡 Default weight is 1.0 for each option. Customize weights to influence scoring.")
                 
-                num_options = st.number_input("Number of options", 1, 10, 2, key="admin_question_num_options")
+                num_options = st.number_input("Number of options", 1, 30, 2, key="admin_question_num_options")
                 
                 for i in range(num_options):
                     opt_col1, opt_col2 = st.columns([3, 1])
@@ -2144,7 +2144,7 @@ def show_question_edit_form(question_id: int):
             num_options = st.number_input(
                 "Total number of options", 
                 min_value=len(current_options), 
-                max_value=10, 
+                max_value=30, 
                 value=len(current_options),
                 key="admin_edit_question_num_options"
             )
