@@ -9,23 +9,23 @@ The workspace management workflow typically follows this pattern:
 | Step        | Goal                                    | Quick Example                                                | What happens                                                 |
 | ----------- | --------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | **Export**  | Create workspace backup or extract data | `export_workspace(output_folder="./folder1")`                | Exports all database content to JSON files in a structured folder |
-| **Compare** | Identify differences between workspaces | `compare_workspace("./folder1", "./folder2", write_to_file=True)` | Generates detailed diff reports showing what changed         |
+| **Compare** | Identify differences between workspaces | `compare_workspace("./folder1", "./folder2", output_folder="./diff_reports")` | Generates detailed diff reports showing what changed         |
 | **Merge**   | Combine data from multiple sources      | `merge_workspace("./folder1", "./folder2", "./output", use_first_folder_on_conflict=True)` | Combines two workspaces by choosing which folder's data to keep when the same item exists in both folders |
 
 ## API Reference
 
 | File / Folder           | Export                                  | Compare                                                      | Merge                                                        |
 | ----------------------- | --------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| **users.json**          | `export_users(output_path)`             | `compare_videos(folder1_path, folder2_path, write_to_file)`  | `merge_users(folder1_path, folder2_path, output_folder, use_first_folder_on_conflict)` |
-| **videos.json**         | `export_videos(output_path)`            | `compare_users(folder1_path, folder2_path, write_to_file)`   | `merge_videos(folder1_path, folder2_path, output_folder, use_first_folder_on_conflict)` |
-| **question_groups/**    | `export_question_groups(output_folder)` | `compare_question_groups(folder1_path, folder2_path, write_to_file)` | `merge_question_groups(folder1_path, folder2_path, output_folder, use_first_folder_on_conflict)` |
-| **schemas.json**        | `export_schemas(output_path)`           | `compare_schemas(folder1_path, folder2_path, write_to_file)` | `merge_schemas(folder1_path, folder2_path, output_folder, use_first_folder_on_conflict)` |
-| **projects.json**       | `export_projects(output_path)`          | `compare_projects(folder1_path, folder2_path, write_to_file)` | `merge_projects(folder1_path, folder2_path, output_folder, use_first_folder_on_conflict)` |
-| **project_groups.json** | `export_project_groups(output_path)`    | `compare_project_groups(folder1_path, folder2_path, write_to_file)` | `merge_project_groups(folder1_path, folder2_path, output_folder, use_first_folder_on_conflict)` |
-| **assignments.json**    | `export_assignments(output_path)`       | `compare_assignments(folder1_path, folder2_path, write_to_file)` | `merge_assignments(folder1_path, folder2_path, output_folder, use_first_folder_on_conflict)` |
-| **annotations/**        | `export_annotations(output_folder)`     | `compare_annotations(folder1_path, folder2_path, write_to_file)` | `merge_annotations(folder1_path, folder2_path, output_folder, use_first_folder_on_conflict)` |
-| **ground_truths/**      | `export_ground_truths(output_folder)`   | `compare_ground_truths(folder1_path, folder2_path, write_to_file)` | `merge_ground_truths(folder1_path, folder2_path, output_folder, use_first_folder_on_conflict)` |
-| **The whole folder**    | `export_workspace(output_folder)`       | `compare_workspace(folder1_path, folder2_path, write_to_file)` | `merge_workspace(folder1_path, folder2_path, output_folder, use_first_folder_on_conflict)` |
+| **users.json**          | `export_users(output_path)`             | `compare_users(folder1_path, folder2_path, output_folder)`  | `merge_users(folder1_path, folder2_path, output_folder, use_first_folder_on_conflict)` |
+| **videos.json**         | `export_videos(output_path)`            | `compare_videos(folder1_path, folder2_path, output_folder)` | `merge_videos(folder1_path, folder2_path, output_folder, use_first_folder_on_conflict)` |
+| **question_groups/**    | `export_question_groups(output_folder)` | `compare_question_groups(folder1_path, folder2_path, output_folder)` | `merge_question_groups(folder1_path, folder2_path, output_folder, use_first_folder_on_conflict)` |
+| **schemas.json**        | `export_schemas(output_path)`           | `compare_schemas(folder1_path, folder2_path, output_folder)` | `merge_schemas(folder1_path, folder2_path, output_folder, use_first_folder_on_conflict)` |
+| **projects.json**       | `export_projects(output_path)`          | `compare_projects(folder1_path, folder2_path, output_folder)` | `merge_projects(folder1_path, folder2_path, output_folder, use_first_folder_on_conflict)` |
+| **project_groups.json** | `export_project_groups(output_path)`    | `compare_project_groups(folder1_path, folder2_path, output_folder)` | `merge_project_groups(folder1_path, folder2_path, output_folder, use_first_folder_on_conflict)` |
+| **assignments.json**    | `export_assignments(output_path)`       | `compare_assignments(folder1_path, folder2_path, output_folder)` | `merge_assignments(folder1_path, folder2_path, output_folder, use_first_folder_on_conflict)` |
+| **annotations/**        | `export_annotations(output_folder)`     | `compare_annotations(folder1_path, folder2_path, output_folder)` | `merge_annotations(folder1_path, folder2_path, output_folder, use_first_folder_on_conflict)` |
+| **ground_truths/**      | `export_ground_truths(output_folder)`   | `compare_ground_truths(folder1_path, folder2_path, output_folder)` | `merge_ground_truths(folder1_path, folder2_path, output_folder, use_first_folder_on_conflict)` |
+| **The whole folder**    | `export_workspace(output_folder)`       | `compare_workspace(folder1_path, folder2_path, output_folder)` | `merge_workspace(folder1_path, folder2_path, output_folder, use_first_folder_on_conflict)` |
 
 
 
@@ -241,12 +241,12 @@ from label_pizza.compare_utils import compare_workspace
 is_identical = compare_workspace(
     folder1_path="./example",
     folder2_path="./workspace",
-    write_to_file=True
+    output_folder="./diff_reports"
 )
 
 print(f"Workspaces are identical: {is_identical}")
 
-# Generates all diff files comparing example vs workspace:
+# Creates all diff files in ./diff_reports/:
 # diff_videos.json, diff_users.json, diff_schemas.json, diff_projects.json,
 # diff_project_groups.json, diff_assignments.json, diff_question_groups.json,
 # diff_annotations.json, diff_ground_truths.json
@@ -274,14 +274,14 @@ print(f"Videos are identical: {is_identical}")
 is_identical = compare_videos(
     folder1_path="./example",
     folder2_path="./workspace", 
-    write_to_file=True
+    output_folder="./diff_reports"
 )
 
-# Creates diff_videos.json with:
+# Creates ./diff_reports/diff_videos.json with:
 # {
 #   "identical": false,
-#   "folder1_only": [...],     # Videos only in workspace
-#   "folder2_only": [...],     # Videos only in workspace_export  
+#   "folder1_only": [...],     # Videos only in example
+#   "folder2_only": [...],     # Videos only in workspace  
 #   "different": [...],        # Videos with same video_uid but different content
 #   "summary": {
 #     "folder1_count": 10,
@@ -306,10 +306,10 @@ print(f"Users are identical: {is_identical}")
 is_identical = compare_users(
     folder1_path="./example",
     folder2_path="./workspace",
-    write_to_file=True
+    output_folder="./diff_reports"
 )
 
-# Creates diff_users.json with users that differ by user_id
+# Creates ./diff_reports/diff_users.json with users that differ by user_id
 ```
 
 #### `compare_schemas`
@@ -327,10 +327,10 @@ print(f"Schemas are identical: {is_identical}")
 is_identical = compare_schemas(
     folder1_path="./example",
     folder2_path="./workspace",
-    write_to_file=True
+    output_folder="./diff_reports"
 )
 
-# Creates diff_schemas.json with schemas that differ by schema_name
+# Creates ./diff_reports/diff_schemas.json with schemas that differ by schema_name
 ```
 
 #### `compare_projects`
@@ -348,10 +348,10 @@ print(f"Projects are identical: {is_identical}")
 is_identical = compare_projects(
     folder1_path="./example", 
     folder2_path="./workspace",
-    write_to_file=True
+    output_folder="./diff_reports"
 )
 
-# Creates diff_projects.json with projects that differ by project_name
+# Creates ./diff_reports/diff_projects.json with projects that differ by project_name
 ```
 
 #### `compare_project_groups`
@@ -372,10 +372,10 @@ print(f"Project groups are identical: {is_identical}")
 is_identical = compare_project_groups(
     folder1_path="./example",
     folder2_path="./workspace", 
-    write_to_file=True
+    output_folder="./diff_reports"
 )
 
-# Creates diff_project_groups.json with project groups that differ by project_group_name
+# Creates ./diff_reports/diff_project_groups.json with project groups that differ by project_group_name
 ```
 
 #### `compare_assignments`
@@ -393,10 +393,10 @@ print(f"Assignments are identical: {is_identical}")
 is_identical = compare_assignments(
     folder1_path="./example",
     folder2_path="./workspace", 
-    write_to_file=True
+    output_folder="./diff_reports"
 )
 
-# Creates diff_assignments.json with assignments that differ by user_name + project_name + role
+# Creates ./diff_reports/diff_assignments.json with assignments that differ by user_name + project_name + role
 ```
 
 #### `compare_question_groups`
@@ -417,10 +417,10 @@ print(f"Question groups are identical: {is_identical}")
 is_identical = compare_question_groups(
     folder1_path="./example",
     folder2_path="./workspace", 
-    write_to_file=True
+    output_folder="./diff_reports"
 )
 
-# Creates diff_question_groups.json comparing all JSON files using title as unique identifier
+# Creates ./diff_reports/diff_question_groups.json comparing all JSON files using title as unique identifier
 ```
 
 #### `compare_annotations`
@@ -438,10 +438,10 @@ print(f"Annotations are identical: {is_identical}")
 is_identical = compare_annotations(
     folder1_path="./example",
     folder2_path="./workspace",
-    write_to_file=True
+    output_folder="./diff_reports"
 )
 
-# Creates diff_annotations.json with annotations that differ by:
+# Creates ./diff_reports/diff_annotations.json with annotations that differ by:
 # video_uid + project_name + question_group_title + user_name
 ```
 
@@ -460,10 +460,10 @@ print(f"Ground truths are identical: {is_identical}")
 is_identical = compare_ground_truths(
     folder1_path="./example",
     folder2_path="./workspace",
-    write_to_file=True
+    output_folder="./diff_reports"
 )
 
-# Creates diff_ground_truths.json with ground truths that differ by:
+# Creates ./diff_reports/diff_ground_truths.json with ground truths that differ by:
 # video_uid + project_name + question_group_title + user_name
 ```
 
@@ -791,17 +791,17 @@ print("Current workspace exported to ./workspace")
 ```python
 from label_pizza.compare_utils import compare_workspace
 
-# Compare existing workspace with exported data
+# Compare existing workspace with exported data and save diff reports
 is_identical = compare_workspace(
     folder1_path="./example",
     folder2_path="./workspace",
-    write_to_file=True
+    output_folder="./comparison_results"
 )
 
 if is_identical:
     print("Workspaces are identical - no merge needed")
 else:
-    print("Differences found - review diff files before merging")
+    print("Differences found - review diff files in ./comparison_results/ before merging")
     # Review diff_*.json files to understand differences
 ```
 

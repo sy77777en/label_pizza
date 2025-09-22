@@ -11,19 +11,20 @@ from pathlib import Path
 from datetime import datetime
 
 
-def compare_videos(folder1_path: str = None, folder2_path: str = None, write_to_file: bool = False) -> bool:
+def compare_videos(folder1_path: str = None, folder2_path: str = None, output_folder: str = None) -> bool:
     """
     Compare videos.json files between two folders and generate diff report.
     
     Args:
         folder1_path (str): Path to first folder containing videos.json
         folder2_path (str): Path to second folder containing videos.json
+        output_folder (str, optional): Folder to save diff report. If None, no file is written.
         
     Returns:
         bool: True if files are identical, False if differences found
         
     Output:
-        Creates diff_videos.json with structure:
+        Creates diff_videos.json in output_folder with structure:
         {
             "identical": false,
             "folder1_only": [...],  # Videos only in folder1
@@ -74,26 +75,29 @@ def compare_videos(folder1_path: str = None, folder2_path: str = None, write_to_
         }
     }
     
-    if write_to_file:
-        with open("diff_videos.json", 'w', encoding='utf-8') as f:
+    if output_folder:
+        os.makedirs(output_folder, exist_ok=True)
+        output_path = Path(output_folder) / "diff_videos.json"
+        with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(diff_report, f, indent=2, ensure_ascii=False)
     
     return is_identical
 
 
-def compare_users(folder1_path: str = None, folder2_path: str = None, write_to_file: bool = False) -> bool:
+def compare_users(folder1_path: str = None, folder2_path: str = None, output_folder: str = None) -> bool:
     """
     Compare users.json files between two folders and generate diff report.
     
     Args:
         folder1_path (str): Path to first folder containing users.json
         folder2_path (str): Path to second folder containing users.json
+        output_folder (str, optional): Folder to save diff report. If None, no file is written.
         
     Returns:
         bool: True if files are identical, False if differences found
         
     Output:
-        Creates diff_users.json with structure:
+        Creates diff_users.json in output_folder with structure:
         {
             "identical": false,
             "folder1_only": [...],  # Users only in folder1
@@ -144,26 +148,29 @@ def compare_users(folder1_path: str = None, folder2_path: str = None, write_to_f
         }
     }
     
-    if write_to_file:
-        with open("diff_users.json", 'w', encoding='utf-8') as f:
+    if output_folder:
+        os.makedirs(output_folder, exist_ok=True)
+        output_path = Path(output_folder) / "diff_users.json"
+        with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(diff_report, f, indent=2, ensure_ascii=False)
     
     return is_identical
 
 
-def compare_schemas(folder1_path: str = None, folder2_path: str = None, write_to_file: bool = False) -> bool:
+def compare_schemas(folder1_path: str = None, folder2_path: str = None, output_folder: str = None) -> bool:
     """
     Compare schemas.json files between two folders and generate diff report.
     
     Args:
         folder1_path (str): Path to first folder containing schemas.json
         folder2_path (str): Path to second folder containing schemas.json
+        output_folder (str, optional): Folder to save diff report. If None, no file is written.
         
     Returns:
         bool: True if files are identical, False if differences found
         
     Output:
-        Creates diff_schemas.json with structure:
+        Creates diff_schemas.json in output_folder with structure:
         {
             "identical": false,
             "folder1_only": [...],  # Schemas only in folder1
@@ -214,26 +221,29 @@ def compare_schemas(folder1_path: str = None, folder2_path: str = None, write_to
         }
     }
     
-    if write_to_file:
-        with open("diff_schemas.json", 'w', encoding='utf-8') as f:
+    if output_folder:
+        os.makedirs(output_folder, exist_ok=True)
+        output_path = Path(output_folder) / "diff_schemas.json"
+        with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(diff_report, f, indent=2, ensure_ascii=False)
     
     return is_identical
 
 
-def compare_projects(folder1_path: str = None, folder2_path: str = None, write_to_file: bool = False) -> bool:
+def compare_projects(folder1_path: str = None, folder2_path: str = None, output_folder: str = None) -> bool:
     """
     Compare projects.json files between two folders and generate diff report.
     
     Args:
         folder1_path (str): Path to first folder containing projects.json
         folder2_path (str): Path to second folder containing projects.json
+        output_folder (str, optional): Folder to save diff report. If None, no file is written.
         
     Returns:
         bool: True if files are identical, False if differences found
         
     Output:
-        Creates diff_projects.json with structure:
+        Creates diff_projects.json in output_folder with structure:
         {
             "identical": false,
             "folder1_only": [...],  # Projects only in folder1
@@ -284,26 +294,29 @@ def compare_projects(folder1_path: str = None, folder2_path: str = None, write_t
         }
     }
     
-    if write_to_file:
-        with open("diff_projects.json", 'w', encoding='utf-8') as f:
+    if output_folder:
+        os.makedirs(output_folder, exist_ok=True)
+        output_path = Path(output_folder) / "diff_projects.json"
+        with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(diff_report, f, indent=2, ensure_ascii=False)
     
     return is_identical
 
 
-def compare_project_groups(folder1_path: str = None, folder2_path: str = None, write_to_file: bool = False) -> bool:
+def compare_project_groups(folder1_path: str = None, folder2_path: str = None, output_folder: str = None) -> bool:
     """
     Compare project_groups.json files between two folders and generate diff report.
     
     Args:
         folder1_path (str): Path to first folder containing project_groups.json
         folder2_path (str): Path to second folder containing project_groups.json
+        output_folder (str, optional): Folder to save diff report. If None, no file is written.
         
     Returns:
         bool: True if files are identical, False if differences found
         
     Output:
-        Creates diff_project_groups.json with structure:
+        Creates diff_project_groups.json in output_folder with structure:
         {
             "identical": false,
             "folder1_only": [...],  # Project groups only in folder1
@@ -354,26 +367,29 @@ def compare_project_groups(folder1_path: str = None, folder2_path: str = None, w
         }
     }
     
-    if write_to_file:
-        with open("diff_project_groups.json", 'w', encoding='utf-8') as f:
+    if output_folder:
+        os.makedirs(output_folder, exist_ok=True)
+        output_path = Path(output_folder) / "diff_project_groups.json"
+        with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(diff_report, f, indent=2, ensure_ascii=False)
     
     return is_identical
 
 
-def compare_assignments(folder1_path: str = None, folder2_path: str = None, write_to_file: bool = False) -> bool:
+def compare_assignments(folder1_path: str = None, folder2_path: str = None, output_folder: str = None) -> bool:
     """
     Compare assignments.json files between two folders and generate diff report.
     
     Args:
         folder1_path (str): Path to first folder containing assignments.json
         folder2_path (str): Path to second folder containing assignments.json
+        output_folder (str, optional): Folder to save diff report. If None, no file is written.
         
     Returns:
         bool: True if files are identical, False if differences found
         
     Output:
-        Creates diff_assignments.json with structure:
+        Creates diff_assignments.json in output_folder with structure:
         {
             "identical": false,
             "folder1_only": [...],  # Assignments only in folder1
@@ -431,26 +447,29 @@ def compare_assignments(folder1_path: str = None, folder2_path: str = None, writ
         }
     }
     
-    if write_to_file:
-        with open("diff_assignments.json", 'w', encoding='utf-8') as f:
+    if output_folder:
+        os.makedirs(output_folder, exist_ok=True)
+        output_path = Path(output_folder) / "diff_assignments.json"
+        with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(diff_report, f, indent=2, ensure_ascii=False)
     
     return is_identical
 
 
-def compare_question_groups(folder1_path: str = None, folder2_path: str = None, write_to_file: bool = False) -> bool:
+def compare_question_groups(folder1_path: str = None, folder2_path: str = None, output_folder: str = None) -> bool:
     """
     Compare question_groups folders between two folders and generate diff report.
     
     Args:
         folder1_path (str): Path to first folder containing question_groups folder
         folder2_path (str): Path to second folder containing question_groups folder
+        output_folder (str, optional): Folder to save diff report. If None, no file is written.
         
     Returns:
         bool: True if all question groups are identical, False if differences found
         
     Output:
-        Creates diff_question_groups.json with structure:
+        Creates diff_question_groups.json in output_folder with structure:
         {
             "identical": false,
             "folder1_only": [...],  # Question groups only in folder1
@@ -503,26 +522,29 @@ def compare_question_groups(folder1_path: str = None, folder2_path: str = None, 
         }
     }
     
-    if write_to_file:
-        with open("diff_question_groups.json", 'w', encoding='utf-8') as f:
+    if output_folder:
+        os.makedirs(output_folder, exist_ok=True)
+        output_path = Path(output_folder) / "diff_question_groups.json"
+        with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(diff_report, f, indent=2, ensure_ascii=False)
     
     return is_identical
 
 
-def compare_annotations(folder1_path: str = None, folder2_path: str = None, write_to_file: bool = False) -> bool:
+def compare_annotations(folder1_path: str = None, folder2_path: str = None, output_folder: str = None) -> bool:
     """
     Compare annotations folders between two folders and generate diff report.
     
     Args:
         folder1_path (str): Path to first folder containing annotations folder
         folder2_path (str): Path to second folder containing annotations folder
+        output_folder (str, optional): Folder to save diff report. If None, no file is written.
         
     Returns:
         bool: True if all annotations are identical, False if differences found
         
     Output:
-        Creates diff_annotations.json with structure:
+        Creates diff_annotations.json in output_folder with structure:
         {
             "identical": false,
             "folder1_only": [...],  # Annotations only in folder1
@@ -580,26 +602,29 @@ def compare_annotations(folder1_path: str = None, folder2_path: str = None, writ
         }
     }
     
-    if write_to_file:
-        with open("diff_annotations.json", 'w', encoding='utf-8') as f:
+    if output_folder:
+        os.makedirs(output_folder, exist_ok=True)
+        output_path = Path(output_folder) / "diff_annotations.json"
+        with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(diff_report, f, indent=2, ensure_ascii=False)
     
     return is_identical
 
 
-def compare_ground_truths(folder1_path: str = None, folder2_path: str = None, write_to_file: bool = False) -> bool:
+def compare_ground_truths(folder1_path: str = None, folder2_path: str = None, output_folder: str = None) -> bool:
     """
     Compare ground_truths folders between two folders and generate diff report.
     
     Args:
         folder1_path (str): Path to first folder containing ground_truths folder
         folder2_path (str): Path to second folder containing ground_truths folder
+        output_folder (str, optional): Folder to save diff report. If None, no file is written.
         
     Returns:
         bool: True if all ground truths are identical, False if differences found
         
     Output:
-        Creates diff_ground_truths.json with structure:
+        Creates diff_ground_truths.json in output_folder with structure:
         {
             "identical": false,
             "folder1_only": [...],  # Ground truths only in folder1
@@ -657,26 +682,36 @@ def compare_ground_truths(folder1_path: str = None, folder2_path: str = None, wr
         }
     }
     
-    if write_to_file:
-        with open("diff_ground_truths.json", 'w', encoding='utf-8') as f:
+    if output_folder:
+        os.makedirs(output_folder, exist_ok=True)
+        output_path = Path(output_folder) / "diff_ground_truths.json"
+        with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(diff_report, f, indent=2, ensure_ascii=False)
     
     return is_identical
 
 
-def compare_workspace(folder1_path: str = None, folder2_path: str = None, write_to_file: bool = False) -> bool:
+def compare_workspace(folder1_path: str = None, folder2_path: str = None, output_folder: str = None) -> bool:
     """
     Compare workspace between two folders and generate diff report.
+    
+    Args:
+        folder1_path (str): Path to first workspace folder
+        folder2_path (str): Path to second workspace folder
+        output_folder (str, optional): Folder to save all diff reports. If None, no files are written.
+        
+    Returns:
+        bool: True if all components are identical, False if differences found
     """
-    is_identical = compare_videos(folder1_path, folder2_path, write_to_file)
-    is_identical = compare_users(folder1_path, folder2_path, write_to_file) and is_identical
-    is_identical = compare_schemas(folder1_path, folder2_path, write_to_file) and is_identical
-    is_identical = compare_projects(folder1_path, folder2_path, write_to_file) and is_identical
-    is_identical = compare_project_groups(folder1_path, folder2_path, write_to_file) and is_identical
-    is_identical = compare_assignments(folder1_path, folder2_path, write_to_file) and is_identical
-    is_identical = compare_question_groups(folder1_path, folder2_path, write_to_file) and is_identical
-    is_identical = compare_annotations(folder1_path, folder2_path, write_to_file) and is_identical
-    is_identical = compare_ground_truths(folder1_path, folder2_path, write_to_file) and is_identical
+    is_identical = compare_videos(folder1_path, folder2_path, output_folder)
+    is_identical = compare_users(folder1_path, folder2_path, output_folder) and is_identical
+    is_identical = compare_schemas(folder1_path, folder2_path, output_folder) and is_identical
+    is_identical = compare_projects(folder1_path, folder2_path, output_folder) and is_identical
+    is_identical = compare_project_groups(folder1_path, folder2_path, output_folder) and is_identical
+    is_identical = compare_assignments(folder1_path, folder2_path, output_folder) and is_identical
+    is_identical = compare_question_groups(folder1_path, folder2_path, output_folder) and is_identical
+    is_identical = compare_annotations(folder1_path, folder2_path, output_folder) and is_identical
+    is_identical = compare_ground_truths(folder1_path, folder2_path, output_folder) and is_identical
     return is_identical
 
 
