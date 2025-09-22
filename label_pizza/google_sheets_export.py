@@ -85,6 +85,56 @@ class GoogleSheetExporter:
         creds = self._get_credentials(credentials_file)
         return build('drive', 'v3', credentials=creds)
     
+    # def _get_credentials(self, credentials_file: str):
+    #     """Get Google API credentials"""
+    #     token_file = 'google_sheets_token.json'
+    #     creds = None
+        
+    #     # Load existing token
+    #     if os.path.exists(token_file):
+    #         creds = Credentials.from_authorized_user_file(token_file, self.SCOPES)
+        
+    #     # Refresh or get new credentials
+    #     if not creds or not creds.valid:
+    #         if creds and creds.expired and creds.refresh_token:
+    #             try:
+    #                 creds.refresh(Request())
+    #             except Exception as e:
+    #                 print(f"⚠️  Token refresh failed: {e}")
+    #                 print("🔄 Will require re-authorization...")
+    #                 creds = None
+            
+    #         if not creds:
+    #             print("="*60)
+    #             print("GOOGLE SHEETS AUTHORIZATION REQUIRED")
+    #             print("="*60)
+    #             print("Required permissions:")
+    #             print("  ✅ Google Sheets: Read, write, and manage spreadsheets")
+    #             print("  ✅ Google Drive: Create and manage files")
+    #             print("="*60)
+    #             print()
+                
+    #             try:
+    #                 flow = InstalledAppFlow.from_client_secrets_file(credentials_file, self.SCOPES)
+    #                 flow.redirect_uri = 'http://localhost:8080/'
+    #                 creds = flow.run_local_server(port=8080, open_browser=True)
+    #             except Exception as e:
+    #                 print(f"❌ Error during authorization: {e}")
+    #                 print("\n💡 If the browser didn't open automatically:")
+    #                 print("   1. Copy the authorization URL from above")
+    #                 print("   2. Open it in your browser")
+    #                 print("   3. Complete the authorization")
+    #                 raise
+            
+    #         # Save credentials for next run
+    #         with open(token_file, 'w') as token:
+    #             token.write(creds.to_json())
+            
+    #         print("✅ Authorization successful! Credentials saved.")
+    #         print()
+        
+    #     return creds
+    
     def _get_credentials(self, credentials_file: str):
         """Get Google API credentials"""
         token_file = 'google_sheets_token.json'
@@ -114,17 +164,29 @@ class GoogleSheetExporter:
                 print("="*60)
                 print()
                 
-                try:
-                    flow = InstalledAppFlow.from_client_secrets_file(credentials_file, self.SCOPES)
-                    flow.redirect_uri = 'http://localhost:8080/'
-                    creds = flow.run_local_server(port=8080, open_browser=True)
-                except Exception as e:
-                    print(f"❌ Error during authorization: {e}")
-                    print("\n💡 If the browser didn't open automatically:")
-                    print("   1. Copy the authorization URL from above")
-                    print("   2. Open it in your browser")
-                    print("   3. Complete the authorization")
-                    raise
+                # Manual OAuth flow for environments without browser
+                flow = InstalledAppFlow.from_client_secrets_file(
+                    credentials_file, self.SCOPES, redirect_uri='http://localhost:8080')
+                
+                auth_url, _ = flow.authorization_url(prompt='consent')
+                
+                print('1. Go to this URL in your browser:')
+                print(auth_url)
+                print('\n2. Click "Advanced" -> "Go to [App Name] (unsafe)"')
+                print('3. Authorize the application')
+                print('4. ⚠️  IMPORTANT: Grant BOTH Sheets AND Drive permissions')
+                print('5. The browser will show "This site can\'t be reached" - this is expected!')
+                print('6. Copy the authorization code from the failed URL')
+                print('\n   Example URL: http://localhost:8080/?code=AUTHORIZATION_CODE&scope=...')
+                print('   Copy only the part after "code=" and before "&"')
+                print('='*60)
+                
+                auth_code = input('\nEnter the authorization code: ').strip()
+                if not auth_code:
+                    raise Exception('No authorization code provided')
+                
+                flow.fetch_token(code=auth_code)
+                creds = flow.credentials
             
             # Save credentials for next run
             with open(token_file, 'w') as token:
@@ -134,7 +196,7 @@ class GoogleSheetExporter:
             print()
         
         return creds
-    
+
     def _api_call_with_retry(self, func, *args, max_retries=3, operation_name="API call", **kwargs):
         """Execute API call with retry logic for rate limiting"""
         for attempt in range(max_retries):
@@ -167,7 +229,7 @@ class GoogleSheetExporter:
             return timestamp
         return timestamp.strftime("%Y-%m-%d %H:%M")
     
-    def export_all_sheets(self, master_sheet_id: str, skip_individual: bool = False, resume_from: str = None):
+    def export_all_sheets(self, master_sheet_id: str, skip_individual: bool = False, resume_from: str = None, sheet_prefix: str = "Pizza"):
         """Export all data to Google Sheets"""
         
         print("="*60)
@@ -213,10 +275,10 @@ class GoogleSheetExporter:
         
         # Determine where to start based on resume_from parameter
         skip_until_found = resume_from is not None
-        
+
         for user_data, role in all_users:
             current_user += 1
-            sheet_key = f"{user_data['user_name']} {role}"
+            sheet_key = f"{sheet_prefix}-{user_data['user_name']} {role}"  # Add prefix to key
             
             # Skip users until we reach the resume point
             if skip_until_found:
@@ -235,24 +297,24 @@ class GoogleSheetExporter:
                 time.sleep(3)
             
             try:
-                sheet_id = self._export_user_sheet(user_data, role, master_sheet_id)
+                sheet_id = self._export_user_sheet(user_data, role, master_sheet_id, sheet_prefix)
                 user_sheet_ids[sheet_key] = sheet_id
                 
                 # Manage permissions for this sheet
-                self._manage_sheet_permissions(sheet_id, f"{user_data['user_name']} {role}")
+                self._manage_sheet_permissions(sheet_id, f"{sheet_prefix}-{user_data['user_name']} {role}")
                 
-                print(f"    ✅ Successfully exported {user_data['user_name']} {role}")
+                print(f"    ✅ Successfully exported {sheet_prefix}-{user_data['user_name']} {role}")
             except Exception as e:
-                print(f"    ❌ Failed to export {user_data['user_name']} {role}: {e}")
-                self.export_failures.append(f"Failed to export {user_data['user_name']} {role}: {str(e)}")
-        
+                print(f"    ❌ Failed to export {sheet_prefix}-{user_data['user_name']} {role}: {e}")
+                self.export_failures.append(f"Failed to export {sheet_prefix}-{user_data['user_name']} {role}: {str(e)}")
+
         # Update master sheet with correct hyperlinks
         if user_sheet_ids:
             print(f"\n⏳ Pausing 5 seconds before updating master sheet links...")
             time.sleep(5)
             print("Updating master sheet hyperlinks...")
             try:
-                self._update_master_sheet_links(master_sheet_id, user_sheet_ids)
+                self._update_master_sheet_links(master_sheet_id, user_sheet_ids, sheet_prefix)
             except Exception as e:
                 print(f"❌ Failed to update master sheet links: {e}")
                 self.export_failures.append(f"Failed to update master sheet links: {str(e)}")
@@ -371,9 +433,9 @@ class GoogleSheetExporter:
             
             print(f"    ✅ Successfully updated {len(rows)-1} users in {tab_name} tab")
     
-    def _export_user_sheet(self, user_data: Dict, role: str, master_sheet_id: str) -> str:
+    def _export_user_sheet(self, user_data: Dict, role: str, master_sheet_id: str, sheet_prefix: str) -> str:
         """Export individual user sheet and return sheet ID"""
-        sheet_name = f"{user_data['user_name']} {role}"
+        sheet_name = f"{sheet_prefix}-{user_data['user_name']} {role}"  # Add prefix
         print(f"  Exporting {sheet_name} sheet...")
         
         try:
@@ -385,7 +447,6 @@ class GoogleSheetExporter:
             print(f"    Creating new sheet: {sheet_name}")
             sheet = self._api_call_with_retry(self.client.create, sheet_name, 
                                             operation_name=f"creating sheet '{sheet_name}'")
-        
         # Get user project data
         with self.get_db_session() as session:
             if role == "Annotator":
@@ -465,42 +526,119 @@ class GoogleSheetExporter:
                 operation_name=f"creating {tab_name} worksheet"
             )
     
+    # def _export_user_tab(self, worksheet, project_data: List[Dict], role: str, include_payment: bool):
+    #     """Export individual user sheet tab with improved formatting"""
+    #     if not project_data:
+    #         return
+        
+    #     # FIXED: Create headers with proper structure and span
+    #     self._create_user_sheet_headers(worksheet, role, include_payment)
+        
+    #     # Prepare data rows with preserved manual data
+    #     existing_data = self._get_existing_manual_data(worksheet, len(project_data), role, include_payment)
+    #     data_rows = []
+        
+    #     for i, project in enumerate(project_data):
+    #         row = self._create_project_row(project, role, include_payment)
+            
+    #         # Preserve manual data
+    #         if i < len(existing_data):
+    #             preserved_data = existing_data[i]
+    #             # Determine the manual column positions based on role and payment tab
+    #             manual_col_positions = self._get_manual_column_positions(role, include_payment)
+                
+    #             # Preserve data in manual columns
+    #             for pos in manual_col_positions:
+    #                 if pos < len(preserved_data) and pos < len(row) and preserved_data[pos].strip():
+    #                     row[pos] = preserved_data[pos]
+            
+    #         data_rows.append(row)
+        
+    #     # Update data starting from row 3 (after headers) - all roles now have 2-row headers
+    #     if data_rows:
+    #         start_row = 3  # All roles now have 2-row headers
+    #         self._update_data_with_preservation(worksheet, data_rows, start_row)
+        
+    #     # Apply formatting
+    #     self._apply_user_sheet_formatting(worksheet, len(data_rows), role, include_payment)
+    
+    def _get_existing_manual_data_mapped_to_projects(self, worksheet, role: str, include_payment: bool) -> Dict[str, Dict]:
+        """Get existing manual data mapped to project names for preservation during sorting"""
+        try:
+            all_values = worksheet.get_all_values()
+            if len(all_values) <= 2:  # No data rows (only headers)
+                return {}
+            
+            project_manual_data = {}
+            start_row = 2  # Skip 2-row headers (0-indexed, so row 3 in 1-indexed)
+            manual_col_positions = self._get_manual_column_positions(role, include_payment)
+            
+            # Map each project name to its manual data
+            for row_idx in range(start_row, len(all_values)):
+                row = all_values[row_idx]
+                if len(row) > 0 and row[0]:  # Has project name
+                    project_name = row[0].strip()
+                    if project_name:
+                        # Extract manual data from this row
+                        manual_data = {}
+                        for pos in manual_col_positions:
+                            if pos < len(row):
+                                manual_data[pos] = row[pos]
+                        project_manual_data[project_name] = manual_data
+            
+            return project_manual_data
+        except Exception as e:
+            print(f"      ⚠️ Could not read existing manual data: {e}")
+            return {}
+
     def _export_user_tab(self, worksheet, project_data: List[Dict], role: str, include_payment: bool):
-        """Export individual user sheet tab with improved formatting"""
+        """Export individual user sheet tab with sorting and project-aware manual data preservation"""
         if not project_data:
             return
         
-        # FIXED: Create headers with proper structure and span
+        # STEP 1: Get existing manual data mapped to project names (BEFORE sorting)
+        existing_manual_data = self._get_existing_manual_data_mapped_to_projects(worksheet, role, include_payment)
+        
+        # STEP 2: Sort projects by most recent activity (NOW SAFE TO SORT)
+        if role == "Meta-Reviewer":
+            # Sort by last_modified for meta-reviewers
+            project_data.sort(key=lambda x: x.get('last_modified') or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+        else:
+            # Sort by last_submitted for annotators and reviewers
+            project_data.sort(key=lambda x: x.get('last_submitted') or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+        
+        # STEP 3: Create headers
         self._create_user_sheet_headers(worksheet, role, include_payment)
         
-        # Prepare data rows with preserved manual data
-        existing_data = self._get_existing_manual_data(worksheet, len(project_data), role, include_payment)
+        # STEP 4: Build data rows with project-aware manual data preservation
         data_rows = []
+        manual_col_positions = self._get_manual_column_positions(role, include_payment)
         
-        for i, project in enumerate(project_data):
+        for project in project_data:
+            # Create base row with automatic data
             row = self._create_project_row(project, role, include_payment)
             
-            # Preserve manual data
-            if i < len(existing_data):
-                preserved_data = existing_data[i]
-                # Determine the manual column positions based on role and payment tab
-                manual_col_positions = self._get_manual_column_positions(role, include_payment)
+            # Apply preserved manual data for this specific project
+            project_name = project['project_name']
+            if project_name in existing_manual_data:
+                preserved_data = existing_manual_data[project_name]
                 
-                # Preserve data in manual columns
+                # Restore manual data to correct columns for this project
                 for pos in manual_col_positions:
-                    if pos < len(preserved_data) and pos < len(row) and preserved_data[pos].strip():
+                    if pos in preserved_data and pos < len(row) and preserved_data[pos].strip():
                         row[pos] = preserved_data[pos]
             
             data_rows.append(row)
         
-        # Update data starting from row 3 (after headers) - all roles now have 2-row headers
+        # STEP 5: Update sheet with sorted data and preserved manual columns
         if data_rows:
-            start_row = 3  # All roles now have 2-row headers
+            start_row = 3  # After 2-row headers
             self._update_data_with_preservation(worksheet, data_rows, start_row)
         
-        # Apply formatting
+        # STEP 6: Apply formatting
         self._apply_user_sheet_formatting(worksheet, len(data_rows), role, include_payment)
-    
+
+
     def _get_manual_column_positions(self, role: str, include_payment: bool) -> List[int]:
         """Get the column positions for manual data that should be preserved"""
         positions = []
@@ -744,24 +882,7 @@ class GoogleSheetExporter:
             print(f"      ⚠️ Could not apply header merging: {e}")
             # Continue without merging - the sheet will still function, just without fancy header merging
     
-    def _get_existing_manual_data(self, worksheet, num_projects: int, role: str, include_payment: bool) -> List[List]:
-        """Get existing manual data to preserve during updates"""
-        try:
-            all_values = worksheet.get_all_values()
-            if len(all_values) <= 2:  # No data rows
-                return []
-            
-            existing_data = []
-            start_row = 2  # Skip headers (0-indexed, so row 3 in 1-indexed) - now all roles have 2-row headers
-            
-            for i in range(min(num_projects, len(all_values) - start_row)):
-                row_idx = start_row + i
-                if row_idx < len(all_values):
-                    existing_data.append(all_values[row_idx])
-            
-            return existing_data
-        except Exception:
-            return []
+
     
     def _create_project_row(self, project: Dict, role: str, include_payment: bool) -> List:
         """Create a project data row with correct column alignment"""
@@ -851,16 +972,83 @@ class GoogleSheetExporter:
             operation_name="updating project data"
         )
     
+    def _apply_alternating_row_colors(self, worksheet, data_rows_count: int, header_rows: int):
+        """Apply alternating row colors as the FINAL formatting step to ensure they stick"""
+        if data_rows_count <= 0:
+            return
+        
+        try:
+            sheet_id = worksheet._properties['sheetId']
+            
+            # Define colors
+            light_blue_color = {
+                "red": 0.95,
+                "green": 0.98, 
+                "blue": 1.0
+            }
+            
+            white_color = {
+                "red": 1.0,
+                "green": 1.0,
+                "blue": 1.0
+            }
+            
+            # Build comprehensive alternating color requests
+            alternating_requests = []
+            
+            # Calculate the range of data rows (after headers)
+            first_data_row = header_rows  # 0-indexed (row 3 in 1-indexed becomes 2 in 0-indexed)
+            last_data_row = header_rows + data_rows_count - 1
+            
+            # Apply colors to ALL data rows (both blue and white explicitly)
+            for row_index in range(first_data_row, header_rows + data_rows_count):
+                # Determine if this should be colored (every other row)
+                is_colored_row = (row_index - first_data_row) % 2 == 1  # 0, 2, 4... = white; 1, 3, 5... = blue
+                
+                background_color = light_blue_color if is_colored_row else white_color
+                
+                alternating_requests.append({
+                    "repeatCell": {
+                        "range": {
+                            "sheetId": sheet_id,
+                            "startRowIndex": row_index,
+                            "endRowIndex": row_index + 1,
+                            "startColumnIndex": 0,
+                            "endColumnIndex": 50  # Cover all relevant columns
+                        },
+                        "cell": {
+                            "userEnteredFormat": {
+                                "backgroundColor": background_color
+                            }
+                        },
+                        "fields": "userEnteredFormat.backgroundColor"
+                    }
+                })
+            
+            # Apply all alternating colors in one batch (HIGHER PRIORITY)
+            if alternating_requests:
+                alternating_batch_request = {"requests": alternating_requests}
+                self._api_call_with_retry(
+                    self.sheets_service.spreadsheets().batchUpdate,
+                    spreadsheetId=worksheet.spreadsheet.id,
+                    body=alternating_batch_request,
+                    operation_name="applying robust alternating row colors"
+                ).execute()
+                
+                print(f"      ✅ Applied alternating colors to {data_rows_count} rows (pattern agnostic)")
+                
+        except Exception as e:
+            print(f"      ⚠️ Could not apply alternating row colors: {e}")
+
     def _apply_user_sheet_formatting(self, worksheet, data_rows_count: int, role: str, include_payment: bool):
-        """Apply professional formatting to user sheets"""
+        """Apply professional formatting to user sheets with robust alternating colors"""
         try:
             print(f"      🎨 Applying formatting...")
             
-            # Header formatting - all roles now have 2-row headers
-            header_rows = 2
+            header_rows = 2  # All roles have 2-row headers
             last_row = header_rows + data_rows_count
             
-            # FIXED: Apply column widths including Video Count column
+            # STEP 1: Apply all other formatting FIRST (column widths, etc.)
             column_widths = [
                 {"startIndex": 0, "endIndex": 1, "pixelSize": 150},   # A: Project Name
                 {"startIndex": 1, "endIndex": 2, "pixelSize": 120},   # B: Schema Name
@@ -883,27 +1071,27 @@ class GoogleSheetExporter:
                     {"startIndex": current_col + 4, "endIndex": current_col + 5, "pixelSize": 132}, # H: Last Submitted
                 ])
                 current_col += 5
-            else:  # Meta-Reviewer - UPDATED: Last Modified comes after Video Count
+            else:  # Meta-Reviewer
                 column_widths.extend([
                     {"startIndex": current_col, "endIndex": current_col + 1, "pixelSize": 132}, # D: Last Modified
                 ])
                 current_col += 1
             
-            # Payment/Feedback columns with FIXED salary column widths (10% increase)
+            # Payment/Feedback columns
             if include_payment:
                 column_widths.extend([
                     {"startIndex": current_col, "endIndex": current_col + 1, "pixelSize": 120},      # Payment Time
-                    {"startIndex": current_col + 1, "endIndex": current_col + 2, "pixelSize": 99},   # Base Salary (90 + 10%)
-                    {"startIndex": current_col + 2, "endIndex": current_col + 3, "pixelSize": 99},   # Bonus Salary (90 + 10%)
+                    {"startIndex": current_col + 1, "endIndex": current_col + 2, "pixelSize": 99},   # Base Salary
+                    {"startIndex": current_col + 2, "endIndex": current_col + 3, "pixelSize": 99},   # Bonus Salary
                 ])
                 current_col += 3
             else:
                 column_widths.extend([
-                    {"startIndex": current_col, "endIndex": current_col + 1, "pixelSize": 300},      # Feedback - very wide
+                    {"startIndex": current_col, "endIndex": current_col + 1, "pixelSize": 300},      # Feedback
                 ])
                 current_col += 1
             
-            # Overall stats columns (only for Annotator and Reviewer) OR Modified Ratio By (for Meta-Reviewer)
+            # Overall stats columns 
             if role in ["Annotator", "Reviewer"]:
                 remaining_cols = 6
                 for i in range(remaining_cols):
@@ -913,14 +1101,14 @@ class GoogleSheetExporter:
                         "pixelSize": 80
                     })
             else:  # Meta-Reviewer: Modified Ratio By columns
-                for i in range(2):  # User % and All %
+                for i in range(2):  
                     column_widths.append({
                         "startIndex": current_col + i, 
                         "endIndex": current_col + i + 1, 
                         "pixelSize": 80
                     })
             
-            # Apply column widths
+            # Apply column widths and other formatting
             requests = []
             for width_spec in column_widths:
                 requests.append({
@@ -954,7 +1142,7 @@ class GoogleSheetExporter:
                 }
             })
             
-            # NEW: Set feedback row heights to 60px if this is feedback tab
+            # Set feedback row heights
             if not include_payment and data_rows_count > 0:  # Feedback tab
                 for row_index in range(header_rows, header_rows + data_rows_count):
                     requests.append({
@@ -985,66 +1173,17 @@ class GoogleSheetExporter:
                 }
             })
             
+            # STEP 2: Apply all structural formatting first
             if requests:
                 batch_request = {"requests": requests}
                 self._api_call_with_retry(
                     self.sheets_service.spreadsheets().batchUpdate,
                     spreadsheetId=worksheet.spreadsheet.id,
                     body=batch_request,
-                    operation_name="applying column widths and formatting"
+                    operation_name="applying column widths and structural formatting"
                 ).execute()
             
-            # NEW: Manual alternating row colors (like Script 2)
-            # if data_rows_count > 0:
-            #     even_row_format = {
-            #         "backgroundColor": {"red": 0.95, "green": 0.98, "blue": 1.0}  # Light blue
-            #     }
-                
-            #     # Apply to even rows starting from row 4 (data starts at row 3, so even rows are 4, 6, 8...)
-            #     for row in range(4, header_rows + data_rows_count + 1, 2):  # Every other row starting from 4
-            #         self._api_call_with_retry(
-            #             worksheet.format, f"A{row}:ZZ{row}", even_row_format,
-            #             operation_name=f"formatting alternating row {row}"
-            #         )
-            # NEW: Batch alternating row colors (much more efficient!)
-            if data_rows_count > 0:
-                alternating_requests = []
-                
-                # Build batch requests for alternating rows
-                for row in range(4, header_rows + data_rows_count + 1, 2):  # Even rows: 4, 6, 8...
-                    alternating_requests.append({
-                        "repeatCell": {
-                            "range": {
-                                "sheetId": worksheet._properties['sheetId'],
-                                "startRowIndex": row - 1,  # Convert to 0-indexed
-                                "endRowIndex": row,
-                                "startColumnIndex": 0,
-                                "endColumnIndex": min(50, len(column_widths))  # Cap at reasonable column count
-                            },
-                            "cell": {
-                                "userEnteredFormat": {
-                                    "backgroundColor": {
-                                        "red": 0.95,
-                                        "green": 0.98,
-                                        "blue": 1.0
-                                    }
-                                }
-                            },
-                            "fields": "userEnteredFormat.backgroundColor"
-                        }
-                    })
-                
-                # Apply all alternating row colors in a single batch request
-                if alternating_requests:
-                    alternating_batch_request = {"requests": alternating_requests}
-                    self._api_call_with_retry(
-                        self.sheets_service.spreadsheets().batchUpdate,
-                        spreadsheetId=worksheet.spreadsheet.id,
-                        body=alternating_batch_request,
-                        operation_name="applying alternating row colors (batch)"
-                    ).execute()
-            
-            # Format Video Count column as number
+            # STEP 3: Format specific columns (Video Count)
             video_count_col = 2  # Column C (0-indexed)
             video_count_format_requests = [{
                 "repeatCell": {
@@ -1062,13 +1201,13 @@ class GoogleSheetExporter:
                                 "pattern": "#,##0"
                             },
                             "horizontalAlignment": "CENTER"
+                            # NOTE: No backgroundColor here - will be overridden by alternating colors
                         }
                     },
-                    "fields": "userEnteredFormat(numberFormat,horizontalAlignment)"
+                    "fields": "userEnteredFormat(numberFormat,horizontalAlignment)"  # Don't override backgroundColor
                 }
             }]
             
-            # Apply video count formatting
             video_count_batch_request = {"requests": video_count_format_requests}
             self._api_call_with_retry(
                 self.sheets_service.spreadsheets().batchUpdate,
@@ -1077,18 +1216,18 @@ class GoogleSheetExporter:
                 operation_name="formatting video count column"
             ).execute()
             
-            # NEW: Format feedback column with text wrapping (like Script 2)
+            # STEP 4: Format feedback column (if feedback tab)
             if not include_payment:  # Feedback tab
-                # Calculate feedback column based on role and structure
                 feedback_col_positions = self._get_manual_column_positions(role, include_payment)
                 if feedback_col_positions:
                     feedback_col_num = feedback_col_positions[0] + 1  # Convert to 1-indexed
                     feedback_col = self._col_num_to_letter(feedback_col_num)
                     
                     feedback_format = {
-                        "wrapStrategy": "WRAP",  # Enable text wrapping
+                        "wrapStrategy": "WRAP",
                         "verticalAlignment": "TOP",
                         "textFormat": {"fontSize": 9}
+                        # NOTE: No backgroundColor here - will be overridden by alternating colors
                     }
                     self._api_call_with_retry(
                         worksheet.format, 
@@ -1097,35 +1236,38 @@ class GoogleSheetExporter:
                         operation_name="formatting feedback column with text wrapping"
                     )
             
-            print(f"      ✅ Applied professional formatting with alternating rows and feedback text wrapping")
+            # STEP 5: Apply alternating row colors LAST (this is the key!)
+            self._apply_alternating_row_colors(worksheet, data_rows_count, header_rows)
+            
+            print(f"      ✅ Applied comprehensive formatting with robust alternating rows")
             
         except Exception as e:
             print(f"      ⚠️ Worksheet formatting failed: {e}")
 
     def _apply_master_sheet_formatting(self, worksheet, data_rows_count: int, headers_count: int):
-        """Apply formatting to master sheet with improved color schema"""
+        """Apply formatting to master sheet with robust alternating colors"""
         try:
-            # Basic formatting for master sheet
             last_row = 1 + data_rows_count
+            header_rows = 1  # Master sheet has 1 header row
             
-            # Set column widths with increased width for project count columns
+            # STEP 1: Apply structural formatting first
             column_widths = [
                 {"startIndex": 0, "endIndex": 1, "pixelSize": 150},   # User Name
                 {"startIndex": 1, "endIndex": 2, "pixelSize": 200},   # Email
                 {"startIndex": 2, "endIndex": 3, "pixelSize": 80},    # Role
                 {"startIndex": 3, "endIndex": 4, "pixelSize": 200},   # Sheet Link
                 {"startIndex": 4, "endIndex": 5, "pixelSize": 132},   # Last Time
-                {"startIndex": 5, "endIndex": 6, "pixelSize": 130},   # Assigned Projects (increased from 100)
-                {"startIndex": 6, "endIndex": 7, "pixelSize": 130},   # Started Projects (increased from 100)
+                {"startIndex": 5, "endIndex": 6, "pixelSize": 130},   # Assigned Projects
+                {"startIndex": 6, "endIndex": 7, "pixelSize": 130},   # Started Projects
             ]
             
-            # Add remaining columns (like Completed Projects for Annotators)
+            # Add remaining columns
             for i in range(7, headers_count):
                 if i == 7:  # Completed Projects column
                     column_widths.append({
                         "startIndex": i, 
                         "endIndex": i + 1, 
-                        "pixelSize": 140  # Even wider for "Completed Projects"
+                        "pixelSize": 140
                     })
                 else:
                     column_widths.append({
@@ -1151,7 +1293,7 @@ class GoogleSheetExporter:
                     }
                 })
             
-            # Apply header formatting with dark blue background and white text
+            # Apply header formatting
             requests.append({
                 "repeatCell": {
                     "range": {
@@ -1185,71 +1327,515 @@ class GoogleSheetExporter:
                 }
             })
             
+            # STEP 2: Apply structural formatting
             if requests:
                 batch_request = {"requests": requests}
                 self._api_call_with_retry(
                     self.sheets_service.spreadsheets().batchUpdate,
                     spreadsheetId=worksheet.spreadsheet.id,
                     body=batch_request,
-                    operation_name="applying master sheet formatting"
+                    operation_name="applying master sheet structural formatting"
                 ).execute()
             
-            # NEW: Manual alternating row colors (like Script 2) 
-            # if data_rows_count > 0:
-            #     even_row_format = {
-            #         "backgroundColor": {"red": 0.95, "green": 0.98, "blue": 1.0}  # Light blue
-            #     }
-                
-            #     # Apply to even rows starting from row 3 (data starts at row 2, so even rows are 3, 5, 7...)
-            #     for row in range(3, 1 + data_rows_count + 1, 2):  # Every other row starting from 3
-            #         self._api_call_with_retry(
-            #             worksheet.format, f"A{row}:ZZ{row}", even_row_format,
-            #             operation_name=f"formatting master alternating row {row}"
-            #         )
-            # NEW: Batch alternating row colors for master sheet (much more efficient!)
-            if data_rows_count > 0:
-                master_alternating_requests = []
-                
-                # Build batch requests for alternating master sheet rows
-                for row in range(3, 1 + data_rows_count + 1, 2):  # Odd rows: 3, 5, 7...
-                    master_alternating_requests.append({
-                        "repeatCell": {
-                            "range": {
-                                "sheetId": worksheet._properties['sheetId'],
-                                "startRowIndex": row - 1,  # Convert to 0-indexed
-                                "endRowIndex": row,
-                                "startColumnIndex": 0,
-                                "endColumnIndex": headers_count
-                            },
-                            "cell": {
-                                "userEnteredFormat": {
-                                    "backgroundColor": {
-                                        "red": 0.95,
-                                        "green": 0.98,
-                                        "blue": 1.0
-                                    }
-                                }
-                            },
-                            "fields": "userEnteredFormat.backgroundColor"
-                        }
-                    })
-                
-                # Apply all master alternating row colors in a single batch request
-                if master_alternating_requests:
-                    master_alternating_batch_request = {"requests": master_alternating_requests}
-                    self._api_call_with_retry(
-                        self.sheets_service.spreadsheets().batchUpdate,
-                        spreadsheetId=worksheet.spreadsheet.id,
-                        body=master_alternating_batch_request,
-                        operation_name="applying master alternating row colors (batch)"
-                    ).execute()
+            # STEP 3: Apply alternating row colors LAST
+            self._apply_alternating_row_colors(worksheet, data_rows_count, header_rows)
             
-            print(f"      ✅ Applied master sheet formatting with alternating rows")
+            print(f"      ✅ Applied master sheet formatting with robust alternating rows")
             
         except Exception as e:
             print(f"      ⚠️ Master sheet formatting failed: {e}")
 
-    def _update_master_sheet_links(self, master_sheet_id: str, user_sheet_ids: Dict):
+    
+    # def _apply_user_sheet_formatting(self, worksheet, data_rows_count: int, role: str, include_payment: bool):
+    #     """Apply professional formatting to user sheets"""
+    #     try:
+    #         print(f"      🎨 Applying formatting...")
+            
+    #         # Header formatting - all roles now have 2-row headers
+    #         header_rows = 2
+    #         last_row = header_rows + data_rows_count
+            
+    #         # FIXED: Apply column widths including Video Count column
+    #         column_widths = [
+    #             {"startIndex": 0, "endIndex": 1, "pixelSize": 150},   # A: Project Name
+    #             {"startIndex": 1, "endIndex": 2, "pixelSize": 120},   # B: Schema Name
+    #             {"startIndex": 2, "endIndex": 3, "pixelSize": 90},    # C: Video Count
+    #         ]
+            
+    #         # Role-specific columns
+    #         current_col = 3
+    #         if role == "Annotator":
+    #             column_widths.extend([
+    #                 {"startIndex": current_col, "endIndex": current_col + 1, "pixelSize": 132}, # D: Last Submitted
+    #             ])
+    #             current_col += 1
+    #         elif role == "Reviewer":
+    #             column_widths.extend([
+    #                 {"startIndex": current_col, "endIndex": current_col + 1, "pixelSize": 60},    # D: GT%
+    #                 {"startIndex": current_col + 1, "endIndex": current_col + 2, "pixelSize": 60}, # E: All GT%
+    #                 {"startIndex": current_col + 2, "endIndex": current_col + 3, "pixelSize": 60}, # F: Review%
+    #                 {"startIndex": current_col + 3, "endIndex": current_col + 4, "pixelSize": 60}, # G: All Rev%
+    #                 {"startIndex": current_col + 4, "endIndex": current_col + 5, "pixelSize": 132}, # H: Last Submitted
+    #             ])
+    #             current_col += 5
+    #         else:  # Meta-Reviewer - UPDATED: Last Modified comes after Video Count
+    #             column_widths.extend([
+    #                 {"startIndex": current_col, "endIndex": current_col + 1, "pixelSize": 132}, # D: Last Modified
+    #             ])
+    #             current_col += 1
+            
+    #         # Payment/Feedback columns with FIXED salary column widths (10% increase)
+    #         if include_payment:
+    #             column_widths.extend([
+    #                 {"startIndex": current_col, "endIndex": current_col + 1, "pixelSize": 120},      # Payment Time
+    #                 {"startIndex": current_col + 1, "endIndex": current_col + 2, "pixelSize": 99},   # Base Salary (90 + 10%)
+    #                 {"startIndex": current_col + 2, "endIndex": current_col + 3, "pixelSize": 99},   # Bonus Salary (90 + 10%)
+    #             ])
+    #             current_col += 3
+    #         else:
+    #             column_widths.extend([
+    #                 {"startIndex": current_col, "endIndex": current_col + 1, "pixelSize": 300},      # Feedback - very wide
+    #             ])
+    #             current_col += 1
+            
+    #         # Overall stats columns (only for Annotator and Reviewer) OR Modified Ratio By (for Meta-Reviewer)
+    #         if role in ["Annotator", "Reviewer"]:
+    #             remaining_cols = 6
+    #             for i in range(remaining_cols):
+    #                 column_widths.append({
+    #                     "startIndex": current_col + i, 
+    #                     "endIndex": current_col + i + 1, 
+    #                     "pixelSize": 80
+    #                 })
+    #         else:  # Meta-Reviewer: Modified Ratio By columns
+    #             for i in range(2):  # User % and All %
+    #                 column_widths.append({
+    #                     "startIndex": current_col + i, 
+    #                     "endIndex": current_col + i + 1, 
+    #                     "pixelSize": 80
+    #                 })
+            
+    #         # Apply column widths
+    #         requests = []
+    #         for width_spec in column_widths:
+    #             requests.append({
+    #                 "updateDimensionProperties": {
+    #                     "range": {
+    #                         "sheetId": worksheet._properties['sheetId'],
+    #                         "dimension": "COLUMNS",
+    #                         "startIndex": width_spec["startIndex"],
+    #                         "endIndex": width_spec["endIndex"]
+    #                     },
+    #                     "properties": {
+    #                         "pixelSize": width_spec["pixelSize"]
+    #                     },
+    #                     "fields": "pixelSize"
+    #                 }
+    #             })
+            
+    #         # Apply row heights and freeze panes
+    #         requests.append({
+    #             "updateDimensionProperties": {
+    #                 "range": {
+    #                     "sheetId": worksheet._properties['sheetId'],
+    #                     "dimension": "ROWS",
+    #                     "startIndex": 0,
+    #                     "endIndex": header_rows
+    #                 },
+    #                 "properties": {
+    #                     "pixelSize": 35
+    #                 },
+    #                 "fields": "pixelSize"
+    #             }
+    #         })
+            
+    #         # NEW: Set feedback row heights to 60px if this is feedback tab
+    #         if not include_payment and data_rows_count > 0:  # Feedback tab
+    #             for row_index in range(header_rows, header_rows + data_rows_count):
+    #                 requests.append({
+    #                     "updateDimensionProperties": {
+    #                         "range": {
+    #                             "sheetId": worksheet._properties['sheetId'],
+    #                             "dimension": "ROWS",
+    #                             "startIndex": row_index,
+    #                             "endIndex": row_index + 1
+    #                         },
+    #                         "properties": {
+    #                             "pixelSize": 60  # 60px tall for feedback
+    #                         },
+    #                         "fields": "pixelSize"
+    #                     }
+    #                 })
+            
+    #         # Freeze header rows
+    #         requests.append({
+    #             "updateSheetProperties": {
+    #                 "properties": {
+    #                     "sheetId": worksheet._properties['sheetId'],
+    #                     "gridProperties": {
+    #                         "frozenRowCount": header_rows
+    #                     }
+    #                 },
+    #                 "fields": "gridProperties.frozenRowCount"
+    #             }
+    #         })
+            
+    #         if requests:
+    #             batch_request = {"requests": requests}
+    #             self._api_call_with_retry(
+    #                 self.sheets_service.spreadsheets().batchUpdate,
+    #                 spreadsheetId=worksheet.spreadsheet.id,
+    #                 body=batch_request,
+    #                 operation_name="applying column widths and formatting"
+    #             ).execute()
+            
+    #         # NEW: Manual alternating row colors (like Script 2)
+    #         # if data_rows_count > 0:
+    #         #     even_row_format = {
+    #         #         "backgroundColor": {"red": 0.95, "green": 0.98, "blue": 1.0}  # Light blue
+    #         #     }
+                
+    #         #     # Apply to even rows starting from row 4 (data starts at row 3, so even rows are 4, 6, 8...)
+    #         #     for row in range(4, header_rows + data_rows_count + 1, 2):  # Every other row starting from 4
+    #         #         self._api_call_with_retry(
+    #         #             worksheet.format, f"A{row}:ZZ{row}", even_row_format,
+    #         #             operation_name=f"formatting alternating row {row}"
+    #         #         )
+    #         # NEW: Batch alternating row colors (much more efficient!)
+    #         if data_rows_count > 0:
+    #             alternating_requests = []
+                
+    #             # Build batch requests for alternating rows
+    #             for row in range(4, header_rows + data_rows_count + 1, 2):  # Even rows: 4, 6, 8...
+    #                 alternating_requests.append({
+    #                     "repeatCell": {
+    #                         "range": {
+    #                             "sheetId": worksheet._properties['sheetId'],
+    #                             "startRowIndex": row - 1,  # Convert to 0-indexed
+    #                             "endRowIndex": row,
+    #                             "startColumnIndex": 0,
+    #                             "endColumnIndex": min(50, len(column_widths))  # Cap at reasonable column count
+    #                         },
+    #                         "cell": {
+    #                             "userEnteredFormat": {
+    #                                 "backgroundColor": {
+    #                                     "red": 0.95,
+    #                                     "green": 0.98,
+    #                                     "blue": 1.0
+    #                                 }
+    #                             }
+    #                         },
+    #                         "fields": "userEnteredFormat.backgroundColor"
+    #                     }
+    #                 })
+                
+    #             # Apply all alternating row colors in a single batch request
+    #             if alternating_requests:
+    #                 alternating_batch_request = {"requests": alternating_requests}
+    #                 self._api_call_with_retry(
+    #                     self.sheets_service.spreadsheets().batchUpdate,
+    #                     spreadsheetId=worksheet.spreadsheet.id,
+    #                     body=alternating_batch_request,
+    #                     operation_name="applying alternating row colors (batch)"
+    #                 ).execute()
+            
+    #         # Format Video Count column as number
+    #         video_count_col = 2  # Column C (0-indexed)
+    #         video_count_format_requests = [{
+    #             "repeatCell": {
+    #                 "range": {
+    #                     "sheetId": worksheet._properties['sheetId'],
+    #                     "startRowIndex": header_rows,
+    #                     "endRowIndex": header_rows + data_rows_count,
+    #                     "startColumnIndex": video_count_col,
+    #                     "endColumnIndex": video_count_col + 1
+    #                 },
+    #                 "cell": {
+    #                     "userEnteredFormat": {
+    #                         "numberFormat": {
+    #                             "type": "NUMBER",
+    #                             "pattern": "#,##0"
+    #                         },
+    #                         "horizontalAlignment": "CENTER"
+    #                     }
+    #                 },
+    #                 "fields": "userEnteredFormat(numberFormat,horizontalAlignment)"
+    #             }
+    #         }]
+            
+    #         # Apply video count formatting
+    #         video_count_batch_request = {"requests": video_count_format_requests}
+    #         self._api_call_with_retry(
+    #             self.sheets_service.spreadsheets().batchUpdate,
+    #             spreadsheetId=worksheet.spreadsheet.id,
+    #             body=video_count_batch_request,
+    #             operation_name="formatting video count column"
+    #         ).execute()
+            
+    #         # NEW: Format feedback column with text wrapping (like Script 2)
+    #         if not include_payment:  # Feedback tab
+    #             # Calculate feedback column based on role and structure
+    #             feedback_col_positions = self._get_manual_column_positions(role, include_payment)
+    #             if feedback_col_positions:
+    #                 feedback_col_num = feedback_col_positions[0] + 1  # Convert to 1-indexed
+    #                 feedback_col = self._col_num_to_letter(feedback_col_num)
+                    
+    #                 feedback_format = {
+    #                     "wrapStrategy": "WRAP",  # Enable text wrapping
+    #                     "verticalAlignment": "TOP",
+    #                     "textFormat": {"fontSize": 9}
+    #                 }
+    #                 self._api_call_with_retry(
+    #                     worksheet.format, 
+    #                     f"{feedback_col}{header_rows + 1}:{feedback_col}{last_row}", 
+    #                     feedback_format,
+    #                     operation_name="formatting feedback column with text wrapping"
+    #                 )
+            
+    #         print(f"      ✅ Applied professional formatting with alternating rows and feedback text wrapping")
+            
+    #     except Exception as e:
+    #         print(f"      ⚠️ Worksheet formatting failed: {e}")
+
+    # def _apply_master_sheet_formatting(self, worksheet, data_rows_count: int, headers_count: int):
+    #     """Apply formatting to master sheet with improved color schema"""
+    #     try:
+    #         # Basic formatting for master sheet
+    #         last_row = 1 + data_rows_count
+            
+    #         # Set column widths with increased width for project count columns
+    #         column_widths = [
+    #             {"startIndex": 0, "endIndex": 1, "pixelSize": 150},   # User Name
+    #             {"startIndex": 1, "endIndex": 2, "pixelSize": 200},   # Email
+    #             {"startIndex": 2, "endIndex": 3, "pixelSize": 80},    # Role
+    #             {"startIndex": 3, "endIndex": 4, "pixelSize": 200},   # Sheet Link
+    #             {"startIndex": 4, "endIndex": 5, "pixelSize": 132},   # Last Time
+    #             {"startIndex": 5, "endIndex": 6, "pixelSize": 130},   # Assigned Projects (increased from 100)
+    #             {"startIndex": 6, "endIndex": 7, "pixelSize": 130},   # Started Projects (increased from 100)
+    #         ]
+            
+    #         # Add remaining columns (like Completed Projects for Annotators)
+    #         for i in range(7, headers_count):
+    #             if i == 7:  # Completed Projects column
+    #                 column_widths.append({
+    #                     "startIndex": i, 
+    #                     "endIndex": i + 1, 
+    #                     "pixelSize": 140  # Even wider for "Completed Projects"
+    #                 })
+    #             else:
+    #                 column_widths.append({
+    #                     "startIndex": i, 
+    #                     "endIndex": i + 1, 
+    #                     "pixelSize": 100
+    #                 })
+            
+    #         requests = []
+    #         for width_spec in column_widths:
+    #             requests.append({
+    #                 "updateDimensionProperties": {
+    #                     "range": {
+    #                         "sheetId": worksheet._properties['sheetId'],
+    #                         "dimension": "COLUMNS",
+    #                         "startIndex": width_spec["startIndex"],
+    #                         "endIndex": width_spec["endIndex"]
+    #                     },
+    #                     "properties": {
+    #                         "pixelSize": width_spec["pixelSize"]
+    #                     },
+    #                     "fields": "pixelSize"
+    #                 }
+    #             })
+            
+    #         # Apply header formatting with dark blue background and white text
+    #         requests.append({
+    #             "repeatCell": {
+    #                 "range": {
+    #                     "sheetId": worksheet._properties['sheetId'],
+    #                     "startRowIndex": 0,
+    #                     "endRowIndex": 1,
+    #                     "startColumnIndex": 0,
+    #                     "endColumnIndex": headers_count
+    #                 },
+    #                 "cell": {
+    #                     "userEnteredFormat": {
+    #                         "backgroundColor": {
+    #                             "red": 0.2,
+    #                             "green": 0.4,
+    #                             "blue": 0.8
+    #                         },
+    #                         "textFormat": {
+    #                             "bold": True,
+    #                             "fontSize": 10,
+    #                             "foregroundColor": {
+    #                                 "red": 1,
+    #                                 "green": 1,
+    #                                 "blue": 1
+    #                             }
+    #                         },
+    #                         "horizontalAlignment": "CENTER",
+    #                         "verticalAlignment": "MIDDLE"
+    #                     }
+    #                 },
+    #                 "fields": "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)"
+    #             }
+    #         })
+            
+    #         if requests:
+    #             batch_request = {"requests": requests}
+    #             self._api_call_with_retry(
+    #                 self.sheets_service.spreadsheets().batchUpdate,
+    #                 spreadsheetId=worksheet.spreadsheet.id,
+    #                 body=batch_request,
+    #                 operation_name="applying master sheet formatting"
+    #             ).execute()
+            
+    #         # NEW: Manual alternating row colors (like Script 2) 
+    #         # if data_rows_count > 0:
+    #         #     even_row_format = {
+    #         #         "backgroundColor": {"red": 0.95, "green": 0.98, "blue": 1.0}  # Light blue
+    #         #     }
+                
+    #         #     # Apply to even rows starting from row 3 (data starts at row 2, so even rows are 3, 5, 7...)
+    #         #     for row in range(3, 1 + data_rows_count + 1, 2):  # Every other row starting from 3
+    #         #         self._api_call_with_retry(
+    #         #             worksheet.format, f"A{row}:ZZ{row}", even_row_format,
+    #         #             operation_name=f"formatting master alternating row {row}"
+    #         #         )
+    #         # NEW: Batch alternating row colors for master sheet (much more efficient!)
+    #         if data_rows_count > 0:
+    #             master_alternating_requests = []
+                
+    #             # Build batch requests for alternating master sheet rows
+    #             for row in range(3, 1 + data_rows_count + 1, 2):  # Odd rows: 3, 5, 7...
+    #                 master_alternating_requests.append({
+    #                     "repeatCell": {
+    #                         "range": {
+    #                             "sheetId": worksheet._properties['sheetId'],
+    #                             "startRowIndex": row - 1,  # Convert to 0-indexed
+    #                             "endRowIndex": row,
+    #                             "startColumnIndex": 0,
+    #                             "endColumnIndex": headers_count
+    #                         },
+    #                         "cell": {
+    #                             "userEnteredFormat": {
+    #                                 "backgroundColor": {
+    #                                     "red": 0.95,
+    #                                     "green": 0.98,
+    #                                     "blue": 1.0
+    #                                 }
+    #                             }
+    #                         },
+    #                         "fields": "userEnteredFormat.backgroundColor"
+    #                     }
+    #                 })
+                
+    #             # Apply all master alternating row colors in a single batch request
+    #             if master_alternating_requests:
+    #                 master_alternating_batch_request = {"requests": master_alternating_requests}
+    #                 self._api_call_with_retry(
+    #                     self.sheets_service.spreadsheets().batchUpdate,
+    #                     spreadsheetId=worksheet.spreadsheet.id,
+    #                     body=master_alternating_batch_request,
+    #                     operation_name="applying master alternating row colors (batch)"
+    #                 ).execute()
+            
+    #         print(f"      ✅ Applied master sheet formatting with alternating rows")
+            
+    #     except Exception as e:
+    #         print(f"      ⚠️ Master sheet formatting failed: {e}")
+
+    # def _update_master_sheet_links(self, master_sheet_id: str, user_sheet_ids: Dict):
+    #     """Update master sheet with smart chip links to user sheets"""
+    #     try:
+    #         sheet = self._api_call_with_retry(self.client.open_by_key, master_sheet_id,
+    #                                         operation_name="opening master sheet for links")
+    #     except:
+    #         return
+
+    #     # Update each tab with smart chip links
+    #     for tab_name in ["Annotators", "Reviewers", "Meta-Reviewers"]:
+    #         try:
+    #             worksheet = sheet.worksheet(tab_name)
+    #             all_data = worksheet.get_all_values()
+                
+    #             if len(all_data) < 2:
+    #                 continue
+                
+    #             # Find the sheet link column (usually column 4: D)
+    #             link_col_idx = 3  # Column D (0-indexed)
+                
+    #             # Process each user row
+    #             for row_idx, row in enumerate(all_data[1:], start=2):  # Skip header
+    #                 if len(row) > 0 and row[0]:  # Has user name
+    #                     user_name = row[0]
+    #                     role_name = tab_name[:-1]  # Remove 's' from tab name
+    #                     sheet_key = f"{user_name} {role_name}"
+                        
+    #                     if sheet_key in user_sheet_ids:
+    #                         sheet_id = user_sheet_ids[sheet_key]
+    #                         sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit"
+                            
+    #                         # NEW: Create smart chip using Script 2's chipRuns approach
+    #                         try:
+    #                             smart_chip_requests = [{
+    #                                 "updateCells": {
+    #                                     "rows": [{
+    #                                         "values": [{
+    #                                             "userEnteredValue": {
+    #                                                 "stringValue": "@"  # Single @ placeholder
+    #                                             },
+    #                                             "chipRuns": [{
+    #                                                 "startIndex": 0,  # @ is at position 0
+    #                                                 "chip": {
+    #                                                     "richLinkProperties": {
+    #                                                         "uri": sheet_url
+    #                                                     }
+    #                                                 }
+    #                                             }]
+    #                                         }]
+    #                                     }],
+    #                                     "fields": "userEnteredValue,chipRuns",
+    #                                     "range": {
+    #                                         "sheetId": worksheet._properties['sheetId'],
+    #                                         "startRowIndex": row_idx - 1,  # Convert to 0-indexed
+    #                                         "startColumnIndex": link_col_idx,  # Column D (0-indexed)
+    #                                         "endRowIndex": row_idx,
+    #                                         "endColumnIndex": link_col_idx + 1
+    #                                     }
+    #                                 }
+    #                             }]
+                                
+    #                             self._api_call_with_retry(
+    #                                 self.sheets_service.spreadsheets().batchUpdate,
+    #                                 spreadsheetId=sheet.id,
+    #                                 body={"requests": smart_chip_requests},
+    #                                 operation_name=f"updating smart chip for {user_name}"
+    #                             ).execute()
+                                
+    #                         except Exception as e:
+    #                             # Fallback to hyperlink formula if smart chip fails
+    #                             print(f"        ⚠️ Smart chip failed for {user_name}, using hyperlink: {e}")
+    #                             hyperlink_formula = f'=HYPERLINK("https://docs.google.com/spreadsheets/d/{sheet_id}/edit", "📊 {user_name} {role_name}")'
+                                
+    #                             # Update the cell
+    #                             cell_address = f"{self._col_num_to_letter(link_col_idx + 1)}{row_idx}"
+    #                             try:
+    #                                 self._api_call_with_retry(
+    #                                     worksheet.update,
+    #                                     cell_address,
+    #                                     [[hyperlink_formula]],
+    #                                     value_input_option='USER_ENTERED',
+    #                                     operation_name=f"updating hyperlink for {user_name}"
+    #                                 )
+    #                             except Exception as e2:
+    #                                 print(f"        ⚠️ Could not update link for {user_name}: {e2}")
+                
+    #             print(f"      ✅ Updated smart chip links in {tab_name}")
+                
+    #         except Exception as e:
+    #             print(f"      ⚠️ Could not update links for {tab_name}: {e}")
+
+    def _update_master_sheet_links(self, master_sheet_id: str, user_sheet_ids: Dict, sheet_prefix: str):
         """Update master sheet with smart chip links to user sheets"""
         try:
             sheet = self._api_call_with_retry(self.client.open_by_key, master_sheet_id,
@@ -1274,13 +1860,14 @@ class GoogleSheetExporter:
                     if len(row) > 0 and row[0]:  # Has user name
                         user_name = row[0]
                         role_name = tab_name[:-1]  # Remove 's' from tab name
-                        sheet_key = f"{user_name} {role_name}"
+                        sheet_key = f"{sheet_prefix}-{user_name} {role_name}"
                         
-                        if sheet_key in user_sheet_ids:
-                            sheet_id = user_sheet_ids[sheet_key]
+                        sheet_id = user_sheet_ids.get(sheet_key)
+                        
+                        if sheet_id:
                             sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit"
                             
-                            # NEW: Create smart chip using Script 2's chipRuns approach
+                            # Create smart chip using chipRuns approach
                             try:
                                 smart_chip_requests = [{
                                     "updateCells": {
@@ -1507,6 +2094,7 @@ class GoogleSheetExporter:
             
         except Exception as e:
             print(f"      ⚠️ Could not manage permissions for {sheet_name}: {e}")
+
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(description="Export annotation statistics to Google Sheets")
@@ -1520,6 +2108,8 @@ def main():
                        help="Skip individual user sheets and only update master sheet")
     parser.add_argument("--resume-from", type=str,
                        help="Resume from specific user (format: 'User Name Role')")
+    parser.add_argument("--sheet-prefix", type=str, default="Pizza",
+                       help="Prefix for all individual sheet names (default: 'Pizza')")
     
     args = parser.parse_args()
     
@@ -1550,7 +2140,8 @@ def main():
     exporter.export_all_sheets(
         master_sheet_id=args.master_sheet_id,
         skip_individual=args.skip_individual,
-        resume_from=args.resume_from
+        resume_from=args.resume_from,
+        sheet_prefix=args.sheet_prefix
     )
     
     print("\n" + "="*60)

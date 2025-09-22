@@ -1792,10 +1792,11 @@ def schema_based_ground_truth_search():
         with exec_col1:
             match_logic = st.radio(
                 "Match Logic",
-                ["Match ALL criteria", "Match ANY criteria"],
+                ["Match ANY criteria"],
                 key="schema_criteria_match_logic",
-                index=1,  # This makes "Match ANY criteria" the default
-                help="ALL = video must match every criteria, ANY = video matches at least one"
+                disabled=True,
+                index=0,  # This makes "Match ANY criteria" the default
+                help=" ANY = video matches at least one"
             )
         
         with exec_col2:
@@ -2259,6 +2260,7 @@ def display_criteria_project_questions(video_info: Dict, project_id: int, user_i
     except Exception as e:
         st.error(f"Error loading project questions: {str(e)}")
 
+@st.fragment
 def display_criteria_question_group_editor(video_info: Dict, project_id: int, user_id: int, group_id: int, group_data: Dict, video_height: int):
     """Display question group editor specifically for criteria search results"""
     
@@ -2718,7 +2720,7 @@ def display_completion_status_video_result(result: Dict, user_id: int, autoplay:
         except Exception as e:
             st.error(f"Error loading project questions: {str(e)}")
 
-
+@st.fragment
 def display_completion_question_group_editor(video_info: Dict, project_id: int, user_id: int, group_id: int, group_data: Dict, video_height: int):
     """Display question group editor for completion status search (same as criteria search)"""
     
