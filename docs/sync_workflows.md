@@ -43,6 +43,9 @@ Now that you understand the key components of Label Pizza (videos, users, questi
    ```bash
    streamlit run label_pizza/label_pizza_app.py \
        --server.port 8000 --server.address 0.0.0.0 \
+       --server.enableCORS false \
+       --server.enableWebsocketCompression false \
+       --server.enableXsrfProtection false \
        -- --database-url-name DBURL
    ```
 
@@ -888,6 +891,9 @@ You can now launch the labeling platform locally to see the starter example in a
 streamlit run label_pizza/label_pizza_app.py \
   --server.port 8000 \
   --server.address 0.0.0.0 \
+  --server.enableCORS false \
+  --server.enableWebsocketCompression false \
+  --server.enableXsrfProtection false \
   -- \
   --database-url-name DBURL
 ```

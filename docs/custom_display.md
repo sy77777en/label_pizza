@@ -58,6 +58,9 @@ python sync_from_folder.py \
 streamlit run label_pizza/label_pizza_app.py \
   --server.port 8000 \
   --server.address 0.0.0.0 \
+  --server.enableCORS false \
+  --server.enableWebsocketCompression false \
+  --server.enableXsrfProtection false \
   -- \
   --database-url-name DBURL
 ```
@@ -224,6 +227,9 @@ sync_projects(projects_data=projects_data)
 streamlit run label_pizza/label_pizza_app.py \
   --server.port 8000 \
   --server.address 0.0.0.0 \
+  --server.enableCORS false \
+  --server.enableWebsocketCompression false \
+  --server.enableXsrfProtection false \
   -- \
   --database-url-name DBURL
 ```

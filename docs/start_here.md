@@ -61,11 +61,16 @@ python label_pizza/manage_db.py \
 streamlit run label_pizza/label_pizza_app.py \
   --server.port 8000 \
   --server.address 0.0.0.0 \
+  --server.enableCORS false \
+  --server.enableWebsocketCompression false \
+  --server.enableXsrfProtection false \
   -- \
   --database-url-name DBURL
 ```
 
 Visit **[http://localhost:8000](http://localhost:8000)** to log in.
+
+The CORS, websocket compression, and XSRF protection flags are helpful for avoiding streamlit apps refreshing while showing `CONNECTING...` message.
 
 > **Want to share the site externally?**
 > Pipe the local port through **[pinggy.io](https://pinggy.io/)** (≈ US \$3 per static URL per month)

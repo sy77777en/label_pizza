@@ -147,6 +147,9 @@ python label_pizza/manage_db.py \
 streamlit run label_pizza/label_pizza_app.py \
   --server.port 8000 \
   --server.address 0.0.0.0 \
+  --server.enableCORS false \
+  --server.enableWebsocketCompression false \
+  --server.enableXsrfProtection false \
   -- \
   --database-url-name DBURL
 ```
