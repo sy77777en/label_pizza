@@ -1497,4 +1497,4 @@ These functions bypass Label Pizza's normal safeguards. **Use archiving instead 
 
 ---
 
-[← Back to start](start_here.md) | [Next → Google Sheet Export](google_sheet_export.md)
+[← Back to start](start_here.md) | [Next → Google Sheet Export](google_sheets_export.md)

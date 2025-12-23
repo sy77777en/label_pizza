@@ -12,7 +12,7 @@ The guides below build on one another; we recommend reading the first three in o
 | 5     | [export_and_merge_workspace.md](export_and_merge_workspace.md) | Export, compare, and merge workspace folders.                     | 10 min (optional) |
 | 6     | [custom_display.md](custom_display.md) | Override question wording on a per‑video basis using a shared schema.                                              | 6 min (optional) |
 | 7     | [admin_override.md](admin_override.md) | Perform dangerous override operations: rename immutable IDs or permanently delete records (with automatic backup). | 5 min (optional) |
-| 8     | [google_sheet_export.md](google_sheet_export.md) | Learn how to export data to Google Sheets. | 4 min (optional) |
+| 8     | [google_sheets_export.md](google_sheets_export.md) | Learn how to export data to Google Sheets. | 4 min (optional) |
 
 ## Quick Setup (in 3 minutes)
 

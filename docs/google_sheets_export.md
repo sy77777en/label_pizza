@@ -73,14 +73,15 @@ Run the export script:
 ```bash
 python label_pizza/google_sheets_export.py \
   --master-sheet-id <YOUR_SHEET_ID> \
-  --database-url-name DBURL
+  --database-url-name DBURL \
+  --sheet-prefix <YOUR_PROJECT_NAME>
 ```
 
 * On the **first run**, it will:
 
   1. Print an authorization URL.
   2. Open it in your browser.
-  3. Show a **“This app isn’t verified”** warning:
+  3. Show a **"This app isn't verified"** warning:
 
      * Click **Advanced → Go to \[App Name] (unsafe)**.
   4. Grant access to **Sheets and Drive**.
@@ -99,7 +100,8 @@ After the first run, just call:
 ```bash
 python label_pizza/google_sheets_export.py \
   --master-sheet-id <YOUR_SHEET_ID> \
-  --database-url-name DBURL
+  --database-url-name DBURL \
+  --sheet-prefix <YOUR_PROJECT_NAME>
 ```
 
 The script will:
@@ -107,6 +109,53 @@ The script will:
 * Update all stats and timestamps
 * Keep your manual payment and feedback entries intact
 * Refresh Google Sheet permissions automatically
+
+---
+
+## Command Line Options
+
+| Option | Required | Default | Description |
+|--------|----------|---------|-------------|
+| `--master-sheet-id` | ✅ | - | Google Sheet ID from the URL |
+| `--database-url-name` | ✅ | `DBURL` | Environment variable name for database URL |
+| `--sheet-prefix` | ✅ | `Pizza` | Prefix for all individual sheet names |
+
+### About `--sheet-prefix`
+
+Individual user sheets are named using the format: `{prefix}-{UserName} {Role}`
+
+For example, with `--sheet-prefix CameraBench`:
+- `CameraBench-John Doe Annotator`
+- `CameraBench-Jane Smith Reviewer`
+- `CameraBench-Bob Admin Meta-Reviewer`
+
+Choose a descriptive prefix for your project to keep sheets organized.
+
+---
+
+## Running as a Daily Job
+
+To automatically export statistics every 24 hours, use the `run_daily_job.py` wrapper:
+
+```bash
+python run_daily_job.py --command "python label_pizza/google_sheets_export.py \
+  --database-url-name <YOUR_DB_ENV_VAR> \
+  --master-sheet-id <YOUR_SHEET_ID> \
+  --sheet-prefix <YOUR_PROJECT_NAME>"
+```
+
+**Example:**
+```bash
+python run_daily_job.py --command "python label_pizza/google_sheets_export.py \
+  --database-url-name MOTION_DBURL \
+  --master-sheet-id 1R8jvlETlM_WPHbaP0YYGbahyeNz3vF7xn3rbK2Hde3c \
+  --sheet-prefix CameraBench"
+```
+
+**Before running the daily job:**
+1. Create a new Google Sheet and copy its ID from the URL
+2. Add your database URL to `.env` (e.g., `MOTION_DBURL=postgresql://...`)
+3. Choose a descriptive `--sheet-prefix` for your project
 
 ---
 
@@ -118,14 +167,8 @@ The script will:
 * **Admins only edit**
   Only users marked as `admin` in the database will have full edit rights.
 
-* **Resuming after rate limits**
-  If Google API rate limits are hit, use:
-
-  ```bash
-  python label_pizza/google_sheets_export.py \
-    --master-sheet-id <YOUR_SHEET_ID> \
-    --resume-from "John Doe Annotator"
-  ```
+* **Hitting Google API rate limits?**
+  If you have many users and run into rate limits, you can submit a support ticket to Google Cloud Console to request a quota increase for the Google Sheets API (typically 3–10x the default limit).
 
 ---
 
@@ -136,12 +179,13 @@ Before running the export, confirm:
 * [ ] `credentials.json` in project root
 * [ ] Google Sheets + Drive APIs enabled
 * [ ] Master sheet created and its ID copied
-* [ ] `.env` contains a valid `DBURL`
+* [ ] `.env` contains a valid database URL (e.g., `DBURL` or `MOTION_DBURL`)
 * [ ] `credentials.json` and `google_sheets_token.json` are in `.gitignore`
+* [ ] Chosen a descriptive `--sheet-prefix` for your project
 
 ---
 
-## What You’ll Get
+## What You'll Get
 
 * **Master Sheet** with all annotators, reviewers, and admins
 * **Individual Sheets** with:
@@ -155,5 +199,4 @@ If you are a developer, you can find the code in [google_sheets_export.py](label
 
 ---
 
-[← Back to start](start_here.md)
-
+[← Back to start](start_here.md)
