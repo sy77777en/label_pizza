@@ -375,6 +375,48 @@ def _render_custom_player(video_url, video_uid, aspect_ratio, autoplay, loop, sh
                 .controls-container {{ padding: 6px 8px; min-height: 60px; }}
                 .progress-container {{ height: 5px; margin-bottom: 6px; }}
             }}
+            /* Speed Menu Styles */
+            .control-btn-container {{
+                position: relative;
+                display: inline-block;
+            }}
+
+            .speed-menu {{
+                position: absolute;
+                bottom: 0;
+                background: white;
+                border: 1px solid #9553FE;
+                border-radius: 6px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                padding: 3px;
+                margin-right: 8px;
+                display: none;
+                min-width: 85px;
+            }}
+
+            .speed-menu.show {{
+                display: flex;
+                flex-direction: row;
+            }}
+
+            .speed-option {{
+                padding: 4px 8px;
+                cursor: pointer;
+                border-radius: 3px;
+                font-size: 12px;
+                text-align: center;
+                transition: background 0.2s ease;
+                white-space: nowrap;
+            }}
+
+            .speed-option:hover {{
+                background: #f0f0f0;
+            }}
+
+            .speed-option.active {{
+                background: #9553FE;
+                color: white;
+            }}
         </style>
     </head>
     <body>
@@ -392,6 +434,9 @@ def _render_custom_player(video_url, video_uid, aspect_ratio, autoplay, loop, sh
                 
                 <div class="controls">
                     <button class="control-btn" id="playPauseBtn" title="Play/Pause">{"⏸️" if autoplay else "▶️"}</button>
+                    <button class="control-btn" id="skipBackBtn" title="Skip -5s">⏪</button>
+                    <button class="control-btn" id="skipForwardBtn" title="Skip +5s">⏩</button>
+                    <button class="control-btn" id="speedBtn" title="Playback Speed">1x</button>
                     <button class="control-btn" id="muteBtn" title="Mute/Unmute">🔇</button>
                     <div class="volume-control">
                         <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="0" title="Volume">
@@ -901,6 +946,194 @@ def _render_custom_player(video_url, video_uid, aspect_ratio, autoplay, loop, sh
                 const seconds = Math.floor(time % 60);
                 return `${{minutes}}:${{seconds.toString().padStart(2, '0')}}`;
             }}
+
+            const skipBackBtn = document.getElementById('skipBackBtn');
+            const skipForwardBtn = document.getElementById('skipForwardBtn');
+
+            // Skip backward 5 seconds
+            skipBackBtn.addEventListener('click', () => {{
+                if (isYouTube && youtubePlayer) {{
+                    try {{
+                        const currentTime = youtubePlayer.getCurrentTime();
+                        youtubePlayer.seekTo(Math.max(0, currentTime - 5), true);
+                    }} catch (e) {{
+                        console.log('Error skipping backward in YouTube:', e);
+                    }}
+                }} else if (video) {{
+                    video.currentTime = Math.max(0, video.currentTime - 5);
+                }}
+            }});
+
+            // Skip forward 5 seconds
+            skipForwardBtn.addEventListener('click', () => {{
+                if (isYouTube && youtubePlayer) {{
+                    try {{
+                        const currentTime = youtubePlayer.getCurrentTime();
+                        const duration = youtubePlayer.getDuration();
+                        youtubePlayer.seekTo(Math.min(duration, currentTime + 5), true);
+                    }} catch (e) {{
+                        console.log('Error skipping forward in YouTube:', e);
+                    }}
+                }} else if (video) {{
+                    const duration = video.duration;
+                    video.currentTime = Math.min(duration, video.currentTime + 5);
+                }}
+            }});
+
+            const speedBtn = document.getElementById('speedBtn');
+            const speedOptions = [0.2, 0.5, 1, 1.5, 2, 5, 10];
+            let currentSpeedIndex = 2; // Default to 1x (index 3)
+
+            // Create speed menu
+            const speedMenuContainer = document.createElement('div');
+            speedMenuContainer.className = 'control-btn-container';
+            speedBtn.parentNode.insertBefore(speedMenuContainer, speedBtn);
+            speedMenuContainer.appendChild(speedBtn);
+
+            const speedMenu = document.createElement('div');
+            speedMenu.className = 'speed-menu';
+            speedMenu.id = 'speedMenu';
+
+            speedOptions.forEach((speed, index) => {{
+                const option = document.createElement('div');
+                option.className = 'speed-option' + (index === currentSpeedIndex ? ' active' : '');
+                option.textContent = speed + 'x';
+                option.dataset.speed = speed;
+                option.dataset.index = index;
+                
+                option.addEventListener('click', (e) => {{
+                    e.stopPropagation();
+                    const newSpeed = parseFloat(option.dataset.speed);
+                    const newIndex = parseInt(option.dataset.index);
+                    
+                    // Update speed
+                    if (isYouTube && youtubePlayer) {{
+                        try {{
+                            youtubePlayer.setPlaybackRate(newSpeed);
+                        }} catch (e) {{
+                            console.log('Error setting YouTube playback rate:', e);
+                        }}
+                    }} else if (video) {{
+                        video.playbackRate = newSpeed;
+                    }}
+                    
+                    // Update UI
+                    currentSpeedIndex = newIndex;
+                    speedBtn.textContent = newSpeed + 'x';
+                    
+                    // Update active state
+                    document.querySelectorAll('.speed-option').forEach(opt => {{
+                        opt.classList.remove('active');
+                    }});
+                    option.classList.add('active');
+                    
+                    // Hide menu
+                    speedMenu.classList.remove('show');
+                }});
+                
+                speedMenu.appendChild(option);
+            }});
+
+            speedMenuContainer.appendChild(speedMenu);
+
+            // Toggle speed menu
+            speedBtn.addEventListener('click', (e) => {{
+                e.stopPropagation();
+                speedMenu.classList.toggle('show');
+            }});
+
+            // Close menu when clicking outside
+            document.addEventListener('click', (e) => {{
+                if (!speedMenuContainer.contains(e.target)) {{
+                    speedMenu.classList.remove('show');
+                }}
+            }});
+
+            // Sync speed with YouTube player when it's ready
+            if (isYouTube) {{
+                setInterval(() => {{
+                    if (youtubePlayer && typeof youtubePlayer.getPlaybackRate === 'function') {{
+                        try {{
+                            const ytSpeed = youtubePlayer.getPlaybackRate();
+                            const speedIndex = speedOptions.indexOf(ytSpeed);
+                            if (speedIndex !== -1 && speedIndex !== currentSpeedIndex) {{
+                                currentSpeedIndex = speedIndex;
+                                speedBtn.textContent = ytSpeed + 'x';
+                                
+                                document.querySelectorAll('.speed-option').forEach((opt, idx) => {{
+                                    opt.classList.toggle('active', idx === speedIndex);
+                                }});
+                            }}
+                        }} catch (e) {{
+                            // Ignore errors
+                        }}
+                    }}
+                }}, 1000);
+            }}
+
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => {{
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {{
+                    return;
+                }}
+                
+                switch(e.key) {{
+                    case ' ':
+                    case 'Spacebar':  // For older browsers
+                        e.preventDefault();  // Prevent page scroll
+                        playPauseBtn.click();
+                        break;
+
+                    case 'ArrowLeft':
+                        e.preventDefault();
+                        skipBackBtn.click();
+                        break;
+                    case 'ArrowRight':
+                        e.preventDefault();
+                        skipForwardBtn.click();
+                        break;
+                    case '<':
+                    case ',':
+                        e.preventDefault();
+                        if (currentSpeedIndex > 0) {{
+                            const prevOption = speedMenu.children[currentSpeedIndex - 1];
+                            prevOption.click();
+                        }}
+                        break;
+                    case '>':
+                    case '.':
+                        e.preventDefault();
+                        if (currentSpeedIndex < speedOptions.length - 1) {{
+                            const nextOption = speedMenu.children[currentSpeedIndex + 1];
+                            nextOption.click();
+                        }}
+                        break;
+                    case '0':
+                    case '1':
+                    case '2':
+                    case '3':
+                    case '4':
+                    case '5':
+                    case '6':
+                    case '7':
+                    case '8':
+                    case '9':
+                        e.preventDefault();
+                        const percentage = parseInt(e.key) / 10;
+                        if (isYouTube && youtubePlayer) {{
+                            try {{
+                                const duration = youtubePlayer.getDuration();
+                                youtubePlayer.seekTo(duration * percentage, true);
+                            }} catch (e) {{
+                                console.log('Error seeking');
+                            }}
+                        }} else if (video) {{
+                            video.currentTime = video.duration * percentage;
+                        }}
+                        break;
+
+                }}
+            }});
 
             {share_button_js}
             
