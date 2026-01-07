@@ -536,6 +536,43 @@ class GoogleSheetExporter:
         
     #     return sheet.id
     
+    # def _export_user_sheet(self, user_data: Dict, role: str, master_sheet_id: str, sheet_prefix: str) -> str:
+    #     """Export individual user sheet and return sheet ID"""
+    #     sheet_name = f"{sheet_prefix}-{user_data['user_name']} {role}"
+    #     print(f"  Exporting {sheet_name} sheet...")
+        
+    #     sheet = None
+        
+    #     # Try to find existing sheet by listing all spreadsheets
+    #     try:
+    #         # First try direct open (fastest)
+    #         sheet = self.client.open(sheet_name)
+    #         print(f"    Found existing sheet: {sheet_name}")
+    #     except gspread.exceptions.SpreadsheetNotFound:
+    #         # Sheet genuinely doesn't exist
+    #         print(f"    Creating new sheet: {sheet_name}")
+    #         sheet = self._api_call_with_retry(self.client.create, sheet_name, 
+    #                                         operation_name=f"creating sheet '{sheet_name}'")
+    #     except gspread.exceptions.APIError as e:
+    #         # Rate limit or other API error - don't create new sheet!
+    #         if "429" in str(e) or "quota" in str(e).lower():
+    #             print(f"    ⏳ Rate limit hit while searching for sheet, waiting...")
+    #             time.sleep(10)
+    #             # Retry once
+    #             try:
+    #                 sheet = self.client.open(sheet_name)
+    #                 print(f"    Found existing sheet after retry: {sheet_name}")
+    #             except gspread.exceptions.SpreadsheetNotFound:
+    #                 print(f"    Creating new sheet: {sheet_name}")
+    #                 sheet = self._api_call_with_retry(self.client.create, sheet_name,
+    #                                                 operation_name=f"creating sheet '{sheet_name}'")
+    #         else:
+    #             raise
+    #     except Exception as e:
+    #         # Log unexpected errors but don't blindly create new sheet
+    #         print(f"    ⚠️ Unexpected error looking for sheet: {type(e).__name__}: {str(e)[:100]}")
+    #         raise
+        
     def _export_user_sheet(self, user_data: Dict, role: str, master_sheet_id: str, sheet_prefix: str) -> str:
         """Export individual user sheet and return sheet ID"""
         sheet_name = f"{sheet_prefix}-{user_data['user_name']} {role}"
@@ -572,6 +609,74 @@ class GoogleSheetExporter:
             # Log unexpected errors but don't blindly create new sheet
             print(f"    ⚠️ Unexpected error looking for sheet: {type(e).__name__}: {str(e)[:100]}")
             raise
+
+        # ========== THIS ENTIRE SECTION IS MISSING ==========
+        # Get user project data
+        with self.get_db_session() as session:
+            if role == "Annotator":
+                project_data = self.GoogleSheetsExportService.get_user_project_data_annotator(user_data['user_id'], session)
+            elif role == "Reviewer":
+                project_data = self.GoogleSheetsExportService.get_user_project_data_reviewer(user_data['user_id'], session)
+            else:  # Meta-Reviewer
+                project_data = self.GoogleSheetsExportService.get_user_project_data_meta_reviewer(user_data['user_id'], session)
+        
+        # Calculate required rows (headers + data + padding) - handle massive scale
+        header_rows = 2  # All roles now have 2-row headers
+        data_rows = len(project_data)
+        
+        # For very large datasets, use more conservative padding
+        if data_rows > 1000:
+            total_rows = header_rows + data_rows + 10  # Minimal padding for large datasets
+        else:
+            total_rows = max(100, header_rows + data_rows + 50)  # Standard padding
+        
+        total_cols = 20  # Standard column count
+        
+        # Ensure sheet has enough rows and columns
+        try:
+            # Use the Sheets API service to get sheet properties
+            sheet_metadata = self._api_call_with_retry(
+                self.sheets_service.spreadsheets().get,
+                spreadsheetId=sheet.id,
+                operation_name="getting sheet properties"
+            ).execute()
+            
+            first_sheet_props = sheet_metadata.get('sheets', [{}])[0].get('properties', {}).get('gridProperties', {})
+            current_rows = first_sheet_props.get('rowCount', 1000)
+            current_cols = first_sheet_props.get('columnCount', 26)
+            
+            if current_rows < total_rows or current_cols < total_cols:
+                print(f"    📏 Resizing sheet to {total_rows} rows × {total_cols} columns...")
+                first_sheet = sheet.get_worksheet(0)
+                self._api_call_with_retry(
+                    first_sheet.resize, 
+                    rows=total_rows, 
+                    cols=total_cols,
+                    operation_name="resizing sheet"
+                )
+        except Exception as e:
+            print(f"    ⚠️  Could not resize sheet: {e}")
+        
+        # Export Payment tab
+        try:
+            payment_worksheet = self._get_or_create_worksheet(sheet, "Payment")
+            self._export_user_tab(payment_worksheet, project_data, role, include_payment=True)
+            print(f"    ✅ Payment tab updated")
+        except Exception as e:
+            print(f"    ❌ Failed to update Payment tab: {e}")
+            self.export_failures.append(f"Payment tab for {sheet_name}: {str(e)}")
+        
+        # Export Feedback tab
+        try:
+            feedback_worksheet = self._get_or_create_worksheet(sheet, "Feedback")
+            self._export_user_tab(feedback_worksheet, project_data, role, include_payment=False)
+            print(f"    ✅ Feedback tab updated")
+        except Exception as e:
+            print(f"    ❌ Failed to update Feedback tab: {e}")
+            self.export_failures.append(f"Feedback tab for {sheet_name}: {str(e)}")
+        
+        return sheet.id
+
     def _get_or_create_worksheet(self, sheet, tab_name: str):
         """Get existing worksheet or create new one"""
         try:
