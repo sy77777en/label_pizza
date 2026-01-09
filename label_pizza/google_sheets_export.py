@@ -2001,6 +2001,99 @@ class GoogleSheetExporter:
     #         except Exception as e:
     #             print(f"      ⚠️ Could not update links for {tab_name}: {e}")
 
+    # def _update_master_sheet_links(self, master_sheet_id: str, user_sheet_ids: Dict, sheet_prefix: str):
+    #     """Update master sheet with smart chip links to user sheets - BATCHED VERSION"""
+    #     try:
+    #         sheet = self._api_call_with_retry(self.client.open_by_key, master_sheet_id,
+    #                                         operation_name="opening master sheet for links")
+    #     except:
+    #         return
+
+    #     # Update each tab with smart chip links
+    #     for tab_name in ["Annotators", "Reviewers", "Meta-Reviewers"]:
+    #         try:
+    #             worksheet = sheet.worksheet(tab_name)
+    #             all_data = worksheet.get_all_values()
+                
+    #             if len(all_data) < 2:
+    #                 continue
+                
+    #             # Find the sheet link column (usually column 4: D)
+    #             link_col_idx = 3  # Column D (0-indexed)
+                
+    #             # BATCH: Collect all smart chip requests for this tab
+    #             smart_chip_requests = []
+    #             fallback_updates = []  # For hyperlink fallbacks
+                
+    #             # Process each user row
+    #             for row_idx, row in enumerate(all_data[1:], start=2):  # Skip header
+    #                 if len(row) > 0 and row[0]:  # Has user name
+    #                     user_name = row[0]
+    #                     role_name = tab_name[:-1]  # Remove 's' from tab name
+    #                     sheet_key = f"{sheet_prefix}-{user_name} {role_name}"
+                        
+    #                     sheet_id = user_sheet_ids.get(sheet_key)
+                        
+    #                     if sheet_id:
+    #                         sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit"
+                            
+    #                         # Add to batch request
+    #                         smart_chip_requests.append({
+    #                             "updateCells": {
+    #                                 "rows": [{
+    #                                     "values": [{
+    #                                         "userEnteredValue": {
+    #                                             "stringValue": "@"
+    #                                         },
+    #                                         "chipRuns": [{
+    #                                             "startIndex": 0,
+    #                                             "chip": {
+    #                                                 "richLinkProperties": {
+    #                                                     "uri": sheet_url
+    #                                                 }
+    #                                             }
+    #                                         }]
+    #                                     }]
+    #                                 }],
+    #                                 "fields": "userEnteredValue,chipRuns",
+    #                                 "range": {
+    #                                     "sheetId": worksheet._properties['sheetId'],
+    #                                     "startRowIndex": row_idx - 1,
+    #                                     "startColumnIndex": link_col_idx,
+    #                                     "endRowIndex": row_idx,
+    #                                     "endColumnIndex": link_col_idx + 1
+    #                                 }
+    #                             }
+    #                         })
+                
+    #             # Execute batch in chunks to avoid rate limits (max ~50 per batch)
+    #             BATCH_SIZE = 50
+    #             for i in range(0, len(smart_chip_requests), BATCH_SIZE):
+    #                 batch_chunk = smart_chip_requests[i:i + BATCH_SIZE]
+    #                 try:
+    #                     self._api_call_with_retry(
+    #                         self.sheets_service.spreadsheets().batchUpdate,
+    #                         spreadsheetId=sheet.id,
+    #                         body={"requests": batch_chunk},
+    #                         operation_name=f"batch updating {len(batch_chunk)} smart chips for {tab_name}"
+    #                     ).execute()
+    #                     print(f"        ✅ Updated {len(batch_chunk)} links in batch")
+    #                 except Exception as e:
+    #                     print(f"        ⚠️ Batch smart chip failed, falling back to hyperlinks: {str(e)[:100]}")
+    #                     # Fallback: use hyperlink formulas in a single batch update
+    #                     self._fallback_hyperlink_batch(worksheet, all_data, user_sheet_ids, 
+    #                                                 sheet_prefix, tab_name, link_col_idx,
+    #                                                 i, min(i + BATCH_SIZE, len(smart_chip_requests)))
+                    
+    #                 # Small delay between batches
+    #                 if i + BATCH_SIZE < len(smart_chip_requests):
+    #                     time.sleep(2)
+                
+    #             print(f"      ✅ Updated smart chip links in {tab_name}")
+                
+    #         except Exception as e:
+    #             print(f"      ⚠️ Could not update links for {tab_name}: {e}")
+
     def _update_master_sheet_links(self, master_sheet_id: str, user_sheet_ids: Dict, sheet_prefix: str):
         """Update master sheet with smart chip links to user sheets - BATCHED VERSION"""
         try:
@@ -2022,8 +2115,8 @@ class GoogleSheetExporter:
                 link_col_idx = 3  # Column D (0-indexed)
                 
                 # BATCH: Collect all smart chip requests for this tab
-                smart_chip_requests = []
-                fallback_updates = []  # For hyperlink fallbacks
+                # Store as tuples of (row_idx, sheet_url, user_name) for better error handling
+                links_to_update = []
                 
                 # Process each user row
                 for row_idx, row in enumerate(all_data[1:], start=2):  # Skip header
@@ -2036,40 +2129,51 @@ class GoogleSheetExporter:
                         
                         if sheet_id:
                             sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit"
-                            
-                            # Add to batch request
-                            smart_chip_requests.append({
-                                "updateCells": {
-                                    "rows": [{
-                                        "values": [{
-                                            "userEnteredValue": {
-                                                "stringValue": "@"
-                                            },
-                                            "chipRuns": [{
-                                                "startIndex": 0,
-                                                "chip": {
-                                                    "richLinkProperties": {
-                                                        "uri": sheet_url
-                                                    }
-                                                }
-                                            }]
-                                        }]
-                                    }],
-                                    "fields": "userEnteredValue,chipRuns",
-                                    "range": {
-                                        "sheetId": worksheet._properties['sheetId'],
-                                        "startRowIndex": row_idx - 1,
-                                        "startColumnIndex": link_col_idx,
-                                        "endRowIndex": row_idx,
-                                        "endColumnIndex": link_col_idx + 1
-                                    }
-                                }
-                            })
+                            links_to_update.append((row_idx, sheet_url, user_name))
                 
-                # Execute batch in chunks to avoid rate limits (max ~50 per batch)
-                BATCH_SIZE = 50
+                if not links_to_update:
+                    print(f"      ℹ️ No links to update in {tab_name}")
+                    continue
+                
+                # Build smart chip requests
+                smart_chip_requests = []
+                for row_idx, sheet_url, user_name in links_to_update:
+                    smart_chip_requests.append({
+                        "updateCells": {
+                            "rows": [{
+                                "values": [{
+                                    "userEnteredValue": {
+                                        "stringValue": "@"
+                                    },
+                                    "chipRuns": [{
+                                        "startIndex": 0,
+                                        "chip": {
+                                            "richLinkProperties": {
+                                                "uri": sheet_url
+                                            }
+                                        }
+                                    }]
+                                }]
+                            }],
+                            "fields": "userEnteredValue,chipRuns",
+                            "range": {
+                                "sheetId": worksheet._properties['sheetId'],
+                                "startRowIndex": row_idx - 1,  # Convert to 0-indexed
+                                "startColumnIndex": link_col_idx,
+                                "endRowIndex": row_idx,
+                                "endColumnIndex": link_col_idx + 1
+                            }
+                        }
+                    })
+                
+                # Execute batch in chunks to avoid rate limits (max ~30 per batch for safety)
+                BATCH_SIZE = 30
+                total_updated = 0
+                
                 for i in range(0, len(smart_chip_requests), BATCH_SIZE):
                     batch_chunk = smart_chip_requests[i:i + BATCH_SIZE]
+                    batch_links = links_to_update[i:i + BATCH_SIZE]
+                    
                     try:
                         self._api_call_with_retry(
                             self.sheets_service.spreadsheets().batchUpdate,
@@ -2077,19 +2181,42 @@ class GoogleSheetExporter:
                             body={"requests": batch_chunk},
                             operation_name=f"batch updating {len(batch_chunk)} smart chips for {tab_name}"
                         ).execute()
-                        print(f"        ✅ Updated {len(batch_chunk)} links in batch")
+                        total_updated += len(batch_chunk)
+                        print(f"        ✅ Updated {len(batch_chunk)} smart chip links")
                     except Exception as e:
-                        print(f"        ⚠️ Batch smart chip failed, falling back to hyperlinks: {str(e)[:100]}")
-                        # Fallback: use hyperlink formulas in a single batch update
-                        self._fallback_hyperlink_batch(worksheet, all_data, user_sheet_ids, 
-                                                    sheet_prefix, tab_name, link_col_idx,
-                                                    i, min(i + BATCH_SIZE, len(smart_chip_requests)))
+                        error_str = str(e)
+                        print(f"        ⚠️ Smart chip batch failed: {error_str[:100]}")
+                        
+                        # Fallback: try hyperlinks for this batch
+                        print(f"        🔄 Falling back to HYPERLINK formulas...")
+                        fallback_updates = []
+                        for row_idx, sheet_url, user_name in batch_links:
+                            cell_address = f"{self._col_num_to_letter(link_col_idx + 1)}{row_idx}"
+                            role_name = tab_name[:-1]
+                            hyperlink_formula = f'=HYPERLINK("{sheet_url}", "📊 {user_name}")'
+                            fallback_updates.append({
+                                'range': cell_address,
+                                'values': [[hyperlink_formula]]
+                            })
+                        
+                        if fallback_updates:
+                            try:
+                                self._api_call_with_retry(
+                                    worksheet.batch_update,
+                                    fallback_updates,
+                                    value_input_option='USER_ENTERED',
+                                    operation_name=f"batch hyperlink fallback for {len(fallback_updates)} cells"
+                                )
+                                total_updated += len(fallback_updates)
+                                print(f"        ✅ Updated {len(fallback_updates)} links via HYPERLINK fallback")
+                            except Exception as e2:
+                                print(f"        ❌ Fallback also failed: {str(e2)[:100]}")
                     
                     # Small delay between batches
                     if i + BATCH_SIZE < len(smart_chip_requests):
                         time.sleep(2)
                 
-                print(f"      ✅ Updated smart chip links in {tab_name}")
+                print(f"      ✅ Updated {total_updated}/{len(links_to_update)} links in {tab_name}")
                 
             except Exception as e:
                 print(f"      ⚠️ Could not update links for {tab_name}: {e}")
